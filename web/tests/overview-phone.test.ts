@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { barSpot } from "../src/core/overviewnav.ts";
-import { phoneButtonSpot } from "../src/core/phonedevices.ts";
+import { PHONE_BTN, phoneButtonSpot } from "../src/core/phonedevices.ts";
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
@@ -15,7 +15,7 @@ const apart = (a: Box, b: Box) => a.right <= b.left || b.right <= a.left || a.bo
 const vw = 1512, bw = 300, bh = 44;
 function layout(island: Box | null) {
   const ph = phoneButtonSpot(island, vw);
-  const phone: Box = { left: ph.left, top: ph.top, right: ph.left + 40, bottom: ph.top + 40 };
+  const phone: Box = { left: ph.left, top: ph.top, right: ph.left + PHONE_BTN, bottom: ph.top + PHONE_BTN };
   const sp = barSpot(island, vw, bw, bh, 16, 24, 12, [phone]);
   const bar: Box = { left: sp.left, top: sp.top, right: sp.left + bw, bottom: sp.top + bh };
   return { phone, bar };
@@ -50,7 +50,7 @@ ok("without anything to avoid the bar is exactly where edit-nav put it", () => {
 });
 ok("the overview passes the phone button to the bar, and its wheel and edge scroll leave the phone editor alone", () => {
   const src = read("src/views/EditMode.tsx");
-  assert.match(src, /const ph = phoneButtonSpot\(box, vw\); const sp = barSpot\([\s\S]*?\[\{ left: ph\.left, top: ph\.top, right: ph\.left \+ 40, bottom: ph\.top \+ 40 \}\]\)/);
+  assert.match(src, /const ph = phoneButtonSpot\(box, vw\); const sp = barSpot\([\s\S]*?\[\{ left: ph\.left, top: ph\.top, right: ph\.left \+ PHONE_BTN, bottom: ph\.top \+ PHONE_BTN \}\]\)/);
   assert.match(src, /\|\| phoneUi\(over\);/);
   assert.match(src, /\|\| phoneUi\(t\)\) return;/);
   assert.match(src, /<PhoneMount live=\{live\} leaving=\{leaving\} red=\{red\} onDone=\{onDone\} \/>/);

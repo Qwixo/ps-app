@@ -13,6 +13,7 @@ import { sfx } from "../ui/sfx";
 import { phoneLinkUrl } from "../mobile/linkcode";
 import { QrCode } from "./AddFriend";
 import { LinkedPhones, PairPanel, usePhonePairing } from "./LinkPair";
+import { LINK_WAIT_NOTE } from "../core/pairengine";
 import { SetRow } from "./SettingsScreen";
 import type { SetEntry } from "../core/settingsindex";
 import "./addfriend.css";
@@ -54,6 +55,7 @@ export function LinkIphoneRow({ e, red = false }: { e: SetEntry; red?: boolean }
               <div className="af-say"><b>Scan this with your iPhone</b><span>Open the Camera on your iPhone and point it here, then tap the link that pops up. Then type your passphrase. Nothing to copy or paste.</span></div>
               <p className="af-small">Already added PS to your Home Screen? Open it and tap <i>Scan the code on your Mac</i> on its first screen instead. The code holds your project's address and its public key only, never a secret.</p>
             </>)}
+            {pair.phase.k !== "done" && <p className="af-small">{LINK_WAIT_NOTE}</p>}
             <LinkedPhones refresh={doneAt} />
           </>) : <p className="af-small li-err">{made.error}</p>}
         </div>

@@ -19,7 +19,6 @@ import { clientTerms, squadTitle } from "../core/squadanon";
 import { HubError, type HubApi, type HubMemberRow, type Pulse, type Since } from "./hub";
 import { apiFor, handTask, handView, joinSquad, makeInvite, memberView, refreshCard, rekeyIfNeeded, renameMe, renameSquad, squadName, takeDrops, taskView, type HandView, type MemberView, type TaskView } from "./flows";
 import { listSquads } from "./dirflows";
-import { theSquadId } from "./autoflows";
 import { THE_SQUAD } from "../core/squadauto";
 import { acceptFriend, callOffFriendCode, captureFriendLink, dropFriendLink, makeFriendCode, pendingFriendLink, type FriendCodeResult, type FriendResult } from "./addfriend";
 import { DIR_OPS, EMPTY_VIEW, type FriendView, type SquadOp, type SquadView } from "./view";
@@ -159,7 +158,7 @@ function gone(e: unknown) {
 function onPulse(p: Pulse) {
   countAt = Date.now();
   set({ count: p.n, waiting: p.h });
-  dirPulse(p.q);
+  dirPulse(p.w);   // V1.57: people asking to join, for the admin
   autoPulse(p.k);   // V1.49: someone is waiting for the squad key, and you hold it
   if (rec && (p.rk || p.g > currentKey(rec).gen)) void pull();   // a new key or a re-key: the full state once
 }
@@ -407,17 +406,14 @@ function recHere(): SquadRec | null {
   return docs<SquadRec>("squad").map((d) => cleanSquadRec(d.data)).filter((r): r is SquadRec => !!r).sort((a, b) => b.joinedAt.localeCompare(a.joinedAt))[0] ?? null;
 }
 const toView = (c: FriendCodeResult): FriendView => (c.kind === "none" ? c : c.kind === "join" ? { kind: "join", url: c.url, expiresAt: c.expiresAt } : { kind: "ask", url: c.url, expiresAt: c.expiresAt });
-/** A fresh Add friend code (the one before is called off first). The admin's is a one time invite; anyone else in
- *  the listed squad gets an Ask to join code; anyone else in a private squad gets none. Never throws. */
+/** A fresh Add friend code (the one before is called off first). V1.57 invite only: every member's code is a one time
+ *  invite (24 hours, works once), so anyone in can bring a friend straight in. Never throws. */
 export async function friendCode(): Promise<FriendView> {
   await friendClose();
   const round = friendRound;
   const r = recHere();
   try {
-    const admin = !!r && ((rec === r && view.creator) || !!r.creator);
-    // V1.49: in The G Squad, anyone's code just brings the person to PS: PS puts them in by itself.
-    const listed = !!r && !admin && (await theSquadId(r.sign)) === r.squadId;
-    const code = await makeFriendCode(r, { admin, listed });
+    const code = await makeFriendCode(r, { admin: !!r, listed: false });
     if (round !== friendRound) { await callOffFriendCode(r, code); return CLOSED; }
     shown = { code, rec: r };
     return toView(code);

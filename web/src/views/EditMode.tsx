@@ -44,7 +44,7 @@ import { passTick } from "../core/editsounds";
 import { backupLook, canSaveMore, deleteLook, findLook, looksOf, lookNamed, nextLookName, onlyKind, renameLook, replaceLook, restoreLook, saveLook, tidyLookName, LOOK_NAME_MAX, LOOKS_MAX, type LooksStore, type Removed, type SavedLook } from "../core/looksprofiles";
 import { applyMacLook, macDefault, macPreview, macSnapshot, type MacLook } from "../core/maclook";
 import { PhoneMount } from "./PhoneEditor";
-import { phoneButtonSpot } from "../core/phonedevices";   // V1.56: the bar keeps clear of the phone button
+import { PHONE_BTN, phoneButtonSpot } from "../core/phonedevices";   // V1.56: the bar keeps clear of the phone button
 import "./editmode.css";
 
 // ---------- one small store for everything Edit mode draws ----------
@@ -147,6 +147,22 @@ export function useInst(): { id: string; cfg: InstCfg; out: Set<string> } | null
   const id = useContext(InstCtx);
   return useMemo(() => (c && id ? { id, cfg: cfgOf(c.layout, id), out: outOf(c.layout, id) } : null), [c, id]);
 }
+/** V1.57: change this panel's own settings from inside it (outside Edit mode too), saved and synced at once with the
+ *  layout record. A no-op outside a Slot (the website's To-do page, the phone). */
+export function useInstSave(): ((patch: Partial<InstCfg>) => void) | null {
+  const c = useContext(SlotCtx);
+  const id = useContext(InstCtx);
+  const ref = useRef(c);
+  ref.current = c;
+  return useMemo(() => (c && id ? (patch: Partial<InstCfg>) => { const l = ref.current?.layout; if (l) change(setCfg(l, id, patch, at()), true); } : null), [!!c, id]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+/** V1.57: is this panel on the page showing (true outside a Slot)? A panel kept open asks, so one on another page
+ *  draws nothing (and runs no timer) until its page shows. */
+export function useShownHere(): boolean {
+  const c = useContext(SlotCtx);
+  const id = useContext(InstCtx);
+  return !c || !id || shownHere(c, id);
+}
 /** Is a Slot of this panel on the page showing? (A panel that runs something only while seen can ask.) */
 const shownHere = (c: Ctx, id: string) => {
   const s = slotInfo(id);
@@ -206,7 +222,7 @@ function CopyAt({ id }: { id: string }) {
 }
 
 // ---------- the Edit button, top left ----------
-export function EditButton({ kept, onKeep, shown, red, saved, st, onSettings }: { kept: boolean; onKeep: (on: boolean) => void; shown: boolean; red: boolean; saved: TabLayout; st?: Settings; onSettings?: (patch: Partial<Settings>) => void }) {
+export function EditButton({ kept, onKeep, shown, red, saved, st, onSettings }: { kept: boolean; onKeep: (on: boolean, stay?: boolean) => void; shown: boolean; red: boolean; saved: TabLayout; st?: Settings; onSettings?: (patch: Partial<Settings>) => void }) {
   const ph = usePhase();
   const keptBefore = useRef(false);
   const start = () => {
@@ -221,7 +237,10 @@ export function EditButton({ kept, onKeep, shown, red, saved, st, onSettings }: 
     setDrag(null);
     setGallery(false);
     setEditing(false);
-    if (!keptBefore.current) onKeep(false);
+    // V1.57 (the developer: "it keeps you in until you hold/let go of tab again or you click anywhere on screen that there isn't
+    // a button/panel"): leaving Edit (a page clicked, the room clicked, Done, Esc) never puts the list away. Keep comes
+    // off, the list stays up pinned: the next Tab or a click on empty space (the list's own background) closes it.
+    if (!keptBefore.current) onKeep(false, true);
   };
   // The list put away (or the page closing) ends Edit mode and saves.
   useEffect(() => { if (!shown && phase !== "off") { flush(); setDrag(null); setGallery(false); phase = "off"; emit(); if (PS) psPost({ type: "island:edit", on: false }); } }, [shown]);
@@ -621,6 +640,7 @@ function Overview({ red, saved, leaving, onDone, st, onSettings }: { red: boolea
     // Left and Right glide one page; the list's own arrows are off while the overview is open (ListPager.tsx).
     const key = (e: KeyboardEvent) => {
       if (!api.current.live || e.metaKey || e.ctrlKey || e.altKey || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+      if (phoneUi(null)) return;   // V1.57: the phone canvas is open: its own arrows move its pages (views/usePhonePan.ts)
       if ((document.activeElement as HTMLElement | null)?.closest?.("input, textarea, [contenteditable='true'], [role='slider']")) return;
       e.preventDefault();
       const b = offBounds();
@@ -665,7 +685,7 @@ function Overview({ red, saved, leaving, onDone, st, onSettings }: { red: boolea
     const box = islandBox();
     const safe = (v: string) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(v)) || 0;
     const b = bar.current, h = hint.current;
-    if (b) { const ph = phoneButtonSpot(box, vw); const sp = barSpot(box, vw, b.offsetWidth, b.offsetHeight, 16 + safe("--safe-top"), 24, 12, [{ left: ph.left, top: ph.top, right: ph.left + 40, bottom: ph.top + 40 }]); setBarAt((o) => (o && o.left === sp.left && o.top === sp.top ? o : sp)); }
+    if (b) { const ph = phoneButtonSpot(box, vw); const sp = barSpot(box, vw, b.offsetWidth, b.offsetHeight, 16 + safe("--safe-top"), 24, 12, [{ left: ph.left, top: ph.top, right: ph.left + PHONE_BTN, bottom: ph.top + PHONE_BTN }]); setBarAt((o) => (o && o.left === sp.left && o.top === sp.top ? o : sp)); }
     if (h) { const sp = hintSpot(box, vw, vh, h.offsetWidth, h.offsetHeight, 16 + safe("--safe-bottom")); setHintAt((o) => (o && o.left === sp.left && o.top === sp.top ? o : sp)); }
   }, [isl, vw, vh, hintNow, sure]);
   const [placed, setPlaced] = useState(false);

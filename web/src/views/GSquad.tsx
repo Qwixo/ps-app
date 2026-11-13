@@ -12,6 +12,7 @@ import { onSquadTabs, registerSquadTab, squadLayers, TAB_ORDER, type SquadTabPro
 import { workingLine, type SquadHand, type SquadTask, type SquadView } from "../squad/view";
 import { notInStage, THE_SQUAD } from "../squad/single";
 import { NO_NAME } from "../core/squadauto";
+import { NO_NAME_ASK } from "../core/squaddir";
 import { fmtDate } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { useChat } from "../squad/chatmirror";
@@ -99,7 +100,7 @@ function GSquadPop({ anchor, onClose }: { anchor: React.RefObject<HTMLElement | 
   const props: SquadTabProps = { view: v, op: squadOp, share, setShare };
   return (
     <GSquadWindow anchor={anchor} onClose={onClose} v={v} props={props} asked={asked} onAsked={() => { wantTab = null; }} Icon={SquadIcon}
-      welcome={<JoinScreen v={v} />} asks={null} />
+      welcome={<JoinScreen v={v} />} asks={<AskList view={v} />} />
   );
 }
 
@@ -121,6 +122,29 @@ export function useGSquadBadge(): number {
   return (v.in ? v.waiting : 0) + chat.unread;
 }
 
+// ---------- V1.57 invite only: the admin's Approve and Decline ----------
+/** The admin: who asked to join, with Approve and Decline (on every section but Members). Approve lets them in and
+ *  members' PS hand them the squad key; Decline removes the request and that PS does not ask again by itself. */
+function AskList({ view }: { view: SquadView }) {
+  const list = view.in && view.creator ? view.asks ?? [] : [];
+  if (!list.length) return null;
+  const squad = view.name || THE_SQUAD;
+  return (
+    <div className="gs-asks" role="region" aria-label="Asked to join">
+      <span className="gs-h">Asked to join</span>
+      <ul className="gs-list">
+        {list.map((a) => (
+          <li key={a.id} className="gs-task gs-hand">
+            <span className="gs-tt">{a.ok ? a.name : "Someone"} asked to join {squad}<em>{a.ok ? `Check code ${a.code}` : NO_NAME_ASK}</em></span>
+            {a.ok && <button type="button" className="gs-mini go" onClick={() => { sfx.drop(); squadOp({ op: "approve", id: a.id }); }}>Approve</button>}
+            <button type="button" className="gs-mini" onClick={() => { sfx.click(); squadOp({ op: "decline", id: a.id }); }}>Decline</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ---------- not in yet (V1.49: one squad, everyone in) ----------
 // The developer 11 Nov 2026: "I want to make it there's automatically one squad already and we're all automatically in it." No
 // list, no Create a squad, no Ask to join, no claim code, no approval: PS joins The G Squad by itself as soon as you are
@@ -133,7 +157,14 @@ function JoinScreen({ v }: { v: SquadView }) {
       {stage === "joining" && (
         <div className="gs-card gs-looking" role="status">
           <i className="gs-spin" aria-hidden="true" />
-          <span className="gs-tt">Getting you into {THE_SQUAD}<em>Everyone with PS app is in it. Someone already in hands your PS app the squad key: it takes a moment, or a few minutes if nobody else has PS app open.</em></span>
+          <span className="gs-tt">Getting you into {THE_SQUAD}<em>Someone already in hands your PS app the squad key: it takes a moment, or a few minutes if nobody else has PS app open.</em></span>
+        </div>
+      )}
+      {stage === "asked" && (
+        <div className="gs-ask" role="status">
+          <span className="gs-ask-t">You asked to join {THE_SQUAD}</span>
+          <p className="gs-lead">{THE_SQUAD} is invite only. The admin lets you in, even if PS app is closed for a while. To get in at once, scan the Add friend code of a friend who is in it.</p>
+          {v.auto?.code && <p className="gs-code">Check code <b className="num">{v.auto.code}</b><em>The admin sees the same code on your request.</em></p>}
         </div>
       )}
       {stage === "left" && (
@@ -150,7 +181,7 @@ function JoinScreen({ v }: { v: SquadView }) {
       )}
       {stage === "removed" && (
         <div className="gs-card bad" role="status">
-          <span className="gs-tt">You are not in {THE_SQUAD}<em>The admin took you out.</em></span>
+          <span className="gs-tt">You are not in {THE_SQUAD}<em>The admin took you out or did not let you in. A friend's Add friend code still lets you in.</em></span>
         </div>
       )}
       {stage === "full" && (

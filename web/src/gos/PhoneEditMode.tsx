@@ -22,12 +22,15 @@ import { useVault } from "../ui/kit";
 import { calendarSnap, phoneLayout, settingsData } from "../core/select";
 import { savePhoneLayout } from "../core/actions";
 import {
-  COLS, HOME, addPage, addTile, cellAt, cellBox, cellsFor, defaultPhoneLayout, moveTile, orderPages, removePage, removeTile, renamePage,
+  COLS, HOME, addPage, addTile, cellAt, cellBox, cellsFor, defaultPhoneLayout, moveTile, orderPages, removeTile, renamePage,
   resizeTile, samePhoneLayout, setNavAlign, setNavEdge, setNavItems, tileToPage, toggleNav, type NavAlign, type PhoneKind, type PhoneLayout, type Tile,
 } from "../core/phonelayout";
 import { editSoundsOn, meetingNow, type EditSound } from "../core/editsounds";
 import { dndMutes } from "../core/dnd";
-import { PhoneGallery, PhoneScreen, Sheet, pageName, type EditProps, type NavDrag, type TileDrag } from "../views/PhoneEditor";
+import { PhoneGallery, PhoneScreen, Sheet, pageName, useStable, type EditProps, type NavDrag, type TileDrag } from "../views/PhoneEditor";
+import { DeletePage, UndoDelete } from "../views/PhoneDeletePage";
+import { deletePage, pageAfterDelete, restorePage, type RemovedPage } from "../core/phonepagedelete";
+import { sidewaysWheel, wheelPages } from "../core/phonepan";
 import { PhoneLooks } from "../views/PhoneLooks";
 import { haptic } from "./bridge";
 import { usePhoneNow, viewOf } from "./phonepage";
@@ -122,20 +125,35 @@ function useInsets() {
 export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: boolean; onClose: () => void }) {
   const s = useVault();
   const st = s.status === "unlocked" ? settingsData(s) : null;
-  const saved = useMemo(() => (s.status === "unlocked" ? phoneLayout(s, kind, red) : defaultPhoneLayout(kind, red)), [s, kind, red]);
+  // V1.57 (the developer: "more responsive"): the saved layout stays the very same object while its content is the same, so the
+  // pages drawn from it (views/PhoneEditor.tsx PhoneScreen) do not draw again on every vault change.
+  const steady = useRef<PhoneLayout | null>(null);
+  const saved = useMemo(() => {
+    const fresh = s.status === "unlocked" ? phoneLayout(s, kind, red) : defaultPhoneLayout(kind, red);
+    const k = steady.current;
+    const out = k && (k === fresh || samePhoneLayout(k, fresh, red)) ? k : fresh;
+    steady.current = out;
+    return out;
+  }, [s, kind, red]);
   // What was just changed here, until the vault catches up (the same way as the Mac's phone canvas).
   const [pending, setPending] = useState<PhoneLayout | null>(null);
   const timer = useRef(0);
   const latest = useRef<PhoneLayout | null>(null);
   const layout = pending ?? saved;
-  useEffect(() => { if (pending && !timer.current && samePhoneLayout(pending, saved, red)) setPending(null); }, [pending, saved, red]);
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+  useEffect(() => { if (pending && !timer.current && (pending === saved || samePhoneLayout(pending, saved, red))) setPending(null); }, [pending, saved, red]);
   const flush = () => { if (timer.current) { window.clearTimeout(timer.current); timer.current = 0; } if (latest.current) { const l = latest.current; latest.current = null; void savePhoneLayout(l).catch(() => {}); } };
+  // V1.57: a change draws at once; the vault write follows a moment later (never inside the tap), and quick changes in a
+  // row go as one write. Done (and leaving) writes at once.
   const change = (next: PhoneLayout, now = false) => {
-    if (next === layout) return;
+    if (next === layoutRef.current) return;
     latest.current = next;
+    steady.current = next;
+    layoutRef.current = next;
     setPending(next);
     window.clearTimeout(timer.current);
-    if (now) flush(); else timer.current = window.setTimeout(() => { timer.current = 0; flush(); }, 500);
+    timer.current = window.setTimeout(() => { timer.current = 0; flush(); }, now ? 180 : 500);
   };
   useEffect(() => () => flush(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -167,7 +185,8 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
   const [phase, setPhase] = useState<Phase>("in");
   const [gal, setGal] = useState(false);
   const [drawer, setDrawer] = useState(false);
-  const [sure, setSure] = useState<string | null>(null);
+  const [sure, setSure] = useState<string | null>(null);   // the page whose "Are you sure?" is open (Delete page)
+  const [undo, setUndo] = useState<{ removed: RemovedPage; name: string; key: number } | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [tile, setTile] = useState<TileDrag | null>(null);
   const [nav, setNav] = useState<NavDrag | null>(null);
@@ -182,7 +201,7 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     const t = window.setTimeout(() => setPhase((p) => (p === "in" ? "on" : p)), 60);   // a frame can be held back
     return () => { cancelAnimationFrame(r); window.clearTimeout(t); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!sure) return; const t = window.setTimeout(() => setSure(null), 3500); return () => window.clearTimeout(t); }, [sure]);
+  useEffect(() => { setSure(null); }, [cur]);
   useEffect(() => { if (!fresh) return; const t = window.setTimeout(() => setFresh(null), 700); return () => window.clearTimeout(t); }, [fresh]);
 
   const done = () => {
@@ -260,11 +279,61 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     setGal(false);
   };
 
+  // ---------- Delete page (V1.57): asks first, Undo after, never a page the phone cannot lose ----------
+  const delPage = (id: string) => {
+    const before = layoutRef.current;
+    const r = deletePage(before, id, at());
+    if (!r.removed) { haptic("reject"); return; }
+    sound("edit-page-remove"); haptic("press");
+    change(r.layout, true);
+    setCur(pageAfterDelete(before, id));
+    setSure(null); setRenaming(null);
+    setUndo({ removed: r.removed, name: pageName(r.removed.page), key: Date.now() });
+  };
+  const undoDel = () => {
+    const u = undo;
+    if (!u) return;
+    sound("edit-switch"); haptic("press");
+    change(restorePage(layoutRef.current, u.removed, at()), true);
+    setCur(u.removed.page.id);
+    setUndo(null);
+  };
+  // ---------- the wheel and a trackpad's two finger swipe (the iPhone web app in a computer's browser) ----------
+  const roomRef = useRef<HTMLDivElement>(null);
+  const wheelApi = useRef({ on: false, ci, n: pages.length, go: (_j: number) => {} });
+  wheelApi.current = { on: phase === "on" && !gal && !drawer && !looksOpen && !sure && !renaming, ci, n: pages.length, go: (j) => { const p = pages[j]; if (p) go(p.id, "swipe"); } };
+  useEffect(() => {
+    const el = roomRef.current;
+    if (!el) return;
+    let acc = 0, at0 = 0;
+    const wheel = (e: WheelEvent) => {
+      const a = wheelApi.current;
+      if (!a.on || e.ctrlKey) return;
+      const t = e.target as Element | null;
+      const dx = e.deltaX * (e.deltaMode === 1 ? 16 : 1), dy = e.deltaY * (e.deltaMode === 1 ? 16 : 1);
+      if (!sidewaysWheel(dx, dy)) {
+        // Up and down over the page being edited scrolls it while it can.
+        const sc = t?.closest?.(".pm-card.cur .pe-content") as HTMLElement | null;
+        if (sc && ((dy > 0 && sc.scrollTop + sc.clientHeight < sc.scrollHeight - 1) || (dy < 0 && sc.scrollTop > 0))) return;
+      }
+      e.preventDefault();
+      const now = performance.now();
+      const w = wheelPages(acc, sidewaysWheel(dx, dy) ? dx : dy, now - at0);
+      acc = w.acc;
+      if (!w.step) return;
+      at0 = now;
+      const j = Math.max(0, Math.min(a.n - 1, a.ci + w.step));
+      if (j !== a.ci) a.go(j);
+    };
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, []);
+
   // ---------- swiping between pages (on the room, not on the page being edited) ----------
   const roomDown = (e: RPE) => {
     if (phase !== "on" || tile || nav || pill) return;
     const t = e.target as Element;
-    if (t.closest(".pm-card.cur, button, input, select, .pe-gal, .pm-drawer, .lk-panel, .pm-pill")) return;
+    if (t.closest(".pm-card.cur, button, input, select, .pe-gal, .pm-drawer, .lk-panel, .pm-pill, .pe-del, .pe-undo")) return;
     setSwipe({ sx: e.clientX, sy: e.clientY, dx: 0, id: e.pointerId, axis: null, t0: performance.now() });
     lastTick.current = 0;
   };
@@ -373,25 +442,29 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     sound("edit-drop"); haptic("drop");
     change(setNavItems(layout, next, red, at()));
   };
-  const navShown = (() => {
+  const navShown = useMemo(() => {
     if (!nav) return layout.nav;
     if (nav.kind === "bar") return { ...layout.nav, ...barDrop(nav) };
     const next = items.filter((x) => x !== nav.id);
     next.splice(reorderTo(nav), 0, nav.id);
     return { ...layout.nav, items: next };
-  })();
-  const editProps: EditProps = {
-    tile, ghostOf, tileDown, tileMove, tileUp, nav, navShown, navDown, navMove, navUp, fresh,
-    removeTile: (id) => { sound("edit-page-remove"); haptic("press"); change(removeTile(layout, page.id, id, at()), true); },
-    removeNav: (id) => { sound("edit-page-remove"); haptic("press"); change(toggleNav(layout, id, red, at()), true); },
+  }, [nav, layout.nav]); // eslint-disable-line react-hooks/exhaustive-deps
+  // V1.57: the same handlers from draw to draw, so the page in the middle draws again only when a drag or a change
+  // needs it (not on every frame of a swipe).
+  const cbs = {
+    ghostOf: useStable(ghostOf), tileDown: useStable(tileDown), tileMove: useStable(tileMove), tileUp: useStable(tileUp),
+    navDown: useStable(navDown), navMove: useStable(navMove), navUp: useStable(navUp),
+    removeTile: useStable((id: string) => { sound("edit-page-remove"); haptic("press"); change(removeTile(layoutRef.current, page.id, id, at()), true); }),
+    removeNav: useStable((id: string) => { sound("edit-page-remove"); haptic("press"); change(toggleNav(layoutRef.current, id, red, at()), true); }),
   };
+  const editProps = useMemo<EditProps>(() => ({ ...cbs, tile, nav, navShown, fresh }), [tile, nav, navShown, fresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- drawing ----------
   const on = phase === "on";
   const LooksSlot = looksSlot;
   const thisDev = useMemo(() => ({ dev: "thisphone", phone: kind, name: "", w: W, h: H, seen: at() }), [kind, W, H]);
   return (
-    <div className={`pm-room ${phase}${gal ? " gal" : ""}${tile || nav ? " dragging" : ""}`} style={{ ["--inv" as string]: 1 / k, ["--k" as string]: k }}
+    <div ref={roomRef} className={`pm-room ${phase}${gal ? " gal" : ""}${tile || nav ? " dragging" : ""}`} style={{ ["--inv" as string]: 1 / k, ["--k" as string]: k }}
       onPointerDown={roomDown} onPointerMove={roomMove} onPointerUp={roomUp} onPointerCancel={() => setSwipe(null)}
       onScroll={(e) => { e.currentTarget.scrollLeft = 0; e.currentTarget.scrollTop = 0; }}>
       <div className="pm-dim" aria-hidden="true" onClick={() => { if (gal) setGal(false); }} />
@@ -450,13 +523,8 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
             ) : <span>{name}{isCur && p.kind === "panels" && <svg {...sv} width={13} height={13}><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>}</span>}
             {isCur && p.kind === "panels" && renaming !== id && (
               <button type="button" className={`pm-pill-x${sure === id ? " sure" : ""}`} aria-label={`Delete ${name}`}
-                onClick={() => {
-                  if (sure !== id) { haptic("press"); setSure(id); return; }
-                  sound("edit-page-remove"); haptic("press"); setSure(null);
-                  change(removePage(layout, id, at()), true);
-                  setCur(pages[ci - 1]?.id ?? pages[ci + 1]?.id ?? HOME);
-                }}>
-                {sure === id ? "Delete page?" : "×"}
+                onClick={() => { haptic("press"); setSure(sure === id ? null : id); }}>
+                {"×"}
               </button>
             )}
           </div>
@@ -478,8 +546,12 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
             <svg {...sv} width={20} height={20}><rect x="3" y="15" width="18" height="6" rx="2" /><path d="M7 4h10M7 8h10" /></svg>
             Navbar and looks
           </button>
+          {/* V1.57 Delete page (the developer: "add a delete page button on the bottom"): asks first, Undo after. */}
+          <DeletePage phone layout={layout} page={page} name={pageName(page)} asking={sure === page.id}
+            onAsk={(o) => { haptic("press"); setSure(o ? page.id : null); }} onDelete={() => delPage(page.id)} onWhy={() => haptic("reject")} />
         </div>
       )}
+      {undo && <UndoDelete phone key={undo.key} name={undo.name} onUndo={undoDel} onGone={() => setUndo(null)} style={{ left: "50%", bottom: ins.bottom + 84 }} />}
       <p className="pm-hint" aria-live="polite" style={{ bottom: ins.bottom + 78 }}>{page.kind === "panels"
         ? "Drag a panel to move it. The white corner sizes it. Swipe beside the phone for other pages."
         : "This page is the phone's own. Add panel makes a page of panels beside it. Hold and drag the navbar to move it."}</p>

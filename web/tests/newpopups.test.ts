@@ -139,8 +139,8 @@ ok("a skipped pop-up never delays the next (the first shown one comes at once)",
 });
 
 ok("the open source pop-up never shows while the link is null", () => {
-  assert.equal(OPEN_SOURCE_URL, null, "the manager fills the link in the day the repo is live");
-  assert.equal(openSourceUrl(), null);
+  assert.equal(OPEN_SOURCE_URL, "https://github.com/RedbyPS/ps-app", "the public repo (live since 13 Nov 2026)");
+  assert.equal(openSourceUrl(), "https://github.com/RedbyPS/ps-app");
   assert.ok(!applies(facts({ sourceUrl: null }), "source"));
   assert.equal(nextPopup(facts({ api: "on", approve: "on", sourceUrl: null })), null);
   const at = run({ sourceUrl: null }, 1000);
@@ -256,7 +256,7 @@ ok("source checks: one copy of the text, Esc, no focus, mounts, saving, quiet ru
   assert.match(view, /hidesShowing\(block\)/);
   assert.match(view, /tipsOn\(st\.tipsShow\)/);
   assert.match(view, /openSourceUrl\(\)/);
-  assert.match(read("../src/core/opensource.ts"), /export const OPEN_SOURCE_URL: string \| null = null;/);
+  assert.match(read("../src/core/opensource.ts"), /export const OPEN_SOURCE_URL: string \| null = "https:\/\/github\.com\/RedbyPS\/ps-app";/);
   // the open time is counted only while nothing shows, and saved on this device
   assert.match(view, /openStep\(last, now\)/);
   assert.match(view, /pagehide/);

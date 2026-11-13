@@ -6,5 +6,5 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function CampaignsPageView(..._more: any[]): any { return undefined; }
-export function CampaignsNotForYou(..._more: any[]): any { return undefined; }
+export function CampaignsPageView(..._more: any[]): any { return null; }
+export function CampaignsNotForYou(..._more: any[]): any { return null; }

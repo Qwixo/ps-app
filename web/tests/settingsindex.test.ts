@@ -129,7 +129,7 @@ ok("Mac only settings never show on the website or phone, phone ones only on the
 });
 ok("the side menu has the developer's groups in order, each with something in it", () => {
   const mac = groupsFor(FRIEND_MAC).map((g) => g.id);
-  assert.deepEqual(mac, ["about", "friend", "list", "looks", "notify", "remind", "telegram", "api", "time", "shortcuts", "keys", "mac", "sync", "privacy", "fitness", "sleep", "sentry", "gsquad"]);
+  assert.deepEqual(mac, ["about", "friend", "list", "controls", "looks", "notify", "remind", "telegram", "api", "time", "shortcuts", "keys", "mac", "sync", "privacy", "fitness", "sleep", "sentry", "gsquad"]);
   for (const ctx of [FRIEND_MAC, FRIEND_WEB, PHONE, RED_MAC]) for (const g of groupsFor(ctx)) {
     const r = rowsOf(g.id, ctx);
     assert.ok(r.main.length > 0, `${ctx.where} ${g.id}: a row before More`);

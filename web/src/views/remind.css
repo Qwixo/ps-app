@@ -229,3 +229,16 @@ select.rm-input option { color: var(--k-surface, #111111); }
 @media (prefers-reduced-motion: reduce) {
   .trm-layer, .trm-layer.out, .trm-pop, .trm-layer.out .trm-pop, .trm-bell svg, .tm-bell, .tm-bell.live svg, .tm-row.tm-found, .rm-check { animation: none; }
 }
+
+/* V1.57 alarms: the phone's ring screen in miniature (ps-gos GymRingActivity) */
+.rm-alarm { display: flex; flex-direction: column; align-items: center; gap: calc(6px * var(--k-dn, 1)); margin: 0 auto 12px; width: min(220px, 100%); padding: calc(18px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1));
+  background: var(--al-bg); color: var(--al-ink); box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.rm-alarm-orb { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; padding: calc(4px * var(--k-dn, 1)); box-sizing: border-box; background: var(--al-acc); color: var(--al-bg);
+  font-size: calc(11px * var(--k-fs, 1)); font-weight: 900; letter-spacing: .12em; text-transform: uppercase; text-align: center; overflow: hidden; line-height: 1.1; animation: rm-alarm-breathe 1.4s ease-in-out infinite; }
+.rm-alarm-time { font-size: calc(34px * var(--k-fs, 1)); font-weight: 900; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.rm-alarm-words { font-size: calc(13px * var(--k-fs, 1)); opacity: .85; text-align: center; overflow-wrap: anywhere; margin-bottom: 6px; }
+.rm-alarm-yes, .rm-alarm-later { width: 100%; box-sizing: border-box; text-align: center; padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; }
+.rm-alarm-yes { background: var(--al-acc); color: var(--al-bg); }
+.rm-alarm-later { border: 1.5px solid var(--al-acc); }
+@keyframes rm-alarm-breathe { 50% { transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { .rm-alarm-orb { animation: none; } }

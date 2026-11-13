@@ -43,7 +43,7 @@ export const PHONE_CONTROLS: Controls = {
     return <SetRow e={e} plain body={<Card>
       <PermRow perms={perms} which="notifications" title="Notifications" desc="So client emails and calls can reach you." />
       <PermRow perms={perms} which="exactAlarm" title="Calls on the minute" desc="The 10 minute call alert rings on time instead of up to 15 minutes late." />
-      <PermRow perms={perms} which="fullScreen" title="Gym alarm on the lock screen" desc="The gym ring shows its big Acknowledge card over the lock screen. Without it, it still rings, as a notification." />
+      <PermRow perms={perms} which="fullScreen" title="Gym alarm on the lock screen" desc="The gym ring and your alarms show their big card over the lock screen. Without it, they still ring, as a notification." />
       <PermRow perms={perms} which="battery" title="Run while the phone sleeps" desc="Optional. Without it checks still happen, just later when the phone is idle." />
     </Card>} />;
   },

@@ -6,4 +6,4 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function GosMacs(..._more: any[]): any { return undefined; }
+export function GosMacs(..._more: any[]): any { return null; }

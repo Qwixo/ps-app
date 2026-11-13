@@ -4,7 +4,7 @@
 // The hub URL is public (like a publishable key); there is no secret in the bundle.
 import { signRequest } from "../core/squadcrypto.ts";
 import type { TaskRow } from "../core/squadshare.ts";
-import type { HubAskRow } from "../core/squaddir.ts";
+import type { HubAskRow, HubWaitRow } from "../core/squaddir.ts";
 
 export const HUB_URL = "https://zxhvchchfrkfqxuyorqo.supabase.co";
 export const HUB_FN = `${HUB_URL}/functions/v1/squad`;
@@ -48,9 +48,9 @@ export interface HubHandRow { id: string; from_member: string; to_member: string
 export interface HubPull { now: string; squad: HubSquad; members: HubMemberRow[]; tasks: HubTaskRow[]; hands: HubHandRow[]; drops: { gen: number; sealed: string }[]; working: string[] }
 /** n: working now; h: hand overs waiting for you; g: the squad key gen; rk: someone left, a re-key is due;
  *  q: requests to join waiting for you (the admin only, V1.42); k: people waiting for the squad key (V1.49). */
-export interface Pulse { n: number; h: number; g: number; rk: boolean; q?: number; k?: number }
+export interface Pulse { n: number; h: number; g: number; rk: boolean; q?: number; k?: number; /** V1.57: people asking to join (the admin only) */ w?: number }
 /** V1.49: where your join stands while you wait for the squad key. */
-export interface AutoKey { gen: number; start: boolean; drop: { gen: number; sealed: string } | null; admin: boolean }
+export interface AutoKey { gen: number; start: boolean; drop: { gen: number; sealed: string } | null; admin: boolean; /** V1.57: false while you wait for the admin */ admitted?: boolean }
 export interface Since { m?: string; t?: string; h?: string }
 
 /** Every act the hub knows, one function each. */
@@ -85,6 +85,11 @@ export function hubApi(who: HubIdent, fetcher?: Fetcher) {
     autoDrop: (gen: number, drops: { member: string; sealed: string }[]) => call<{ added: number }>("auto_drop", { gen, drops }),
     /** The developer's PS only: a token of his own vault session; the hub asks his vault project whether it is the developer's. */
     admin: (token: string, anon: string) => call<{ ok: true }>("admin", { token, anon }),
+    // V1.57 invite only: the asker leaves their name for the admin; the admin's list, Approve (admit) and Decline
+    autoAsk: (sealed: string) => call<{ ok: true }>("auto_ask", { sealed }),
+    waitList: () => call<{ rows: HubWaitRow[] }>("wait_list", {}),
+    admit: (id: string) => call<{ ok: true }>("admit", { id }),
+    turnAway: (id: string) => call<{ ok: true }>("turn_away", { id }),
   };
 }
 export type HubApi = ReturnType<typeof hubApi>;

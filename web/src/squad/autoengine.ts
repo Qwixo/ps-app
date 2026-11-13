@@ -9,6 +9,11 @@
 //   in an older squad (made with Create a squad before V1.47): your PS leaves it and joins The G Squad
 //   The developer's PS         becomes the admin (the hub asks his vault whether it is his account)
 // Leaving on purpose stays left (Join again brings you back); the admin's Take out keeps you out.
+//
+// V1.57 invite only (the developer, 13 Nov 2026: "Yes, lock it"): joining by itself is now an Ask to join. The hub gives you a
+// waiting place and nobody hands you the squad key until the admin lets you in (or you scan a friend's Add friend
+// code, which lets you straight in). Your PS leaves your name for the admin once, sealed to the admin's key, and
+// shows the check code the admin sees too.
 import { docs, put, sb, vaultStore, PROJECT } from "../core/vault";
 import { isRedAccount } from "../core/account";
 import { settingsData } from "../core/select";
@@ -17,7 +22,8 @@ import { squadAutoOn } from "../core/offswitches";
 import { saveSettings } from "../core/actions";
 import type { SquadRec } from "../core/squadrec";
 import { HubError, type HubApi } from "./hub";
-import { autoCheck, autoJoin, handOut, theSquadId } from "./autoflows";
+import { askAdmin, autoCheck, autoJoin, handOut, theSquadId } from "./autoflows";
+import { checkCode } from "../core/squaddir";
 import type { SquadView } from "./view";
 
 export interface AutoCtx {
@@ -39,6 +45,7 @@ let running = false, again = false, open = false, timer: number | undefined;
 let holdUntil = 0;              // a moment to let the vault catch up (another device left, or joined first)
 let adminTried = "";            // the member id the developer's PS already asked the admin step for (once per session)
 let handing = false;
+let asked: { code: string } | null = null;   // V1.57: you asked to join and wait for the admin (the check code)
 
 function eligible() {
   const s = vaultStore.get();
@@ -55,7 +62,10 @@ async function saveJoin(next: JoinRec) {
 function show() {
   if (!ctx) return;
   const inNow = !!ctx.rec();
-  const auto: AutoView | null = inNow ? null : { stage: autoStage(join.rec, problem?.kind ?? null, autoOn()), error: problem?.text ?? null };
+  const stage = autoStage(join.rec, problem?.kind ?? null, autoOn());
+  const auto: AutoView | null = inNow ? null : stage === "joining" && asked
+    ? { stage: "asked", error: null, code: asked.code || null }
+    : { stage, error: problem?.text ?? null };
   ctx.patch({ auto });
 }
 /** Settings, G Squad, "Join The G Squad automatically" (on unless switched off). Off: while not in, PS does nothing by
@@ -91,6 +101,7 @@ export async function autoStep(): Promise<void> {
 
 async function inSquad(rec: SquadRec) {
   problem = null;
+  asked = null;
   let j = join.rec;
   // In now: the join on its way is done (on this device or the other one).
   if (j?.pending || j?.left || j?.removed) { j = { v: 1, ...(j.gs ? { gs: j.gs } : {}) }; await saveJoin(j); }
@@ -151,11 +162,20 @@ async function notIn() {
   try {
     const out = await autoCheck(p);
     if (out.state === "in") {
+      asked = null;
       await saveJoin({ v: 1, gs: out.rec.squadId });
       await ctx!.adopt(out.rec);
-    }
+    } else if (out.admitted === false) {
+      // V1.57: waiting for the admin. Leave your name for them once (sealed to their key), then show the check code.
+      if (!p.asked) {
+        const box = await askAdmin(p).catch(() => null);
+        if (box) { p = { ...p, asked: box }; j = { ...j, pending: p }; await saveJoin(j); }
+      }
+      asked = { code: p.asked && p.squadId ? await checkCode(p.squadId, p.sign.pub, p.box.pub, p.asked) : "" };
+    } else asked = null;
   } catch (e) {
     if (e instanceof HubError && e.status === 403 && /not a member/.test(e.message)) {
+      asked = null;
       await saveJoin({ ...j, pending: null });   // the hub let go of a join that waited a week: start over
       again = true;
       return;

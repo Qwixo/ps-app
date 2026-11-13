@@ -51,7 +51,7 @@ async function squadGen(id: string): Promise<number> {
 type MemberCard = { id: string; card_ct: string | null; card_gen: number | null };
 /** Members still in, with their sealed cards (name and public keys: the screens need the names). */
 async function membersIn(squad: string): Promise<MemberCard[]> {
-  return must(await db.from("squad_members").select("id, card_ct, card_gen").eq("squad_id", squad).is("left_at", null).order("joined_at")) as MemberCard[];
+  return must(await db.from("squad_members").select("id, card_ct, card_gen").eq("squad_id", squad).is("left_at", null).eq("admitted", true).order("joined_at")) as MemberCard[];
 }
 const ROW_COLS = "id, member_id, part, tag, ct, gen, deleted, updated_at";
 const POST_COLS = "id, member_id, ct, gen, deleted, updated_at";
@@ -61,7 +61,8 @@ async function handle(body: Record<string, unknown>) {
   const args = (body.args && typeof body.args === "object" ? body.args : {}) as Record<string, unknown>;
   if (!/^gym_[a-z]{2,12}$/.test(act) || !/^[A-Za-z0-9_-]{16,32}$/.test(nonce) || !B64.test(sig) || sig.length > 200) throw new Fail(400, "bad request");
   if (!Number.isInteger(ts) || Math.abs(Date.now() / 1000 - ts) > 120) throw new Fail(401, "clock");
-  const me = must(await db.from("squad_members").select("id, squad_id, sign_pub").eq("id", uuid(member)).is("left_at", null).maybeSingle()) as Me | null;
+  // V1.57 invite only (invite_001_invite_only.sql): someone asking to join (not let in yet) is not a member here.
+  const me = must(await db.from("squad_members").select("id, squad_id, sign_pub").eq("id", uuid(member)).is("left_at", null).eq("admitted", true).maybeSingle()) as Me | null;
   if (!me) throw new Fail(403, "not a member");
   if (!(await verify(me.sign_pub, act, member, ts, nonce, body.args ?? null, sig))) throw new Fail(401, "signature");
   const used = await db.from("gym_nonces").insert({ member_key: await sha256hex(me.sign_pub), nonce });

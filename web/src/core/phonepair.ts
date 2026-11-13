@@ -34,7 +34,7 @@ const EC = { name: "ECDH", namedCurve: "P-256" } as const;
 
 export const OFFER_MS = 60_000;           // a QR can be claimed for a minute, then the Mac shows a new one
 export const ALLOW_MS = 3 * 60_000;       // after the phone claimed it: time to compare the codes and press Allow
-export const POLL_MS = 1_500;             // both sides look at the offer row this often while it is open
+export const POLL_MS = 1_000;             // both sides look at the offer row this often while it is open (V1.57: was 1.5 s)
 const LABEL = "ps-phone-link-v1";
 
 const B64URL = /^[A-Za-z0-9_-]+$/;

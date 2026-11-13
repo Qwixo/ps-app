@@ -36,6 +36,9 @@ final class NotesCard: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   private var ready = false
   private var queued: String?
   private var cardId: String?
+  /// V1.57 private mode: the card last asked for, to ask again when private mode comes on (PrivateHold.swift).
+  private var last: [String: Any]?
+  private var watching = false
   private static let width: CGFloat = 340
   private var height: CGFloat = 220
   private var test: Bool { ProcessInfo.processInfo.environment["PS_SELFTEST"] != nil }
@@ -113,10 +116,18 @@ final class NotesCard: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     guard let d = try? JSONSerialization.data(withJSONObject: clean), let s = String(data: d, encoding: .utf8) else { return }
     if (clean["items"] as? [Any])?.isEmpty != false { hide(id); return }   // no open notes, no card
     setUp()
+    last = c
+    if !watching && !test { watching = true; PrivateHold.shared.watch { [weak self] in if let self, self.panel?.isVisible == true, let l = self.last { self.show(l) } } }
     let fresh = cardId != id
     cardId = id
     if ready { web?.evaluateJavaScript("window.__notes.set(\(s))", completionHandler: nil) } else { queued = s }
     guard let panel else { return }
+    // V1.57 private mode: it waits behind a pill on the card stack; one that is up goes out of sight.
+    if !test && PrivateHold.shared.waits("notes", show: { [weak self] in self?.show(c) }) {
+      if panel.isVisible { panel.orderOut(nil) }
+      IslandColumn.shared.leave("notes")
+      return
+    }
     if panel.isVisible && !fresh { return }
     if test { panel.setFrame(frame(hidden: false), display: true); panel.orderFrontRegardless(); return }
     if let f = islandFrame() { IslandColumn.shared.put(panel, f); return }   // V1.55: out of the island
@@ -134,7 +145,8 @@ final class NotesCard: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   /// From Toast.hideCard (an id starting "nc:"), or the card itself after the last tick or a snooze.
   func hide(_ id: String? = nil) {
     if let id, id != cardId { return }
-    cardId = nil
+    PrivateHold.shared.gone("notes")   // V1.57: its pill goes with it
+    cardId = nil; last = nil
     let inIsland = IslandColumn.shared.ids.contains("notes")
     IslandColumn.shared.leave("notes")
     guard let panel, panel.isVisible else { return }

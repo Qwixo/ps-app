@@ -364,7 +364,14 @@ export interface Draft {
 /** Instantly reply cards (core/leadcards.ts): only replies after `since`; per thread, the reply dismissed and a remind. */
 export interface LeadCardState { since: string; seen?: Record<string, string>; remind?: Record<string, { at: string; for: string }> }
 
-export interface ChatDone { id: string; chat: string; at: string; seen?: boolean; remindAt?: string; tool?: AiTool }
+export interface ChatDone {
+  id: string; chat: string; at: string; seen?: boolean; remindAt?: string; tool?: AiTool;
+  /** V1.57: the person's last real prompt in that chat (PS on the Mac reads it from a Claude Code transcript). The same
+   *  chat ending another turn with the same prompt is the same finish: no new card (core/chatdone.ts sameFinish). */
+  turn?: string;
+  /** V1.57: the newest finish of this chat that was folded into this card (a repeat within CHAT_DONE.repeat). */
+  last?: string;
+}
 /** Which AI tool a finished chat came from (core/chatdone.ts AI_TOOLS). None means Claude Code (every card before V1.53). */
 export type AiTool = "claude" | "codex" | "gemini" | "cursor";
 
@@ -381,6 +388,7 @@ export interface Settings {
   squadAutoJoin?: boolean;         // Settings, G Squad, "Join The G Squad automatically": false = PS never joins by itself (open source build; missing = on)
   psPresence?: boolean;            // Settings, Privacy and sharing, "Tell the website PS app is open": false = no ps-presence channel (src/ps.ts; missing = on)
   tipsShow?: boolean;              // Settings, About and updates, "Show first use tips": false = no tip cards (views/Tips.tsx; missing = on)
+  swipeInvert?: boolean;           // Settings, Controls, "Invert swipe" (V1.57): true flips every page swipe (core/lists.ts swipeSign; missing = off)
   autoLockMin: number;
   autoReset: "off" | "midnight";   // "midnight" = the automatic Reset is on, at autoResetAt (the name stays for older builds)
   autoResetAt?: string;            // "HH:MM" in your zone, missing = "00:00" (core/resetday.ts, 8 Nov 2026); your day starts then too
@@ -454,7 +462,7 @@ export interface Settings {
   tmTypedPrio?: boolean;         // P1, P2 or P3 typed in a new task sets its priority (core/typedprio.ts, V1.40). false = off. Default on
   noteLook?: import("./notelook").NoteLookPrefs | null;   // notification cards per kind: colour, sound on, which sound (core/notelook.ts, V1.36). Unset = as before
   tmDoneKeep?: "today" | "7d" | "30d";   // how long Completed keeps ticks: since the start of today in the developer's zone (default), 7 or 30 days
-  privateMode?: boolean;         // PS: notification cards hide names and words (the mask on the Meetings panel, or Yes to "Start private mode?"), until the developer turns it off (the developer, 29 Oct 2026)
+  privateMode?: boolean;         // PS (V1.57: every Mac pop up is a small pill with no sound, ps-mac PrivateCore.swift): notification cards hide names and words (the mask on the Meetings panel, or Yes to "Start private mode?"), until the developer turns it off (the developer, 29 Oct 2026)
   tmSecOrder?: string[];         // the Tab list's sections top to bottom: "p1", "prio", "daily" and "g:<group id>" (the developer, 29 Oct 2026), see core/groups.ts
   tmGroups?: TaskGroup[];        // The developer's own task groups in the Tab list, made by dragging Cmd-selected tasks out (the developer, 29 Oct 2026)
   tmPages?: import("./lists").ListPage[];   // V1.55: the developer's extra to-do lists, each a page of sections he swipes to (core/lists.ts). Unset = the main list only

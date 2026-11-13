@@ -27,7 +27,7 @@ import { BG_DESIGNS, bgDesign } from "../core/prio";
 import { offeredLooks } from "../core/looks";
 import {
   GESTURE_GAP_MS, MAIN, PAGES_MAX, PLUS_LEFT, SEC_NAME_MAX, LIST_NAME_MAX, addGroupFor, allPages, cleanNames, cleanPages,
-  cleanSwipeDir, fingerDx, isPlus, listMoveTarget, moveSec, movePage, newPageId, pageDx, pageGesture, pageOfTask, pageOffset, pageOrder,
+  cleanSwipeDir, fingerDx, swiped, isPlus, listMoveTarget, moveSec, movePage, newPageId, pageDx, pageGesture, pageOfTask, pageOffset, pageOrder,
   pagerIds, placeAt, removePage, renamePage, secsByPage, settleIndex, shownName, springDone, springStart, springStep, stepIndex, tidyName,
   type GestureOver, type GestureOwner, type ListNames, type ListPage, type SwipeDir,
 } from "../core/lists";
@@ -268,7 +268,7 @@ function endWheel() {
   if (!g || g.ended) return;
   g.ended = true;
   window.clearTimeout(g.timer);
-  if (g.owner === "page" && g.pager) { lastHow = "swipe"; g.pager.release(pageDx(speed(g.samples), ctx.dir)); }
+  if (g.owner === "page" && g.pager) { lastHow = "swipe"; g.pager.release(swiped(pageDx(speed(g.samples), ctx.dir), ctx.st.swipeInvert)); }
   if (g.owner === "scroll") lastScroll = performance.now();
 }
 function onWheel(e: WheelEvent) {
@@ -294,12 +294,12 @@ function onWheel(e: WheelEvent) {
     g.fx += fx; g.dy += e.deltaY * k;
     g.owner = pageGesture(g.over, g.fx, g.dy, now - lastScroll);
     if (g.owner === "page" && !g.pager?.begin()) g.owner = "none";
-    if (g.owner === "page") { g.pager!.move(pageDx(g.fx, ctx.dir)); g.samples.push({ t: now, x: g.fx }); }
+    if (g.owner === "page") { g.pager!.move(swiped(pageDx(g.fx, ctx.dir), ctx.st.swipeInvert)); g.samples.push({ t: now, x: g.fx }); }
   } else if (g.owner === "page") {
     g.fx += fx;
     g.samples.push({ t: now, x: g.fx });
     while (g.samples.length > 2 && now - g.samples[0].t > 90) g.samples.shift();
-    g.pager!.move(pageDx(g.fx, ctx.dir));
+    g.pager!.move(swiped(pageDx(g.fx, ctx.dir), ctx.st.swipeInvert));   // Settings, Controls, Invert swipe (V1.57)
     // Without PS's word (the website): the fingers have lifted once the moves only shrink (the Mac's glide).
     if (!nativeSeen) {
       const a = Math.abs(fx);
@@ -347,7 +347,7 @@ function onMove(e: PointerEvent) {
   const t = performance.now();
   g.samples.push({ t, x: dx });
   while (g.samples.length > 2 && t - g.samples[0].t > 90) g.samples.shift();
-  g.pager.move(dx);   // a finger always drags the page with it
+  g.pager.move(swiped(dx, ctx.st.swipeInvert));   // a finger drags the page with it (the other way with Invert swipe, V1.57)
 }
 function onUp(e: PointerEvent) {
   const g = tg;
@@ -358,7 +358,7 @@ function onUp(e: PointerEvent) {
   window.addEventListener("click", stop, { capture: true, once: true });
   window.setTimeout(() => window.removeEventListener("click", stop, { capture: true }), 300);
   lastHow = "swipe";
-  g.pager.release(e.type === "pointercancel" ? 0 : speed(g.samples));
+  g.pager.release(e.type === "pointercancel" ? 0 : swiped(speed(g.samples), ctx.st.swipeInvert));
 }
 // Keys: Left and Right arrows go to the page on that side (also while Tab is held), when nothing else wants them.
 function onKey(e: KeyboardEvent) {

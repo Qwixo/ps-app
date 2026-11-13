@@ -6,7 +6,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import type { Settings } from "../core/model";
 import { p1Color, p1Tones } from "../core/prio";
 import { settingsData } from "../core/select";
-import { backspaceDismisses, prioDismiss, prioOnAdd, prioPicked, prioStart, prioTyped, type PrioState, type TypedPrio } from "../core/typedprio";
+import { backspaceDismisses, prioDismiss, prioOnAdd, prioPicked, prioStartFor, prioTyped, type PrioState, type TypedPrio } from "../core/typedprio";
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import "./typedprio.css";
@@ -32,13 +32,15 @@ export type TypedPrioCtl = {
   p1: string | null;
 };
 
-/** One add box's typed priority, following its text. `allowed` false (an Every day task, which has no priority):
+/** One add box's typed priority, following its text. `existing`: a name being edited (a priority word already in it is
+ *  not offered until another one is typed). `allowed` false (an Every day task, which has no priority):
  *  nothing is offered or taken. */
-export function useTypedPrio(text: string, allowed = true): TypedPrioCtl {
+export function useTypedPrio(text: string, allowed = true, existing = ""): TypedPrioCtl {
   const st = settingsData(useVault());
   const on = typedPrioOn(st) && allowed;
   const saved = p1Color(st.p1Color);
-  const ref = useRef<PrioState>(prioStart());
+  const ref = useRef<PrioState>(null as unknown as PrioState);
+  if (!ref.current) ref.current = prioStartFor(existing);
   const [, redraw] = useState(0);
   // Follows the text during render: the same text twice changes nothing, so this is safe to run again.
   ref.current = prioTyped(ref.current, text);
@@ -46,7 +48,7 @@ export function useTypedPrio(text: string, allowed = true): TypedPrioCtl {
   const offer = on ? prioOnAdd(ref.current, text) : null;
   const picked = useCallback(() => { ref.current = prioPicked(ref.current); redraw((n) => n + 1); }, []);
   const dismiss = useCallback(() => { ref.current = prioDismiss(ref.current); redraw((n) => n + 1); }, []);
-  const reset = useCallback(() => { ref.current = prioStart(); redraw((n) => n + 1); }, []);
+  const reset = useCallback(() => { ref.current = prioStartFor(""); redraw((n) => n + 1); }, []);
   const take = useCallback((t: string) => (on ? prioOnAdd(prioTyped(ref.current, t), t) : null), [on]);
   const backspace = useCallback((t: string, caret: number | null, selEnd: number | null) => on && backspaceDismisses(ref.current, t, caret, selEnd), [on]);
   return { offer, take, picked, dismiss, reset, backspace, on, p1: saved ? p1Tones(saved).accent : null };

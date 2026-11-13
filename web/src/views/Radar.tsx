@@ -6,7 +6,7 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function RadarButton(_p0?: any, ..._more: any[]): any { return undefined; }
-export function RadarPanel(_p0?: { [k: string]: any; onClose?: (...a: any[]) => any }, ..._more: any[]): any { return undefined; }
-export function RadarCard(_p0?: any, ..._more: any[]): any { return undefined; }
+export function RadarButton(_p0?: any, ..._more: any[]): any { return null; }
+export function RadarPanel(_p0?: { [k: string]: any; onClose?: (...a: any[]) => any }, ..._more: any[]): any { return null; }
+export function RadarCard(_p0?: any, ..._more: any[]): any { return null; }
 export type RadarActions = { [k: string]: any; handled: (_p0?: any, _p1?: any, ..._more: any[]) => void; snooze: (_p0?: any, _p1?: any, ..._more: any[]) => void; task: (_p0?: any, ..._more: any[]) => void; draft: (_p0?: any, ..._more: any[]) => void };

@@ -1,8 +1,10 @@
 // PS's own installer and updater, the plain parts (the developer, 27 Oct 2026: "one download file in my Drive,
 // and PS on any of my Macs offers Download and install").
 // One channel for everyone (public PS, 27 Oct 2026): a release puts a small signed manifest and the
-// update files at an unlisted address on the developer's own site, https://cincee.com/client/ps/ (UpdateChannel
-// below). PS reads the manifest, checks its signature, then downloads what it names into its own
+// update files in one place (UpdateChannel below). Since V1.57 that place is the public PS repo's newest
+// GitHub release, not cincee.com (the developer, 13 Nov 2026: "Remove the IP address part so I can't see their IP
+// address when [PS] asks Cincee for updates"). Where the files come from does not matter to the checks:
+// PS reads the manifest, checks its signature, then downloads what it names into its own
 // folder, checks every hash and goes on exactly as it did from the Drive folder before. The developer's Macs
 // use the same channel as everyone else, so he is always the first to meet any update. (Builds before
 // this one read your sync folder; releases still write there so they move on to this.)
@@ -80,7 +82,14 @@ enum UpdatePaths {
   static var publicKey: String { test ? (env["PS_SELFTEST_UPDATE_PUBKEY"] ?? UPDATE_PUBLIC_KEY) : UPDATE_PUBLIC_KEY }
 }
 
-// MARK: - The channel (https://cincee.com/client/ps/)
+// MARK: - The channel (the public PS repo's newest GitHub release)
+
+/// Where every PS since V1.57 asks for updates: the newest release of the public PS repo on GitHub. GitHub sends
+/// the request on to the release's files; the developer sees a download count there and no addresses. PS V1.56 and older
+/// still ask https://cincee.com/client/ps/, which releases keep filling so they can move on to this one.
+/// No other place is tried when GitHub cannot be reached (no fallback to cincee.com): the check just fails and
+/// is tried again later.
+let UPDATE_CHANNEL = "https://github.com/RedbyPS/ps/releases/latest/download/"
 
 /// Brings the signed manifest and the files an update needs from the channel into `UpdatePaths.mirror`,
 /// which the updater then reads like the old Drive folder. Runs on the updater's queue, never main.
@@ -94,8 +103,17 @@ enum UpdateChannel {
       guard let s = UpdatePaths.env["PS_SELFTEST_CHANNEL"], let u = URL(string: s), u.isFileURL else { return nil }
       return u
     }
-    return URL(string: "https://cincee.com/client/ps/")
+    return URL(string: UPDATE_CHANNEL)
   }()
+  /// Who answers, for the messages PS shows when a look fails.
+  static var who: String { base?.isFileURL == false ? (base?.host == "github.com" ? "GitHub" : (base?.host ?? "the update server")) : "the update folder" }
+  /// The address of a file the signed note names ("updates/PS-app-N.zip"). A release on GitHub holds its files
+  /// side by side with no folders, so on the web only the last part of the name is asked for; a test folder keeps
+  /// the folder. The name was already checked (UpdateManifest.safeFile) and the file is checked against the
+  /// signed size and SHA-256 after the download, wherever it came from.
+  static func remote(_ file: String, base: URL) -> URL {
+    base.isFileURL ? base.appendingPathComponent(file) : base.appendingPathComponent((file as NSString).lastPathComponent)
+  }
   static let session: URLSession = {
     let c = URLSessionConfiguration.ephemeral
     c.timeoutIntervalForRequest = 30
@@ -132,7 +150,7 @@ enum UpdateChannel {
       let to = dir.appendingPathComponent(file)
       if (try? fm.attributesOfItem(atPath: to.path)[.size] as? NSNumber)?.int64Value == size, (try? sha256(of: to)) == sha { continue }
       guard !bad.contains(sha) else { throw UpdateError("\(file) did not match its signed note before") }
-      let tmp = try download(base.appendingPathComponent(file))
+      let tmp = try download(remote(file, base: base))
       defer { try? fm.removeItem(at: tmp) }
       let got = (try? fm.attributesOfItem(atPath: tmp.path)[.size] as? NSNumber)?.int64Value ?? -1
       guard got == size, try sha256(of: tmp) == sha else { bad.insert(sha); throw UpdateError("\(file) does not match its signed note") }
@@ -160,7 +178,7 @@ enum UpdateChannel {
   }
   static func size(of u: URL) -> Int64 { ((try? FileManager.default.attributesOfItem(atPath: u.path)[.size]) as? NSNumber)?.int64Value ?? -1 }
   /// The note, only when it changed: nil data for "304 Not Modified" (a file:// test folder is always read).
-  /// `noCache`: also asks every cache on the way (Cloudflare, Netlify's edge) for the origin's copy, with a short wait.
+  /// `noCache`: also asks every cache on the way for the origin's copy, with a short wait.
   static func getNote(_ u: URL, etag: String?, noCache: Bool = false) throws -> (Data?, String?) {
     if u.isFileURL { return (try get(u, max: 64 << 10), nil) }
     var req = URLRequest(url: u)
@@ -170,14 +188,14 @@ enum UpdateChannel {
       req.setValue("no-cache", forHTTPHeaderField: "Cache-Control"); req.setValue("no-cache", forHTTPHeaderField: "Pragma")
       req.timeoutInterval = 15
     }
-    var out: Result<(Data?, String?), Error> = .failure(UpdateError("no answer from cincee.com"))
+    var out: Result<(Data?, String?), Error> = .failure(UpdateError("no answer from \(who)"))
     let done = DispatchSemaphore(value: 0)
     session.dataTask(with: req) { d, r, e in
       defer { done.signal() }
-      if let e { out = .failure(UpdateError("could not reach cincee.com (\(e.localizedDescription))")); return }
-      guard let h = r as? HTTPURLResponse else { out = .failure(UpdateError("cincee.com said nothing")); return }
+      if let e { out = .failure(UpdateError("could not reach \(who) (\(e.localizedDescription))")); return }
+      guard let h = r as? HTTPURLResponse else { out = .failure(UpdateError("\(who) said nothing")); return }
       if h.statusCode == 304 { out = .success((nil, etag)); return }
-      guard h.statusCode == 200, let d else { out = .failure(UpdateError("cincee.com said \(h.statusCode)")); return }
+      guard h.statusCode == 200, let d else { out = .failure(UpdateError("\(who) said \(h.statusCode)")); return }
       out = d.count <= 64 << 10 ? .success((d, h.value(forHTTPHeaderField: "ETag"))) : .failure(UpdateError("the update note is too big"))
     }.resume()
     done.wait()
@@ -187,12 +205,12 @@ enum UpdateChannel {
   /// A small file, whole (the manifest).
   static func get(_ u: URL, max: Int) throws -> Data {
     if u.isFileURL { let d = try Data(contentsOf: u); guard d.count <= max else { throw UpdateError("the update note is too big") }; return d }
-    var out: Result<Data, Error> = .failure(UpdateError("no answer from cincee.com"))
+    var out: Result<Data, Error> = .failure(UpdateError("no answer from \(who)"))
     let done = DispatchSemaphore(value: 0)
     session.dataTask(with: u) { d, r, e in
       defer { done.signal() }
-      if let e { out = .failure(UpdateError("could not reach cincee.com (\(e.localizedDescription))")); return }
-      guard let h = r as? HTTPURLResponse, h.statusCode == 200, let d else { out = .failure(UpdateError("cincee.com said \((r as? HTTPURLResponse)?.statusCode ?? 0)")); return }
+      if let e { out = .failure(UpdateError("could not reach \(who) (\(e.localizedDescription))")); return }
+      guard let h = r as? HTTPURLResponse, h.statusCode == 200, let d else { out = .failure(UpdateError("\(who) said \((r as? HTTPURLResponse)?.statusCode ?? 0)")); return }
       out = d.count <= max ? .success(d) : .failure(UpdateError("the update note is too big"))
     }.resume()
     done.wait()
@@ -207,7 +225,7 @@ enum UpdateChannel {
     session.downloadTask(with: u) { tmp, r, e in
       defer { done.signal() }
       if let e { err = UpdateError("the download stopped (\(e.localizedDescription))"); return }
-      guard let h = r as? HTTPURLResponse, h.statusCode == 200, let tmp else { err = UpdateError("cincee.com said \((r as? HTTPURLResponse)?.statusCode ?? 0)"); return }
+      guard let h = r as? HTTPURLResponse, h.statusCode == 200, let tmp else { err = UpdateError("\(who) said \((r as? HTTPURLResponse)?.statusCode ?? 0)"); return }
       do { try FileManager.default.moveItem(at: tmp, to: to) } catch { err = error }
     }.resume()
     done.wait()

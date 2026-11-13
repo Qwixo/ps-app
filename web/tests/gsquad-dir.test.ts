@@ -188,19 +188,21 @@ ok("ops from the Tab list are checked", () => {
   for (const k of ["dir", "ask", "askCancel", "askClear", "approve", "decline"]) assert.ok(DIR_OPS.has(k));
   assert.ok(!DIR_OPS.has("createListed"));
 });
-ok("V1.49: no Ask to join, no approval: older requests are let in by the admin's PS by itself, with no card", () => {
+ok("V1.57 invite only: nothing is let in by itself; the admin's Approve (admit) and Decline (turn away) are back", () => {
   const g = noComments(read("src/views/GSquad.tsx"));
-  for (const gone of ["Ask to join", "Waiting for approval", "Cancel request", "asked to join", "AskList", "Have an invite link", "ClaimCard", "OlderCard"]) assert.ok(!g.includes(gone), gone);
+  for (const gone of ["Waiting for approval", "Cancel request", "Have an invite link", "ClaimCard", "OlderCard"]) assert.ok(!g.includes(gone), gone);
+  assert.match(g, /asks=\{<AskList view=\{v\} \/>\}/, "the admin sees who asked to join");
   // V1.43: the pop-up is the G Squad window; Esc steps back, then closes (views/GSquadWindow.tsx)
   assert.match(read("src/views/GSquadWindow.tsx"), /if \(e\.key !== "Escape"\) return; e\.preventDefault\(\); e\.stopImmediatePropagation\(\); step\(\);/);
   const e = read("src/squad/direngine.ts");
-  assert.match(e, /for \(const a of list\) if \(a\.ok\) \{ try \{ await approveAsk\(rec, api, a\); let_in\+\+; \}/, "checked requests go in at once");
-  assert.match(e, /showCards\(v\.in \? v\.name \|\| LISTED_NAME : LISTED_NAME, \[\]\);/, "no Approve card on the Mac");
-  assert.match(e, /ctx\.patch\(\{ dir: v\.in \? null : dirView\(\), asks: \[\] \}\);/);
+  assert.ok(!/approveAsk\(/.test(e), "no request is ever let in by itself (V1.49 to V1.56 did)");
+  assert.match(e, /if \(o\.op === "approve"\) await api\.admit\(a\.id\); else await api\.turnAway\(a\.id\);/, "Approve and Decline are the admin's buttons");
+  assert.match(e, /if \(o\.op === "approve" && !a\.ok\) return;/, "a request that does not check out can only be declined");
+  assert.match(e, /showCards\(v\.in \? v\.name \|\| LISTED_NAME : LISTED_NAME, mine\);/, "the Approve card on the Mac");
   assert.match(e, /a\.state === "open" \? cancelAsk\(a\)/, "your own old request is called off (PS joins by itself)");
 });
 ok("no em or en dashes in anything the directory added", () => {
-  for (const p of ["src/core/squaddir.ts", "src/squad/dirflows.ts", "src/squad/direngine.ts", "supabase/hub/migrations/dir_001_directory.sql", "scripts/gsquad-dir-hub-check.ts", "src/views/GSquad.tsx", "src/views/gsquad.css", "supabase/hub/functions/squad/index.ts", "supabase/hub/migrations/auto_001_one_squad.sql"]) {
+  for (const p of ["src/core/squaddir.ts", "src/squad/dirflows.ts", "src/squad/direngine.ts", "supabase/hub/migrations/dir_001_directory.sql", "scripts/gsquad-dir-hub-check.ts", "src/views/GSquad.tsx", "src/views/gsquad.css", "supabase/hub/functions/squad/index.ts", "supabase/hub/migrations/auto_001_one_squad.sql", "supabase/hub/migrations/invite_001_invite_only.sql", "supabase/hub/functions/squad/gate.ts"]) {
     assert.ok(!/[\u2013\u2014]/.test(read(p)), p);
   }
 });

@@ -27,7 +27,7 @@ ok("the phone reads its own kind's layout: PS GOS reads gos, the mobile web app 
 });
 ok("the pages and their order: the swipe and the panes follow the layout; a page of panels is a view of its own", () => {
   assert.match(gos, /const order = useMemo\(\(\) => pl\.pages\.map\(viewOf\), \[pl\]\);/);
-  assert.match(gos, /<Swipe pane=\{isPane\(view\) \? view : "list"\} order=\{order\} onPane=\{go\}>/);
+  assert.match(gos, /<Swipe pane=\{isPane\(view\) \? view : "list"\} order=\{order\} onPane=\{go\}( invert=\{[^}]+\})?>/);   // V1.57: Invert swipe
   assert.match(gos, /const i = order\.indexOf\(pane\)/, "the swipe steps through the layout's order");
   assert.match(gos, /"panels-l" : "panels-r"/, "the list slides away to the side the page of panels is on");
   assert.match(gos, /if \(view\.startsWith\("page:"\) && !order\.includes\(view\)\) setView\("list"\)/, "a page deleted on the Mac: back to the list");

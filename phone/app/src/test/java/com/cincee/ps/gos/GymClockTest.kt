@@ -154,4 +154,107 @@ class GymClockTest {
         assertEquals("Gym in 1 h 20 min", GymClock.title(gym, hm(6, 40)))
         assertEquals("Gym time", GymClock.title(gym, hm(8, 1)))
     }
+
+    // ---------- V1.57: nag mode, the ring time, a gym across midnight, alarms ----------
+    // The developer's: nag from 10:00 every 15 min, gym 23:00 to 01:00, ring at 22:55, all on 3 Nov (Dubai, UTC+4).
+    private fun t(hhmm: String, d: String = day) = java.time.OffsetDateTime.parse("${d}T${hhmm}:00+04:00").toInstant().toEpochMilli()
+    private fun night(acked: List<String> = emptyList(), alarms: JSONArray = JSONArray()) = GymClock.from(JSONObject()
+        .put("on", true).put("time", "23:00")
+        .put("items", JSONArray().put(JSONObject().put("day", day).put("at", t("23:00")).put("end", t("01:00", "2026-11-04"))
+            .put("ring", t("22:55")).put("from", t("10:00")).put("every", 15 * 60_000L)))
+        .put("acked", JSONArray(acked)).put("before", JSONArray(listOf(120, 60, 30, 10))).put("ring", 16).put("grace", 120_000)
+        .put("alarms", alarms))
+    private fun alarm(id: String, at: Long, d: String = day) = JSONObject().put("id", id).put("day", d).put("at", at)
+        .put("title", "Wake").put("text", "Time to go").put("yes", "I'm up").put("later", "Later").put("bg", "#0f1b2d").put("accent", "#3b82f6").put("ink", "#ffffff")
+
+    @Test fun nagStepsEveryFifteenMinutesUntilTheGymEnds() {
+        val s = GymClock.steps(night()).filter { !it.ring }
+        assertEquals(t("10:00"), s.first().due)
+        assertEquals(t("10:15"), s[1].due)
+        assertEquals(t("00:45", "2026-11-04"), s.last().due)
+        assertEquals(60, s.size)
+        assertTrue(s.all { it.nag && it.day == day && it.id.startsWith("$day:n") })
+    }
+
+    @Test fun theRingAtItsOwnTimeNotMinus16() {
+        val ring = GymClock.steps(night()).single { it.ring }
+        assertEquals(t("22:55"), ring.due)
+        assertEquals("$day:r", ring.id)
+        assertEquals(listOf("$day:r"), GymClock.dueNow(night(), t("22:55") + 1000, emptySet()).filter { it.ring }.map { it.id })
+    }
+
+    @Test fun aPhoneOffThroughNagStepsShowsOneNotAPile() {
+        val due = GymClock.dueNow(night(), t("13:07"), setOf("$day:n0"))
+        assertEquals(listOf("$day:n12"), due.map { it.id })     // the 13:00 one only
+        assertTrue(GymClock.dueNow(night(), t("13:08"), setOf("$day:n0", "$day:n12")).isEmpty())
+        assertEquals(t("13:15"), GymClock.next(night(), t("13:08"), setOf("$day:n12"))!!.due)
+    }
+
+    @Test fun yesStopsEveryNagAndTheRing() {
+        assertTrue(GymClock.steps(night(acked = listOf(day))).isEmpty())
+        assertTrue(GymClock.steps(night(), localAcked = setOf(day)).isEmpty())
+        val r = GymRing(day, t("23:00"), t("22:55"))
+        assertEquals(RingNow.RINGING, GymClock.ringNow(r, night(), t("22:57"), emptySet()))
+        assertEquals(RingNow.DONE, GymClock.ringNow(r, night(acked = listOf(day)), t("22:57"), emptySet()))
+    }
+
+    @Test fun acrossMidnightTheDayIsTheDayTheNaggingStarted() {
+        val d = GymClock.dueNow(night(), t("00:30", "2026-11-04") + 1000, emptySet())
+        assertEquals(day, d.single().day)
+        assertTrue(GymClock.dueNow(night(), t("01:01", "2026-11-04"), emptySet()).isEmpty())
+    }
+
+    @Test fun anOldPlanStillRingsAtMinus16() {
+        // A page older than V1.57 (no end, ring, from, every): the old steps and ids.
+        assertEquals(listOf(120, 60, 30, 16, 10), GymClock.steps(plan()).filter { it.day == day }.map { it.mins })
+        assertEquals("$day:16", GymClock.steps(plan()).first { it.ring && it.day == day }.id)
+    }
+
+    @Test fun theNewPlanRoundTrips() {
+        val p = night(alarms = JSONArray().put(alarm("al1", t("07:44"))))
+        assertEquals(p, GymClock.from(GymClock.toJson(p)))
+    }
+
+    @Test fun alarmsRingOnTimeOnceAndNotLate() {
+        val p = night(alarms = JSONArray().put(alarm("al1", t("07:44"))).put(alarm("al2", t("13:00"))))
+        assertEquals(2, p.alarms.size)
+        assertEquals("Wake", p.alarms[0].title)
+        assertEquals(listOf("al1"), GymClock.alarmsDue(p, t("07:44") + 1000, emptySet()).map { it.id })
+        assertTrue(GymClock.alarmsDue(p, t("07:44") + 1000, setOf("a:al1:$day")).isEmpty())
+        assertTrue(GymClock.alarmsDue(p, t("07:50"), emptySet()).isEmpty())                       // over 5 minutes late
+        assertTrue(GymClock.alarmsDue(p, t("07:44") + 1000, emptySet(), setOf("al1:$day")).isEmpty())   // acknowledged here
+        assertEquals("al2", GymClock.nextAlarm(p, t("08:00"), setOf("a:al1:$day"))!!.id)
+        assertEquals("al1", GymClock.nextAlarm(p, t("07:00"), emptySet())!!.id)
+    }
+
+    @Test fun anAlarmRingLastsTenMinutesLaterFiveAndAcknowledgeEndsIt() {
+        val p = night(alarms = JSONArray().put(alarm("al1", t("07:44"))))
+        val r = GymRing(day, t("07:44"), t("07:44"), 0, "a:al1")
+        assertEquals("al1", r.alarmId)
+        assertEquals(RingNow.RINGING, GymClock.ringNow(r, p, t("07:50"), emptySet()))
+        assertEquals(RingNow.MISSED, GymClock.ringNow(r, p, t("07:55"), emptySet()))
+        val later = GymClock.later(r, t("07:46"))
+        assertEquals(RingNow.SNOOZED, GymClock.ringNow(later, p, t("07:50"), emptySet()))
+        assertEquals(RingNow.AGAIN, GymClock.ringNow(later, p, t("07:51") + 1000, emptySet()))
+        // Acknowledged here, or on the Mac (the page's plan no longer has it), or the alarm removed: done.
+        assertEquals(RingNow.DONE, GymClock.ringNow(r, p, t("07:50"), emptySet(), setOf("al1:$day")))
+        assertEquals(RingNow.DONE, GymClock.ringNow(r, night(), t("07:50"), emptySet()))
+        // A Yes to the gym does not stop an alarm, and an alarm's Acknowledge does not say Yes to the gym.
+        assertEquals(RingNow.RINGING, GymClock.ringNow(r, night(acked = listOf(day), alarms = JSONArray().put(alarm("al1", t("07:44")))), t("07:50"), setOf(day)))
+    }
+
+    @Test fun badAlarmsAreLeftOutAndWordsAreTrimmed() {
+        val bad = JSONArray().put(JSONObject().put("id", "BAD ID").put("day", day).put("at", 5))
+            .put(JSONObject().put("id", "ok1").put("day", "nope").put("at", 5))
+            .put(JSONObject().put("id", "ok2").put("day", day).put("at", t("09:00")).put("title", "x".repeat(99)).put("bg", "red"))
+        val p = night(alarms = bad)
+        assertEquals(listOf("ok2"), p.alarms.map { it.id })
+        assertEquals(30, p.alarms[0].title.length)
+        assertEquals("#2a1a08", p.alarms[0].bg)
+        assertEquals("Acknowledge", p.alarms[0].yes)
+    }
+
+    @Test fun alarmRingIdsArePrunedByTheirDay() {
+        assertEquals(setOf("a:al1:2026-11-02", "$day:n3"), GymClock.prune(setOf("a:al1:2026-11-01", "a:al1:2026-11-02", "$day:n3"), day))
+    }
 }

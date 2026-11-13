@@ -115,3 +115,11 @@
   .pm-card, .pm-plus, .pm-pill, .pm-top, .pm-tools, .pm-drawer, .pm-dim { transition-duration: .01s !important; animation: none !important; }
   .pm-room .pe-tile { animation: none !important; }
 }
+
+/* V1.57 Delete page in the bottom row (views/PhoneDeletePage.tsx), its question and Undo above the row. */
+.pm-tools { gap: 8px; }
+.pm-tools .pm-tool { min-width: 0; padding: 0 10px; text-align: center; }
+.pm-tools .pe-del.phone { flex: 1 1 0; min-width: 0; max-width: 220px; white-space: normal; }
+.pm-tools .pe-del.phone .pe-del-btn { width: 100%; justify-content: center; padding: 0 10px; text-align: center; }
+.pm-room:has(.pe-undo) .pm-hint, .pm-room:has(.pe-del-ask) .pm-hint, .pm-room:has(.pe-del-why) .pm-hint { opacity: 0; transition-delay: 0s; }
+.pm-room .pe-undo { z-index: 70; }

@@ -9,6 +9,8 @@
 //  - Reminders ON tasks (V1.55): the pop-up says the task's name, a ticked task ends today's nagging, Done on a card or
 //    a notification ticks the task, and a reminder whose task was deleted or (a one-off) finished goes after a short
 //    wait (so Undo brings both back). A once reminder goes a day after its day.
+//  - Alarms (V1.57): the Mac gets them in this plan (their card); the phone does not (it rings them, gymwatch.ts). Their
+//    Acknowledge comes back as an ordinary remAct "done", from either device.
 //  - On a Mac, once: the old daily reminder (V1.38 to V1.45) that Mac kept becomes reminder one (migrateLegacy), then
 //    the Mac is told it can stop reporting it ("rem:legacyDone").
 import { vaultStore } from "./core/vault";
@@ -59,7 +61,11 @@ function run() {
         .catch(() => {}).finally(() => { sweeping = false; });
     }
   }
-  const plan = remPlan(rec, !!s.red, { tasks, now: Date.now(), deviceTz: DEVICE_TZ });
+  const full = remPlan(rec, !!s.red, { tasks, now: Date.now(), deviceTz: DEVICE_TZ });
+  // Alarms (V1.57): the Mac shows their card from this plan; the phone RINGS them with the gym ring instead (gymwatch.ts
+  // hands them over with the gym plan), so they are left out of the phone's reminder notifications.
+  const alarms = new Set((rec?.list ?? []).filter((r) => r.alarm).map((r) => r.id));
+  const plan = PHONE && alarms.size ? { ...full, items: full.items.filter((i) => !alarms.has(i.id)) } : full;
   const json = JSON.stringify(plan);
   // Nothing saved yet and a Mac still holding its old card: leave the Mac's own card alone until the record exists.
   if (!rec && leg) return;

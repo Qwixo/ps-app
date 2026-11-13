@@ -159,3 +159,8 @@
 .fs .fs-gym-days button:disabled { cursor: default; }
 .fs-gym-done { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); color: var(--f-good); font-weight: 750; }
 .fs .fs-gym-ack { margin-top: 12px; }
+/* V1.57: nag mode and the ring time */
+.fs-gym-nag { margin-top: 14px; transition: opacity var(--f-mid) var(--f-ease); }
+.fs-gym-nag.off { opacity: .45; pointer-events: none; }
+.fs-gym-time select { min-height: var(--f-tap-s); padding: 0 calc(12px * var(--k-dn, 1)); border-radius: var(--f-r-s); border: var(--f-line-w) solid var(--f-line); background: var(--f-surface-2); color: var(--f-ink); font: inherit; font-size: calc(17px * var(--k-fs, 1)); font-weight: 750; text-transform: none; letter-spacing: 0; }
+.fs .fs-gym-reset { margin-top: 10px; padding: calc(6px * var(--k-dn, 1)) 0; border: 0; background: none; color: var(--f-accent); font: inherit; font-size: calc(14px * var(--k-fs, 1)); font-weight: 750; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }

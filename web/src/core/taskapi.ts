@@ -14,7 +14,8 @@ import type { Doc, Settings, Todo } from "./model";
 import { GROUP_NAME_MAX, cleanGroups, groupKey, groupOf, tabLists, type TabLists } from "./groups.ts";
 import { DEFAULT_NAMES, LIST_NAME_MAX, MAIN, SEC_NAME_MAX, allPages, cleanNames, listMoveTarget, pageOfSec, pageOrder, renamePage, shownName, tidyName } from "./lists.ts";
 import { INBOX, INBOX_MAX, INBOX_NAME, inInbox, intoSection, listsCtx, sectionTakes } from "./aiinbox.ts";
-import { REM_TEXT_MAX, addTaskReminder, freshId, minutesOf, newTaskReminder, oneLine, patchReminder, reminderOfTask, remindOrDefault, removeReminder, type RemindRec } from "./remind.ts";
+import { API_GYM_FIELDS, API_GYM_YES, API_NO_YES, apiGym, apiGymPatch, gymPrefs } from "./gym.ts";
+import { REM_TEXT_MAX, okTz, addTaskReminder, freshId, minutesOf, newTaskReminder, oneLine, patchReminder, reminderOfTask, remindOrDefault, removeReminder, type RemindRec } from "./remind.ts";
 
 export const API_PORT = 47836;
 export const API_VERSION = 1;
@@ -23,7 +24,7 @@ export const TITLE_MAX = 500, NOTES_MAX = 2000;
 export const LIST_LIMIT_DEF = 200, LIST_LIMIT_MAX = 500;
 
 // ---------- the switches ----------
-export type ScopeId = "inbox" | "lists" | "rename" | "read" | "add" | "edit" | "done" | "delete" | "remind" | "sentry";
+export type ScopeId = "inbox" | "lists" | "rename" | "read" | "add" | "edit" | "done" | "delete" | "remind" | "sentry" | "gym" | "settings";
 export interface ScopeDef { id: ScopeId; group: "where" | "what"; label: string; line: string; def: boolean }
 /** One switch per thing an AI may do (Settings, AI task API). Off unless switched on, except add, read and the inbox. */
 export const SCOPES: ScopeDef[] = [
@@ -38,6 +39,10 @@ export const SCOPES: ScopeDef[] = [
   { id: "remind", group: "what", label: "Set reminders", line: "Put a reminder on a task, change it or take it off.", def: false },
   // The developer, 13 Nov 2026: "tell Claude Code to deploy Sentry Mode and it will get the PS app to deploy Sentry mode too". Start only.
   { id: "sentry", group: "what", label: "Start Sentry mode", line: "Lock this Mac and keep it awake for AI jobs. An AI can never turn it off.", def: false },
+  // The developer, 13 Nov 2026 (V1.57): "a new switch "gym" ... (off by default) ... The API can never answer Yes for me."
+  { id: "gym", group: "what", label: "Gym reminder", line: "Read and change your gym reminder times. An AI can never say Yes for you.", def: false },
+  // The developer, 13 Nov 2026 (V1.57): Invert swipe "accessible via the API as well, so you can just tell your Claude to do it".
+  { id: "settings", group: "what", label: "Change settings", line: "Read and change the settings listed for AI, for now Invert swipe.", def: false },
 ];
 export type Scopes = Record<ScopeId, boolean>;
 export const DEFAULT_SCOPES: Scopes = Object.fromEntries(SCOPES.map((s) => [s.id, s.def])) as Scopes;
@@ -202,7 +207,11 @@ const ENDPOINTS = [
   "GET /v1/tasks", "POST /v1/tasks", "GET /v1/tasks/{id}", "PATCH /v1/tasks/{id}", "DELETE /v1/tasks/{id}",
   "POST /v1/tasks/{id}/complete", "POST /v1/tasks/{id}/reopen", "PUT /v1/tasks/{id}/reminder", "DELETE /v1/tasks/{id}/reminder",
   "POST /v1/sentry/start",
+  "GET /v1/gym", "PATCH /v1/gym",
+  "GET /v1/settings", "PATCH /v1/settings",
 ];
+/** The settings an AI may read and change (GET and PATCH /v1/settings): the API name, the settings record's field. */
+export const API_SETTINGS = { invertSwipe: "swipeInvert" } as const;
 /** Said whenever anything but POST /v1/sentry/start is asked of Sentry mode. */
 export const SENTRY_NO_STOP = "Sentry mode can only be started through the API, never stopped, paused or changed. Leaving it needs the person's Mac password or Touch ID.";
 
@@ -315,6 +324,43 @@ async function route(req: ApiReq, sc: Scopes, store: ApiStore): Promise<ApiRes> 
     if (r.result === "refused") return fail(409, "sentry_refused", r.note);
     if (r.result === "notStarted") return fail(409, "sentry_refused", "PS did not start Sentry mode just now (Sleep mode may be up). Ask the person.");
     return fail(503, "not_ready", r.result === "unavailable" ? "Sentry mode runs only in the PS app on a Mac." : "PS did not say whether Sentry mode started. Ask the person to look at the Mac before trying again.");
+  }
+
+  // GET and PATCH /v1/gym (V1.57): the gym reminder's times. Never a Yes: no field, path or method says Yes for the person.
+  if (seg[1] === "gym") {
+    if (seg.length !== 2) return fail(404, "not_found", `The gym endpoints are GET /v1/gym and PATCH /v1/gym. ${API_NO_YES}`);
+    const no = allow("GET", "PATCH"); if (no) return no;
+    if (!sc.gym) return scopeOff("gym");
+    const st = store.settings();
+    const tz = okTz(st.tmHomeTz) || store.deviceTz();
+    const p = gymPrefs(st.gym, store.red());
+    const acked = st.gymAck ?? [];
+    if (method === "GET") return ok({ gym: apiGym(p, acked, store.now(), tz) });
+    const b = needBody(); if (!isObj(b)) return b;
+    const yes = Object.keys(b).find((k) => API_GYM_YES.includes(k));
+    if (yes) return fail(400, "unknown_field", API_NO_YES, { field: yes });
+    const u = unknownField(b, [...API_GYM_FIELDS]); if (u) return u;
+    const r = apiGymPatch(p, b);
+    if ("field" in r) return badField(r.field, r.message);
+    await store.saveSettings({ gym: r.prefs });
+    return ok({ gym: apiGym(r.prefs, acked, store.now(), tz) });
+  }
+
+  // GET and PATCH /v1/settings (V1.57): only the settings in API_SETTINGS, nothing else in the settings record.
+  if (seg[1] === "settings") {
+    if (seg.length !== 2) return fail(404, "not_found", "The settings endpoints are GET /v1/settings and PATCH /v1/settings.");
+    const no = allow("GET", "PATCH"); if (no) return no;
+    if (!sc.settings) return scopeOff("settings");
+    const view = (st: Partial<Settings>) => ({ invertSwipe: st.swipeInvert === true });
+    if (method === "GET") return ok({ settings: view(store.settings()) });
+    const b = needBody(); if (!isObj(b)) return b;
+    const u = unknownField(b, Object.keys(API_SETTINGS)); if (u) return u;
+    if (!Object.keys(b).length) return fail(400, "bad_request", `Send at least one of: ${Object.keys(API_SETTINGS).join(", ")}.`);
+    if ("invertSwipe" in b && typeof b.invertSwipe !== "boolean") return badField("invertSwipe", "invertSwipe must be true or false.");
+    const patch: Partial<Settings> = {};
+    if (typeof b.invertSwipe === "boolean") patch.swipeInvert = b.invertSwipe;
+    await store.saveSettings(patch);
+    return ok({ settings: view({ ...store.settings(), ...patch }) });
   }
 
   if (seg[1] !== "tasks" || seg.length > 4) return fail(404, "not_found", "No such endpoint. GET /v1 lists them.");

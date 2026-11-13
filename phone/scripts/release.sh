@@ -85,4 +85,4 @@ if [ -d "$(dirname "$(dirname "$DRIVE")")" ]; then mkdir -p "$DRIVE" && rm -f "$
 else echo "Google Drive folder not found: copy $OUT by hand."; fi
 
 git add version.properties && git commit -q -m "PS GOS $NAME" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- version.properties || true
-echo "Ready: PS GOS $NAME · $KEYWORD, code $CODE, $FILE ($SIZE bytes, sha256 $SHA). Not deployed: the manager's next website release publishes cincee.com/client/gos/."
+echo "Ready: PS GOS $NAME · $KEYWORD, code $CODE, $FILE ($SIZE bytes, sha256 $SHA). Not deployed: the manager's next release publishes it on GitHub (gos-version.json, what V1.57 and newer read) and at cincee.com/client/gos/ (V1.56 and older)."

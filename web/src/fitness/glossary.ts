@@ -276,9 +276,9 @@ export const GLOSSARY = T({
   },
   "gym-reminder": {
     group: "settings", title: "Gym reminder",
-    what: "Reminders before your gym time on the days you pick: cards on the Mac, notifications and a ring on the phone.",
-    example: "Gym at 08:00 on Monday, Wednesday and Friday: reminders at 06:00, 07:00, 07:30 and 07:50.",
-    why: "Showing up is the hardest part. Acknowledge on one device and both stop.",
+    what: "Reminders before your gym time on the days you pick: cards on the Mac, notifications and a ring on the phone. Nag mode reminds you every few minutes until you say Yes.",
+    example: "Gym at 08:00 on Monday, Wednesday and Friday: reminders at 06:00, 07:00, 07:30 and 07:50. Or nag from 10:00 every 15 min, gym 23:00 to 01:00, ring at 22:55.",
+    why: "Showing up is the hardest part. Say Yes on one device and both stop.",
   },
   "sleep-settings": {
     group: "settings", title: "Sleep",
@@ -399,7 +399,7 @@ export const PREF_TERMS: { [K in keyof Required<FitPrefs>]: TermKey | null } = {
   at: null,
 };
 /** The gym reminder lives in the main settings record (core/gym.ts GymPrefs). */
-export const GYM_TERMS = { on: "gym-reminder", time: "gym-reminder", days: "gym-reminder" } as const satisfies Record<string, TermKey>;
+export const GYM_TERMS = { on: "gym-reminder", time: "gym-reminder", end: "gym-reminder", days: "gym-reminder", nag: "gym-reminder", nagStart: "gym-reminder", nagEvery: "gym-reminder", ringAt: "gym-reminder" } as const satisfies Record<string, TermKey>;
 /** Each group in Fitness settings and its word (tested against the Section titles in FitSettings.tsx). */
 export const SETTINGS_SECTIONS: Record<string, TermKey> = {
   "Look": "look",

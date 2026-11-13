@@ -19,8 +19,8 @@ enum UpdateLatest {
   /// `a` is a newer release than `b`.
   static func newer(_ a: UpdatePlan, than b: UpdatePlan) -> Bool { rank(a) > rank(b) }
 
-  /// What the click installs: the fresh note's plan (cincee.com is the truth, even when it says "nothing"). Only when
-  /// the fresh look failed (offline, cincee.com not answering) the one on the card goes in: it is the newest PS could
+  /// What the click installs: the fresh note's plan (the channel is the truth, even when it says "nothing"). Only when
+  /// the fresh look failed (offline, the channel not answering) the one on the card goes in: it is the newest PS could
   /// see, and its files were already checked here.
   static func choose(card: UpdatePlan, fresh: UpdatePlan?) -> UpdatePlan { fresh ?? card }
 

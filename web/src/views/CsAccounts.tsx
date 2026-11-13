@@ -6,5 +6,5 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function InstantlyAccounts(_p0?: any, ..._more: any[]): any { return undefined; }
+export function InstantlyAccounts(_p0?: any, ..._more: any[]): any { return null; }
 export function csDrawerEscape(..._more: any[]): boolean { return false; }

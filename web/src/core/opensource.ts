@@ -11,7 +11,7 @@
 
 /** The public repo's address, or null while it is not live yet. Set it to the https address (for example
  *  "https://github.com/OWNER/REPO") when the repo is public. Anything that is not https counts as not set. */
-export const OPEN_SOURCE_URL: string | null = null;
+export const OPEN_SOURCE_URL: string | null = "https://github.com/RedbyPS/ps-app";
 
 /** The address when it is a real https link, else null (so a typo can never put a bad link in front of anyone). */
 export function cleanSourceUrl(v: unknown): string | null {

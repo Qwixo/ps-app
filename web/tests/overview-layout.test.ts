@@ -93,6 +93,22 @@ ok("three Meetings panels, each its own calendar (the developer's Google account
   assert.equal(cleanLayout({ ...l, cfg: { sleep: { cal: "g:work01" } } }).cfg?.sleep, undefined, "only a Meetings panel has a calendar");
   assert.equal(cleanLayout({ ...l, cfg: { [b.id!]: { cal: "http://evil" } } }).cfg?.[b.id!], undefined, "a calendar setting is a feed id or an account name, never an address");
 });
+ok("V1.57: a Time zones panel kept open, each copy on its own page on its own, and only Time zones", () => {
+  let l = emptyLayout();
+  const a = addPanel(l, "clocks", P2, AT, undefined, rnd); l = a.layout;
+  l = setCfg(l, a.id!, { open: true }, AT);
+  const c = cleanLayout(JSON.parse(JSON.stringify(l)));
+  assert.equal(cfgOf(c, a.id!).open, true, "the copy on the other page stays open");
+  assert.equal(cfgOf(c, "clocks").open, undefined, "the original still opens on hover");
+  l = setCfg(c, "clocks", { open: true }, AT);
+  assert.equal(cfgOf(l, "clocks").open, true);
+  l = setCfg(l, a.id!, { open: false }, AT);
+  assert.equal(cfgOf(l, a.id!).open, undefined, "clicked again: back to hover only, and the setting goes");
+  assert.equal(l.cfg?.[a.id!], undefined);
+  assert.equal(cleanLayout({ ...l, cfg: { meetings: { open: true } } }).cfg?.meetings, undefined, "only Time zones keeps open");
+  assert.equal(cleanLayout({ ...l, cfg: { clocks: { open: "yes" } } }).cfg?.clocks, undefined, "only true counts");
+  assert.ok(isDefault(setCfg(setCfg(emptyLayout(), "clocks", { open: true }, AT), "clocks", { open: false }, AT)), "nothing left behind");
+});
 ok("removing: the original goes to the gallery as removed; a copy goes for good; both can always be added again", () => {
   let l = hideSlot(emptyLayout(), "sleep", AT);
   assert.ok(!onPage(l, MAIN_PAGE, true).includes("sleep"));

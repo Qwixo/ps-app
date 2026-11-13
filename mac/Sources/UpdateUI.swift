@@ -25,6 +25,8 @@ final class UpdateUI: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   init(install: Bool) {
     self.install = install
     super.init()
+    // V1.57: private mode coming on puts an update card that is up behind a pill (PrivateHold.swift).
+    if !install { PrivateHold.shared.watch { [weak self] in if let self, self.window.isVisible { self.present() } } }
     let c = WKWebViewConfiguration()
     c.websiteDataStore = .nonPersistent()                       // it holds nothing
     if IS_TEST_COPY, let list = testBlockList { c.userContentController.add(list) }
@@ -79,6 +81,10 @@ final class UpdateUI: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
       return
     }
+    // V1.57 private mode: the update card waits behind a pill (PrivateHold.swift); the installer never does.
+    if !IS_TEST_COPY && PrivateHold.shared.waits("update", show: { [weak self] in self?.present() }) {
+      window.orderOut(nil); IslandColumn.shared.leave("update"); return
+    }
     // V1.55: out of the Dynamic Island while it is there and the developer left the update card on Island (IslandColumn.swift).
     if let f = IslandColumn.shared.frame(id: "update", kind: "update", size: window.frame.size, window: window,
                                          replace: { [weak self] in if self?.window.isVisible == true { self?.present() } }) {
@@ -93,7 +99,7 @@ final class UpdateUI: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     }
     window.orderFrontRegardless()
   }
-  func close() { window.orderOut(nil); IslandColumn.shared.leave("update") }
+  func close() { PrivateHold.shared.gone("update"); window.orderOut(nil); IslandColumn.shared.leave("update") }
 
   /// Calls window.__up.<fn>(...args) once the page is ready (queued before that).
   func call(_ fn: String, _ args: Any...) {

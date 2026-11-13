@@ -2,8 +2,8 @@
 // build's data): a 4 day program and two weeks of logged workouts, so every screen has something to draw.
 import type { Doc } from "../core/model";
 import type { FitPlanEx, FitProgram, FitPrefs, FitWorkout } from "../core/fitness";
-import { makeLog, spanFromClock } from "../core/sleep";
-import { homeTz } from "../core/tz";
+import { makeLog, spanFromClock } from "../core/sleep.ts";
+import { homeTz } from "../core/tz.ts";
 
 const ex = (id: string, exId: string | null, name: string, kind: "compound" | "isolation", sets: [number, number][], rir = 2, perSide = false, step = 2.5): FitPlanEx =>
   ({ id, exId, name, kind, perSide, step, rir, sets: sets.map(([reps, kg]) => ({ reps, kg })) });

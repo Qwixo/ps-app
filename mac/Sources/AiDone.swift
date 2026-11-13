@@ -127,8 +127,10 @@ final class AiDone {
       let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? home.appendingPathComponent("Library/Application Support")
       let v = AiDoneCore.verdict(d, lines: { path in Self.transcriptLines(path) }, named: { AiDoneCore.toolName($0, home: home, appSupport: support) })
       switch v {
-      case .card(let tool, let id, let chat, let at):
-        pending[name] = ["key": name, "tool": tool.rawValue, "id": id, "chat": chat, "at": ISO8601DateFormatter().string(from: at)]
+      case .card(let tool, let id, let chat, let at, let turn):
+        var item: [String: Any] = ["key": name, "tool": tool.rawValue, "id": id, "chat": chat, "at": ISO8601DateFormatter().string(from: at)]
+        if !turn.isEmpty { item["turn"] = turn }   // V1.57: the same prompt again is the same card (core/chatdone.ts sameFinish)
+        pending[name] = item
         psLog("PS ai done: a \(tool.rawValue) chat finished")
       case .held(let n):
         psLog("PS ai done: held, \(n) background job\(n == 1 ? "" : "s") still running")

@@ -93,6 +93,24 @@ export async function makeAsk(entry: { id: string; name: string; adminBox: strin
   return { rec, hub: { id: reqId, squad: entry.id, box: box.pub, admin: entry.adminBox, sealed: blob } };
 }
 
+/** V1.57 invite only: a PS that joined The G Squad by itself is waiting (its Ask to join). It leaves its name and its
+ *  two public keys for the admin, sealed to the admin's box key exactly like a V1.42 request, with its member id as
+ *  the request id. The hub cannot open it; the admin's PS checks it names the hub row's keys before Approve. */
+export async function sealJoinAsk(squadId: string, memberId: string, adminBox: string, me: string, sign: string, box: string): Promise<string> {
+  const k = await S.newSquadKey();
+  return JSON.stringify({ v: 1, k: await S.sealKeyTo(adminBox, k, aad.askKey(squadId, memberId)),
+    c: await S.seal(k, { n: cleanName(me) || "Me", sign, box } satisfies Card, aad.ask(squadId, memberId)) });
+}
+/** A waiting row (the hub's wait_list) as a request the admin opens with openAsk. No name left yet (V1.49 to V1.56
+ *  apps never leave one): it cannot be checked, so it can only be declined. */
+export interface HubWaitRow { id: string; sign_pub: string; box_pub: string; ask_ct: string | null; joined_at: string }
+export function waitAsRequest(row: HubWaitRow, adminBox: string): HubAskRow {
+  return { id: row.id, sign_pub: row.sign_pub, box_pub: row.box_pub, admin_box: row.ask_ct ? adminBox : "", sealed: row.ask_ct ?? "", created_at: row.joined_at };
+}
+
+/** An ask with no name (PS before V1.57) or one that does not check out: it can only be declined. */
+export const NO_NAME_ASK = "No name came with this request (an older PS app), so it can only be declined. To let them in, show them your Add friend code.";
+
 /** A request row as the hub hands it to the admin. */
 export interface HubAskRow { id: string; sign_pub: string; box_pub: string; admin_box: string; sealed: string; created_at: string }
 export interface AskView { id: string; name: string; code: string; at: string; ok: boolean; sign: string; box: string }

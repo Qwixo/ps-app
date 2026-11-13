@@ -1,5 +1,5 @@
 // The update flow (the plain parts are in UpdateCore.swift, the hand over in UpdateHandoff.swift).
-// Since 27 Oct 2026 the manifest and files come from the channel on cincee.com (UpdateChannel), which
+// Since 27 Oct 2026 the manifest and files come from the channel (UpdateChannel: since V1.57 the public PS repo's newest GitHub release), which
 // downloads them into PS's own mirror folder; everything below reads that folder like it read the
 // synced Drive folder before.
 // PS looks at the manifest 45 s after launch, every 5 minutes (V1.54, the developer: "can you not change it to every five
@@ -605,7 +605,7 @@ final class Updater {
     set { newestLock.lock(); _newest = newValue; newestLock.unlock() }
   }
 
-  /// The note read fresh from cincee.com (no ETag, no cache), its files in the mirror, and the plan it gives this
+  /// The note read fresh from the channel (no ETag, no cache), its files in the mirror, and the plan it gives this
   /// Mac (a build that did not start here is still skipped). Updater queue only.
   private func freshLook() throws -> (UpdateManifest, URL, UpdatePlan) {
     var source = UpdatePaths.drive()

@@ -970,7 +970,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
   var kept = false { didSet { if oldValue != kept { SafePeek.shared.refresh() } } }
   private(set) var hitRects: [NSRect] = []
   private var keepMonitors: [Any] = []
-  func setKeep(_ on: Bool) {
+  func setKeep(_ on: Bool, stay: Bool = false) {
     guard on != kept else { return }
     kept = on
     if on {
@@ -983,7 +983,19 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       keepMonitors.forEach { NSEvent.removeMonitor($0) }
       keepMonitors = []
       hitRects = []
-      hideOverlay(force: true)
+      // V1.57 (KeepCore): leaving Edit keeps the list up, pinned, until the next Tab or a click on empty space.
+      // Clicks land on the list everywhere again, so the page's own background click can close it.
+      if KeepCore.off(stay: stay, shown: shown) == .stayPinned {
+        let w = TabWatch.shared
+        w.mu.lock(); w.pinned = true; w.mu.unlock()
+        panel.ignoresMouseEvents = selfTest
+        clickThrough = selfTest
+        overlay.evaluateJavaScript("var o=document.querySelector('.tm-overlay');if(o)o.removeAttribute('data-mouse-out')", completionHandler: nil)
+        keepOpen()
+        if selfTest { print("KEEP OFF: stays, pinned") }
+      } else {
+        hideOverlay(force: true)
+      }
     }
   }
   func setHitRects(_ list: [[Double]]) {
@@ -1378,8 +1390,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       if let ids = msg["ids"] as? [String], let j = ScreenTime.shared.iconsJSON(ids) { sendToOverlay(j) }
     case "close" where fromOverlay:
       hideOverlay()
-    case "keep" where fromOverlay:            // the Keep overlay tick
-      setKeep(msg["on"] as? Bool ?? false)
+    case "keep" where fromOverlay:            // the Keep overlay tick; "stay" (V1.57, leaving Edit): the list stays up, pinned
+      setKeep(msg["on"] as? Bool ?? false, stay: msg["stay"] as? Bool == true)
     case "hitRects" where fromOverlay:        // what the page shows while kept (clicks elsewhere pass through)
       setHitRects(msg["rects"] as? [[Double]] ?? [])
     case "backdrop" where fromOverlay:        // the glass slider; "save" when let go (then the vault keeps it)
@@ -1484,6 +1496,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     case "thunder" where fromOverlay:           // the lightning backgrounds' thunder: only while the list is showing
       if shown, let name = msg["name"] as? String { Sfx.shared.thunder(name, volume: msg["vol"] as? Double ?? 0) }
     case "sfx" where fromOverlay || fromMain:   // the Tab list's hover and click sounds
+      // V1.57: a card's own sound (card:true: mail, meetings, the gym card, squad messages) is skipped in private mode.
+      if (msg["card"] as? Bool) == true && !PrivateCore.cardSound(privateOn: PrivateHold.shared.on) { break }
       if let name = msg["name"] as? String { Sfx.shared.play(name, volume: msg["vol"] as? Double ?? 0.4) }
     // Reply from PS (V1.44, ReplyWindow.swift, MailSend.swift, web src/replyengine.ts).
     case "reply:open" where fromMain:           // a card's Reply: the compose window for that email
@@ -2499,7 +2513,7 @@ enum SelfTest {
              "createdAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-1800))]]]],
           ["id": "cl1", "ws": NSNull(), "kind": "client", "author": NSNull(), "updatedAt": NSNull(), "data": ["name": "Northwind Silk", "contactName": "Jane Doe", "email": "jane@northwindsilk.example"]],
           ["id": "r1", "ws": NSNull(), "kind": "reply", "author": NSNull(), "updatedAt": NSNull(), "data": [
-            "clientId": "cl1", "account": "person19@gmail.com", "threadId": "abc", "msgIds": ["m1"], "from": "jane@northwindsilk.example", "fromName": "Jane Doe",
+            "clientId": "cl1", "account": "person20@gmail.com", "threadId": "abc", "msgIds": ["m1"], "from": "jane@northwindsilk.example", "fromName": "Jane Doe",
             "subject": "Homepage draft", "snippet": "Hi Sam. Loved the draft! Can we move the banner up a little? Also the font feels small on phones.",
             "date": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-600)), "count": 2, "handled": false]],
           ["id": "c1", "ws": NSNull(), "kind": "calendar", "author": NSNull(), "updatedAt": NSNull(), "data": [

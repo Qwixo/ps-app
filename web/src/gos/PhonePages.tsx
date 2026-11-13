@@ -12,6 +12,7 @@ import { cellBox, rowsUsed, tileLabel, type Tile } from "../core/phonelayout";
 import { kindOf } from "../core/tablayout";
 import { useVault } from "../ui/kit";
 import { settingsData } from "../core/select";
+import { swiped } from "../core/lists";
 import { setDnd } from "../core/actions";
 import { DndButton } from "../views/Dnd";
 import { SleepRow } from "../views/SleepMode";
@@ -65,12 +66,13 @@ function useElementFor(kind: string): ReactNode | undefined {
 /** Inside the list (views/TaskMap.tsx): the page of panels the phone shows, if any. */
 export function PhoneTilesHost() {
   const now = usePhoneNow();
+  const invert = settingsData(useVault()).swipeInvert === true;   // Settings, Controls, Invert swipe (V1.57)
   const p = now.page;
   if (!p || p.kind !== "panels") return null;
-  return createPortal(<PanelsPage key={p.id} tiles={p.tiles ?? []} side={now.side} order={now.order} self={`page:${p.id}`} go={now.go} name={p.name ?? "Page"} />, document.body);
+  return createPortal(<PanelsPage key={p.id} tiles={p.tiles ?? []} side={now.side} order={now.order} self={`page:${p.id}`} go={now.go} name={p.name ?? "Page"} invert={invert} />, document.body);
 }
 
-function PanelsPage({ tiles, side, order, self, go, name }: { tiles: Tile[]; side: "l" | "r"; order: string[]; self: string; go: (v: string) => void; name: string }) {
+function PanelsPage({ tiles, side, order, self, go, name, invert }: { tiles: Tile[]; side: "l" | "r"; order: string[]; self: string; go: (v: string) => void; name: string; invert?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(() => (typeof window === "undefined" ? 390 : window.innerWidth));
   useEffect(() => { const f = () => setW(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -85,7 +87,7 @@ function PanelsPage({ tiles, side, order, self, go, name }: { tiles: Tile[]; sid
     };
     const move = (e: TouchEvent) => {
       if (!mode || mode === "y") return;
-      const x = e.touches[0].clientX - sx, y = e.touches[0].clientY - sy;
+      const x = swiped(e.touches[0].clientX - sx, invert), y = e.touches[0].clientY - sy;
       if (mode === "?") { if (Math.abs(x) < 12 && Math.abs(y) < 12) return; mode = Math.abs(x) > Math.abs(y) * 1.4 ? "x" : "y"; if (mode === "y") return; }
       dx = x;
       el.style.setProperty("--pp-drag", `${dx}px`);
@@ -106,7 +108,7 @@ function PanelsPage({ tiles, side, order, self, go, name }: { tiles: Tile[]; sid
     el.addEventListener("touchend", end);
     el.addEventListener("touchcancel", end);
     return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
-  }, [order, self, go]);
+  }, [order, self, go, invert]);
   const rows = rowsUsed(tiles);
   const height = rows ? cellBox({ c: 0, r: rows - 1, w: 1, h: 1 }, w).top + cellBox({ c: 0, r: 0, w: 1, h: 1 }, w).height : 0;
   return (

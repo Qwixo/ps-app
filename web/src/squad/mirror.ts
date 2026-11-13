@@ -2,7 +2,7 @@
 // On the website (V1.44, the To-do page in web form) the engine runs in this very page (squad/webhost.ts), so the
 // screens read it and call it directly, the way the chat does (squad/chatmirror.ts).
 import { useSyncExternalStore } from "react";
-import { cleanSquadOp, EMPTY_VIEW, type DirView, type FriendView, type SquadOp, type SquadView } from "./view";
+import { cleanAutoView, cleanSquadOp, EMPTY_VIEW, type DirView, type FriendView, type SquadOp, type SquadView } from "./view";
 import { runSquadOp, squadStore } from "./engine";
 import { runBoardOp } from "./board";
 import { cleanBoardView } from "./boardmirror";
@@ -36,12 +36,6 @@ function cleanFriendView(v: unknown): FriendView | null {
   if (o.kind === "error") return { kind: "error", message: str(o.message, 200) };
   return null;
 }
-const STAGES = new Set(["joining", "left", "removed", "full", "error"]);
-function cleanAuto(v: unknown): SquadView["auto"] {
-  const o = v as Record<string, unknown> | null;
-  if (!o || typeof o !== "object" || typeof o.stage !== "string" || !STAGES.has(o.stage)) return null;
-  return { stage: o.stage as NonNullable<SquadView["auto"]>["stage"], error: typeof o.error === "string" ? o.error.slice(0, 200) : null };
-}
 /** From the state PS hands the Tab list (null while locked). Checked lightly: shapes and lengths only. */
 export function setSquadMirror(v: unknown) {
   const o = (v && typeof v === "object" ? v : null) as Record<string, unknown> | null;
@@ -54,7 +48,7 @@ export function setSquadMirror(v: unknown) {
     board: cleanBoardView(o.board),
     dir: cleanDirView(o.dir), asks: arr(o.asks, 20).map((a) => { const x = a as Record<string, unknown>;
       return { id: str(x.id, 40), name: str(x.name, 40), code: str(x.code, 8), at: str(x.at, 40), ok: x.ok === true }; }),
-    auto: cleanAuto(o.auto),
+    auto: cleanAutoView(o.auto),
     friend: cleanFriendView(o.friend),
   };
   if (o) mirrorSet = true;

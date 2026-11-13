@@ -3,6 +3,8 @@
 // V1.49, the developer 11 Nov 2026: "I want to make it there's automatically one squad already and we're all automatically in
 // it." No list of squads, no Create a squad, no Ask to join, no claim code, no approval: every PS joins by itself
 // (squad/autoengine.ts). The rules of the screen you see before you are in, with no DOM.
+// V1.57 invite only (the developer, 13 Nov 2026): joining by itself is an Ask to join; the admin lets you in, or a friend's Add
+// friend code lets you straight in.
 import type { SquadView } from "./view.ts";
 import { THE_SQUAD as NAME, type AutoStage } from "../core/squadauto.ts";
 
@@ -11,8 +13,9 @@ export const THE_SQUAD = NAME;
 
 /** What the G Squad screen shows before you are in, one at a time:
  *  - "joining": on the way in (PS joined by itself and is getting the squad key)
+ *  - "asked":   V1.57, waiting for the admin to let you in (with the check code)
  *  - "left":    you left on purpose (Join again)
- *  - "removed": the admin took you out
+ *  - "removed": the admin took you out, or said no
  *  - "full":    200 people (V1.55, was 30)
  *  - "error":   the hub could not be reached (with the reason and Try again) */
 export function notInStage(v: Pick<SquadView, "in" | "auto">): AutoStage | null {

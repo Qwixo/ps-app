@@ -295,10 +295,14 @@ function PassphrasePanel() {
 }
 
 // ---------- sign-in log ----------
-interface LogRow { user_id: string | null; created_at: string; user_agent: string | null; ip: string | null }
+interface LogRow { user_id: string | null; created_at: string; user_agent: string | null }
 
+/** The device a sign in came from. Since V1.57 the server keeps only a rough name ("Mac", "iPhone" ...,
+ *  030_no_ip.sql) and no IP address; older rows had the full User-Agent, read the same way as before. */
+const DEVICE_NAMES = new Set(["Mac", "iPhone", "iPad", "Android", "Windows", "Chromebook", "Linux", "Other"]);
 export function simpleDevice(ua?: string | null) {
   if (!ua) return "Unknown device";
+  if (DEVICE_NAMES.has(ua)) return ua === "Other" ? "Other device" : ua;
   const os = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android"
     : /Mac OS X|Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /CrOS/.test(ua) ? "Chromebook" : /Linux/.test(ua) ? "Linux" : "Unknown system";
   const br = /Edg\//.test(ua) ? "Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /Firefox\/|FxiOS/.test(ua) ? "Firefox"
@@ -356,7 +360,7 @@ function SignInLog() {
       {rows && rows.length === 0 && <div className="empty">No sign-ins recorded yet.</div>}
       {rows && rows.length > 0 && (
         <table className="x-table">
-          <thead><tr><th>When</th><th>Who</th><th>Device</th><th>Network</th></tr></thead>
+          <thead><tr><th>When</th><th>Who</th><th>Device</th></tr></thead>
           <tbody>
             {rows.slice(0, 60).map((r, i) => {
               const w = who(r.user_id);
@@ -365,7 +369,6 @@ function SignInLog() {
                   <td data-l="When" className="num">{fmtDateTime(r.created_at)}</td>
                   <td data-l="Who">{w.you ? <span className="pill good">You</span> : w.known ? <span className="pill plain">{w.label}</span> : <span className="pill bad">Unknown</span>}</td>
                   <td data-l="Device">{simpleDevice(r.user_agent)}</td>
-                  <td data-l="Network" className="small muted num">{r.ip || "Not recorded"}</td>
                 </tr>
               );
             })}

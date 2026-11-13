@@ -8,9 +8,11 @@
 #                             in the gear like every other Mac and waits for the developer's Update now (V1.33).
 #                             Without --wait the Mac that runs the release installs it at once (the developer asked for
 #                             that release himself); every other Mac and the phone always wait for the click.
-# Both also put the update where PS looks for it (ps-mac/release/publish.sh): the public channel at
-# cincee.com/client/ps/ that every PS reads, the developer's Macs included (staged in ps-release/, deployed
-# with the website below, only after ps-mac/release/audit.py found nothing of the developer's in it), and
+# Both also put the update where PS looks for it (ps-mac/release/publish.sh): the public channel that
+# every PS reads, the developer's Macs included (staged in ps-release/, only after ps-mac/release/audit.py found
+# nothing of the developer's in it). Since V1.57 PS asks the public repo's newest GitHub release, never cincee.com
+# (scripts/github-channel.mjs, right after the website deploy below); cincee.com/client/ps/ and
+# /client/gos/ are still filled with the website so PS V1.56 and older can move on. And
 # your sync folder for builds older than the channel. web-only stays web-only; --app
 # also refreshes PS.dmg. The download pages read release.json there: its patch notes are public
 # copy, so they are in it only once the developer approved the exact words (scripts/ps-public.mjs).
@@ -213,8 +215,10 @@ else step stage env PS_RELEASE_OUT="$PUB" bash ../mac/release/publish.sh web dis
 # The phone's APK is one for everyone: the download pages offer it only when it is clean too.
 GOSOK=gos-release; step audit-apk python3 -I ../mac/release/audit.py gos-release >/dev/null || { GOSOK=""; echo "The phone APK is not clean (python3 -I ../mac/release/audit.py gos-release): the download pages will not offer it."; }
 swap_channel() { rm -rf ps-release.old && mv ps-release ps-release.old && mv "$PUB" ps-release && rm -rf ps-release.old && node scripts/ps-public.mjs stage ps-release $GOSOK; }
+CHANNEL_OK=""
 if step audit python3 -I ../mac/release/audit.py "$PUB"; then
   step channel swap_channel
+  CHANNEL_OK=1
   node scripts/ps-public.mjs approved || echo "Public patch notes for this version are not approved by the developer yet: release.json has no notes (node scripts/ps-public.mjs show)."
 else
   echo "STOP: the audit found something of the developer's in the public build. The public channel keeps its last good release; nothing new goes to cincee.com/client/ps/."
@@ -227,6 +231,15 @@ fi
 step notes node scripts/ps-private.ts drop || echo "The developer's private notes did not reach his vault: send them again with node scripts/ps-private.ts drop"
 step site npm run build        # website: dist/ (strict CSP headers, version.json; copies client/gos and client/ps)
 step deploy netlify deploy --prod --dir=dist --site "$SITE"
+# V1.57: the same channel on GitHub, where PS V1.57 and newer look (no addresses for the developer there): a release v<version>
+# with exactly the files the notes name, marked latest, then the website's web-version.json. After the deploy, so the
+# website's note never points at a build that is not live yet. Only a clean channel goes up. A failure stops nothing
+# that already happened; it says how to send it again.
+if [ -n "$CHANNEL_OK" ]; then
+  step github node scripts/github-channel.mjs publish || echo "STOP: the GitHub channel was not updated, so PS V1.57 and newer do not see this release yet. Send it again: node scripts/github-channel.mjs publish"
+else
+  echo "The GitHub channel keeps its last good release (the audit stopped the public channel)."
+fi
 
 if [ "$KIND" = app ]; then
   step drive bash ../mac/release/publish.sh app dist-ps ../mac/build/PS.app   # Google Drive, for older builds

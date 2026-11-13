@@ -19,7 +19,7 @@
 // RemMath) and the phone (ps-gos RemClock.kt) do the same schedule maths.
 import { wall, zonedToTs } from "./tz.ts";
 
-export const REM_MAX = 20;                 // reminders in the list (not counting the ones on tasks)
+export const REM_MAX = 20;                 // reminders in the list and alarms together (not counting the ones on tasks)
 export const REM_TASK_MAX = 60;            // reminders on tasks (V1.55): their own count, so they never crowd out the list
 export const REM_ALL_MAX = REM_MAX + REM_TASK_MAX;   // what a shell takes (ps-mac RemMath.maxItems, ps-gos RemClock.MAX)
 export const TASK_PILL = "Task reminder";
@@ -63,6 +63,10 @@ export interface Reminder {
   // Reminders ON tasks (V1.55, the developer 12 Nov 2026: "So it blends tasks with the reminders, so I get reminders ON my tasks").
   task?: string;        // the task's id: the pop-up shows its name (text empty), Done ticks it, Open task opens it
   date?: string;        // "YYYY-MM-DD": once, on that day only (its window starts that day). None: on the days picked
+  // Alarms (V1.57, the developer 13 Nov 2026: "PS can ring the phone like an alarm at any time I pick, like today's 07:44 gym ring").
+  // `at` is the time it rings, `until` always 10 minutes later (the Mac card's window; the phone rings up to 10 minutes),
+  // `label` the ring screen's title, `text` its words, `yes` the stop button. Later is always 5 minutes, one click.
+  alarm?: boolean;
 }
 /** One reminder's state on every device: confirmed for which window (its start day), snoozed until when. */
 export interface RemState { done?: string; snoozeUntil?: number; at: number; by?: "mac" | "phone" | "web" }
@@ -112,6 +116,10 @@ export function okTz(v: unknown): string {
   if (typeof v !== "string" || !v || v.length > 64 || !/^[A-Za-z0-9_+\-/]+$/.test(v)) return "";
   try { new Intl.DateTimeFormat("en-US", { timeZone: v }); return v; } catch { return ""; }
 }
+export const ALARM_RING_MIN = 10;          // the phone rings this long (ps-gos GymClock.RING_FOR), the Mac card's window
+export const ALARM_LATER_MIN = 5;          // Later on an alarm (the gym ring's Later)
+export const ALARM_TITLE = "Alarm", ALARM_YES = "Acknowledge", ALARM_LATER = "Later";
+const plusMin = (hm: string, n: number) => { const [h, m] = hm.split(":").map(Number); const x = (h * 60 + m + n + 1440) % 1440; return `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`; };
 export const okDays = (v: unknown): number[] =>
   Array.isArray(v) ? [...new Set(v.filter((d): d is number => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))].sort((a, b) => a - b) : [...ALL_DAYS];
 
@@ -138,6 +146,7 @@ export function cleanReminder(v: unknown, now = 0): Reminder | null {
   if (o.seed === true) r.seed = true;
   if (typeof o.task === "string" && TASK_ID.test(o.task)) r.task = o.task;
   if (r.task && typeof o.date === "string" && DAY.test(o.date)) r.date = o.date;
+  if (o.alarm === true && !r.task) Object.assign(r, { alarm: true, until: plusMin(r.at, ALARM_RING_MIN), snooze: ALARM_LATER_MIN, later: ALARM_LATER, click: true });
   return r;
 }
 function cleanState(v: unknown): RemState | null {
@@ -179,12 +188,14 @@ export function minsWords(n: number): string {
   const h = Math.floor(m / 60), r = m % 60;
   return r ? `${h} h ${plural(r, "min")}` : plural(h, "hour");
 }
-export const pillOf = (r: Pick<Reminder, "label"> & { task?: string }) => r.label || (r.task ? TASK_PILL : "Daily reminder");
+export const pillOf = (r: Pick<Reminder, "label"> & { task?: string; alarm?: boolean }) => r.label || (r.task ? TASK_PILL : r.alarm ? ALARM_TITLE : "Daily reminder");
+/** An alarm's words: its own, else "Alarm at 07:44". */
+export const alarmText = (r: Pick<Reminder, "text" | "at">) => r.text || `Alarm at ${r.at}`;
 export const defaultQuestion = (red: boolean) => (red ? RED_QUESTION : PUBLIC_QUESTION);
 export const questionOf = (r: Pick<Reminder, "text">, red: boolean) => r.text || defaultQuestion(red);
 /** The snooze button: its own words with {n} as the minutes, else "Remind me in 15 mins" (the number follows the length). */
 export const laterOf = (r: Pick<Reminder, "later" | "snooze">) => (r.later ? r.later.replace(/\{n\}/g, String(okSnooze(r.snooze))) : `Remind me in ${minsWords(r.snooze)}`);
-export const yesOf = (r: Pick<Reminder, "yes">) => r.yes || "Yes";
+export const yesOf = (r: Pick<Reminder, "yes"> & { alarm?: boolean }) => r.yes || (r.alarm ? ALARM_YES : "Yes");
 export const wordOf = (r: Pick<Reminder, "word" | "yes">) => r.word || yesOf(r);
 /** Does what was typed clear it? Any case, spaces at the ends trimmed; one click when `click`. */
 export function confirms(r: Pick<Reminder, "word" | "yes" | "click">, typed: string): boolean {
@@ -303,12 +314,15 @@ export function patchReminder(rec: RemindRec, id: string, patch: Partial<Reminde
   if (old && now2 && (old.at !== now2.at || old.tz !== now2.tz) && state[id]) { state = { ...state }; delete state[id]; }
   return { ...rec, list, state, at: Math.max(now, rec.at) };
 }
-/** The reminders in the list (Settings), without the ones on tasks. */
-export const plainOf = (rec: RemindRec) => rec.list.filter((r) => !r.task);
+/** The reminders in the list (Settings), without the ones on tasks and the alarms. */
+export const plainOf = (rec: RemindRec) => rec.list.filter((r) => !r.task && !r.alarm);
+/** The alarms (V1.57). They count with the list's own towards REM_MAX. */
+export const alarmsOf = (rec: RemindRec) => rec.list.filter((r) => !!r.alarm);
+const ownCount = (rec: RemindRec) => rec.list.filter((r) => !r.task).length;
 export const onTasksOf = (rec: RemindRec) => rec.list.filter((r) => !!r.task);
 export function addReminder(rec: RemindRec, id: string, now: number): RemindRec {
   const plain = plainOf(rec).length;
-  if (plain >= REM_MAX || !ID.test(id) || rec.list.some((r) => r.id === id)) return rec;
+  if (ownCount(rec) >= REM_MAX || !ID.test(id) || rec.list.some((r) => r.id === id)) return rec;
   const gone = { ...rec.gone }; delete gone[id];
   // Before the first reminder on a task, so the list's own order stays together.
   const list = [...rec.list];
@@ -324,9 +338,10 @@ export function removeReminder(rec: RemindRec, id: string, now: number): RemindR
 export function moveReminder(rec: RemindRec, id: string, by: -1 | 1, now: number): RemindRec {
   const i = rec.list.findIndex((r) => r.id === id);
   if (i < 0) return rec;
-  // Only past one of its own kind (the list's reminders, or the ones on tasks).
+  // Only past one of its own kind (the list's reminders, the alarms, or the ones on tasks).
+  const kind = (r: Reminder) => (r.task ? "t" : r.alarm ? "a" : "p");
   let j = i + by;
-  while (j >= 0 && j < rec.list.length && !!rec.list[j].task !== !!rec.list[i].task) j += by;
+  while (j >= 0 && j < rec.list.length && kind(rec.list[j]) !== kind(rec.list[i])) j += by;
   if (j < 0 || j >= rec.list.length) return rec;
   const list = [...rec.list]; [list[i], list[j]] = [list[j], list[i]];
   return { ...rec, list, at: Math.max(now, rec.at) };
@@ -453,7 +468,7 @@ export function remPlan(rec: RemindRec | null, red: boolean, ctx?: PlanCtx): { v
     items: rec.list.map((r) => {
       const s = rec.state[r.id];
       let on = r.on, done = s?.done ?? "", stateAt = s?.at ?? 0;
-      let text = r.id === FIRST_ID ? questionOf(r, red) : r.text || PUBLIC_QUESTION;
+      let text = r.alarm ? alarmText(r) : r.id === FIRST_ID ? questionOf(r, red) : r.text || PUBLIC_QUESTION;
       if (r.task) {
         const t = ctx?.tasks.get(r.task);
         text = taskQuestion(r, t?.title);
@@ -472,13 +487,16 @@ export function remPlan(rec: RemindRec | null, red: boolean, ctx?: PlanCtx): { v
   };
 }
 
-/** "02:00 to 06:00, every day" / "09:00 to 21:00, weekdays" for the list. */
-export function windowWords(r: Pick<Reminder, "at" | "until" | "days"> & { date?: string }): string {
+/** "02:00 to 06:00, every day" / "09:00 to 21:00, weekdays" for the list ("Rings at 07:44, every day" for an alarm). */
+export function windowWords(r: Pick<Reminder, "at" | "until" | "days"> & { date?: string; alarm?: boolean }): string {
+  if (r.alarm) return `Rings at ${r.at}, ${daysWords(r.days)}`;
   if (r.date) return `${r.at} to ${r.until}${minutesOf(r.until) <= minutesOf(r.at) ? " (next day)" : ""}, once on ${dayWords(r.date)}`;
-  const d = r.days.join(",");
-  const days = d === "0,1,2,3,4,5,6" ? "every day" : d === "1,2,3,4,5" ? "weekdays" : d === "0,6" ? "weekends" : !r.days.length ? "no days"
-    : r.days.map((x) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][x]).join(", ");
-  return `${r.at} to ${r.until}${minutesOf(r.until) <= minutesOf(r.at) ? " (next day)" : ""}, ${days}`;
+  return `${r.at} to ${r.until}${minutesOf(r.until) <= minutesOf(r.at) ? " (next day)" : ""}, ${daysWords(r.days)}`;
+}
+function daysWords(days: number[]): string {
+  const d = days.join(",");
+  return d === "0,1,2,3,4,5,6" ? "every day" : d === "1,2,3,4,5" ? "weekdays" : d === "0,6" ? "weekends" : !days.length ? "no days"
+    : days.map((x) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][x]).join(", ");
 }
 
 // ---------- the record in the vault ----------
@@ -602,4 +620,50 @@ export function taskInfos(list: { id: string; data: { title?: unknown; done?: un
       doneAt: typeof t.doneAt === "string" ? t.doneAt : null });
   }
   return m;
+}
+
+// ---------- alarms (V1.57) ----------
+// The developer, 13 Nov 2026: "Besides the 15 min reminders, PS can ring/alarm the phone at any time he picks, like today's 07:44 gym
+// ring. He can customise that screen and the times it goes off, just like the 15 min reminders."
+// An alarm is a reminder with `alarm` set, in the same record (same sync, same encryption, same Settings tab):
+//  - the phone RINGS with the gym ring (ps-gos Gym.kt): full screen, on the alarm volume, through PS Do Not Disturb,
+//    up to 10 minutes then a missed notice, Later rings again in 5. Its words, title and colours are the alarm's own.
+//    The page hands the rings over with the gym plan (gymwatch.ts, alarmRings below), never in the reminders' plan;
+//  - the Mac shows the matching card: the reminder card (ps-mac Reminders.swift) with the alarm's colours and words,
+//    for its 10 minute window (a card already up stays until answered);
+//  - Acknowledge on either one is the reminder's "done" for that day (applyAct), so both stop.
+/** A new alarm: 07:00 every day, this device's time zone, amber, the alarm tone on the Mac. */
+export function newAlarm(id: string, now: number): Reminder {
+  const r = cleanReminder({ ...newReminder(id, now), alarm: true, label: "", text: "", at: "07:00", yes: "", bg: "#2a1a08", accent: "#f59e0b", sound: "alarm" }, now)!;
+  return r;
+}
+export function addAlarm(rec: RemindRec, id: string, now: number): RemindRec {
+  if (ownCount(rec) >= REM_MAX || !ID.test(id) || rec.list.some((r) => r.id === id)) return rec;
+  const gone = { ...rec.gone }; delete gone[id];
+  const list = [...rec.list];
+  const at = list.findIndex((r) => !!r.task);
+  list.splice(at < 0 ? list.length : at, 0, newAlarm(id, now));
+  return { ...rec, list, gone, at: Math.max(now, rec.at) };
+}
+/** One ring the phone needs: which alarm, its day (its "done" day), when, and how its screen looks. */
+export interface AlarmRing { id: string; day: string; at: number; title: string; text: string; yes: string; later: string; bg: string; accent: string; ink: string }
+export const ALARM_RINGS_MAX = 40;
+/** The rings to come for the phone (and the ones that may still be ringing or snoozed, up to 6 hours back), soonest
+ *  first, without the days already acknowledged. An alarm switched off or removed is simply not here, so a phone
+ *  ringing it stops. */
+export function alarmRings(rec: RemindRec | null, now: number, deviceTz: string): AlarmRing[] {
+  if (!rec) return [];
+  const out: AlarmRing[] = [];
+  for (const r of rec.list) {
+    if (!r.alarm || !r.on || !r.days.length) continue;
+    const today = dayKey(now, zoneOf(r, deviceTz));
+    for (let i = -1; i <= 8; i++) {
+      const day = addDays(today, i);
+      if (!r.days.includes(weekdayOf(day)) || rec.state[r.id]?.done === day) continue;
+      const at = windowOn(r, day, deviceTz).start;
+      if (at < now - 6 * 3_600_000) continue;
+      out.push({ id: r.id, day, at, title: pillOf(r), text: alarmText(r), yes: yesOf(r), later: ALARM_LATER, bg: r.bg, accent: r.accent, ink: inkFor(r.bg) });
+    }
+  }
+  return out.sort((a, b) => a.at - b.at).slice(0, ALARM_RINGS_MAX);
 }

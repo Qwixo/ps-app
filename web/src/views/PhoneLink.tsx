@@ -6,6 +6,12 @@
 // and views/LinkPair.tsx): one QR that links the project and carries a one time sign in offer, the same six numbers on
 // both screens, Allow, and the phone signs in by itself. GrapheneOS first gets a QR to install PS GOS.
 // When the phone signs in (Allow done, or its phone record arrives), it chimes and the caller zooms into its editor.
+//
+// V1.57 (phone-link-fast, the developer: "Make it faster to link"): the card is in the Tab list, which holds no keys, so until now
+// its code never carried the sign in (the pairing said "off" there). The main window now runs the pairing for it
+// (core/pairmac.ts), so the one code here links the project AND signs the phone in after Allow. GrapheneOS opens on that
+// code straight away (PS GOS is usually installed already); installing is the second tab. A phone that is already signed
+// in only has to open PS: its phone record pokes the Mac (core/vault.ts) and the card moves on within seconds.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PS } from "../ps";
 import { PROJECT } from "../core/vault";
@@ -14,6 +20,7 @@ import { useVault } from "../ui/kit";
 import { phoneLinkUrl } from "../mobile/linkcode";
 import { QrCode } from "./AddFriend";
 import { PairPanel, usePhonePairing } from "./LinkPair";
+import { LINK_WAIT_NOTE } from "../core/pairengine";
 import { phoneName, type PhoneKind } from "../core/phonelayout";
 import type { PhoneDev } from "../core/phonedevices";
 import { phoneSfx } from "../ui/phonesfx";
@@ -29,21 +36,26 @@ export function PhoneLinkCard({ phone, devs, onLinked, onAnyway, onClose }: {
   const red = onRedProject();
   // The same rule as Settings' Link your iPhone row: PS on this Mac, data synced (not only on this device).
   const can = PS && !v.local && (red || PROJECT.custom);
-  const [step, setStep] = useState<"install" | "link">(phone === "gos" ? "install" : "link");
-  const pair = usePhonePairing(can && step === "link");
+  const [step, setStep] = useState<"install" | "link">("link");
+  // The offer stays open while the card is up, also on the install tab, so the code is ready the moment it is needed.
+  const pair = usePhonePairing(can);
   const made = useMemo(() => phoneLinkUrl(PROJECT.url, PROJECT.key, PROJECT.schema, undefined, red ? null : v.username, PROJECT), [v.username, red]);
   const text = "ok" in made ? made.ok + pair.part : "";
   // Signed in: Allow went through, or a phone of this kind wrote its record (it also signed in another way).
   const known = useRef(new Set(devs.map((d) => d.dev)));
   const [linked, setLinked] = useState(false);
   const fresh = devs.find((d) => d.phone === phone && !known.current.has(d.dev)) ?? null;
+  // V1.57: the timer lives outside the effect. Before, setting `linked` re-ran this effect, its cleanup cancelled the
+  // timer, and the card stayed on "Linked!" for good instead of opening the phone's editor.
+  const goTimer = useRef<number | null>(null);
+  const onLinkedNow = useRef(onLinked); onLinkedNow.current = onLinked;
+  useEffect(() => () => { if (goTimer.current !== null) window.clearTimeout(goTimer.current); }, []);
   useEffect(() => {
     if (linked || !(pair.phase.k === "done" || fresh)) return;
     setLinked(true);
     phoneSfx.linked();
-    const t = window.setTimeout(() => onLinked(fresh), 1100);
-    return () => window.clearTimeout(t);
-  }, [pair.phase.k, fresh, linked]); // eslint-disable-line react-hooks/exhaustive-deps
+    goTimer.current = window.setTimeout(() => { goTimer.current = null; onLinkedNow.current(fresh); }, 1100);
+  }, [pair.phase.k, fresh, linked]);
   const name = phone === "gos" ? "GrapheneOS phone" : "iPhone";
   return (
     <div className="pl-card" role="dialog" aria-label={`Link your ${name}`} onMouseDown={(e) => e.stopPropagation()}>
@@ -54,8 +66,8 @@ export function PhoneLinkCard({ phone, devs, onLinked, onAnyway, onClose }: {
         <h3>Link your {name}</h3>
         {phone === "gos" && (
           <div className="pl-steps" role="tablist">
-            <button type="button" role="tab" aria-selected={step === "install"} className={step === "install" ? "on" : ""} onClick={() => { phoneSfx.click(); setStep("install"); }}>1. Install PS</button>
-            <button type="button" role="tab" aria-selected={step === "link"} className={step === "link" ? "on" : ""} onClick={() => { phoneSfx.click(); setStep("link"); }}>2. Sign it in</button>
+            <button type="button" role="tab" aria-selected={step === "link"} className={step === "link" ? "on" : ""} onClick={() => { phoneSfx.click(); setStep("link"); }}>Scan to link</button>
+            <button type="button" role="tab" aria-selected={step === "install"} className={step === "install" ? "on" : ""} onClick={() => { phoneSfx.click(); setStep("install"); }}>No PS on it yet?</button>
           </div>
         )}
         {step === "install" ? (
@@ -64,9 +76,9 @@ export function PhoneLinkCard({ phone, devs, onLinked, onAnyway, onClose }: {
             <ol className="pl-list">
               <li>Point the phone's camera here and open the link.</li>
               <li>Download PS for GrapheneOS and install it (allow installs from your browser once if asked).</li>
-              <li>Open PS on the phone, then tap <b>Next</b> here.</li>
+              <li>Open PS on the phone, then tap <b>Back to the code</b> here.</li>
             </ol>
-            <button type="button" className="ed-btn ed-done pl-next" onClick={() => { phoneSfx.click(); setStep("link"); }}>Next</button>
+            <button type="button" className="ed-btn ed-done pl-next" onClick={() => { phoneSfx.click(); setStep("link"); }}>Back to the code</button>
           </div>
         ) : !can ? (
           <div className="pl-body" key="cant">
@@ -90,6 +102,8 @@ export function PhoneLinkCard({ phone, devs, onLinked, onAnyway, onClose }: {
                   : <li>Then type your passphrase on the phone.</li>}
               </ol>
             ) : null}
+            {(pair.phase.k === "ready" || pair.phase.k === "off") && <p className="pl-note">Already signed in on the phone? Just open PS there and this moves on by itself.</p>}
+            <p className="pl-note pl-wait">{LINK_WAIT_NOTE}</p>
             <p className="pl-note">The code changes every minute and never holds your passphrase or a secret key.</p>
           </div>
         ) : <div className="pl-body"><p className="pl-note">{made.error}</p></div>}

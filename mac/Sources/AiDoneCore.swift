@@ -420,7 +420,11 @@ enum AiDoneCore {
   static let tools = ["Agent", "Task", "Bash", "Workflow", "SendMessage", "TaskStop"]
   static let subMark = "You are a session started from another session"
 
-  struct ClaudeInfo: Equatable { var chat: String; var running: Int; var stale: Int; var sub: Bool }
+  /// turn (V1.57): the id of the person's last real prompt ("" when there is none). A chat that ends turn after turn by
+  /// itself (its background work reporting in, another session's message, a timer) keeps the same turn, and the page
+  /// shows one card for it (web core/chatdone.ts sameFinish). The developer, 13 Nov 2026: the bubble kept coming back
+  /// "every like 15 seconds even when there is no chat that finished".
+  struct ClaudeInfo: Equatable { var chat: String; var running: Int; var stale: Int; var sub: Bool; var turn: String = "" }
 
   static func textOf(_ c: Any?) -> String {
     if let s = c as? String { return s }
@@ -442,7 +446,7 @@ enum AiDoneCore {
   }
 
   static func claudeTranscript<S: Sequence>(_ lines: S, cwd: String, now: Date = Date(), appTitle: String? = nil, sessionId: String = "") -> ClaudeInfo where S.Element: StringProtocol {
-    var title = "", aiTitle = "", agent = "", prompt = "", firstAsk = "", sub = false
+    var title = "", aiTitle = "", agent = "", prompt = "", firstAsk = "", sub = false, turn = ""
     var live: [String: Date] = [:]
     var calls: [String: String] = [:]
     for raw in lines {
@@ -454,7 +458,7 @@ enum AiDoneCore {
         || (line.contains("\"tool_use\"") && tools.contains { line.contains("\"name\":\"\($0)\"") })
       let marked = !sub && line.contains(subMark)
       // The person's first prompt (V1.56): the name when there is no title, now that "last-prompt" holds no words.
-      let asks = firstAsk.isEmpty && line.contains("\"type\":\"user\"") && !line.contains("\"tool_result\"")
+      let asks = line.contains("\"type\":\"user\"") && !line.contains("\"tool_result\"")
       if !named && !jobs && !marked && !asks { continue }
       guard let d = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any] else { continue }   // a line still being written
       let type = d["type"] as? String ?? ""
@@ -466,7 +470,16 @@ enum AiDoneCore {
         if type == "attachment" || type == "queue-operation" || (type == "user" && !toolResult) { sub = true }
       }
       if asks && type == "user" && !side && d["isMeta"] as? Bool != true && msg?["role"] as? String == "user" {
-        firstAsk = shortPrompt(promptText(textOf(content)))
+        let words = promptText(textOf(content))
+        if firstAsk.isEmpty { firstAsk = shortPrompt(words) }
+        // The person's own prompt (V1.57): words of theirs or a picture, typed by a person (Claude Code marks what
+        // the app or another session put in with another origin), never a summary of an earlier part of the chat.
+        let picture = (content as? [Any])?.contains { ($0 as? [String: Any])?["type"] as? String == "image" } == true
+        let by = (d["origin"] as? [String: Any])?["kind"] as? String
+        if (by == nil || by == "human") && d["isCompactSummary"] as? Bool != true && (!words.isEmpty || picture),
+           let id = (d["promptId"] as? String) ?? (d["uuid"] as? String), !id.isEmpty {
+          turn = String(id.filter { $0.isLetter || $0.isNumber || $0 == "-" }.prefix(40))
+        }
       }
       if type == "ai-title", let t = d["aiTitle"] as? String, !t.isEmpty { aiTitle = t }   // Claude Code's own title (V1.56): terminal chats too
       if type == "custom-title", let t = d["customTitle"] as? String, !t.isEmpty { title = t }
@@ -513,12 +526,13 @@ enum AiDoneCore {
     let names: [String?] = [title, aiTitle, appTitle, agent, firstAsk, shortPrompt(promptText(prompt)), chatFolder(cwd)]
     let own = sessionId.count >= 6 ? sessionId : nil
     let name = names.lazy.compactMap { usable($0) }.first { n in own.map { !n.contains($0) } ?? true } ?? "A Claude chat"
-    return ClaudeInfo(chat: name, running: ages.filter { $0 < staleSeconds }.count, stale: ages.filter { $0 >= staleSeconds }.count, sub: sub)
+    return ClaudeInfo(chat: name, running: ages.filter { $0 < staleSeconds }.count, stale: ages.filter { $0 >= staleSeconds }.count, sub: sub, turn: turn)
   }
 
   // MARK: - what a file becomes
 
-  enum Verdict: Equatable { case card(tool: AiTool, id: String, chat: String, at: Date), held(Int), skipped(String) }
+  /// turn: the person's last prompt (Claude Code only, "" otherwise), so the page knows a repeat from news (V1.57).
+  enum Verdict: Equatable { case card(tool: AiTool, id: String, chat: String, at: Date, turn: String = ""), held(Int), skipped(String) }
 
   /// A file the script left, turned into a card (or why not). `lines` reads a Claude Code transcript; `named` is the
   /// tool's own name for the chat when it keeps one (the Claude app's title, Codex's thread name, Gemini's first prompt).
@@ -528,7 +542,7 @@ enum AiDoneCore {
       let info = claudeTranscript(d.transcript.isEmpty ? [] : (lines(d.transcript) ?? []), cwd: d.cwd, now: now, appTitle: named(d), sessionId: d.id)
       if info.sub { return .skipped("a sub chat") }
       if info.running > 0 { return .held(info.running) }
-      return .card(tool: .claude, id: d.id, chat: info.chat, at: d.at)
+      return .card(tool: .claude, id: d.id, chat: info.chat, at: d.at, turn: info.turn)
     }
     let mine = { (n: String?) -> String? in usable(n).flatMap { d.id.count >= 6 && $0.contains(d.id) ? nil : $0 } }
     let name = mine(named(d)) ?? mine(chatFolder(d.cwd)) ?? "A \(d.tool.name) chat"

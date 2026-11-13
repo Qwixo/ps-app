@@ -32,6 +32,7 @@ import { useGosLayout } from "./layout";
 import { DndButton } from "../views/Dnd";
 import { SleepRow } from "../views/SleepMode";
 import { phoneLayout, settingsData } from "../core/select";
+import { swiped } from "../core/lists";
 import { setDnd } from "../core/actions";
 import { DumbbellIcon } from "../fitness/FitnessApp";
 import { FitnessPop } from "../fitness/FitnessPop";
@@ -237,7 +238,7 @@ export function GosLayer() {
       <PhoneEditMount kind={kind} red={red} />{/* V1.56 the phone's own Edit mode (gos/PhoneEditMode.tsx) */}
       {view !== "vault" && (
         <div className="gos-home" data-pane={isPane(view) ? view : curPage?.kind === "panels" ? (order.indexOf(view) < listAt ? "panels-l" : "panels-r") : "list"} data-show={view === "plan" && show ? show : undefined}>
-          <Swipe pane={isPane(view) ? view : "list"} order={order} onPane={go}>{list}</Swipe>
+          <Swipe pane={isPane(view) ? view : "list"} order={order} onPane={go} invert={settingsData(s).swipeInvert === true}>{list}</Swipe>
         </div>
       )}
       {view === "plan" && !show && (
@@ -407,7 +408,8 @@ function DockBtn({ on, onClick, label, icon, badge, flip }: { on: boolean; onCli
 // a spring. Vertical swipes scroll as normal; a held (lifted) row never swipes.
 // V1.55: on the List pane a sideways swipe on the list moves between the developer's lists instead (views/ListPager.tsx), so
 // there Plan and Inbox are a tap on the dock; from Plan or Inbox a swipe still comes back to the list.
-function Swipe({ pane, order, onPane, children }: { pane: Pane; order: string[]; onPane: (p: View) => void; children: ReactNode }) {
+// V1.57 Settings, Controls, Invert swipe: the finger's move counts the other way (core/lists.ts swiped).
+function Swipe({ pane, order, onPane, invert, children }: { pane: Pane; order: string[]; onPane: (p: View) => void; invert?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current!;
@@ -419,7 +421,7 @@ function Swipe({ pane, order, onPane, children }: { pane: Pane; order: string[];
     };
     const move = (e: TouchEvent) => {
       if (!mode || mode === "y" || document.querySelector(".gos-lifted, [data-dragging]")) return;
-      const x = e.touches[0].clientX - sx, y = e.touches[0].clientY - sy;
+      const x = swiped(e.touches[0].clientX - sx, invert), y = e.touches[0].clientY - sy;
       if (mode === "?") {
         if (Math.abs(x) < 12 && Math.abs(y) < 12) return;
         mode = Math.abs(x) > Math.abs(y) * 1.4 ? "x" : "y";
@@ -446,7 +448,7 @@ function Swipe({ pane, order, onPane, children }: { pane: Pane; order: string[];
     el.addEventListener("touchend", end);
     el.addEventListener("touchcancel", end);
     return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
-  }, [pane, onPane, order]);
+  }, [pane, onPane, order, invert]);
   return <div ref={ref} className="gos-swipe">{children}</div>;
 }
 

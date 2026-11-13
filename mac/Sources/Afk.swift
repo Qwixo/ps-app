@@ -203,7 +203,8 @@ final class Afk: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       let c = Stretch(start: from, back: nil, passive: prefs.startPassive == true ? true : nil)
       current = c; save(); pushStatus()
       psLog("PS afk: away")
-      DispatchQueue.main.async { self.show(c, animate: true); if self.prefs.sound { Sfx.shared.play("meet-soon", volume: 0.5) } }
+      // V1.57: the stretch card's sound is skipped in private mode (PrivateCore.swift).
+      DispatchQueue.main.async { self.show(c, animate: true); if self.prefs.sound && PrivateCore.cardSound(privateOn: PrivateHold.shared.on) { Sfx.shared.play("meet-soon", volume: 0.5) } }
       return
     }
     if idle < limit { lastActive = max(lastActive, inputAt) }

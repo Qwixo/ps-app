@@ -173,7 +173,10 @@ export function fakeDocs(): Doc[] {
   const stretch = push("todo", null, { title: "Stretch for ten minutes", type: "daily", done: false, order: 3, createdAt: d(-9), source: "manual", streak: 6, bestStreak: 6 } satisfies Todo);
   // V1.55: an Annoying 15 min reminder on that task, every day 18:00 to 21:00 (the bell on its row).
   push("remind", null, { v: 1, at: 1, state: {}, gone: {}, list: [{ id: "devtask1", on: true, label: "", text: "", at: "18:00", until: "21:00", days: [0, 1, 2, 3, 4, 5, 6], tz: "",
-    snooze: 15, later: "", yes: "Done", word: "", click: true, bg: "#0f1b2d", accent: "#3b82f6", sound: "none", vol: 0.8, edited: 1, task: stretch }] });
+    snooze: 15, later: "", yes: "Done", word: "", click: true, bg: "#0f1b2d", accent: "#3b82f6", sound: "none", vol: 0.8, edited: 1, task: stretch },
+    // V1.57: one fictional alarm (Settings, Annoying 15 min reminder, Alarms).
+    { id: "devalarm1", on: true, label: "Wake up", text: "Time to stretch", at: "07:30", until: "07:40", days: [1, 2, 3, 4, 5], tz: "",
+      snooze: 5, later: "Later", yes: "I'm up", word: "", click: true, bg: "#2a1a08", accent: "#f59e0b", sound: "alarm", vol: 0.8, edited: 1, alarm: true }] });
   push("todo", null, { title: "Water the studio plants", type: "daily", done: false, order: 4, due: t, repeat: { every: 2, unit: "day", from: d(-6) }, createdAt: d(-9), source: "manual", streak: 3 } satisfies Todo);
   push("todo", null, { title: "Back up the laptop", type: "daily", done: false, order: 5, due: d(4), repeat: { every: 1, unit: "week", from: d(-10) }, createdAt: d(-12), source: "manual", streak: 2 } satisfies Todo);
   push("todo", null, { title: "Write the AI agents proposal for Lumi Botanics", type: "once", done: false, order: 8, due: t, createdAt: d(-1), clientId: clientIds[e], source: "manual", claudeDoneAt: new Date().toISOString(), claudeNote: "Proposal drafted as a Google Doc, waiting for your read through" } satisfies Todo);

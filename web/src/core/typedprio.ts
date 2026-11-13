@@ -4,6 +4,8 @@
 // is spotted, painted in that priority's colour and offered as "Suggested: P1". Adding takes it: the word leaves
 // the title and the task goes in at that priority. Typed twice, the last one wins. The pure parts live here so
 // they can be tested without a page; views/TypedPrio.tsx draws it.
+// V1.57: editing a task's name takes it too (typedEdit): a friend of the developer's typed P1 while editing and nothing happened.
+import { prioNumbers } from "./prio.ts";
 
 export type PrioNum = 1 | 2 | 3;
 /** One typed priority word: which priority, where it sits in the text ([start, end)) and how it was written. */
@@ -58,6 +60,12 @@ export const suggestionKey = (p: TypedPrio | null) => (p ? `${p.tokens.length}:$
  */
 export type PrioState = { key: string; dismissed: string; typedAt: number; pickedAt: number; tick: number };
 export const prioStart = (): PrioState => ({ key: "", dismissed: "", typedAt: 0, pickedAt: 0, tick: 0 });
+/** The start state for editing a task whose name already holds a priority word ("fix the P2 bug"): that word was
+ *  written before, not typed now, so it is said no to until another priority word is typed. */
+export function prioStartFor(existing: string): PrioState {
+  const key = suggestionKey(parsePrio(existing));
+  return key ? { ...prioStart(), key, dismissed: key } : prioStart();
+}
 
 /** The text changed: a new or different priority word counts as typed now. With no priority word left, an earlier
  *  "no" is forgotten (typing it again offers it again). */
@@ -121,4 +129,21 @@ export function typedOrder(ranked: { order?: number; p1?: boolean; unranked?: bo
   // No numbered tasks yet: just after the P1 group (or 0 on an empty list).
   if (!numbered.length) return { p1: false, order: between(group, group.length) };
   return { p1: false, order: between(numbered, index) };
+}
+
+/** Editing a task's name with a typed priority (V1.57): where the task goes, or null when it is already at that
+ *  priority (the word is still taken out of the name). `ranked` is the one-off list as the Tab list shows it (the P1
+ *  group, the numbered tasks, then the ones with no priority), this task included. The task is placed as if it were
+ *  added fresh among the others (typedOrder), and a task with no priority gets one. */
+export function typedEdit(ranked: { id: string; order?: number; p1?: boolean; unranked?: boolean }[], id: string, prio: PrioNum): { p1: boolean; order: number } | null {
+  const nums = prioNumbers(ranked.map((x) => ({ id: x.id, p1: x.p1 === true, unranked: x.unranked === true })));
+  if (nums.get(id) === prio) return null;
+  return typedOrder(ranked.filter((x) => x.id !== id), prio);
+}
+
+/** A name edited in place (a Dimension X card, V1.57): the priority word that is new in it, or null when there is none
+ *  or the name already had that word before ("fix the P2 bug" stays as it is). */
+export function renamedPrio(before: string, after: string): TypedPrio | null {
+  const p = parsePrio(after);
+  return p && suggestionKey(p) !== suggestionKey(parsePrio(before)) ? p : null;
 }

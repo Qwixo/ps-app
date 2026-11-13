@@ -17,8 +17,9 @@ import java.net.URL
 import java.security.MessageDigest
 
 /**
- * Updates from an unlisted path on the developer's own site (cincee.com/client/gos/), no app store:
- *  1. version.json: {versionCode, versionName, apk, sha256, size, notes, history (V1.52: earlier versions' approved notes)}
+ * Updates with no app store, since V1.57 from the public PS repo's newest GitHub release (UpdateWhere), not from
+ * cincee.com, so the developer never gets the phone's address from a look (V1.56 and older still ask cincee.com/client/gos/):
+ *  1. gos-version.json (the same note the phone read as version.json on cincee.com): {versionCode, versionName, apk, sha256, size, notes, history (V1.52: earlier versions' approved notes)}
  *  2. download the APK next to it (progress to the card)
  *  3. verify: the SHA-256 must match the manifest AND the APK must be signed by PS's own release
  *     certificate (pinned in the app, and the same as the installed app's). Anything else is thrown away.
@@ -38,13 +39,16 @@ object Updater {
         WebHost.post(JSONObject().put("type", "update").put("update", o))
     }
 
-    private fun base() = BuildConfig.UPDATE_BASE.trimEnd('/') + "/"
     private fun get(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
         connectTimeout = 15_000; readTimeout = 30_000; useCaches = false
+        // GitHub answers with a redirect to the release's file host (https to https, followed by itself).
+        instanceFollowRedirects = true
         setRequestProperty("Cache-Control", "no-cache")
+        // Just "PS": Android's own User-Agent names the Android version and the phone model.
+        setRequestProperty("User-Agent", "PS")
     }
 
-    // When to look by itself: UpdateClock (unit tested). version.json is tiny and on Netlify, not Supabase.
+    // When to look by itself: UpdateClock (unit tested). The note is tiny and on GitHub, not Supabase.
     private fun sp(c: Context) = c.getSharedPreferences("upd", Context.MODE_PRIVATE)
     private fun times(c: Context) = sp(c).let { UpdateTimes(it.getLong("okAt", 0), it.getLong("failAt", 0), it.getInt("fails", 0)) }
     private fun save(c: Context, t: UpdateTimes) { sp(c).edit().putLong("okAt", t.okAt).putLong("failAt", t.failAt).putInt("fails", t.fails).apply() }
@@ -96,9 +100,9 @@ object Updater {
         }
     }
 
-    /** version.json, read whole (no cache anywhere on the way: get() sets useCaches false and no-cache). */
+    /** The note, read whole (no cache anywhere on the way: get() sets useCaches false and no-cache). */
     private fun fetchNote(): JSONObject {
-        val h = get(base() + "version.json")
+        val h = get(UpdateWhere.note())
         try {
             if (h.responseCode != 200) throw Exception("No update file found (${h.responseCode}).")
             return JSONObject(h.inputStream.use { it.readBytes().decodeToString() })
@@ -163,8 +167,7 @@ object Updater {
     /** 1. download and 2. verify the APK `m` names; returns the APK's own versionCode. Any mismatch throws. */
     private fun fetchApk(c: Context, apk: File, m: JSONObject): Long {
         set("downloading", JSONObject().put("progress", 0.0))
-        val name = m.optString("apk").takeIf { Regex("^[A-Za-z0-9._-]+\\.apk$").matches(it) } ?: throw Exception("The update file has a strange name. Not installed.")
-        val h = get(base() + name)
+        val h = get(UpdateWhere.apk(m.optString("apk")) ?: throw Exception("The update file has a strange name. Not installed."))
         if (h.responseCode != 200) throw Exception("Download failed (${h.responseCode}).")
         val total = h.contentLengthLong.takeIf { it > 0 } ?: m.optLong("size")
         val md = MessageDigest.getInstance("SHA-256")

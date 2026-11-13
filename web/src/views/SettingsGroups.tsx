@@ -316,6 +316,11 @@ export const CONTROLS: Controls = {
   },
   "tips": row(() => <TipsAgainEntry />),
   "tips-show": function TipsShow({ e }) { return <SyncedOnOff e={e} field="tipsShow" />; },
+  // V1.57 Settings, Controls: Invert swipe (off unless switched on; core/lists.ts swipeSign).
+  "invert-swipe": function InvertSwipe({ e }) {
+    const v = useVault();
+    return <SetRow e={e} right={<OnOff label={e.name} on={settingsData(v).swipeInvert === true} ready={v.status === "unlocked"} set={(on) => save({ swipeInvert: on })} />} />;
+  },
   "examples": function Examples({ e }) {
     const s = useVault();
     const set = settingsData(s);

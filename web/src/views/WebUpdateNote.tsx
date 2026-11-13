@@ -4,16 +4,16 @@
 // build needs a page this one cannot be (core/webupdate.ts WEB_COMPAT), a plain banner says why, and it
 // still waits for the click.
 import { useState, useSyncExternalStore } from "react";
-import { BASE, sync } from "../core/vault";
+import { sync } from "../core/vault";
 import { PS } from "../ps";
 import { onUpdateEvery, updateEvery } from "../updateevery";
 import { updateChecksOff } from "../core/updateevery";
-import { WEB_COMPAT, lookDelay, lookOnReturn, webNote, type WebNote } from "../core/webupdate";
+import { WEB_CHANNEL, WEB_COMPAT, lookDelay, lookOnReturn, webNote, type WebNote } from "../core/webupdate";
 import "./webupdate.css";
 
 // The website in a browser only: PS on the Mac and the phone get new pages through their own Update now.
 const WEBSITE = !PS && import.meta.env.MODE !== "gos" && import.meta.env.MODE !== "ps";
-const MINE = { src: WEBSITE && typeof __WEB_SRC__ === "string" ? __WEB_SRC__ : "", compat: WEB_COMPAT };
+const MINE = { src: WEBSITE && typeof __WEB_SRC__ === "string" ? __WEB_SRC__ : "", compat: WEB_COMPAT, built: typeof __WEB_BUILT__ === "string" ? __WEB_BUILT__ : "" };
 
 // `failed`: the look could not get an answer (offline, a server error), which lengthens the wait (lookDelay).
 async function look(): Promise<{ note: WebNote; failed: boolean }> {
@@ -21,8 +21,10 @@ async function look(): Promise<{ note: WebNote; failed: boolean }> {
   if (import.meta.env.DEV && !PS) { const q = new URLSearchParams(location.search).get("webnote"); return { note: q === "new" || q === "must" ? { kind: q } : null, failed: false }; }
   if (!MINE.src) return { note: null, failed: false };   // PS and the phone
   try {
-    // cincee.com on Netlify (a few bytes), no other host; the page's normal network path, a short timeout.
-    const r = await fetch(`${BASE}version.json?v=${Date.now()}`, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
+    // V1.57: the public PS repo on GitHub (a few bytes), never cincee.com, so the looks do not show cincee.com's
+    // hosting who is still on the page (core/webupdate.ts WEB_CHANNEL). No cookies and no Referer go with it.
+    // GitHub keeps it up to 5 minutes in its cache, which is fine for a note.
+    const r = await fetch(WEB_CHANNEL, { cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: AbortSignal.timeout(15_000) });
     return r.ok ? { note: webNote(MINE, await r.json()), failed: false } : { note: null, failed: true };
   } catch { return { note: null, failed: true }; }
 }

@@ -8,6 +8,6 @@ const inert: any = new Proxy(function () {}, {
 });
 export function useCampaignsLive(..._more: any[]): any { return inert; }
 export function useLiveAuto(_p0?: any, ..._more: any[]): void { return undefined; }
-export function LiveRefresh(_p0?: { [k: string]: any; onClick?: (...a: any[]) => any }, ..._more: any[]): any { return undefined; }
-export function LiveStamp(_p0?: any, ..._more: any[]): any { return undefined; }
-export function CampaignsLive(_p0?: any, ..._more: any[]): any { return undefined; }
+export function LiveRefresh(_p0?: { [k: string]: any; onClick?: (...a: any[]) => any }, ..._more: any[]): any { return null; }
+export function LiveStamp(_p0?: any, ..._more: any[]): any { return null; }
+export function CampaignsLive(_p0?: any, ..._more: any[]): any { return null; }

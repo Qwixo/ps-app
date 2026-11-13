@@ -7,4 +7,4 @@ const inert: any = new Proxy(function () {}, {
   construct: () => ({}),
 });
 export function startReplyWindow(..._more: any[]): void { return undefined; }
-export function ReplyWindow(..._more: any[]): any { return undefined; }
+export function ReplyWindow(..._more: any[]): any { return null; }

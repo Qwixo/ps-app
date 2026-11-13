@@ -88,6 +88,7 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
 
   // ---------- life ----------
   func start(testDir: String? = nil) {
+    if testDir == nil { PrivateHold.shared.watch { [weak self] in self?.place() } }   // V1.57: private mode on hides the ones up
     self.testDir = testDir
     // A test copy keeps its own throwaway settings: it never reads or writes the developer's real ones.
     if testDir != nil, let t = UserDefaults(suiteName: "com.cincee.ps.fu-selftest") {
@@ -231,7 +232,7 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     c.boxOpen = false
     psLog("PS reminders: card")
     if c.ready { show(c, fresh: true) }
-    play(c.item)
+    if PrivateCore.cardSound(privateOn: PrivateHold.shared.on) { play(c.item) }   // V1.57: no sound in private mode
   }
   /// Words and colours go in as arguments, never as code, and the card sets them as plain text (textContent).
   private func show(_ c: Card, fresh: Bool = false) {
@@ -241,6 +242,7 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       "bg": i.bg, "accent": i.accent, "ink": i.ink, "test": c.id == Reminders.testId], "f": fresh], in: nil, in: .page, completionHandler: nil)
   }
   private func close(_ id: String) {
+    PrivateHold.shared.gone("rem:" + id)   // V1.57: its pill goes with it
     guard let c = cards.removeValue(forKey: id) else { return }
     IslandColumn.shared.leave("rem:" + id)   // V1.55: the windows under it move up into its place
     let wasKey = c.panel.isKeyWindow
@@ -263,7 +265,8 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     var y = vf.maxY - 10
     for id in order {
       guard let c = cards[id] else { continue }
-      if shield {
+      // V1.57 private mode: out of sight behind a pill on the card stack until that is clicked or private mode ends.
+      if shield || (testDir == nil && PrivateHold.shared.waits("rem:" + id, show: { [weak self] in self?.place() })) {
         if c.panel.isKeyWindow { c.panel.keyable = false; c.panel.resignKey() }
         if c.panel.isVisible { c.panel.orderOut(nil) }
         IslandColumn.shared.leave("rem:" + id)

@@ -7,4 +7,4 @@ const inert: any = new Proxy(function () {}, {
   construct: () => ({}),
 });
 export function cleanText(_p0?: any, ..._more: any[]): string { return ""; }
-export function InstantlyInbox(..._more: any[]): any { return undefined; }
+export function InstantlyInbox(..._more: any[]): any { return null; }

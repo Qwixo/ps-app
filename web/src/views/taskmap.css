@@ -335,14 +335,8 @@ html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > *, html:not(.gos) .tm-over
 .tm-mics button.on { border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent); }
 .tm-mics button.on .dot { border-color: var(--k-acc, #EC4E86); background: var(--k-acc, #EC4E86); box-shadow: 0 0 8px color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); }
 .tm-pop { max-height: calc(100vh - 120px); overflow-y: auto; scrollbar-width: thin; }
-/* hover to choose: the fill along the bottom while you rest on an option */
+/* V1.57: options change only on a click (src/ui/Dwell.tsx); the old hover to choose fill is gone */
 .dwell { position: relative; overflow: hidden; }
-.dwell::after {
-  content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--k-acc, #EC4E86);
-  transform: scaleX(0); transform-origin: left center; pointer-events: none;
-}
-.dwell.arming::after { animation: dwell-fill var(--dwell, 420ms) linear forwards; }
-@keyframes dwell-fill { to { transform: scaleX(1); } }
 .tm-hover-hint { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(40% * var(--k-ia, 1))), transparent); margin-left: 6px; }
 /* priority picker: − P3 + */
 .tm-prio-pick { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); }
@@ -1439,3 +1433,18 @@ html.gos .tm-done-bar :is(.tm-all, .tm-all-ask), html.gos .tm-done-bar .slp-row 
 .tm-addset-own input { position: absolute; inset: -6px; width: 34px; height: 34px; opacity: 0; cursor: pointer; }
 .tm-addset-hex { width: 80px; padding: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(8px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); color: inherit; font: inherit; font-size: calc(12px * var(--k-fs, 1)); }
 .tm-addset-sample { flex: none; }
+
+/* ---------- V1.57: all completed, and picked tasks in Completed ---------- */
+.tm-done-list .tm-row.sel, .tm-done-list .tm-row.sel:hover { opacity: 1; }
+.tm-done-list .tm-row { position: relative; }
+.tm-done-res.picking { border-color: var(--k-acc2-t, #EBB4FF); box-shadow: 0 0 18px color-mix(in srgb, var(--k-acc2, #A855F7) 45%, transparent); }
+.tm-done-all { justify-self: stretch; display: flex; align-items: center; justify-content: center; gap: calc(8px * var(--k-dn, 1)); cursor: pointer; font: inherit; font-weight: 700; font-size: calc(13px * var(--k-fs, 1));
+  padding: calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); color: var(--k-fg, #FFFFFF); background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(24% * var(--k-ia, 1))), transparent); transition: background .18s ease, border-color .18s ease; }
+.tm-done-all:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.tm-done-all b { font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; padding: calc(1px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); }
+.tm-done-less { border-style: solid; opacity: .8; }
+.tm-done-more { text-align: center; font-size: calc(12px * var(--k-fs, 1)); opacity: .55; padding: calc(8px * var(--k-dn, 1)) 0; }
+html.gos .tm-done-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.tm-ed .tp-wrap > .tm-ed-title { width: 100%; }
+.tm-ed-seg button:not(.on):hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); }

@@ -293,6 +293,7 @@ final class HelperAlert {
     let s = defaults.double(forKey: "helperAlert.snoozeUntil")
     if s > Date().timeIntervalSince1970 { memo.snoozeUntil = s }
     AutoReboot.shared.observe { [weak self] in self?.evaluate() }
+    PrivateHold.shared.watch { [weak self] in self?.evaluate() }   // V1.57: private mode on puts it behind a pill
     // Cheap looks (no I/O): the end of a snooze or a quiet time, Sleep mode or Sentry mode ending, the lock screen
     // going, and the backstop for the panel itself.
     timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
@@ -461,6 +462,16 @@ final class HelperAlert {
 
   /// Shows `phase` (the content set by `change`). Already up in another phase: it fades out, moves and comes back in.
   private func present(_ phase: HelperAlertModel.Phase, _ change: @escaping () -> Void) {
+    // V1.57 private mode: it waits behind a pill on the card stack (PrivateHold.swift); one that is up goes out of sight.
+    if !IS_TEST_COPY && PrivateHold.shared.waits("helper", show: { [weak self] in self?.present(phase, change) }) {
+      if target != nil || panel?.isVisible == true {
+        gen += 1; target = nil; HelperAlert.markUp(false)
+        var still = Transaction(); still.disablesAnimations = true
+        withTransaction(still) { model.visible = false; model.hover = nil }
+        panel?.orderOut(nil); IslandColumn.shared.leave("helper")
+      }
+      return
+    }
     if target == phase && model.visible { change(); place(); return }
     gen += 1
     let g = gen
@@ -497,6 +508,7 @@ final class HelperAlert {
   /// Fades out, then the window is removed (closed and let go, so nothing invisible stays on screen). Safe to call at
   /// any time: it also cancels a show still in its cross fade.
   func hide() {
+    PrivateHold.shared.gone("helper")   // V1.57: its pill goes with it
     let wasShowing = target != nil || model.visible || panel?.isVisible == true
     gen += 1
     let g = gen

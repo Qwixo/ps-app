@@ -79,7 +79,7 @@ extension SelfTest {
                                   DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                                     t.web.evaluateJavaScript("document.querySelectorAll('.card.meet.discreet').length") { r, _ in
                                       t.reveal(false); post(["type": "meetPrivacy", "on": false])
-                                      print("MEET CHECK:", "discreet-hides-names=\(!leaks && hidden.contains("Message from a lead") ? "ok" : "FAIL")",
+                                      print("MEET CHECK:", "discreet-hides-names=\(!leaks && hidden.contains("New notification") ? "ok" : "FAIL")",
                                             "click-reveals=\(shown ? "ok" : "FAIL")", "private-mode-hides=\((p as? Int) == 1 ? "ok" : "FAIL")",
                                             "tab-hold-shows=\((r as? Int) == 0 ? "ok" : "FAIL")", "key=\(t.panel.isKeyWindow)", "activePS=\(NSApp.isActive)")
                                       clear { mailCards(a, dir, done) }

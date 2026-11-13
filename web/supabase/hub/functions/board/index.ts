@@ -47,7 +47,8 @@ async function handle(body: Record<string, unknown>) {
   if (!/^board_[a-z]{2,10}$/.test(act) || !/^[A-Za-z0-9_-]{16,32}$/.test(nonce) || !B64.test(sig) || sig.length > 200) throw new Fail(400, "bad request");
   if (!Number.isInteger(ts) || Math.abs(Date.now() / 1000 - ts) > 120) throw new Fail(401, "clock");
   if (typeof member !== "string" || !UUID.test(member)) throw new Fail(403, "not a member");
-  const me = must(await db.from("squad_members").select("id, squad_id, sign_pub").eq("id", member.toLowerCase()).is("left_at", null).maybeSingle()) as Me | null;
+  // V1.57 invite only (invite_001_invite_only.sql): someone asking to join (not let in yet) is not a member here.
+  const me = must(await db.from("squad_members").select("id, squad_id, sign_pub").eq("id", member.toLowerCase()).is("left_at", null).eq("admitted", true).maybeSingle()) as Me | null;
   if (!me) throw new Fail(403, "not a member");
   if (!(await verify(me.sign_pub, act, member, ts, nonce, body.args ?? null, sig))) throw new Fail(401, "signature");
   const used = await db.from("board_nonces").insert({ member_key: await sha256hex(me.sign_pub), nonce });
@@ -84,7 +85,7 @@ async function handle(body: Record<string, unknown>) {
     case "board_pull": {
       const since = typeof args.since === "string" && !Number.isNaN(Date.parse(args.since)) ? args.since : null;
       const now = new Date().toISOString();
-      const ins = must(await db.from("squad_members").select("id").eq("squad_id", me.squad_id).is("left_at", null)) as { id: string }[];
+      const ins = must(await db.from("squad_members").select("id").eq("squad_id", me.squad_id).is("left_at", null).eq("admitted", true)) as { id: string }[];
       let q = db.from("board_cards").select("member_id, kind, ct, gen, deleted, updated_at").eq("squad_id", me.squad_id)
         .in("member_id", ins.map((r) => r.id)).order("updated_at").limit(300);
       q = since ? q.gt("updated_at", since) : q.eq("deleted", false);

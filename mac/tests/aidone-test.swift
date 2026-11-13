@@ -197,6 +197,13 @@ do {
   ok("Claude Code: a Stop that is already a retry leaves nothing", r.drops.isEmpty)
   r = runHook(p, "claude", stdin: #"{"session_id":"a","hook_event_name":"SubagentStop"}"#)
   ok("Claude Code: another event leaves nothing", r.drops.isEmpty)
+  // V1.57 (a friend, V1.56: a stuck chat sent "Claude finished" about every 30 seconds): a chat that is stuck or
+  // waiting sends Notification events (permission asks, "waiting for your input"), StopFailure (an API error) and the
+  // like. None of them is a finish, even if a person wires the script to them by hand.
+  for ev in ["Notification", "StopFailure", "PreCompact", "SessionEnd", "UserPromptSubmit", "PostToolUse"] {
+    r = runHook(p, "claude", stdin: #"{"session_id":"stuck-1","hook_event_name":"\#(ev)","notification_type":"idle_prompt","message":"Claude is waiting for your input"}"#)
+    ok("Claude Code: a \(ev) event leaves nothing", r.drops.isEmpty)
+  }
   r = runHook(p, "gemini", stdin: #"{"session_id":"g1","cwd":"/w/Fictional","hook_event_name":"AfterAgent","prompt":"\#(secret)","prompt_response":"\#(secret) answer","stop_hook_active":false}"#)
   ok("Gemini CLI: one file, {} on stdout", r.out == "{}\n" && r.drops.count == 1 && AiDoneCore.parseDrop(r.drops[0])?.id == "g1")
   ok("the prompt and the answer never reach the disk", !r.drops[0].contains(secret))
@@ -395,5 +402,54 @@ do {
   let cx = AiDoneCore.Drop(tool: .codex, id: "th-0001-fictional", cwd: "/w/th-0001-fictional", transcript: "", at: now)
   ok("verdict: another tool's folder that is its own id: never the id", AiDoneCore.verdict(cx, now: now, lines: { _ in nil }) == .card(tool: .codex, id: cx.id, chat: "A Codex chat", at: now))
 }
+
+
+// ---------- V1.57: the same prompt is the same finish (the developer, 13 Nov 2026: the bubble came back "every like 15 seconds
+// even when there is no chat that finished"). The page shows one card per prompt (web core/chatdone.ts). ----------
+do {
+  let notes = "<system-reminder>\nThe session \"Fictional side\" you started finished.\n</system-reminder>"
+  func said(_ id: String, _ content: Any, _ x: [String: Any] = [:]) -> String {
+    var o: [String: Any] = ["type": "user", "uuid": "u-\(id)", "promptId": id, "timestamp": iso(9), "origin": ["kind": "human"], "message": ["role": "user", "content": content]]
+    for (k, v) in x { o[k] = v }
+    return j(o)
+  }
+  func turn(_ lines: [String]) -> String { AiDoneCore.claudeTranscript([titleLine] + lines, cwd: "/w/x", now: now).turn }
+  let ask = said("p-1", "fix the fictional page")
+  ok("turn: the person's prompt", turn([ask]) == "p-1")
+  ok("turn: none when nobody asked anything", turn([]) == "")
+  // What woke the chat by itself since then: its own agent reporting, another session's note, a peer's message, a
+  // summary of the chat so far, a meta line, a subagent's prompt. None is a new prompt.
+  let woken = [ask] + agent("a1") + delivered("a1", "completed") + queued("a1", "completed")
+    + [said("p-2", [["type": "text", "text": notes]]),
+       said("p-3", "Another Claude session sent a message: fictional", ["origin": ["kind": "peer", "from": "local_x"]]),
+       said("p-4", notice("b1", "completed"), ["origin": ["kind": "task-notification"]]),
+       said("p-5", "This session is being continued from a previous conversation. Fictional summary.", ["origin": NSNull(), "isCompactSummary": true]),
+       said("p-6", "[Image: source: /tmp/fictional.png]", ["isMeta": true]),
+       said("p-7", "a subagent's own task", ["isSidechain": true])]
+  ok("turn: a chat that kept waking by itself keeps the same turn", turn(woken) == "p-1", turn(woken))
+  ok("turn: the app's notes with the person's words after them are a prompt", turn([ask, said("p-8", [["type": "text", "text": notes], ["type": "text", "text": "Remove them first"]])]) == "p-8")
+  ok("turn: a picture alone is a prompt", turn([ask, said("p-9", [["type": "image", "source": ["type": "base64", "media_type": "image/png", "data": "AAAA"]]])]) == "p-9")
+  ok("turn: older Claude Code with no origin and no promptId uses the line's uuid", turn([j(["type": "user", "uuid": "u-old", "timestamp": iso(9), "message": ["role": "user", "content": "an older fictional ask"]])]) == "u-old")
+  let d = AiDoneCore.Drop(tool: .claude, id: "s1", cwd: "/w/x", transcript: "/t", at: now)
+  ok("verdict: the card carries the turn", AiDoneCore.verdict(d, now: now) { _ in ([titleLine] + woken).map { Substring($0) } } == .card(tool: .claude, id: "s1", chat: "Fictional chat", at: now, turn: "p-1"))
+  var later = d; later.at = now.addingTimeInterval(15)
+  ok("verdict: 15 s later, woken again, the same turn (the page keeps the first card)", {
+    if case .card(_, _, _, _, let t) = AiDoneCore.verdict(later, now: now.addingTimeInterval(15), lines: { _ in ([titleLine] + woken + delivered("a1", "completed")).map { Substring($0) } }) { return t == "p-1" }
+    return false
+  }())
+  // A stuck chat: Stop after Stop with no new prompt (an error and a retry, a loop, a wake up), 30 s apart for an
+  // hour: every file it leaves carries the same turn, so the page keeps its first card.
+  var stuck = [ask]
+  var turns = Set<String>()
+  for k in 0..<120 {
+    stuck += [j(["type": "assistant", "timestamp": iso(9), "message": ["role": "assistant", "content": [["type": "text", "text": "API Error: fictional overload, retrying"]]], "isApiErrorMessage": true])]
+    if k % 3 == 0 { stuck += delivered("x\(k)", "completed") }
+    var f = d; f.at = now.addingTimeInterval(Double(k) * 30)
+    if case .card(_, _, _, _, let t) = AiDoneCore.verdict(f, now: f.at, lines: { _ in ([titleLine] + stuck).map { Substring($0) } }) { turns.insert(t) }
+  }
+  ok("a stuck chat finishing every 30 s for an hour: one turn the whole time", turns == ["p-1"], "\(turns)")
+  ok("verdict: other tools have no turn", AiDoneCore.verdict(AiDoneCore.Drop(tool: .cursor, id: "c1", cwd: "/w/fictional-shop", transcript: "", at: now), now: now, lines: { _ in nil }) == .card(tool: .cursor, id: "c1", chat: "fictional-shop", at: now))
+}
+
 
 print("\n\(passed) AI chat finished checks passed")

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Self tests for the installer and updater (Sources/UpdaterSelfTest.swift), run on test copies only.
-# channel     the same app update through the cincee.com channel code (a file:// folder, offline).
+# channel     the same app update through the channel code (a file:// folder, offline).
 # Needs a built test copy first:
 #   (cd ~/Projects/ps/web && npm run build:ps) && NO_INSTALL=1 SKIP_WEB=1 bash build.sh
 #   bash tests/updater-test.sh <empty folder> [areas]      areas: upanim update rollback webupdate install release

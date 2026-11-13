@@ -10,10 +10,9 @@
 //
 // The steps live here with no vault and no screen, so the unit tests run them against a fake hub and the live
 // check against the real one. Which kind of code (core/friendlink.ts):
-//   the squad's admin shows it   a one time invite: showing it is the admin's yes, scanning it joins at once
-//   anyone else in The G Squad   an Ask to join: the admin approves it (V1.42 directory), nothing joins before
-//   anyone else in a private squad  no code (only its admin can add people with a code; private squads are not on
-//                                the list, so there is nothing to ask)
+//   V1.57 invite only: every member's code is a one time invite (showing it is that member's yes), so scanning it
+//   joins at once. An ask code (made by PS V1.49 to V1.56 for anyone but the admin) still works as an Ask to join:
+//   PS joins by itself, waits, and the admin lets them in (squad/direngine.ts).
 // Every code is made fresh each time the Add friend page opens, works once, and runs out in 24 hours.
 import * as S from "../core/squadcrypto.ts";
 import { b64url } from "../core/crypto.ts";

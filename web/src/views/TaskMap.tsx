@@ -29,7 +29,7 @@ import { irepFeed, mailCardMessage } from "../mailcards";
 import { DAY_ENDS_DEFAULT, workDayOf } from "../core/daylog";
 import { dndMutes, type DndOp } from "../core/dnd";
 import { addDraft, addGate, addShape, cleanTitle, enterAction, quickDefaults, revealBy, type AddOpts } from "../core/quickadd";
-import { typedOrder } from "../core/typedprio";
+import { typedEdit, typedOrder } from "../core/typedprio";
 import { PrioInput, useTypedPrio } from "./TypedPrio";
 import { addTodo, approveSuggestion, awareDone, awareToList, awareUndone, suggestionToAware, suggestionToDimx, resetTodos, deleteTodo, dismissSuggestion, saveSettings, setReplyHandled, setTodoOrder, setWorkingOn, subtaskOp, toggleTodo, setTodoDone, setTodosDone, clearTodos, reviveTodos, buryTodos, restoreTodo, updateTodo, moveTasks, ungroupTasks, setDnd, setJournal } from "../core/actions";
 import { accepts, cleanGroups, groupKey, mergeOrder, newGroupId, sectionOrder, tabLists, type TabLists, type TaskMove } from "../core/groups";
@@ -67,7 +67,7 @@ import { previewBackdrop, setLiveBackdrop, watchBackdrop } from "./ListTranspare
 import { ADD_ANIMS, addAnimOf, addColorOf, addInkOn, type AddAnim } from "../core/addbutton";
 import { useDragOrder, type DragEnd } from "../ui/dragOrder";
 import { ROW_CONTROLS, TICK_PEND_MS, TICK_STAY_MS, clickAlreadyHandled, pressMoved, pressStarts, tickMoved, tickPressStarts, tickSettled, tickShown, tickStays, tickWant, type TickPend } from "../core/press";
-import { completedList, completedOn, listPrefs, nextRollAt, openOnList, resurrectList } from "../core/completed";
+import { allCompletedList, completedList, completedOn, listPrefs, nextRollAt, openOnList, resurrectList } from "../core/completed";
 import { resetMinOf } from "../core/resetday";
 import { Completed } from "./Completed";
 import { SleepHost, SleepRow } from "./SleepMode";
@@ -234,7 +234,8 @@ export const taskMapActions: {
   stHours: (v: number) => Promise<unknown>;
   /** The glass slider (live while dragging, saved when let go) and the Keep overlay tick (PS). */
   backdrop: (v: number, save: boolean) => Promise<unknown>;
-  keep: (on: boolean) => Promise<unknown>;
+  /** stay (V1.57, leaving Edit): Keep off, but the list stays up, pinned, until the next Tab or a click on empty space. */
+  keep: (on: boolean, stay?: boolean) => Promise<unknown>;
   goals: (list: Goal[]) => Promise<unknown>;
   /** A series map note or month title (views/SeriesMap.tsx, opened from the Map pill). */
   journal: (key: string, patch: { title?: string | null; note?: string | null }) => Promise<unknown>;
@@ -329,11 +330,11 @@ function setHover(on: boolean) {
   if (on && !keptOn) setKept(true); else keptListeners.forEach((l) => l());
 }
 let rectTimer = 0, lastRects = "";
-function setKept(on: boolean) {
+function setKept(on: boolean, stay?: boolean) {
   keptOn = on;
   if (!on) hoverOn = false;
   keptListeners.forEach((l) => l());
-  void taskMapActions.keep(on);
+  void taskMapActions.keep(on, !on && stay ? true : undefined);
   // While kept, tell PS where the list's pieces are: clicks anywhere else go to the app behind.
   clearInterval(rectTimer);
   lastRects = "";
@@ -1013,6 +1014,14 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
     const now = Date.now();
     return resurrectList(allTodos(s).filter((d) => tickPend.get(d.id)?.done !== false && !clearPend.has(d.id)), lp, now, odZone, dayAt);
   }, [s, done, tv, roll, lp.mode, lp.show, lp.keep, odZone, dayAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  // V1.57: every completed task there is (the "Show all completed" row at the end of Completed), only while Completed is on.
+  // Clear takes tasks out of Completed but they stay in the history, so the ones Clear just hid (clearPend) are put back in.
+  const history = useMemo(() => {
+    if (!completedOn(lp)) return [];
+    const base = allTodos(s);
+    const cut = base.filter((d) => clearPend.has(d.id) && d.data.done && tickPend.get(d.id)?.done !== false);
+    return allCompletedList([...withTicks(base).docs, ...cut]);
+  }, [s, tv, lp.mode, lp.show]); // eslint-disable-line react-hooks/exhaustive-deps
   const { daily, ranked: prio } = lists;
   // developer-only panels (radar, campaign stats, brief, client emails, Telegram and Claude's New tasks). The Meetings
   // panel is everyone's (7 Nov 2026): the developer's from his Google calendar, anyone else's from their Mac's Calendar.
@@ -1404,7 +1413,7 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
             {/* The end of the list: Resurrect (whenever something can come back), Clear and Complete all in one row, then
                 Completed (V1.34): ticked one-offs, crossed out in a grey area. Sleep sits here only while the side column is
                 hidden (a narrow website window, sleepmode.css); otherwise bottom right. Each list has its own (V1.55). */}
-            <Completed list={mine(done)} back={mine(back)} open={openHere} keep={lp.keep} editing={editing} onEdit={setEditingId} clients={clients}
+            <Completed list={mine(done)} back={mine(back)} history={mine(history)} open={openHere} keep={lp.keep} editing={editing} onEdit={setEditingId} clients={clients}
               extra={GOS ? null : <SleepRow where="end" />} title={<SecTitle skey="done" title={shownName(pg.names, "done")} />} />
           </>);
         }} />
@@ -1699,7 +1708,7 @@ function AwayReason({ current, reasons, onPick, onSave, onDrop }: {
         <div className="tm-why-list">
           {reasons.map((r) => (
             <span key={r} className="tm-why-chip">
-              <DwellButton selected={current === r} onPick={() => { if (current !== r) use(r); }} ms={420}>{r}</DwellButton>
+              <DwellButton selected={current === r} onPick={() => { if (current !== r) use(r); }}>{r}</DwellButton>
               <button type="button" className="tm-why-x" onClick={() => onDrop(r)} aria-label={`Take ${r} off the list`} title="Take off the list">×</button>
             </span>
           ))}
@@ -1708,7 +1717,7 @@ function AwayReason({ current, reasons, onPick, onSave, onDrop }: {
       <div className="tm-pop-row">
         <input className="tm-pop-in tm-why-in" value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a reason, eg Coffee break"
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); use(text); } if (e.key === "Escape") { e.stopPropagation(); setText(""); } }} />
-        <DwellButton selected={false} onPick={() => use(text, true)} ms={420}>Save to list</DwellButton>
+        <DwellButton selected={false} onPick={() => use(text, true)}>Save to list</DwellButton>
       </div>
     </div>
   );
@@ -2858,7 +2867,8 @@ const selSubs = new Set<() => void>();
 function setSel(next: Set<string>) { selIds = next; selSubs.forEach((f) => f()); }
 function clearSel() { if (selIds.size) setSel(new Set()); }
 function toggleSel(id: string) { const n = new Set(selIds); if (n.has(id)) n.delete(id); else n.add(id); setSel(n); }
-function useSelection() { return useSyncExternalStore((l) => { selSubs.add(l); return () => { selSubs.delete(l); }; }, () => selIds); }
+export { toggleSel, clearSel };
+export function useSelection() { return useSyncExternalStore((l) => { selSubs.add(l); return () => { selSubs.delete(l); }; }, () => selIds); }
 /** The section order right now (the Overlay keeps it here), for a new group's place. */
 const tabNow: { full: string[]; shown: string[] } = { full: [], shown: [] };
 /** A group just made: its header opens ready to type the name. */
@@ -3401,13 +3411,21 @@ export function Editor({ d, clients, onDone, ranked }: { d: Doc<Todo>; clients: 
   const reminder = useTaskReminder(d.id);
   const pick = (k: RepeatDraft["kind"]) => { setRule((r) => ({ ...r, kind: k, from: k === "repeat" && r.kind !== "repeat" ? due || todayISO() : r.from })); sfx.hover(); };
   const plus = (n: number) => { const x = new Date(); x.setDate(x.getDate() + n); return x.toLocaleDateString("en-CA"); };
+  // V1.57: P1, P2 or P3 typed in the name works when editing too (the same parser as Add task, core/typedprio.ts).
+  // One-offs on the main list only (they are the ones with a priority); a word already in the name is left alone.
+  const tp = useTypedPrio(title, !!ranked && type === "once", t.title);
   const save = () => {
-    const name = title.trim();
+    const typedP = tp.take(title);
+    const name = (typedP ? typedP.title : title).trim();
     if (!name) return;
     const r = patchOf(rule, todayISO(), t);
     const patch: TodoPatch = { title: name, notes: notes.trim() || null, type: r.type, repeat: r.repeat, due: r.type === "once" ? due || null : r.due ?? null, clientId: clientId || null };
     // A new priority number moves just this task between its new neighbours.
-    if (ranked && type === "once" && p1 !== !!t.p1) {
+    if (typedP && ranked && type === "once") {
+      const e = typedEdit(ranked.map((x) => ({ id: x.id, ...x.data })), d.id, typedP.prio);
+      if (e) { patch.p1 = e.p1; patch.order = e.order; }
+      if (t.unranked) patch.unranked = false;
+    } else if (ranked && type === "once" && p1 !== !!t.p1) {
       // Priority 1 on: to the end of the P1 group. Off: just below it. (A one-off only.)
       const rest = ranked.filter((x) => x.id !== d.id);
       patch.p1 = p1;
@@ -3425,14 +3443,14 @@ export function Editor({ d, clients, onDone, ranked }: { d: Doc<Todo>; clients: 
   return (
     <li className="tm-row tm-editor" onKeyDown={keys} onMouseDown={(e) => e.stopPropagation()}>
       <div className="tm-ed">
-        <input className="tm-ed-title" value={title} autoFocus onChange={(e) => setTitle(e.target.value)} aria-label="Task name"
+        <PrioInput prio={tp} className="tm-ed-title" value={title} autoFocus onChange={(e) => setTitle(e.target.value)} aria-label="Task name"
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }} />
         <textarea className="tm-ed-notes" value={notes} rows={2} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" aria-label="Notes" />
         <div className="tm-ed-row">
           <div className="tm-ed-seg" role="radiogroup" aria-label="Task type">
-            <DwellButton selected={kind === "once"} onPick={() => pick("once")} ms={260}>One-off</DwellButton>
-            <DwellButton selected={kind === "daily"} onPick={() => pick("daily")} ms={260}>Every day</DwellButton>
-            <DwellButton selected={kind === "repeat"} onPick={() => pick("repeat")} ms={260}>Repeat</DwellButton>
+            <DwellButton selected={kind === "once"} onPick={() => pick("once")}>One-off</DwellButton>
+            <DwellButton selected={kind === "daily"} onPick={() => pick("daily")}>Every day</DwellButton>
+            <DwellButton selected={kind === "repeat"} onPick={() => pick("repeat")}>Repeat</DwellButton>
           </div>
           {type === "once" && (
             <>
@@ -3452,11 +3470,11 @@ export function Editor({ d, clients, onDone, ranked }: { d: Doc<Todo>; clients: 
         {kind === "repeat" && <RepeatPicker value={rule} onChange={setRule} cls={TM_REPEAT} />}
         {ranked && type === "once" && (
           <div className="tm-ed-row">
-            <button type="button" role="switch" aria-checked={p1} className={`tm-p1-switch${p1 ? " on" : ""}`} onClick={() => { setP1((v) => !v); sfx.click(); }}
+            <button type="button" role="switch" aria-checked={p1} className={`tm-p1-switch${p1 ? " on" : ""}`} onClick={() => { tp.picked(); setP1((v) => !v); sfx.click(); }}
               title={p1 ? "In the Priority 1 group at the top. Click to take it out" : "Put it in the Priority 1 group at the top"}>
               <span className="tm-p1-knob" aria-hidden="true" />Priority 1
             </button>
-            {!p1 && <PriorityPicker value={p} max={ranked.length} onChange={setP} />}
+            {!p1 && <PriorityPicker value={p} max={ranked.length} onChange={(v) => { tp.picked(); setP(v); }} />}
           </div>
         )}
         <div className="tm-ed-row">
@@ -3815,7 +3833,7 @@ function PrivateMask({ on }: { on: boolean }) {
   return (
     <button type="button" className={`tm-mask${on ? " on" : ""}`} role="switch" aria-checked={on}
       aria-label={on ? "Private mode is on. Click to turn it off" : "Private mode is off. Click to turn it on"}
-      title={on ? "Private mode is on: cards and the island hide names and messages" : "Private mode: hide names and messages on cards and the island"}
+      title={on ? "Private mode is on: cards are small pills with no sound" : "Private mode: cards become small pills with no sound, the island hides names"}
       onClick={() => { sfx.click(); void taskMapActions.looks({ privateMode: !on }); }}>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M12 2.6c-4.3 0-7.4 2.9-7.4 7.5 0 5.4 3.3 11.3 7.4 11.3s7.4-5.9 7.4-11.3c0-4.6-3.1-7.5-7.4-7.5z" />

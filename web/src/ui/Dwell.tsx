@@ -1,23 +1,16 @@
-// Hover to choose: rest the mouse on an option for a moment and it is picked, no click needed.
-// A pink fill runs along the bottom while you wait, so you can see it is about to switch;
-// move off before it finishes and nothing changes. A click still works straight away.
-import { useEffect, useRef, useState, type ReactNode } from "react";
+// An option button that changes only on a real click or tap (V1.57). It used to pick itself when the mouse rested on
+// it for a moment ("hover to choose"); a friend of the developer's hovered over the task editor's One-off / Every day / Repeat
+// and it switched by itself ("I only want them to change when I actually click"). The name stays so the callers
+// stay as they are; hovering now only gives the button its usual highlight (the .tm-ed-seg button:hover look).
+import type { ReactNode } from "react";
 
-export const DWELL_MS = 420;
-
-export function DwellButton({ selected, onPick, children, className = "", title, ms = DWELL_MS, role = "radio" }: {
-  selected: boolean; onPick: () => void; children: ReactNode; className?: string; title?: string; ms?: number; role?: string;
+export function DwellButton({ selected, onPick, children, className = "", title, role = "radio" }: {
+  selected: boolean; onPick: () => void; children: ReactNode; className?: string; title?: string; role?: string;
 }) {
-  const [arming, setArming] = useState(false);
-  const t = useRef(0);
-  useEffect(() => () => window.clearTimeout(t.current), []);
-  const stop = () => { window.clearTimeout(t.current); setArming(false); };
   return (
     <button type="button" role={role} aria-checked={selected} title={title}
-      className={`dwell${selected ? " on" : ""}${arming ? " arming" : ""} ${className}`} style={{ ["--dwell" as string]: `${ms}ms` }}
-      onMouseEnter={() => { if (selected) return; setArming(true); t.current = window.setTimeout(() => { setArming(false); onPick(); }, ms); }}
-      onMouseLeave={stop}
-      onClick={() => { stop(); if (!selected) onPick(); }}>
+      className={`dwell${selected ? " on" : ""} ${className}`}
+      onClick={() => { if (!selected) onPick(); }}>
       {children}
     </button>
   );

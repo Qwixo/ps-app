@@ -6,4 +6,4 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function Numerology(_p0?: { [k: string]: any; onSave?: (...a: any[]) => any }, ..._more: any[]): any { return undefined; }
+export function Numerology(_p0?: { [k: string]: any; onSave?: (...a: any[]) => any }, ..._more: any[]): any { return null; }

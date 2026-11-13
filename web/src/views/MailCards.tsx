@@ -6,4 +6,4 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function MailCardsWeb(..._more: any[]): any { return undefined; }
+export function MailCardsWeb(..._more: any[]): any { return null; }

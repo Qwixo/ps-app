@@ -5,7 +5,7 @@
 import { isRedAccount } from "../core/account";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { settingsData } from "../core/select";
-import { dayKey, gymPrefs, gymTimes, GYM, type GymPrefs } from "../core/gym";
+import { gymEnd, gymPrefs, gymRingAt, gymToday, GYM, YES_WORDS, type GymPrefs } from "../core/gym";
 import { homeTz } from "../core/tz";
 import { useVault } from "../ui/kit";
 import { taskMapActions } from "../views/TaskMap";
@@ -275,10 +275,18 @@ const WEEK: { d: number; t: string; full: string }[] = [
   { d: 1, t: "M", full: "Monday" }, { d: 2, t: "T", full: "Tuesday" }, { d: 3, t: "W", full: "Wednesday" }, { d: 4, t: "T", full: "Thursday" },
   { d: 5, t: "F", full: "Friday" }, { d: 6, t: "S", full: "Saturday" }, { d: 0, t: "S", full: "Sunday" },
 ];
-const minus = (time: string, mins: number) => {
-  const [h, m] = time.split(":").map(Number), t = (h * 60 + m - mins + 1440) % 1440;
-  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
-};
+const NAG_STEPS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
+const mins = (hm: string) => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
+/** One time box in the gym reminder (saves when a whole time is picked). */
+function GymTime({ label, value, on, set }: { label: string; value: string; on: boolean; set: (v: string) => void }) {
+  return (
+    <label className="fs-gym-time">
+      <span>{label}</span>
+      <input type="time" step={300} value={value} disabled={!on}
+        onChange={(e) => { if (/^\d{2}:\d{2}$/.test(e.target.value) && e.target.value !== value) { haptic("tick"); set(e.target.value); } }} />
+    </label>
+  );
+}
 function GymReminder() {
   const s = useVault();
   const st = settingsData(s);
@@ -295,17 +303,18 @@ function GymReminder() {
     void taskMapActions.looks({ gym: next }).finally(() => { window.setTimeout(() => { pending.current--; }, 1500); });
   };
   const tz = homeTz(), now = Date.now();
-  const today = gymTimes(p, now, tz, 0).find((g) => g.day === dayKey(now, tz) && g.at > now - GYM.cardStays);
+  const today = gymToday(p, now, tz);
   const ackedToday = !!today && (st.gymAck || []).includes(today.day);
+  const end = gymEnd(p), ring = gymRingAt(p);
+  const overMidnight = mins(end) <= mins(p.time);
+  const nextMorning = p.nag && mins(p.time) < mins(p.nagStart);
   return (
     <Section title="Gym reminder" term="gym-reminder">
       <Toggle label="Remind me" on={p.on} onChange={(on) => save({ on })} />
       <div className={`fs-gym${p.on ? "" : " off"}`}>
-        <label className="fs-gym-time">
-          <span>Gym time</span>
-          <input type="time" step={300} value={p.time} disabled={!p.on}
-            onChange={(e) => { if (/^\d{2}:\d{2}$/.test(e.target.value)) { haptic("tick"); save({ time: e.target.value }); } }} />
-        </label>
+        <GymTime label="Gym time" value={p.time} on={p.on} set={(time) => save({ time, ...(time === p.end ? { end: "" } : {}) })} />
+        <GymTime label="Ends" value={end} on={p.on} set={(v) => save({ end: v === p.time ? "" : v })} />
+        <GymTime label="Phone rings at" value={ring} on={p.on} set={(ringAt) => save({ ringAt })} />
         <div className="fs-gym-days" role="group" aria-label="Gym days">
           {WEEK.map((w) => {
             const on = p.days.includes(w.d);
@@ -316,12 +325,31 @@ function GymReminder() {
           })}
         </div>
       </div>
-      <p className="fs-help">{p.on
-        ? `Your Mac shows a card 2 h, 1 h, 30 min and 10 min before ${p.time}. Your phone gets a notification at the same times and rings at ${minus(p.time, GYM.ring)}, even in Do Not Disturb, for up to 10 minutes (Later rings again in 5). Acknowledging on either one stops both.`
-        : "Off: no gym cards, notifications or ring."}<Info k="gym-reminder" /></p>
+      {p.on && p.ringAt && <button type="button" className="fs-gym-reset" onClick={() => { haptic("tick"); save({ ringAt: "" }); }}>Ring {GYM.ring} min before the gym again</button>}
+      <div className={`fs-gym-nag${p.on ? "" : " off"}`}>
+        <Toggle label="Nag me until I say Yes" on={p.nag} onChange={(nag) => { if (p.on) save({ nag }); }} />
+        {p.nag && (
+          <div className="fs-gym">
+            <GymTime label="Starts" value={p.nagStart} on={p.on} set={(nagStart) => save({ nagStart })} />
+            <label className="fs-gym-time">
+              <span>Every</span>
+              <select value={p.nagEvery} disabled={!p.on} onChange={(e) => { haptic("tick"); save({ nagEvery: Number(e.target.value) }); }}>
+                {[...new Set([...NAG_STEPS, p.nagEvery])].sort((a, b) => a - b).map((m) => <option key={m} value={m}>{m} min</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+      </div>
+      <p className="fs-help">{!p.on ? "Off: no gym cards, notifications or ring."
+        : p.nag
+          ? `From ${p.nagStart}, your Mac shows a card and your phone a notification every ${p.nagEvery} min until you say ${YES_WORDS}. If you have not, your phone rings at ${ring}, even in Do Not Disturb, for up to 10 minutes (Later rings again in 5). Yes on either one stops everything for that day.`
+          : `Your Mac shows a card 2 h, 1 h, 30 min and 10 min before ${p.time}. Your phone gets a notification at the same times and rings at ${ring}, even in Do Not Disturb, for up to 10 minutes (Later rings again in 5). ${YES_WORDS} on either one stops both.`}
+        {!p.on ? "" : nextMorning ? ` Gym at ${p.time} is the morning after the nagging starts: Yes counts for the day the nagging starts.`
+          : overMidnight ? ` The gym ends after midnight: Yes counts for the day ${p.nag ? "the nagging starts" : "it starts"}.` : ""}
+        <Info k="gym-reminder" /></p>
       {today && p.on && (ackedToday
-        ? <p className="fs-help fs-gym-done"><Check /> Acknowledged for today</p>
-        : <button type="button" className="fs-btn fs-gym-ack" onClick={() => { haptic("press"); void taskMapActions.gymAck(today.day); }}>Acknowledge today's gym now</button>)}
+        ? <p className="fs-help fs-gym-done"><Check /> You said Yes for today</p>
+        : <button type="button" className="fs-btn fs-gym-ack" onClick={() => { haptic("press"); void taskMapActions.gymAck(today.day); }}>{YES_WORDS}</button>)}
     </Section>
   );
 }

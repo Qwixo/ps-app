@@ -59,9 +59,10 @@ ok("GosLayer only gains the mount", () => {
 });
 ok("it reuses the Mac phone canvas pieces and saves the same record", () => {
   const src = read("src/gos/PhoneEditMode.tsx");
-  assert.match(src, /import \{ PhoneGallery, PhoneScreen, Sheet, pageName, type EditProps, type NavDrag, type TileDrag \} from "\.\.\/views\/PhoneEditor"/);
+  assert.match(src, /import \{ PhoneGallery, PhoneScreen, Sheet, pageName, useStable, type EditProps, type NavDrag, type TileDrag \} from "\.\.\/views\/PhoneEditor"/);
   assert.match(src, /void savePhoneLayout\(l\)/);
-  for (const f of ["addPage", "removePage", "orderPages", "renamePage", "addTile", "removeTile", "moveTile", "resizeTile", "tileToPage", "setNavEdge", "setNavAlign", "setNavItems", "toggleNav"])
+  // V1.57: a page is deleted through core/phonepagedelete.ts (deletePage, which uses removePage, and Undo's restorePage).
+  for (const f of ["addPage", "deletePage", "restorePage", "orderPages", "renamePage", "addTile", "removeTile", "moveTile", "resizeTile", "tileToPage", "setNavEdge", "setNavAlign", "setNavItems", "toggleNav"])
     assert.match(src, new RegExp(`\\b${f}\\(`), f);
   assert.match(src, /<LooksSlot layout=\{layout\} red=\{red\} sound=\{sound\} onOpen=\{setLooksOpen\}/);
   assert.match(src, /export function setPhoneLooksSlot\(c: ComponentType<LooksSlotProps> \| null\)/);

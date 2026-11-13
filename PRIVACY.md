@@ -7,9 +7,12 @@ does not. Every point names the code that proves it, so you (or your AI) can che
 
 - the developer cannot read your tasks, notes, lists, settings, clients or anything else you keep in PS. They are encrypted
   on your device with a key made from your passphrase, and the server only ever gets the locked version.
-- the developer can see that your account exists, when and from which IP address you sign in, how many encrypted items you
-  have, how big they are and when they change, and whatever you choose to share in The G Squad.
-- PS asks cincee.com for updates. Those requests show your IP address to cincee.com's hosting.
+- the developer can see that your account exists, when you sign in and on what kind of device (Mac, iPhone, Android and so
+  on), how many encrypted items you have, how big they are and when they change, and whatever you choose to share
+  in The G Squad. PS does not store your IP address. Supabase, which runs the server, keeps the IP address of each
+  request in its own logs for about a day, and the developer can read those logs.
+- PS asks GitHub for updates, not cincee.com. GitHub sees your IP address. The developer only sees how many times the update
+  files were downloaded.
 - You can keep everything on your Mac only, or on a Supabase server of your own. Then most of the above goes away.
   The exceptions are listed at the end.
 
@@ -61,8 +64,8 @@ This is what the database and Supabase's own logs hold. The developer owns the p
 | What | Where |
 | --- | --- |
 | That your account exists, when it was made, and your hashed login id | Supabase's `auth.users` |
-| Each sign in: the time, your IP address and your browser or app User-Agent | `access_log` (`003_access_log.sql`), and Supabase's auth logs |
-| Every request to the server: time, IP address, User-Agent, which table | Supabase's platform logs (kept by Supabase, not by PS's code; PS cannot switch them off) |
+| Each sign in: the time and a rough device name (Mac, iPhone, iPad, Android, Windows, Linux, Chromebook or Other). No IP address and no full User-Agent: PS blanks them before Supabase stores them | `access_log`, `auth.sessions` (`030_no_ip.sql`) |
+| Every request to the server: time, IP address, User-Agent, which table. Kept by Supabase for about a day, not by PS's code. PS cannot switch it off | Supabase's platform logs |
 | How many encrypted items you have, the exact size of each, when each was made, changed or deleted | `records`, `blobs` (`001_vault.sql`, `010_blobs.sql`) |
 | Which accounts share a client workspace, and who invited whom | `workspaces`, `members`, `invites`, `owners` |
 | That a phone or iPhone was linked to your account, and when | `ps_devices` (`029_phone_signin.sql`) |
@@ -71,30 +74,38 @@ This is what the database and Supabase's own logs hold. The developer owns the p
 
 He cannot see what any of those encrypted items say.
 
+## Update checks
+
+Mac, website and phone update checks go to github.com/RedbyPS/ps (every 5 minutes by default, switch: "Check for
+updates every", Off). Each sends a plain request with no account, device id, version number, cookies or referrer.
+
+None of these go to cincee.com, and PS never falls back to it. GitHub sees your IP address, like any website. The developer
+owns the repo and sees only download counts and visitor totals, never addresses. The files are checked the same
+wherever they come from: the Mac checks the developer's signature and every file's checksum, the phone checks the checksum and
+The developer's signing certificate. PS V1.56 and older still ask cincee.com until they update.
+
 ## What goes to cincee.com
 
 | What | When | What it sends | Switch |
 | --- | --- | --- | --- |
-| Mac update check (`cincee.com/client/ps/ps-update.json`) | 45 s after launch, then every 5 minutes by default, and after the Mac wakes | A plain request with `User-Agent: PS`. No account, no device id, no version number (`mac/Sources/UpdateCore.swift`) | Settings, About and updates, "Check for updates every": 5, 10, 15, 30 minutes or Off |
-| Website version check (`cincee.com/client/version.json`) | The website in a browser, on the same timer as above. (The Mac app does this too, every 15 minutes, but only on the developer's own account: `checkWebsite` in `mac/Sources/main.swift`) | A plain request with the browser's usual headers | Same switch |
-| Phone update check (`cincee.com/client/gos/version.json`) | When the app opens, every 5 minutes while it is on screen, and from the background check | A plain request; Android adds its standard User-Agent, which usually names the Android version and phone model | Same switch |
 | "Last online" check of the network monitor | Once a minute while the network monitor is on | A DNS lookup of a made up name, `ps-check-<random>.cincee.com` (`mac/Sources/NetUptime.swift`). It goes through your normal DNS server, so cincee.com's DNS host usually sees your DNS provider's address, not yours | Settings, Mac, "Network monitor" Off |
-| The website itself (cincee.com/client) | Each time you open it in a browser | The page is loaded fresh from cincee.com each visit | Use the Mac or phone app instead |
+| The website itself (cincee.com/client) | Each time you open it in a browser | The page is loaded fresh from cincee.com each visit. Netlify and Cloudflare show the developer your IP address | Use the Mac or phone app instead |
 
 Other services, only when you use them: Telegram, if you add your own Telegram bot; YouTube's no cookie player
 (`youtube-nocookie.com`), when you open a video in Goals; Apple's speed test servers, when you press Speed test in
 the network monitor; and Supabase's own website (`api.supabase.com`), when you connect your own Supabase.
 
-cincee.com is hosted on Netlify behind Cloudflare. Like any website, those services see the IP address and
-User-Agent of every request. PS has no analytics and no crash reporting in any of the three apps. ("Sentry" in
-the code is PS's lock screen mode, not the error reporting service.)
+cincee.com is hosted on Netlify behind Cloudflare. Both show the developer the IP address of people who open the website or
+download PS from it: Netlify for every request in the last 24 hours, Cloudflare for a sample of requests over 31
+days. That is why update checks no longer go there. PS has no analytics and no crash reporting in any of the three
+apps. ("Sentry" in the code is PS's lock screen mode, not the error reporting service.)
 
 ## The G Squad (friends)
 
 The G Squad is a shared space with other PS users. It runs on a second server of the developer's, the hub
 (`zxhvchchfrkfqxuyorqo.supabase.co`, code in `web/supabase/hub/`).
 
-- PS joins The G Squad by itself after you sign in, unless you switch "Join The G Squad automatically" off
+- PS asks to join The G Squad by itself after you sign in, unless you switch "Join The G Squad automatically" off
   (Settings, G Squad). You can leave at any time in G Squad's own settings.
 - What you share is sealed with a squad key that every member's device holds. **Every member can read it, and the developer
   is a member and the squad's admin.** So the developer can read anything you share there.
@@ -105,8 +116,11 @@ The G Squad is a shared space with other PS users. It runs on a second server of
   of each shared card, chat message times, and file sizes.
 - The hub stores a hash of your account (your server's address plus your account id) so your Mac and phone count
   as one member. The developer runs the main server too, so he can match that hash to your account there.
-- Joining needs no approval: the code lets any copy of PS join and be given the squad key automatically
-  (`supabase/hub/functions/squad/index.ts`, `auto_join`). Anyone who joins can read what members share.
+- The G Squad is invite only. You get in with a one time Add friend code from someone already in it, or the admin
+  (the developer) lets you in after you ask. Until then nobody hands your PS the squad key, and the hub refuses to store it
+  for you. Anyone in the squad can bring a friend in with their code, and that friend can then read what members
+  share.
+- The hub runs on Supabase too, so its request logs keep IP addresses for a short time, and the developer can read them.
 
 ## What stays on your Mac
 
@@ -153,7 +167,6 @@ Encryption stops the developer reading your data. It does not stop everything:
 With Connect your own Supabase (Mac), your vault, the sign in log and all server logs are on your project, not
 The developer's. The developer cannot see your account at all. These still reach the developer's servers, unless you switch them off:
 
-- update checks to cincee.com (switch: "Check for updates every", Off),
 - the "Last online" DNS check (switch: Network monitor, Off),
 - The G Squad hub (switch: "Join The G Squad automatically", Off, or leave the squad).
 

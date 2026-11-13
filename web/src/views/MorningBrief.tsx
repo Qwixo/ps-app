@@ -6,6 +6,6 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function YourNumbers(..._more: any[]): any { return undefined; }
-export function MorningBrief(_p0?: any, ..._more: any[]): any { return undefined; }
-export function BriefCard(_p0?: { [k: string]: any; onClose?: (...a: any[]) => any }, ..._more: any[]): any { return undefined; }
+export function YourNumbers(..._more: any[]): any { return null; }
+export function MorningBrief(_p0?: any, ..._more: any[]): any { return null; }
+export function BriefCard(_p0?: { [k: string]: any; onClose?: (...a: any[]) => any }, ..._more: any[]): any { return null; }

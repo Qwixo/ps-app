@@ -40,6 +40,8 @@ import { cleanSentry } from "./core/sentry";
 import { startTgBot, tgShellMessage } from "./tgbot";
 import { aiDoneMessage } from "./aidone";
 import { apiMessage, apiOverlayMessage } from "./taskapi";
+import { cleanPairOp } from "./core/pairengine";
+import { mainPair, pairForMirror, runPairOp, setPairMirror } from "./core/pairmac";
 
 /** Outline and background settings from the Tab list window: only known looks, numbers 0 to 100. */
 export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
@@ -100,6 +102,7 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (typeof p.squadAutoJoin === "boolean") o.squadAutoJoin = p.squadAutoJoin;
   if (typeof p.psPresence === "boolean") o.psPresence = p.psPresence;
   if (typeof p.tipsShow === "boolean") o.tipsShow = p.tipsShow;
+  if (typeof p.swipeInvert === "boolean") o.swipeInvert = p.swipeInvert;   // Settings, Controls, Invert swipe (V1.57)
   // V1.56 Saved looks: only the device kinds this change names, merged into the vault's newest (core/looksprofiles.ts).
   if (p.looksSaved && typeof p.looksSaved === "object") o.looksSaved = mergeLooksKinds(settingsData(vaultStore.get()).looksSaved, cleanLooksStore(p.looksSaved, cleanLookData));
   if (typeof p.editSounds === "boolean") o.editSounds = p.editSounds;   // V1.56 Edit mode sounds (core/editsounds.ts)
@@ -474,7 +477,7 @@ export function startPsOverlay() {
     // Called with new data, and every time the floating list is shown (opening; an older PS app
     // leaves it out, which counts as showing). Only a show wakes the sounds and plays the pop-in,
     // so new data arriving while the list is up never makes it blink.
-    load(st: { unlocked: boolean; docs: Doc[]; lastSync: string | null; red?: boolean; second?: unknown; clive?: unknown; cal?: unknown; squad?: unknown; sqchat?: unknown; gym?: unknown; sbsq?: unknown; local?: { since: string } | null; lf?: unknown; leads?: unknown }, opening?: boolean) {
+    load(st: { unlocked: boolean; docs: Doc[]; lastSync: string | null; red?: boolean; second?: unknown; clive?: unknown; cal?: unknown; squad?: unknown; sqchat?: unknown; gym?: unknown; sbsq?: unknown; local?: { since: string } | null; lf?: unknown; leads?: unknown; pair?: unknown }, opening?: boolean) {
       __mirrorLoad(st.unlocked, st.docs || [], st.lastSync, st.red === true, st.local ?? null);
       setLocalMirror(st.unlocked ? st.lf : null);   // local first: the last export or import, the copy kept after a move
       setSquadMirror(st.unlocked ? st.squad : null);   // G Squad: the plain view the main page made (src/squad/engine.ts)
@@ -485,6 +488,7 @@ export function startPsOverlay() {
       setSecondMirror(st.second);   // Second Computer: this Mac, who it trusts, transfers in flight (src/second/store.ts)
       setLiveMirror(st.clive);      // Cincee Campaigns live numbers, read by the main page (core/campaignsLive.ts)
       setLeadMirror(st.unlocked ? st.leads : null);   // open lead replies for the email panel (core/overlaymail.ts)
+      setPairMirror(st.unlocked ? st.pair : null);    // V1.57: Link your phone, the main window's pairing (core/pairmac.ts)
       if (opening === false) return;
       primeSfx();
       setPsOverlayShown(true);
@@ -688,6 +692,8 @@ export function startPsBridge() {
         { const o = cleanGymOp(patch.gymOp); if (o) void runGymOp(o); }
         // The Soundboard's G Squad sharing (V1.47, src/squad/sbshare.ts): list, share, save, take off.
         { const o = cleanSbOp(patch.sbOp); if (o) void runSbOp(o); }
+        // V1.57 Link your phone in the Tab list (core/pairmac.ts): this window has the keys, so it runs the pairing.
+        { const o = cleanPairOp(patch.pairOp); if (o) runPairOp(o); }
         // Fitness's Sync button in the Tab list (V1.29): send what is waiting and pull now.
         if (patch.fitSync === true) void sync();
         const looks = cleanLooks(patch);
@@ -881,7 +887,9 @@ export function startPsBridge() {
     const local = unlocked ? s.local : null, lf = unlocked && !s.red ? localMirrorOut() : null;
     // And the open lead replies (a few rows, no feed) for the email panel's Reply (core/overlaymail.ts), the developer only.
     const leads = unlocked && s.red ? leadRows(leadCards(irepFeed(s), settingsData(s).leadCards)) : null;
-    const json = JSON.stringify({ type: "state", unlocked, red: unlocked && s.red, lastSync: s.lastSync, docs, second: secondLocal(), clive, cal: calStatus.get(), squad, sqchat, gym, sbsq, local, lf, leads });
+    // And Link your phone's pairing (core/pairmac.ts): its phase, the six digit code and the QR's public offer part.
+    const pair = unlocked ? pairForMirror() : null;
+    const json = JSON.stringify({ type: "state", unlocked, red: unlocked && s.red, lastSync: s.lastSync, docs, second: secondLocal(), clive, cal: calStatus.get(), squad, sqchat, gym, sbsq, local, lf, leads, pair });
     if (json !== last) { last = json; psPost({ type: "state", unlocked, payload: json }); }
   };
   // At most 120 ms after the first change (not after the last one), so a busy vault (sync, screen
@@ -896,6 +904,7 @@ export function startPsBridge() {
   gymStore.subscribe(later);    // G Squad Fitness (src/squad/gym.ts)
   sbShareStore.subscribe(later);   // the Soundboard's shared sounds (src/squad/sbshare.ts)
   localSubscribe(later);        // local first: the last export or import note (src/localfirst.ts)
+  mainPair().subscribe(later);  // Link your phone's pairing, run here for the Tab list (core/pairmac.ts)
   send();
   // One line in PS's log per inbox package handled: where from and how long it waited, never what it says.
   setPkgLog((source, at) => {

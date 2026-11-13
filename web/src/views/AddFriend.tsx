@@ -94,7 +94,7 @@ export function AddFriendPanel() {
       <div className="af-say" role="status" aria-live="polite">
         {!v || v.kind === "busy" ? <><b>Making a code</b><span>One moment.</span></>
           : v.kind === "join" ? <><b>Scan with any phone camera</b><span>They open PS in the browser and join {squad} straight away.</span></>
-          : v.kind === "ask" ? <><b>Scan with any phone camera</b><span>They open PS in the browser and are in {squad} as soon as they sign in.</span></>
+          : v.kind === "ask" ? <><b>Scan with any phone camera</b><span>They open PS in the browser and ask to join {squad}. The admin lets them in.</span></>
           : v.kind === "none" ? <><b>This code gets them PS app</b><span>{v.why === "private"
             ? "Only your squad's admin can add people with a code. Ask your admin to show theirs."
             : "You are not in a G Squad yet. Join or start one, then this code adds people to it."}</span></>
@@ -105,7 +105,7 @@ export function AddFriendPanel() {
         {v && v.kind !== "busy" && <button type="button" className="gs-ghost" onClick={again}>{v.kind === "error" ? "Try again" : "New code"}</button>}
       </div>
       {v?.kind === "join" && <p className="af-small">Works once and runs out {hoursLeft(v.expiresAt)}. Closing this cancels it if nobody used it. The part after the # is the key to the squad: it never goes to any server.</p>}
-      {v?.kind === "ask" && <p className="af-small">Runs out {hoursLeft(v.expiresAt)}. It holds no key: PS puts them in {squad} by itself once they sign in.</p>}
+      {v?.kind === "ask" && <p className="af-small">Runs out {hoursLeft(v.expiresAt)}. It holds no key: the admin of {squad} lets them in.</p>}
     </div>
   );
 }
@@ -210,7 +210,7 @@ export function FriendJoinCard() {
   if (!r) return null;
   const body = r === "busy" ? <><h2>Joining The G Squad</h2><span className="af-spin" aria-label="Working" /></>
     : r === "name" ? <>
-      <h2>{link?.kind === "ask" ? "Join The G Squad" : "You are invited to a G Squad"}</h2>
+      <h2>{link?.kind === "ask" ? "Ask to join The G Squad" : "You are invited to a G Squad"}</h2>
       <p>Your name in the squad:</p>
       <form className="af-form" onSubmit={(e) => { e.preventDefault(); const n = name.replace(/\s+/g, " ").trim(); if (n) run(n); }}>
         <label className="gs-field">Your name<input value={name} maxLength={40} onChange={(e) => setName(e.target.value)} autoFocus spellCheck={false} /></label>
@@ -218,7 +218,7 @@ export function FriendJoinCard() {
       </form>
     </>
     : r.state === "in" ? <><h2>You are in {r.squad}</h2><p>Your squad sees you now. Get PS app on your Mac or phone to keep it with you.</p><GetApp /></>
-    : r.state === "asked" ? <><h2>You are joining {r.squad}</h2><p>PS app puts you in by itself in a moment. Get PS app on your Mac or phone meanwhile.</p><GetApp /></>
+    : r.state === "asked" ? <><h2>You asked to join {r.squad}</h2><p>The admin lets you in. Get PS app on your Mac or phone meanwhile.</p><GetApp /></>
     : r.state === "already" ? <><h2>You are already in a G Squad</h2><p>Leave it first (G Squad, Members, Leave the squad), then scan a new code.</p></>
     : r.state === "expired" ? <><h2>This code has run out</h2><p>Ask for a new one: it works for 24 hours.</p></>
     : r.state === "none" ? null

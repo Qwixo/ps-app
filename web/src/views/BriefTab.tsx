@@ -6,4 +6,4 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function BriefButton(_p0?: any, ..._more: any[]): any { return undefined; }
+export function BriefButton(_p0?: any, ..._more: any[]): any { return null; }

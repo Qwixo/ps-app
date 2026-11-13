@@ -1,6 +1,7 @@
 // Run: node --experimental-strip-types tests/gym.test.ts
 // The gym reminder timing (src/core/gym.ts): 2 h, 1 h, 30 min and 10 min cards, the ring at minus 16,
-// stale reminders after sleep, acknowledging, days and time changes. FICTIONAL days only.
+// stale reminders after sleep, acknowledging, days and time changes. V1.57: nag mode, the ring time, a gym
+// across midnight, Yes stopping everything, old settings with the defaults. FICTIONAL days only.
 import assert from "node:assert/strict";
 const G = await import("../src/core/gym.ts");
 
@@ -10,11 +11,14 @@ const TZ = "Asia/Dubai";                       // UTC+4, no daylight saving
 const at = (hm: string, day = "2026-11-03") => Date.parse(`${day}T${hm}:00+04:00`);
 const P = G.gymPrefs(undefined);
 
-ok("defaults: on, every day, 08:00", () => {
-  assert.deepEqual(P, { on: true, time: "08:00", days: [0, 1, 2, 3, 4, 5, 6] });
+const OLD = { end: "", nag: false, nagStart: "10:00", nagEvery: 15, ringAt: "" };
+ok("defaults: on, every day, 08:00, nag mode off, no end or ring time of its own", () => {
+  assert.deepEqual(P, { on: true, time: "08:00", days: [0, 1, 2, 3, 4, 5, 6], ...OLD });
 });
 ok("broken prefs fall back field by field", () => {
-  assert.deepEqual(G.gymPrefs({ on: false, time: "25:00", days: [1, 1, 9, "x", 3] }), { on: false, time: "08:00", days: [1, 3] });
+  assert.deepEqual(G.gymPrefs({ on: false, time: "25:00", days: [1, 1, 9, "x", 3] }), { on: false, time: "08:00", days: [1, 3], ...OLD });
+  assert.deepEqual(G.gymPrefs({ nag: "yes", nagStart: "9:00", nagEvery: 1000, ringAt: "x", end: "08:00" }), { ...P, nagEvery: 120 });
+  assert.equal(G.gymPrefs({ nagEvery: 1 }).nagEvery, 5);
 });
 ok("the day's steps: 06:00, 07:00, 07:30, 07:44 ring, 07:50", () => {
   const s = G.gymSteps(P, at("05:00"), TZ).filter((x) => x.day === "2026-11-03");
@@ -30,6 +34,7 @@ ok("each card is due at its time and only once", () => {
 });
 ok("the ring is never a Mac card", () => {
   assert.equal(G.gymDue(P, at("07:44") + 10_000, TZ, [], ["2026-11-03:120", "2026-11-03:60", "2026-11-03:30"]), null);
+  assert.ok(G.gymSteps(P, at("05:00"), TZ).filter((x) => x.ring).every((x) => x.id.endsWith(":r")));
 });
 ok("nothing is due between steps", () => {
   assert.equal(G.gymDue(P, at("06:30"), TZ, [], []), null);
@@ -131,6 +136,120 @@ ok("PS Do Not Disturb: the Mac card stays quiet, the ring never does (it is an a
 });
 ok("fired ids older than yesterday are pruned", () => {
   assert.deepEqual(G.pruneFired(["2026-11-01:60", "2026-11-02:10", "2026-11-03:120"], at("07:00"), TZ), ["2026-11-02:10", "2026-11-03:120"]);
+});
+
+
+// ---------- V1.57: nag mode, the ring time, a gym across midnight (the developer, 13 Nov 2026) ----------
+const NIGHT = G.gymPrefs({ on: true, time: "23:00", end: "01:00", days: [0, 1, 2, 3, 4, 5, 6], nag: true, nagStart: "10:00", nagEvery: 15, ringAt: "22:55" });
+const day3 = (s: { day: string }) => s.day === "2026-11-03";
+ok("old settings (on, time, days only) load with the defaults and work exactly as before", () => {
+  const old = G.gymPrefs({ on: true, time: "08:00", days: [2, 4] });
+  assert.deepEqual(old, { on: true, time: "08:00", days: [2, 4], ...OLD });
+  assert.equal(G.gymEnd(old), "09:30");
+  assert.equal(G.gymRingAt(old), "07:44");
+  const s = G.gymSteps(old, at("05:00"), TZ).filter(day3);
+  assert.deepEqual(s.map((x) => [x.mins, x.ring]), [[120, false], [60, false], [30, false], [16, true], [10, false]]);
+  // The phone plan still has what a pre V1.57 phone needs.
+  const plan = G.gymPlan(old, at("05:00"), TZ, []);
+  assert.deepEqual([plan.before, plan.ring], [[120, 60, 30, 10], 16]);
+  assert.equal(plan.items[0].ring, at("07:44"));
+  assert.equal(plan.items[0].every, 0);
+});
+ok("nag steps: every 15 minutes from 10:00 until the gym ends, no 2 h / 1 h / 30 / 10 steps", () => {
+  const s = G.gymSteps(NIGHT, at("09:00"), TZ).filter((x) => day3(x) && !x.ring);
+  assert.equal(s[0].due, at("10:00"));
+  assert.equal(s[1].due, at("10:15"));
+  assert.equal(s[s.length - 1].due, at("00:45", "2026-11-04"));   // the last one before 01:00
+  assert.equal(s.length, 60);                                      // 10:00 to 00:45 every 15 min
+  assert.ok(s.every((x) => x.nag && x.id.startsWith("2026-11-03:n")));
+  assert.equal(G.gymDue(NIGHT, at("10:00") + 5000, TZ, [], [])?.id, "2026-11-03:n0");
+  assert.equal(G.gymDue(NIGHT, at("10:15") + 5000, TZ, [], ["2026-11-03:n0"])?.id, "2026-11-03:n1");
+  assert.equal(G.gymDue(NIGHT, at("09:59"), TZ, [], []), null);
+  // Another interval: every 30 min from 12:00.
+  const p30 = { ...NIGHT, nagStart: "12:00", nagEvery: 30 };
+  const t = G.gymSteps(p30, at("09:00"), TZ).filter((x) => day3(x) && !x.ring).map((x) => x.due);
+  assert.deepEqual(t.slice(0, 3), [at("12:00"), at("12:30"), at("13:00")]);
+});
+ok("a Mac that slept through nag steps shows one when it wakes, not a pile", () => {
+  const d = G.gymDue(NIGHT, at("13:07"), TZ, [], ["2026-11-03:n0"]);
+  assert.equal(d?.id, "2026-11-03:n12");                          // the 13:00 one, once
+  assert.equal(G.gymDue(NIGHT, at("13:08"), TZ, [], ["2026-11-03:n0", d!.id]), null);
+  const card = G.gymCard(NIGHT, at("13:08"), TZ, [], ["2026-11-03:n0", d!.id]);
+  assert.equal(card?.day, "2026-11-03");
+  assert.equal(G.gymNextWake(NIGHT, at("13:08"), TZ, [], ["2026-11-03:n0", d!.id]), at("13:15"));
+});
+ok("the ring time: exactly 22:55, not gym time minus 16", () => {
+  const ring = G.gymSteps(NIGHT, at("09:00"), TZ).find((x) => day3(x) && x.ring)!;
+  assert.equal(ring.due, at("22:55"));
+  assert.equal(G.gymPlan(NIGHT, at("09:00"), TZ, []).items.find(day3)!.ring, at("22:55"));
+  // With nag mode off too.
+  const p = { ...NIGHT, nag: false };
+  assert.equal(G.gymSteps(p, at("09:00"), TZ).find((x) => day3(x) && x.ring)!.due, at("22:55"));
+  // A ring time after midnight rings after midnight, still for that day.
+  const late = G.gymSteps({ ...NIGHT, ringAt: "00:20" }, at("09:00"), TZ).find((x) => day3(x) && x.ring)!;
+  assert.equal(late.due, at("00:20", "2026-11-04"));
+  assert.equal(late.day, "2026-11-03");
+});
+ok("the ring only without a Yes that day", () => {
+  assert.ok(G.gymPlan(NIGHT, at("15:00"), TZ, []).items.some(day3));
+  const acked = G.ackGym([], "2026-11-03", at("15:00"), TZ);
+  const plan = G.gymPlan(NIGHT, at("15:00"), TZ, acked);
+  assert.ok(!plan.items.some(day3), "the phone gets no ring for that day");
+  assert.ok(!G.gymSteps(NIGHT, at("15:00"), TZ, acked).some((x) => day3(x) && x.ring));
+  assert.ok(plan.acked.includes("2026-11-03"));
+});
+ok("Yes stops everything for that day: the card, every later nag step, the ring; the next day still nags", () => {
+  const fired = ["2026-11-03:n20"];
+  const acked = G.ackGym([], "2026-11-03", at("15:05"), TZ);
+  assert.equal(G.gymCard(NIGHT, at("15:06"), TZ, acked, fired), null);
+  assert.equal(G.gymDue(NIGHT, at("15:15") + 5000, TZ, acked, fired), null);
+  assert.ok(!G.gymSteps(NIGHT, at("15:06"), TZ, acked).some(day3));
+  assert.equal(G.gymSteps(NIGHT, at("15:06"), TZ, acked)[0].due, at("10:00", "2026-11-04"));
+  assert.equal(G.gymNextWake(NIGHT, at("15:06"), TZ, acked, fired), at("10:00", "2026-11-04"));
+});
+ok("a gym across midnight: the day is the day the nagging started, not the day it ends", () => {
+  // 00:30 on 4 Nov, still in the 23:00 to 01:00 gym of 3 Nov.
+  const t = G.gymToday(NIGHT, at("00:30", "2026-11-04"), TZ)!;
+  assert.equal(t.day, "2026-11-03");
+  assert.deepEqual([t.at, t.end, t.ring, t.from], [at("23:00"), at("01:00", "2026-11-04"), at("22:55"), at("10:00")]);
+  const d = G.gymDue(NIGHT, at("00:30", "2026-11-04") + 1000, TZ, [], []);
+  assert.equal(d?.day, "2026-11-03");
+  // A Yes saved for 3 Nov at 00:30 on 4 Nov stops 3 Nov's, and 4 Nov's day still runs from 10:00.
+  const acked = G.ackGym([], t.day, at("00:30", "2026-11-04"), TZ);
+  assert.equal(G.gymDue(NIGHT, at("00:45", "2026-11-04") + 1000, TZ, acked, []), null);
+  assert.equal(G.gymSteps(NIGHT, at("00:31", "2026-11-04"), TZ, acked)[0].id, "2026-11-04:n0");
+  // The card leaves at 01:00, not 90 minutes after 23:00.
+  assert.ok(G.gymCard(NIGHT, at("00:59", "2026-11-04"), TZ, [], ["2026-11-03:n59"]));
+  assert.equal(G.gymCard(NIGHT, at("01:01", "2026-11-04"), TZ, [], ["2026-11-03:n59"]), null);
+  // Only on the days picked, judged by the day the nagging starts: Tuesday 3 Nov only.
+  const tue = { ...NIGHT, days: [2] };
+  assert.deepEqual(G.gymTimes(tue, at("09:00"), TZ, 7).map((g) => g.day), ["2026-11-03", "2026-11-10"]);
+  assert.equal(G.gymToday(tue, at("00:30", "2026-11-04"), TZ)?.day, "2026-11-03");
+});
+ok("nag mode with a gym time earlier than the nag start: the gym is after midnight", () => {
+  const p = { ...NIGHT, time: "00:30", end: "02:00", ringAt: "" };
+  const g = G.gymTimes(p, at("09:00"), TZ, 0).find(day3)!;
+  assert.deepEqual([g.from, g.at, g.end, g.ring], [at("10:00"), at("00:30", "2026-11-04"), at("02:00", "2026-11-04"), at("00:14", "2026-11-04")]);
+  assert.deepEqual(G.gymCardText({ at: g.at, mins: 0 }, at("23:00"), TZ, p.time, G.gymEnd(p)), { title: "Gym in 1 h 30 min", sub: "00:30 to 02:00 tomorrow" });
+});
+ok("the phone plan carries each day's nag start, interval, end and ring", () => {
+  const plan = G.gymPlan(NIGHT, at("09:00"), TZ, []);
+  const i = plan.items.find(day3)!;
+  assert.deepEqual(i, { day: "2026-11-03", at: at("23:00"), end: at("01:00", "2026-11-04"), ring: at("22:55"), from: at("10:00"), every: 15 * 60_000 });
+  assert.equal(plan.nag, true);
+  assert.equal(plan.ringAt, "22:55");
+  assert.ok(!JSON.stringify(plan).includes("Gym"));
+});
+ok("the API: reads every field, changes only what it is sent, never a Yes", () => {
+  const a = G.apiGym(NIGHT, [], at("12:00"), TZ);
+  assert.deepEqual(a, { on: true, time: "23:00", endTime: "01:00", days: ["sun", "mon", "tue", "wed", "thu", "fri", "sat"], nag: true, nagStart: "10:00", nagEvery: 15, ringTime: "22:55", saidYesToday: false });
+  assert.equal(G.apiGym(NIGHT, ["2026-11-03"], at("12:00"), TZ).saidYesToday, true);
+  const r = G.apiGymPatch(NIGHT, { nagEvery: 20 });
+  assert.ok("prefs" in r && r.prefs.nagEvery === 20 && r.prefs.time === "23:00");
+  assert.ok(!(G.API_GYM_FIELDS as readonly string[]).some((f) => G.API_GYM_YES.includes(f)));
+});
+ok("the Mac card and Fitness say Yes, I'm going", () => {
+  assert.equal(G.YES_WORDS, "Yes, I'm going");
 });
 
 console.log(`\n${n} gym tests passed`);

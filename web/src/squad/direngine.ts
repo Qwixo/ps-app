@@ -6,14 +6,18 @@
 // versions before V1.49 that still send Ask to join: the admin's PS lets each checked request in by itself, with no
 // card and no button, and nobody lists or claims a squad from here any more.
 //
+// V1.57 invite only (the developer, 13 Nov 2026): Approve and Decline are back, for people whose PS joined The G Squad by itself
+// (their Ask to join, hub wait_list). Approve (admit) lets them in, and members' PS then hand them the squad key;
+// Decline (turn_away) removes the ask and keeps that PS from asking again by itself. Nothing is let in by itself.
+//
 // Egress: the directory is read only when you open See available squads. A request waiting for approval is
 // checked every 3 minutes (every 20 s while the pop-up is open), a few dozen bytes. The admin's requests are read
 // only when the pulse says the number changed, or when the pop-up opens.
 import { docs, put, remove, vaultStore } from "../core/vault";
-import { askAgainAt, checkCode, cleanAskRec, LISTED_NAME, type AskRec, type AskView } from "../core/squaddir";
+import { askAgainAt, checkCode, cleanAskRec, LISTED_NAME, NO_NAME_ASK, openAsk, waitAsRequest, type AskRec, type AskView } from "../core/squaddir";
 import type { SquadRec } from "../core/squadrec";
 import type { HubApi } from "./hub";
-import { approveAsk, askToJoin, cancelAsk, checkAsk, listSquads, loadAsks, sayDir } from "./dirflows";
+import { askToJoin, cancelAsk, checkAsk, listSquads, sayDir } from "./dirflows";
 import type { DirView, SquadOp, SquadView } from "./view";
 
 type Post = (m: object) => void;
@@ -51,9 +55,10 @@ function dirView(): DirView {
 function show() {
   if (!ctx) return;
   const v = ctx.view();
-  // V1.49: no request is ever shown or carded: the admin's PS lets them in by itself (refreshAsks).
-  ctx.patch({ dir: v.in ? null : dirView(), asks: [] });
-  showCards(v.in ? v.name || LISTED_NAME : LISTED_NAME, []);
+  // V1.57: the people asking to join, for the admin (in the window and as a card on the Mac). Never let in by itself.
+  const mine = v.in && v.creator ? [...asks.values()].map((a) => ({ id: a.id, name: a.name, code: a.code, at: a.at, ok: a.ok })) : [];
+  ctx.patch({ dir: v.in ? null : dirView(), asks: mine });
+  showCards(v.in ? v.name || LISTED_NAME : LISTED_NAME, mine);
 }
 
 // ---------- your request (kind "squadask" in your own vault) ----------
@@ -104,21 +109,19 @@ async function refreshAsks() {
   const rec = ctx.rec(), api = ctx.api();
   if (!rec || !api || !ctx.view().creator) { if (asks.size) { asks = new Map(); show(); } return; }
   try {
-    const list = await loadAsks(rec, api);
-    // V1.49: no approval step. A request from an older PS that checks out is let in at once; one that does not check
-    // out (not sealed to you, or naming other keys than the hub's) is left to run out by itself.
-    let let_in = 0;
-    for (const a of list) if (a.ok) { try { await approveAsk(rec, api, a); let_in++; } catch { /* the next pulse tries again */ } }
-    asks = new Map();
-    asksKnown = list.length - let_in;
+    // V1.57: the people waiting (their PS joined by itself), each opened and checked against the hub's keys. One that
+    // left no name (PS before V1.57) or does not check out can only be declined.
+    const rows = (await api.waitList()).rows ?? [];
+    const list = await Promise.all(rows.map((r) => openAsk(rec, waitAsRequest(r, rec.box.pub))));
+    asks = new Map(list.map((a) => [a.id, a]));
+    asksKnown = list.length;
     show();
-    if (let_in) ctx.pull();
   } catch { /* the pulse brings it back */ }
 }
-/** The pulse's q: requests waiting for you (admin only). Read them only when the number changed. */
-export function dirPulse(q: number | undefined) {
-  if (typeof q !== "number") return;
-  if (q !== asksKnown) void refreshAsks();
+/** The pulse's w (V1.57): people asking to join (admin only). Read them only when the number changed. */
+export function dirPulse(w: number | undefined) {
+  if (typeof w !== "number") return;
+  if (w !== asksKnown) void refreshAsks();
 }
 /** The squad view changed (pulled, joined, left): the directory part follows. */
 export function dirSync() { if (ctx && !ctx.rec() && asks.size) asks = new Map(); show(); }
@@ -137,7 +140,7 @@ function showCards(squad: string, mine: { id: string; name: string; code: string
   for (const a of mine) {
     const id = `sqa:${a.id}`;
     want.set(id, JSON.stringify({ id, sticky: true, title: `${a.name} asked to join ${squad}`, sub: "G Squad",
-      body: a.ok ? `Check code ${a.code}. Approve lets them in and gives them the squad key.` : "This request could not be checked, so it can only be declined.",
+      body: a.ok ? `Check code ${a.code}. Approve lets them in and gives them the squad key.` : NO_NAME_ASK,
       actions: a.ok ? [{ id: "approve", label: "Approve" }, { id: "decline", label: "Decline" }] : [{ id: "decline", label: "Decline" }] }));
   }
   for (const [id, json] of want) if (cards.get(id) !== json) { cards.set(id, json); post({ type: "cardShow", card: JSON.parse(json) }); }
@@ -192,7 +195,8 @@ export async function runDirOp(o: SquadOp): Promise<void> {
         if (!rec || !api) return;
         const a = asks.get(o.id);
         if (!a) return;
-        if (o.op === "approve") await approveAsk(rec, api, a); else await api.decline(a.id);
+        if (o.op === "approve" && !a.ok) return;
+        if (o.op === "approve") await api.admit(a.id); else await api.turnAway(a.id);
         asks.delete(a.id); asksKnown = asks.size;
         show();
         ctx.pull();

@@ -17,7 +17,7 @@ export { norm, stem };
 
 /** Where PS is running: on a Mac (the Tab list), the website, or the phone (PS GOS and the iPhone web app). */
 export type Where = "mac" | "web" | "phone";
-export type GroupId = "friend" | "list" | "looks" | "notify" | "remind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "mac" | "sync" | "privacy" | "fitness" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
+export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "mac" | "sync" | "privacy" | "fitness" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
 /** What a setting opens instead of a row in Settings: a screen of its own. */
 export type Go = "fitness" | "security" | "dnd" | "gsquad" | "sleepSettings" | "phone" | "vault" | "macApp";
 
@@ -65,6 +65,8 @@ export const GROUPS: SetGroup[] = [
   // V1.44 Add friend (the developer: "in Settings, an Add friend tab; click it and a QR comes up"); first until V1.51, now right under About and updates.
   { id: "friend", label: "Add friend", line: "A QR code: they scan it and join your G Squad", icon: "M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21a7 7 0 0 1 12.5-4.3M19 14v6M16 17h6" },
   { id: "list", label: "Your list", line: "Ticking, Completed, task size and sounds", icon: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" },
+  // V1.57 (the developer, 13 Nov 2026: "make an option in settings, in another tab in the settings menu, to make it inverted").
+  { id: "controls", label: "Controls", line: "How swipes move your pages", icon: "M8 7l-5 5 5 5M16 7l5 5-5 5M3 12h18" },
   { id: "looks", label: "Appearance", line: "Look, colours, background and rain", icon: "M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1.5-1.6 0-1-.9-1.4-.9-2.4 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.6 17 3 12 3zM7.5 10.5h.01M12 7.5h.01M16.5 10.5h.01" },
   { id: "notify", label: "Notifications and Do Not Disturb", line: "Pop-ups, meetings, focus modes, reminders", icon: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" },
   // The developer, 10 Nov 2026: "Add a dedicated settings menu to this ... in it's own settings tab called 'Annoying 15 min reminder'".
@@ -99,6 +101,8 @@ export const SETTINGS: SetEntry[] = [
   { id: "add-friend", group: "friend", name: "Add friend", line: "Show this QR code. Any phone camera opens PS app and joins your G Squad.", words: ["qr", "qr code", "scan", "invite", "friend", "add", "add friend", "join", "share", "camera", "squad", "g squad", "meet", "business card", "link"] },
 
   // ---------- Your list ----------
+  // ---------- Controls (V1.57) ----------
+  { id: "invert-swipe", group: "controls", name: "Invert swipe", line: "Swipe the other way to reach the page on the left or right.", words: ["swipe", "invert", "inverted", "reverse", "direction", "flip", "pages", "left", "right", "natural", "gesture", "controls", "two fingers"] },
   { id: "tick-mode", group: "list", name: "When I tick a task", line: "Slide it into Completed, or let it leave the list.", words: ["done", "complete", "finish", "check", "tick", "disappear"] },
   { id: "completed-show", group: "list", name: "Completed section", line: "The grey Completed area at the bottom, with Resurrect.", words: ["done", "finished", "resurrect", "history", "ticked"] },
   { id: "completed-keep", group: "list", name: "Completed keeps ticks for", line: "Today, the last 7 days or the last 30 days.", words: ["done", "keep", "days", "history"] },
@@ -156,6 +160,8 @@ export const SETTINGS: SetEntry[] = [
   { id: "rem-buttons", group: "remind", parent: "reminders", name: "Confirm button", line: "Yes, or your own words, and what has to be typed to clear it.", words: ["yes", "button", "confirm", "type", "typed", "word", "text", "words", "one click", "clear", "dismiss", "done"] },
   { id: "rem-colour", group: "remind", parent: "reminders", name: "Reminder colour", line: "The pop-up's background and accent, presets or the colour wheel.", words: ["colour", "color", "background", "accent", "theme", "wheel", "pink", "look"] },
   { id: "rem-sound", group: "remind", parent: "reminders", name: "Reminder sound", line: "None, a soft chime, an alarm tone or your own sound file.", words: ["sound", "audio", "file", "mp3", "chime", "alarm", "ring", "own sound", "loudness", "volume", "music"] },
+  // V1.57: alarms at any time (the phone rings like the gym ring, the Mac shows a card).
+  { id: "alarms", group: "remind", parent: "reminders", name: "Phone alarms", line: "Your phone rings like an alarm at the times you pick, and your Mac shows a card.", words: ["ring", "wake", "wake up", "alarm clock", "phone rings", "ring screen", "acknowledge", "time"] },
   { id: "rem-test", group: "remind", parent: "reminders", name: "Test a reminder", line: "Shows it right now with its sound. Esc ends it.", words: ["test", "try", "preview", "see it", "demo"] },
 
   // ---------- Add Telegram Bot (views/TelegramBot.tsx, core/tgbot.ts) ----------
@@ -166,7 +172,7 @@ export const SETTINGS: SetEntry[] = [
   { id: "tg-remove", group: "telegram", parent: "telegram-bot", name: "Remove bot", line: "Takes the key off this device and unlinks your Telegram.", words: ["remove", "delete", "disconnect", "forget", "unlink"] },
   { id: "task-api", group: "api", name: "AI task API", line: "Lets an AI like Claude Code or Codex on this Mac add and manage your tasks.", on: ["mac"], words: ["api", "ai", "claude", "claude code", "codex", "gpt", "cursor", "gemini", "agent", "automation", "local", "localhost", "key", "token", "scope", "permissions", "inbox", "ai inbox", "integration", "curl", "http"] },
   { id: "api-key", group: "api", parent: "task-api", name: "API key", line: "The key an AI sends with every request. Show, copy or make a new one.", on: ["mac"], words: ["key", "token", "secret", "regenerate", "new key", "copy key", "show key"] },
-  { id: "api-scopes", group: "api", parent: "task-api", name: "What an AI may do", line: "One switch each: the AI Inbox, all lists, renaming, read, add, edit, tick, delete, reminders.", on: ["mac"], words: ["scopes", "permissions", "allow", "read", "add", "edit", "delete", "tick", "done", "reminders", "rename", "lists", "switches", "sentry", "sentry mode", "lock"] },
+  { id: "api-scopes", group: "api", parent: "task-api", name: "What an AI may do", line: "One switch each: the AI Inbox, all lists, renaming, read, add, edit, tick, delete, reminders, gym.", on: ["mac"], words: ["scopes", "permissions", "allow", "read", "add", "edit", "delete", "tick", "done", "reminders", "rename", "lists", "switches", "sentry", "sentry mode", "lock", "gym"] },
   { id: "api-copy", group: "api", parent: "task-api", name: "Copy for AI", line: "Copies everything an AI needs to use the API: paste it into Claude Code or Codex.", on: ["mac"], words: ["copy", "prompt", "instructions", "docs", "documentation", "paste", "guide", "setup"] },
 
   // ---------- Time and reset ----------
@@ -239,7 +245,7 @@ export const SETTINGS: SetEntry[] = [
   { id: "claude-access", group: "privacy", name: "Claude access", line: "Claude's own account in client workspaces.", on: WEB, red: true, go: "vault", anchor: "ai-h", parent: "vault-safety", words: ["claude", "ai", "agent", "access"] },
 
   // ---------- Fitness (in Fitness, its Settings tab) ----------
-  { id: "fitness", group: "fitness", name: "Fitness settings", line: "Rest times, sets, week goal, gym reminder and the Fitness look.", go: "fitness", words: ["gym", "workout", "exercise", "training", "fitness"] },
+  { id: "fitness", group: "fitness", name: "Fitness settings", line: "Rest times, sets, week goal, gym reminder and the Fitness look.", go: "fitness", words: ["gym", "workout", "exercise", "training", "fitness", "nag", "ring time", "gym reminder"] },
   { id: "fit-look", group: "fitness", name: "Fitness look", line: "Volt, Chalk or Pulse.", go: "fitness", parent: "fitness", words: ["gym", "theme", "colour", "color", "chalk", "volt", "pulse", "pick your look", "light and dark"] },
   { id: "fit-rest", group: "fitness", name: "Rest between sets", line: "The long and the short rest times.", go: "fitness", parent: "fitness", words: ["rest", "timer", "seconds", "break", "gym"] },
   { id: "fit-sets", group: "fitness", name: "Sets", line: "How many sets new exercises start with.", go: "fitness", parent: "fitness", words: ["sets", "reps", "gym"] },

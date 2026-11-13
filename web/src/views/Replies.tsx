@@ -6,8 +6,8 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function ReplyRow(_p0?: any, ..._more: any[]): any { return undefined; }
-export function RepliesCard(..._more: any[]): any { return undefined; }
-export function ClientReplies(_p0?: { [k: string]: any; onEditMatching?: (...a: any[]) => any }, ..._more: any[]): any { return undefined; }
-export function MatchField(_p0?: any, ..._more: any[]): any { return undefined; }
-export function GmailSettings(..._more: any[]): any { return undefined; }
+export function ReplyRow(_p0?: any, ..._more: any[]): any { return null; }
+export function RepliesCard(..._more: any[]): any { return null; }
+export function ClientReplies(_p0?: { [k: string]: any; onEditMatching?: (...a: any[]) => any }, ..._more: any[]): any { return null; }
+export function MatchField(_p0?: any, ..._more: any[]): any { return null; }
+export function GmailSettings(..._more: any[]): any { return null; }

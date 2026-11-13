@@ -188,5 +188,21 @@
    "The island glides to the top left in full screen apps, private mode is easy to spot and switch off, the tick circle stays on the left, and Dimension X manages your list pages."
   ],
   "ru": []
+ },
+ "1.57": {
+  "en": [
+   "New: alarms at any time. Your phone rings like an alarm at the times you pick, and you choose what the alarm screen says, just like the 15 minute reminders.",
+   "Gym nag mode: from 10:00 PS reminds you every 15 minutes until you press Yes, I'm going. Set your own ring time, gym times can go past midnight, and your AI can change your gym times through the API (it can never say Yes for you).",
+   "Completed tasks: scroll to the bottom to see every task you have finished, and Cmd + click tasks to bring back only the ones you pick.",
+   "Fixed: a finished AI chat no longer keeps popping up again and again.",
+   "Phone: link it faster by scanning one QR code, a smoother edit view with a Delete page button, drag with your mouse, and a bigger phone icon. Clicking a page in Edit on the Mac now keeps your list open.",
+   "Privacy: PS now asks GitHub for updates instead of cincee.com, it no longer stores your IP address when you sign in, and The G Squad is invite only.",
+   "Private mode: pop-ups now play no sound and shrink to a small note that hides what they say, until you click it.",
+   "Typing P1 to P4 while editing a task now sets its priority, just like when you add one.",
+   "Buttons in the task editor now change only when you click them, not when your mouse passes over them.",
+   "Invert swipe: flip which way you swipe between pages in Settings, Controls, or just ask your AI to do it for you.",
+   "Time zones: click to keep them open, so a page can show all your time zones at once.",
+   "Time converter: it now checks your calendar and tasks and tells you if you're free for a one hour meeting at that time, and what's in the way if not."
+  ]
  }
 }

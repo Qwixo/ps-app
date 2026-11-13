@@ -16,7 +16,10 @@
 import type { AiTool, ChatDone } from "./model";
 import { dndHeldMs, type Dnd } from "./dnd.ts";
 
-export const CHAT_DONE = { keep: 20, stay: 3 * 3600_000 } as const;
+// repeat (V1.57, the developer 13 Nov 2026: the grouped bubble "keeps spamming me every like 15 seconds even when there is no
+// chat that finished"): a chat ending turn after turn by itself (woken by its own background work, another session's
+// message, a timer) is one finish, not a new card each time. See sameFinish.
+export const CHAT_DONE = { keep: 20, stay: 3 * 3600_000, repeat: 3 * 60_000 } as const;
 /** The AI tools PS can hear from, with the name each card shows. */
 export const AI_TOOLS: Record<AiTool, string> = { claude: "Claude", codex: "Codex", gemini: "Gemini", cursor: "Cursor" };
 const aiTool = (v: unknown): AiTool | undefined => typeof v === "string" && v !== "claude" && Object.hasOwn(AI_TOOLS, v) ? v as AiTool : undefined;
@@ -48,20 +51,38 @@ const reminding = (x: ChatDone, now: number) => !!x.remindAt && Date.parse(x.rem
 const upFor = (x: ChatDone, now: number, dnd?: Dnd) => now - shownFrom(x) - dndHeldMs(dnd, "chats", shownFrom(x), now);
 
 /** The op as Claude drops it. Anything malformed is ignored (returns null). */
-export function chatDoneFrom(o: { id?: unknown; chat?: unknown; at?: unknown; tool?: unknown }): ChatDone | null {
+export function chatDoneFrom(o: { id?: unknown; chat?: unknown; at?: unknown; tool?: unknown; turn?: unknown }): ChatDone | null {
   const id = typeof o.id === "string" ? o.id.replace(/[^\w-]/g, "").slice(0, 36) : "";
   const chat = typeof o.chat === "string" ? o.chat.replace(/\s+/g, " ").trim().slice(0, 120) : "";
   const at = typeof o.at === "string" && !Number.isNaN(Date.parse(o.at)) ? new Date(o.at).toISOString() : "";
   const tool = aiTool(o.tool);
+  const turn = typeof o.turn === "string" ? o.turn.replace(/[^\w-]/g, "").slice(0, 40) : "";
   // Another tool's chat never shares a card with a Claude chat that happens to have the same id.
-  return id && chat && at ? { id: tool ? `${tool}-${id}`.slice(0, 36) : id, chat, at, ...(tool ? { tool } : {}) } : null;
+  return id && chat && at ? { id: tool ? `${tool}-${id}`.slice(0, 36) : id, chat, at, ...(tool ? { tool } : {}), ...(turn ? { turn } : {}) } : null;
+}
+
+/** Is `d` the finish the card `x` already shows (V1.57)? Then it is no new card: `x` keeps its time, so the Mac's
+ *  memory of a card that ran out (ps-mac Toast.swift notes.expired, by chat and time) still holds, and so do its
+ *  Dismiss and Remind me in. Before, every turn end of a chat was a new time and so a new card, and the bubble came back
+ *  every few seconds while a chat kept waking up by itself (13 Nov 2026).
+ *  - The same time: the same package opened again (it is kept until applied everywhere), or the Mac sending it again.
+ *  - An older time: a package that arrived late never replaces a newer card.
+ *  - Both know the person's last prompt (Claude Code through PS's own hook): the same prompt is the same finish, however
+ *    long the chat kept going by itself; a new prompt is a new card at once.
+ *  - Otherwise (the developer's own hook, Codex, Gemini, Cursor): within CHAT_DONE.repeat of the last finish folded into it. */
+export function sameFinish(x: ChatDone, d: ChatDone): boolean {
+  if (x.id !== d.id) return false;
+  if (d.at <= x.at) return true;
+  if (x.turn && d.turn) return x.turn === d.turn;
+  const gap = Date.parse(d.at) - Date.parse(x.last && x.last > x.at ? x.last : x.at);
+  return gap >= 0 && gap < CHAT_DONE.repeat;
 }
 
 /** The list with one more finished chat: newest first, one per chat, old ones dropped. */
 export function addChatDone(list: ChatDone[] | undefined, d: ChatDone, now = Date.now(), dnd?: Dnd): ChatDone[] {
-  // The same package opened twice (it is kept until applied everywhere) keeps its Dismiss.
-  const same = (list || []).find((x) => x.id === d.id && x.at === d.at);
-  return [same || d, ...(list || []).filter((x) => x.id !== d.id)]
+  const was = (list || []).find((x) => x.id === d.id);
+  const keep = was && sameFinish(was, d) ? (d.at > (was.last || was.at) ? { ...was, last: d.at } : was) : d;
+  return [keep, ...(list || []).filter((x) => x.id !== d.id)]
     .filter((x) => upFor(x, now, dnd) < CHAT_DONE.stay)
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, CHAT_DONE.keep);
@@ -94,9 +115,10 @@ export function mergeChatDone(a: ChatDone[] | undefined, b: ChatDone[] | undefin
     if (!was || x.at > was.at) { by.set(x.id, x); continue; }
     if (x.at < was.at) continue;
     const remindAt = [was.remindAt, x.remindAt].filter((v): v is string => !!v).sort().pop();
-    by.set(x.id, { ...was, ...x, seen: !!(was.seen || x.seen) || undefined, remindAt });
+    const last = [was.last, x.last].filter((v): v is string => !!v).sort().pop();
+    by.set(x.id, { ...was, ...x, seen: !!(was.seen || x.seen) || undefined, remindAt, last });
   }
-  return [...by.values()].map((x) => { const y = { ...x }; if (!y.seen) delete y.seen; if (!y.remindAt) delete y.remindAt; return y; })
+  return [...by.values()].map((x) => { const y = { ...x }; if (!y.seen) delete y.seen; if (!y.remindAt) delete y.remindAt; if (!y.last) delete y.last; return y; })
     .sort((p, q) => q.at.localeCompare(p.at)).slice(0, CHAT_DONE.keep);
 }
 

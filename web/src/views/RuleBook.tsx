@@ -6,6 +6,6 @@ const inert: any = new Proxy(function () {}, {
   apply: () => undefined,
   construct: () => ({}),
 });
-export function PsRuleButton(_p0?: any, ..._more: any[]): any { return undefined; }
-export function RuleBookHost(_p0?: any, ..._more: any[]): any { return undefined; }
+export function PsRuleButton(_p0?: any, ..._more: any[]): any { return null; }
+export function RuleBookHost(_p0?: any, ..._more: any[]): any { return null; }
 export const HOLD_FAIL_MS: number = 0;

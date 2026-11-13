@@ -144,7 +144,7 @@ async function pull() {
 function chime() {
   const st = settings();
   if (st.squadChatSound !== true || !post || !PS_PAGE || st.tmMuted || dndMutes(st.dnd, "sounds", Date.now(), "mac") || dndMutes(st.dnd, "gsquad", Date.now(), "mac")) return;
-  post({ type: "sfx", name: "note-drop", vol: Math.max(0.3, (st.tmSound ?? 40) / 100) });
+  post({ type: "sfx", name: "note-drop", vol: Math.max(0.3, (st.tmSound ?? 40) / 100), card: true });   // card: silent in private mode (V1.57)
 }
 /** The hub no longer knows you: the core's engine drops your squad record; the chat just stops. */
 function gone(e: unknown) {

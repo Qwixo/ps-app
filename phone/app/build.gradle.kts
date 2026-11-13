@@ -13,7 +13,11 @@ val signingProps = Properties().apply {
 }
 // Version: scripts/release.sh bumps version.properties (code and name) for every release.
 val versionProps = Properties().apply { rootProject.file("version.properties").inputStream().use { load(it) } }
-val updateBase = (project.findProperty("updateBase") as String?) ?: "https://cincee.com/client/gos/"
+// Where the phone asks for updates (V1.57, the developer, 13 Nov 2026: "Remove the IP address part so I can't see their IP
+// address when [PS] asks Cincee for updates"): the public PS repo's newest GitHub release, where the release puts
+// the phone's note as gos-version.json next to the APK. Not cincee.com, and no fallback to it.
+val updateBase = (project.findProperty("updateBase") as String?) ?: "https://github.com/RedbyPS/ps/releases/latest/download/"
+val updateNote = (project.findProperty("updateNote") as String?) ?: "gos-version.json"
 
 android {
     namespace = "com.cincee.ps.gos"
@@ -26,6 +30,7 @@ android {
         versionCode = versionProps.getProperty("code").toInt()
         versionName = versionProps.getProperty("name")
         buildConfigField("String", "UPDATE_BASE", "\"$updateBase\"")
+        buildConfigField("String", "UPDATE_NOTE", "\"$updateNote\"")
         // The keyword of this PS version (web ps-version.json), shown next to the name.
         buildConfigField("String", "KEYWORD", "\"${versionProps.getProperty("keyword", "")}\"")
         buildConfigField("String", "SUPABASE_URL", "\"https://mxusokxekkecebwqgeru.supabase.co\"")

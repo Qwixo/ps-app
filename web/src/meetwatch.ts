@@ -163,7 +163,7 @@ export function startMeetAlerts(post: Post) {
       post({ type: "cardShow", card: {
         id: "private-ask", sticky: true, title: "Start private mode?",
         sub: "A meeting has started",
-        body: "Notification cards and the island hide names and messages until you turn it off with the mask on the Meetings panel.",
+        body: "Notification cards become small pills with no sound, and the island hides names and messages, until you turn it off with the mask on the Meetings panel.",
         actions: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }],
       } });
     } else if (asking && (priv || !events.some((e) => e.id + e.start === asking && Date.parse(e.end || "") > Date.now()))) hideAsk();
@@ -183,7 +183,7 @@ export function startMeetAlerts(post: Post) {
       post({ type: "meetCard", card: c });
       const on = c.sound === "booked" ? prefs.sBooked : c.sound === "alert" ? prefs.sMsg : prefs.sSoon;
       const name = noteSoundName(look, c.sound === "booked" ? "meet-booked" : c.sound === "alert" ? "meet-alert" : "meet-soon");
-      if (on && name && vol > 0) post({ type: "sfx", name, vol: Math.max(vol, c.sound === "alert" ? 0.5 : 0) });
+      if (on && name && vol > 0) post({ type: "sfx", name, vol: Math.max(vol, c.sound === "alert" ? 0.5 : 0), card: true });   // card: silent in private mode (V1.57)
     }
   };
   vaultStore.subscribe(() => { clearTimeout(t); t = window.setTimeout(run, 1500); });

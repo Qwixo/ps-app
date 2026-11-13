@@ -9,9 +9,9 @@ const inert: any = new Proxy(function () {}, {
 const _v0: any = Promise.resolve(undefined);
 export function pickFiles(_p0?: any, _p1?: any, _p2?: (...a: any[]) => any, ..._more: any[]): void { return undefined; }
 export function fileState(_p0?: any, _p1?: any, _p2?: any, ..._more: any[]): string { return ""; }
-export function SecondButton(_p0?: any, ..._more: any[]): any { return undefined; }
-export function SecondPanel(_p0?: any, ..._more: any[]): any { return undefined; }
-export function SecondSettings(..._more: any[]): any { return undefined; }
+export function SecondButton(_p0?: any, ..._more: any[]): any { return null; }
+export function SecondPanel(_p0?: any, ..._more: any[]): any { return null; }
+export function SecondSettings(..._more: any[]): any { return null; }
 export type SecondOp = any;
 export const secondActions: { [k: string]: any; run: (_p0?: any, ..._more: any[]) => void; drop: (_p0?: { [k: string]: any; arrayBuffer?: (...a: any[]) => any; bytes?: (...a: any[]) => any; slice?: (...a: any[]) => any; stream?: (...a: any[]) => any; text?: (...a: any[]) => any }, ..._more: any[]) => Promise<any>; native: (_p0?: any, ..._more: any[]) => void } = { run: (..._a: any[]) => undefined, drop: (..._a: any[]) => _v0, native: (..._a: any[]) => undefined };
 export const DOWNLOAD_LINK: "https://cincee.com/client/ps/PS.dmg" = "https://cincee.com/client/ps/PS.dmg";

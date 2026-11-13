@@ -1894,8 +1894,17 @@ let secondary = false;
 const pokeListeners = new Set<(k: string) => void>();
 export function setSecondChannel(on: boolean, isSecondary = false) {
   secondary = on && isSecondary;
-  if (!on || !meta || meta.local) { if (secondCh) { if (fitCh === secondCh) fitCh = null; void sb.removeChannel(secondCh); secondCh = null; } return; }
+  if (!on || !meta || meta.local) {
+    if (secondCh) {
+      if (fitCh === secondCh) fitCh = null;
+      void sb.removeChannel(secondCh); secondCh = null;
+      if (LISTEN_FROM_UNLOCK && snap.role === "owner") listenFitPoke();   // V1.57: keep hearing the phone layout pokes
+    }
+    return;
+  }
   if (secondCh) return;
+  // One channel per topic: the live poke listener (listenFitPoke) is replaced by this one, which pulls on every poke.
+  if (fitCh) { void sb.removeChannel(fitCh); fitCh = null; }
   secondCh = sb.channel(`second:${meta.userId}`, { config: { private: true, broadcast: { self: false } } })
     .on("broadcast", { event: "poke" }, (m) => {
       onRemoteChange();
@@ -1916,30 +1925,46 @@ export async function pokeSecond(k: "job" | "msg" | "file" | "stat" | "cmd" | "i
 // private "second:<uid>" topic (migration 026: only that owner reads and sends). The data itself still comes through
 // the change only pull, so this adds no egress beyond the tiny probe. A device listens once Fitness has been on its
 // screen; a Mac with the Second Computer on already pulls on every poke of that topic (the same channel is reused).
+// V1.57 (phone-link-fast): the phone layout and the phone records poke too ({k: "pl"}), so a change made in the Mac's
+// phone editor lands on the phone within a couple of seconds and the other way round, and a phone that just opened PS
+// (its phonedev record) shows up in the Mac's Link your phone card at once. Phones (PS GOS, the iPhone web app) and the
+// Mac's main window listen from unlock (startLoops); the Tab list has no session and gets it through the main window.
 const pokeKinds = new Set<string>(["fprog", "fwork", "fit", "fsleep", "fact"]);
+const phonePokeKinds = new Set<string>(["phonelayout", "phonedev"]);
+const LIVE_POKES = new Set(["fit", "pl"]);
 let fitCh: ReturnType<typeof sb.channel> | null = null;
 let fitPokeTimer: number | null = null;
 /** Listen for the other devices' Fitness pokes (idempotent; kept until the vault locks, an idle channel costs nothing). */
 export function listenFitPoke() {
-  if (fitCh || !meta || meta.local || snap.status !== "unlocked") return;
+  if (fitCh || secondCh || !meta || meta.local || snap.status !== "unlocked") return;   // secondCh already pulls on every poke
   fitCh = sb.channel(`second:${meta.userId}`, { config: { private: true, broadcast: { self: false } } })
-    .on("broadcast", { event: "poke" }, (m) => { if ((m.payload as { k?: unknown } | undefined)?.k === "fit") onRemoteChange(); })
+    .on("broadcast", { event: "poke" }, (m) => { if (LIVE_POKES.has(String((m.payload as { k?: unknown } | undefined)?.k ?? ""))) onRemoteChange(); })
     .subscribe();
 }
+let pokeWhat = new Set<string>();
 function pokeSaved(kinds: Set<string>) {
-  if (!meta || meta.local || fitPokeTimer || ![...kinds].some((k) => pokeKinds.has(k))) return;
-  // One poke for a burst of saves, sent once they are all on the server.
+  const list = [...kinds];
+  const fit = list.some((k) => pokeKinds.has(k)), pl = list.some((k) => phonePokeKinds.has(k));
+  if (!meta || meta.local || (!fit && !pl)) return;
+  if (fit) pokeWhat.add("fit");
+  if (pl) pokeWhat.add("pl");
+  if (fitPokeTimer) return;
+  // One poke per kind for a burst of saves, sent once they are all on the server.
   fitPokeTimer = window.setTimeout(() => {
     fitPokeTimer = null;
+    const what = pokeWhat; pokeWhat = new Set();
     if (!meta || snap.status !== "unlocked") return;
     if (!fitCh && !secondCh) listenFitPoke();
-    void (fitCh ?? secondCh)?.send({ type: "broadcast", event: "poke", payload: { k: "fit" } }).catch(() => {});
+    for (const k of what) void (fitCh ?? secondCh)?.send({ type: "broadcast", event: "poke", payload: { k } }).catch(() => {});
   }, 600);
 }
+/** Phones and the Mac's main window listen for the live pokes from unlock (an idle channel costs nothing). */
+const LISTEN_FROM_UNLOCK = import.meta.env.MODE === "ps" || import.meta.env.MODE === "gos" || MOBILE_PAGE;
 
 function startLoops() {
   stopLoops();
   startRealtime();
+  if (LISTEN_FROM_UNLOCK && snap.role === "owner") listenFitPoke();   // V1.57: the phone layout pokes (see pokeSaved)
   timers.push(window.setInterval(nudge, 5_000));   // only checks whether a pull is due; no network unless it is
   timers.push(window.setInterval(checkAutoLock, 20_000));
   ["pointerdown", "keydown", "scroll", "touchstart"].forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
@@ -2109,7 +2134,8 @@ export async function destroyWorkspace(ws: string) {
 export async function accessLog() {
   if (meta?.local) throw new Error(NEEDS_SYNC);
   const [{ data: log }, { data: members }] = await Promise.all([
-    sb.from("access_log").select("user_id, created_at, user_agent, ip").order("created_at", { ascending: false }).limit(200),
+    // No "ip" (V1.57, 030_no_ip.sql): the server keeps no IP addresses, and user_agent is only a rough device name.
+    sb.from("access_log").select("user_id, created_at, user_agent").order("created_at", { ascending: false }).limit(200),
     sb.from("members").select("user_id, workspace_id"),
   ]);
   return { log: log || [], members: members || [] };

@@ -102,10 +102,10 @@ ok("Resurrect looks back today and yesterday at least, or the whole keep window"
 });
 ok("Resurrect is drawn whenever there is something to bring back, not only inside Completed", () => {
   const c = src("views/Completed.tsx");
-  assert.match(c, /\{back\.length > 0 && \(\s*<button type="button" className="tm-done-res"/);
+  assert.match(c, /\{targets\.length > 0 && \(\s*<button type="button" className=\{`tm-done-res/);
   const m = src("views/TaskMap.tsx");
   // V1.55: each list has its own Completed, the same lists filtered to that list (core/lists.ts pageOfTask).
-  assert.match(m, /<Completed list=\{mine\(done\)\} back=\{mine\(back\)\} open=\{openHere\}/);
+  assert.match(m, /<Completed list=\{mine\(done\)\} back=\{mine\(back\)\} history=\{mine\(history\)\} open=\{openHere\}/);
   assert.doesNotMatch(m, /done\.length > 0 && <Completed/, "the section (and its row) no longer hides with an empty Completed");
 });
 ok("Resurrect of cleared tasks and its Undo travel from PS's Tab list, checked", () => {

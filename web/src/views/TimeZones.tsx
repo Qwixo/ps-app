@@ -15,7 +15,7 @@
 // type, Enter saves, Esc cancels, an empty name brings its own name back, and Reset name does the same. The new
 // name shows everywhere that zone is named (the pill, the converter, the clock changes, people on that clock).
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { homeLabel, homeTz, dayShift, fmtDay, fmtTime, gapLabel, isRenamed, nextChange, offsetMin, setZoneList, tagOf, wall, wallAfter, wallBefore, type Change, type Zone } from "../core/tz";
+import { DEVICE_TZ, homeLabel, homeTz, dayShift, fmtDay, fmtTime, gapLabel, isRenamed, nextChange, offsetMin, setZoneList, tagOf, wall, wallAfter, wallBefore, type Change, type Zone } from "../core/tz";
 import { addDays, convertWall, daysBetween, dayTag, dragSteps, newWheel, notchesOf, parseTyped, partAt, stepTyped, todayIn, wheelStep, zoneName, zoneShort, type Hit, type Part, type Ymd } from "../core/tzconvert";
 import { handAngles } from "../core/clockface";
 import { eventTitle, gcalLink } from "../core/gcal";
@@ -27,6 +27,9 @@ import { changeTzZones, removeTzPerson, restoreTzPerson } from "../core/actions"
 import { ZONE_NAME_MAX, addZone, defaultName, moveZone, removeZone, renameZone, resetZoneName, restoreZone } from "../core/tzzones";
 import { GlobeAdd, ZoneAdd, useZones } from "./TzZones";
 import { doc } from "../core/vault";
+import { useInst, useInstSave, useShownHere } from "./EditMode";
+import { calendarDocs, remindRec, settingsData, todos } from "../core/select";
+import { FREE_LENGTHS, FREE_LEN_DEF, calendarCovers, checkFree, clashName, eventBlocks, lenShort, lenWords, taskBlocks, type Busy, type FreeLen } from "../core/tzfree";
 import type { PersonEntry } from "../core/tzpeople";
 import "./tz.css";
 import "./tz-people.css";
@@ -45,10 +48,34 @@ function useNow() {
 }
 
 /** Top left: a small clock pill. Hover it and the full time zone panel loops out; move away and it
- *  tucks back in (it stays open while you are typing in a converter, and while the mouse is on it). */
+ *  tucks back in (it stays open while you are typing in a converter, and while the mouse is on it).
+ *  V1.57 (the developer: "make it so you can click expand and it just keeps expanded"): a click on the pill, or on the pin
+ *  at the top of the panel, keeps it open until clicked again. Each Time zones panel keeps its own choice (the main
+ *  one and every copy on another page), saved with the Edit mode layout so it syncs; so a page can show every time
+ *  zone open all the time. Hover still peeks while it is not kept open. */
 export function TimeZones({ scale, slider }: { scale: number; slider: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+  const [hover, setOpen] = useState(false);
   const [findReq, setFindReq] = useState(0);   // Cmd+F presses since the panel opened (below)
+  const inst = useInst();
+  const save = useInstSave();
+  const shown = useShownHere();
+  // Outside a Slot (the website's To-do page, the phone) the choice lasts while the page is open.
+  const [ownPin, setOwnPin] = useState(false);
+  const [pinNow, setPinNow] = useState<boolean | null>(null);   // a click shows at once, before the save lands
+  const savedPin = save ? !!inst?.cfg.open : ownPin;
+  useEffect(() => { setPinNow(null); }, [savedPin]);
+  const pinned = pinNow ?? savedPin;
+  const open = hover || (pinned && shown);
+  const pinnedRef = useRef(pinned);
+  pinnedRef.current = pinned;
+  const togglePin = () => {
+    const next = !pinned;
+    sfx.click();
+    setPinNow(next);
+    if (save) save({ open: next }); else setOwnPin(next);
+    if (next) setOpen(true);
+    else if (!inside.current) { setOpen(false); setFindReq(0); }
+  };
   const box = useRef<HTMLDivElement>(null);
   const timer = useRef(0);
   const inside = useRef(false);
@@ -59,18 +86,18 @@ export function TimeZones({ scale, slider }: { scale: number; slider: React.Reac
       if (inside.current) return;   // a blur while the mouse is still on the panel
       if (box.current?.contains(document.activeElement) && document.activeElement?.matches("input:not([type=range]), select")) return;
       setOpen(false);
-      setFindReq(0);   // the next hover opens the panel as usual, without the find box
+      if (!pinnedRef.current) setFindReq(0);   // the next hover opens the panel as usual, without the find box
     }, 260);
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
   // Cmd+F (Ctrl+F off the Mac) while the Tab list is open: the panel opens with the find box ready. Only the
   // floating list answers it (the To-do page leaves the browser's own Find alone), and never while a note or
-  // another window inside the list has the keyboard.
+  // another window inside the list has the keyboard. V1.57: only the panel on the page showing answers it.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "f") return;
       const me = box.current?.closest(".tm-overlay");
-      if (!me || me.classList.contains("tm-docked")) return;
+      if (!me || me.classList.contains("tm-docked") || box.current?.closest(".ed-hidden")) return;
       const a = document.activeElement as HTMLElement | null;
       if (a && !box.current?.contains(a) && (a.isContentEditable || a.tagName === "TEXTAREA" || a.closest(".nt-win, [role='dialog']:not(.tm-overlay), .scrim, .sm-overlay"))) return;
       e.preventDefault(); e.stopPropagation();
@@ -83,15 +110,24 @@ export function TimeZones({ scale, slider }: { scale: number; slider: React.Reac
     return () => window.removeEventListener("keydown", key, true);
   }, []);
   return (
-    <div ref={box} className={`tm-ckdock${open ? " open" : ""}`} onMouseEnter={enter} onMouseLeave={() => { inside.current = false; leave(); }}
+    <div ref={box} className={`tm-ckdock${open ? " open" : ""}${pinned ? " pinned" : ""}`} onMouseEnter={enter} onMouseLeave={() => { inside.current = false; leave(); }}
       onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node)) leave(); }} onMouseDown={(e) => e.stopPropagation()}>
-      <ClockPill />
-      {open && <Panel scale={scale} slider={slider} findReq={findReq} />}
+      <ClockPill pinned={pinned} onToggle={togglePin} />
+      {open && <Panel scale={scale} slider={slider} findReq={findReq} pinned={pinned} onTogglePin={togglePin} />}
     </div>
   );
 }
 
-function ClockPill() {
+/** The pin: kept open (filled) or opens on hover only (outline). */
+function PinIcon({ on }: { on: boolean }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill={on ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 3h6l-1 6 4 4H6l4-4z" /><path d="M12 13v8" />
+    </svg>
+  );
+}
+
+function ClockPill({ pinned, onToggle }: { pinned: boolean; onToggle: () => void }) {
   const now = useNow();
   // Eastern and Pacific as before while both are on your list (V1.40), else the first two clocks on it.
   const home = homeTz();
@@ -99,16 +135,20 @@ function ClockPill() {
   const usual = mine.filter((z) => z.id === "America/New_York" || z.id === "America/Los_Angeles");
   const two = usual.length === 2 ? usual : mine.slice(0, 2);
   return (
-    <div className="tm-ckpill" aria-label="Time zones (hover to open)">
+    <div className="tm-ckpill" role="button" tabIndex={0} aria-pressed={pinned}
+      aria-label={pinned ? "Time zones, kept open. Click to let it close" : "Time zones (hover to open, click to keep it open)"}
+      title={pinned ? "Kept open. Click to let it close again" : "Click to keep it open"}
+      onClick={onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
       <b className="num">{fmtTime(now, home)}</b>
       {two.length > 0 && <span>{two.map((z) => `${tagOf(z)} ${fmtTime(now, z.id)}`).join(" · ")}</span>}
+      {pinned && <i className="tz-pin-on" aria-hidden="true"><PinIcon on /></i>}
     </div>
   );
 }
 
 type Spot = { p: Found; at: number };
-function Panel({ scale, slider, findReq }: { scale: number; slider: React.ReactNode; findReq: number }) {
+function Panel({ scale, slider, findReq, pinned, onTogglePin }: { scale: number; slider: React.ReactNode; findReq: number; pinned: boolean; onTogglePin: () => void }) {
   const now = useNow();
   const home = homeTz();
   const mine = offsetMin(now, home);
@@ -345,6 +385,11 @@ function Panel({ scale, slider, findReq }: { scale: number; slider: React.ReactN
           <span className="tm-panel-h">Time zones</span>
           <span className="tz-head-b">
             {slider}
+            <button type="button" className={`tz-hbtn tz-pinb${pinned ? " on" : ""}`} aria-pressed={pinned}
+              title={pinned ? "Kept open. Click to let it close when the mouse leaves" : "Keep it open"} aria-label={pinned ? "Let Time zones close" : "Keep Time zones open"}
+              onClick={onTogglePin}>
+              <PinIcon on={pinned} />
+            </button>
             <button type="button" className={`tz-hbtn${form?.mode === "add" ? " on" : ""}`} title="Add a person and their time zone" aria-label="Add a person"
               onClick={() => { if (form) { sfx.click(); setForm(null); } else openForm({ mode: "add", tz: home }); }}>
               <AddIcon />
@@ -952,6 +997,7 @@ const Convert = memo(function Convert({ tz, home, today: _today, hooks, who, onP
               {clockOf(typed.h * 60 + typed.mi)} {zoneName(from)}, <span className="num">{fmtDay(noonOf(day), "UTC")}</span>
             </span>
             {res.kind === "ok" && line(res.hit, true)}
+            {res.kind === "ok" && <FreeCheck start={res.hit.ts} home={home} />}
             {res.kind === "ok" && <EventLink start={res.hit.ts} tz={from} who={who} />}
             {res.kind === "twice" && (
               <>
@@ -960,8 +1006,10 @@ const Convert = memo(function Convert({ tz, home, today: _today, hooks, who, onP
                 </p>
                 <span className="tm-cv-which">The first time</span>
                 {line(res.first)}
+                <FreeCheck start={res.first.ts} home={home} />
                 <span className="tm-cv-which">The second time</span>
                 {line(res.second)}
+                <FreeCheck start={res.second.ts} home={home} />
                 <span className="tm-cv-evs">
                   <EventLink start={res.first.ts} tz={from} who={who} label="Event at the first" />
                   <EventLink start={res.second.ts} tz={from} who={who} label="Event at the second" />
@@ -974,6 +1022,7 @@ const Convert = memo(function Convert({ tz, home, today: _today, hooks, who, onP
                   {clockOf(typed.h * 60 + typed.mi)} never happens in {zoneName(from)} that night: the clocks jump from {clockOf(res.jumpFrom)} to {clockOf(res.jumpTo)}. Read as {clockOf((typed.h * 60 + typed.mi + res.jumpTo - res.jumpFrom + 1440) % 1440)}:
                 </p>
                 {line(res.hit, true)}
+                <FreeCheck start={res.hit.ts} home={home} />
                 <EventLink start={res.hit.ts} tz={from} who={who} />
               </>
             )}
@@ -984,6 +1033,77 @@ const Convert = memo(function Convert({ tz, home, today: _today, hooks, who, onP
   );
 });
 
+// ---------- Are you free then? (V1.57, core/tzfree.ts) ----------
+// Under the converted time: is a meeting of 30 minutes, 1 hour or 2 hours starting then clear of your meetings and
+// your PS tasks with a time? "Free for 1 hour", or "Busy" with each thing in the way and its time in your zone.
+// Private mode hides the names. All from the vault on this device: nothing is fetched or sent.
+let lastLen: FreeLen = FREE_LEN_DEF;   // the length picked last, for the next card (while PS runs)
+
+function FreeCheck({ start, home }: { start: number; home: string }) {
+  const s = useVault();
+  const [len, setLen] = useState<FreeLen>(lastLen);
+  const unlocked = s.status === "unlocked";
+  const st = unlocked ? settingsData(s) : null;
+  const priv = !!st?.privateMode;
+  // The meetings and the tasks, worked out again only when the vault changes (not every second).
+  const data = useMemo(() => {
+    if (!unlocked) return null;
+    const cals = calendarDocs(s);
+    const set = settingsData(s);
+    return {
+      meetings: eventBlocks(cals.flatMap((d) => d.data.events || []), home, set.meetHidden),
+      ranges: cals.map((d) => ({ from: d.data.from, to: d.data.to })),
+      tasks: todos(s).map((d) => ({ id: d.id, title: d.data.title, due: d.data.due, done: d.data.done, clearedAt: d.data.clearedAt })),
+      reminders: remindRec(s)?.list ?? [],
+    };
+  }, [s, unlocked, home]);
+  if (!data) return null;
+  const end = start + len * 60000;
+  const busy: Busy[] = [...data.meetings, ...taskBlocks(data.tasks, data.reminders, start, end, home, DEVICE_TZ)];
+  const ans = checkFree(start, len, busy);
+  const covers = calendarCovers(data.ranges, start, end);
+  const startDay = fmtDay(start, home);
+  const when = (b: Busy) => {
+    const d1 = fmtDay(b.start, home), d2 = fmtDay(b.end - 1, home);
+    const from = `${d1 !== startDay ? `${d1}, ` : ""}${fmtTime(b.start, home)}`;
+    return `${from} to ${d2 !== d1 ? `${d2}, ` : ""}${fmtTime(b.end, home)}`;
+  };
+  const pick = (n: FreeLen) => { if (n === len) return; sfx.hover(); lastLen = n; setLen(n); };
+  return (
+    <div className={`tz-free${ans.free ? " ok" : " busy"}`} aria-live="polite">
+      <div className="tz-free-h">
+        {ans.free ? (
+          <b className="tz-free-ans">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+            Free for {lenWords(len)}
+          </b>
+        ) : <b className="tz-free-ans">Busy</b>}
+        <span className="tz-free-len" role="radiogroup" aria-label="How long the meeting is">
+          {FREE_LENGTHS.map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={n === len} className={n === len ? "on" : ""}
+              onMouseDown={(e) => e.preventDefault()} onClick={() => pick(n)} title={`Check ${lenWords(n)} from this time`}>{lenShort(n)}</button>
+          ))}
+        </span>
+      </div>
+      {!ans.free && (
+        <ul className="tz-free-list">
+          {ans.clashes.map((b) => (
+            <li key={b.key} className={b.kind} aria-label={`${clashName(b, priv)}, ${when(b)}`}>
+              <span className={`tz-free-tag ${b.kind}`}>{b.kind === "meeting" ? "Meeting" : "Task"}</span>
+              {!priv && <span className="tz-free-n">{b.title}</span>}
+              <span className="tz-free-t num">{when(b)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {ans.allDay.length > 0 && (
+        <p className="tz-free-note">That day: {ans.allDay.map((b) => (priv ? "an all day event" : b.title)).join(", ")} (all day, not counted)</p>
+      )}
+      {covers === "none" && <p className="tz-free-note">No calendar linked yet, so only your PS tasks were checked.</p>}
+      {covers === "no" && <p className="tz-free-note">Your calendar copy does not reach that day yet, so only your PS tasks were checked.</p>}
+    </div>
+  );
+}
 // ---------- Create event (V1.47) ----------
 type Picked = { ts: number; tz: string };
 

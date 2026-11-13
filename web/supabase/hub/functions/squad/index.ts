@@ -21,7 +21,14 @@
 // V1.55 never stuck (migration auto_002_never_stuck.sql): the hub heals The G Squad by itself when nobody who is in
 // holds the squad key (it starts over and the next PS makes a new key), room for 200 people, and a second device of
 // the same person no longer throws out the first one.
+//
+// V1.57 invite only (migration invite_001_invite_only.sql, rules in gate.ts): a PS that joins by itself gets a WAITING
+// row (its Ask to join). Nobody hands a waiting row the squad key, and it can do nothing but wait, leave its name for
+// the admin, or give up. A one time invite (Add friend) lets someone straight in; otherwise the admin lets them in
+// (admit) or turns them away (turn_away). Everyone in before stays in. The old Ask to join and Approve are closed:
+// V1.49+ admin PS approved those by itself.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { allowedWhileWaiting, leaveRoute, pulseCounts, waitingKey } from "./gate.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const te = new TextEncoder();
@@ -69,7 +76,7 @@ const int = (v: unknown, lo: number, hi: number) => { if (!Number.isInteger(v) |
 const uuid = (v: unknown) => { if (typeof v !== "string" || !UUID.test(v)) throw new Fail(400, "bad id"); return v.toLowerCase(); };
 const must = <T,>(r: { data: T; error: { message: string } | null }) => { if (r.error) throw new Fail(500, "database"); return r.data; };
 
-type Me = { id: string; squad_id: string; sign_pub: string; has_key: boolean };
+type Me = { id: string; squad_id: string; sign_pub: string; has_key: boolean; admitted: boolean };
 type Sq = { id: string; gen: number; rekey: boolean; meta_ct: string | null; meta_gen: number | null; created_by: string | null };
 async function squadOf(id: string): Promise<Sq> {
   const s = must(await db.from("squads").select("id, gen, rekey, meta_ct, meta_gen, created_by").eq("id", id).maybeSingle()) as Sq | null;
@@ -91,8 +98,13 @@ async function pulse(m: Me) {
     db.from("squad_handoffs").select("id", { count: "exact", head: true }).eq("to_member", m.id).eq("state", "open"), squadOf(m.squad_id),
     db.from("dir_requests").select("id", { count: "exact", head: true }).eq("squad_id", m.squad_id).eq("state", "open")]);
   // k (V1.49): people waiting for the squad key, so a member's PS knows to hand it over (0 for anyone without it).
-  const k = m.has_key ? (await db.from("squad_members").select("id", { count: "exact", head: true }).eq("squad_id", m.squad_id).is("left_at", null).eq("has_key", false)).count ?? 0 : 0;
-  return { n, h: hands.count ?? 0, g: sq.gen, rk: sq.rekey, q: sq.created_by === m.id ? asks.count ?? 0 : 0, k };
+  // V1.57: admitted people only. w: people asking to join (the admin only).
+  const admin = sq.created_by === m.id;
+  const [kw, ask] = await Promise.all([
+    m.has_key ? db.from("squad_members").select("id", { count: "exact", head: true }).eq("squad_id", m.squad_id).is("left_at", null).eq("has_key", false).eq("admitted", true) : null,
+    admin ? db.from("squad_members").select("id", { count: "exact", head: true }).eq("squad_id", m.squad_id).is("left_at", null).eq("admitted", false) : null]);
+  const c = pulseCounts({ has_key: m.has_key, admin }, kw?.count ?? 0, ask?.count ?? 0);
+  return { n, h: hands.count ?? 0, g: sq.gen, rk: sq.rekey, q: admin ? asks.count ?? 0 : 0, k: c.k, w: c.w };
 }
 /** A directory step's refusal, in a word the app can tell apart (its status says what kind). */
 const DIR_FAIL: Record<string, [number, string]> = {
@@ -127,11 +139,13 @@ async function handle(body: Record<string, unknown>) {
     if (BOX_ACTS.has(act) && (typeof args.box !== "string" || !PUB.test(args.box))) throw new Fail(400, "bad keys");
     pub = args.sign;
   } else {
-    me = must(await db.from("squad_members").select("id, squad_id, sign_pub, has_key").eq("id", uuid(member)).is("left_at", null).maybeSingle()) as Me | null;
+    me = must(await db.from("squad_members").select("id, squad_id, sign_pub, has_key, admitted").eq("id", uuid(member)).is("left_at", null).maybeSingle()) as Me | null;
     if (!me) throw new Fail(403, "not a member");
     pub = me.sign_pub;
   }
   if (!(await verify(pub, act, member, ts, nonce, body.args ?? null, sig))) throw new Fail(401, "signature");
+  // V1.57: a waiting row (not let in yet) may only wait, leave its name for the admin, or give up.
+  if (me && !me.admitted && !allowedWhileWaiting(act, me.id, args.target)) throw new Fail(403, "not let in");
   const used = await db.from("squad_nonces").insert({ member_key: await sha256hex(pub), nonce });
   if (used.error) throw new Fail(409, "replay");
   if (Math.random() < 0.01) { await db.rpc("squad_tidy"); await db.rpc("dir_tidy"); await db.rpc("auto_tidy"); }
@@ -160,9 +174,8 @@ async function handle(body: Record<string, unknown>) {
       // V1.49: gs is The G Squad's id (made here if it does not exist yet), so a PS in an older squad knows to move.
       return { squads: await dirRpc("dir_list", {}), gs: await dirRpc("auto_squad", {}) };
     case "ask": {
-      if (typeof args.admin !== "string" || !PUB.test(args.admin)) throw new Fail(400, "bad keys");
-      if (typeof args.sealed !== "string" || !args.sealed || args.sealed.length > 2000) throw new Fail(400, "bad ciphertext");
-      return await dirRpc("dir_ask", { p_id: uuid(args.id), p_squad: uuid(args.squad), p_sign_pub: args.sign, p_box_pub: args.box, p_admin_box: args.admin, p_sealed: args.sealed });
+      // V1.57: the old Ask to join is closed (the database refuses it too). Older PS: "not open to join right now".
+      throw new Fail(404, "unlisted");
     }
     case "ask_status": {
       const r = must(await db.from("dir_requests").select("id, squad_id, state, member_id, updated_at").eq("sign_pub", pub).maybeSingle()) as
@@ -197,7 +210,8 @@ async function handle(body: Record<string, unknown>) {
       const at = (k: string) => (typeof since[k] === "string" && !Number.isNaN(Date.parse(since[k] as string)) ? since[k] as string : null);
       const now = new Date().toISOString();
       const sq = await squadOf(m.squad_id);
-      let mq = db.from("squad_members").select("id, sign_pub, box_pub, card_ct, card_gen, joined_at, left_at, updated_at, has_key").eq("squad_id", m.squad_id);
+      // V1.57: people asking to join are not members: never listed here.
+      let mq = db.from("squad_members").select("id, sign_pub, box_pub, card_ct, card_gen, joined_at, left_at, updated_at, has_key").eq("squad_id", m.squad_id).eq("admitted", true);
       if (at("m")) mq = mq.gt("updated_at", at("m")!); else mq = mq.is("left_at", null);
       let tq = db.from("squad_tasks").select("id, member_id, ct, gen, deleted, updated_at").eq("squad_id", m.squad_id).order("updated_at").limit(1000);
       if (at("t")) tq = tq.gt("updated_at", at("t")!); else tq = tq.eq("deleted", false);
@@ -252,7 +266,12 @@ async function handle(body: Record<string, unknown>) {
     case "leave": {
       const target = args.target ? uuid(args.target) : m.id;
       // V1.49: the admin taking someone out also keeps them from joining again by themselves (auto_remove).
-      const r = await db.rpc(target === m.id ? "squad_leave" : "auto_remove", target === m.id ? { p_member: m.id, p_target: target } : { p_admin: m.id, p_target: target });
+      // V1.57 (gate.ts leaveRoute): a waiting row giving up just goes (no re-key); the admin's no to an ask is turn_away.
+      const t = target === m.id ? m : must(await db.from("squad_members").select("id, admitted").eq("id", target).eq("squad_id", m.squad_id).is("left_at", null).maybeSingle()) as Me | null;
+      const route = leaveRoute(m, t);
+      const r = route === "withdraw" ? await db.rpc("invite_withdraw", { p_member: m.id })
+        : route === "turn_away" ? await db.rpc("invite_turn_away", { p_admin: m.id, p_target: target })
+        : await db.rpc(route === "leave" ? "squad_leave" : "auto_remove", route === "leave" ? { p_member: m.id, p_target: target } : { p_admin: m.id, p_target: target });
       if (r.error) throw new Fail(403, "leave");
       return r.data;
     }
@@ -292,8 +311,8 @@ async function handle(body: Record<string, unknown>) {
       return { rows: must(await db.from("dir_requests").select("id, sign_pub, box_pub, admin_box, sealed, created_at").eq("squad_id", m.squad_id).eq("state", "open").order("created_at").limit(20)) };
     }
     case "approve": {
-      if (typeof args.drop !== "string" || !args.drop || args.drop.length > 600) throw new Fail(400, "drop");
-      return await dirRpc("dir_approve", { p_admin: m.id, p_request: uuid(args.id), p_member: uuid(args.member), p_gen: int(args.gen, 1, 1e6), p_drop: args.drop, p_card: ct(args.card) });
+      // V1.57: closed. V1.49 to V1.56 admin PS sent this by itself, with no button, for every old style Ask to join.
+      throw new Fail(403, "admin");
     }
     case "rename": {
       // V1.43: the admin renames the squad (sealed name). The listed squad also sends its public name for the list.
@@ -311,11 +330,13 @@ async function handle(body: Record<string, unknown>) {
       // all (then you make the first one with auto_start). A few dozen bytes.
       // V1.55 (auto_002_never_stuck.sql): first the heal, so a squad where nobody in holds the key starts over and this
       // PS can make the new one. Only a drop for the key in use now: never an old one from before a re-key.
+      // V1.57: a waiting row (asked, not let in yet) just keeps waiting: no key, never "make the first one".
+      if (!m.admitted) return waitingKey((await squadOf(m.squad_id)).gen);
       await db.rpc("auto_heal", { p_squad: m.squad_id });
       const sq = await squadOf(m.squad_id);
       const fresh = must(await db.from("squad_members").select("has_key").eq("id", m.id).maybeSingle()) as { has_key: boolean } | null;
       const drop = must(await db.from("squad_keydrops").select("gen, sealed").eq("member_id", m.id).eq("gen", sq.gen).maybeSingle()) as { gen: number; sealed: string } | null;
-      return { gen: sq.gen, start: !sq.meta_ct && !(fresh?.has_key ?? m.has_key), drop, admin: sq.created_by === m.id };
+      return { gen: sq.gen, start: !sq.meta_ct && !(fresh?.has_key ?? m.has_key), drop, admin: sq.created_by === m.id, admitted: true };
     }
     case "auto_start":
       return await dirRpc("auto_start", { p_member: m.id, p_gen: int(args.gen, 1, 1e6), p_meta_ct: ct(args.meta) });
@@ -333,6 +354,24 @@ async function handle(body: Record<string, unknown>) {
       // The developer's PS only: the hub asks his vault project whether this session is his. Anything else: refused.
       if (!(await isRed(args.token, args.anon))) throw new Fail(403, "admin");
       return await dirRpc("auto_admin", { p_member: m.id });
+    }
+    // ---------- V1.57: invite only, the admin's answer to an Ask to join ----------
+    case "auto_ask": {
+      // The asker leaves their name for the admin, sealed to the admin's box key (the hub cannot open it).
+      if (typeof args.sealed !== "string" || !args.sealed || args.sealed.length > 2000) throw new Fail(400, "bad ciphertext");
+      return await dirRpc("invite_ask", { p_member: m.id, p_sealed: args.sealed });
+    }
+    case "wait_list": {
+      const sq = await squadOf(m.squad_id);
+      if (sq.created_by !== m.id) throw new Fail(403, "admin");
+      return { rows: must(await db.from("squad_members").select("id, sign_pub, box_pub, ask_ct, joined_at").eq("squad_id", m.squad_id).is("left_at", null)
+        .eq("admitted", false).order("joined_at").limit(20)) };
+    }
+    case "admit": case "turn_away": {
+      // Let in (members' PS then hand them the key as before), or no (the row goes, that join id cannot ask again).
+      const sq = await squadOf(m.squad_id);
+      if (sq.created_by !== m.id) throw new Fail(403, "admin");
+      return await dirRpc(act === "admit" ? "invite_admit" : "invite_turn_away", { p_admin: m.id, p_target: uuid(args.id) });
     }
     case "decline": {
       const sq = await squadOf(m.squad_id);

@@ -149,7 +149,7 @@ export function PsOverlay() {
     taskMapActions.notifyPref = async (on) => psPost({ type: "notifyPref", on });
     taskMapActions.stHours = async (v) => psPost({ type: "stHours", v });
     taskMapActions.backdrop = async (v, save) => psPost({ type: "backdrop", v, save });
-    taskMapActions.keep = async (on) => psPost({ type: "keep", on });
+    taskMapActions.keep = async (on, stay) => psPost(stay ? { type: "keep", on, stay: true } : { type: "keep", on });   // stay: leaving Edit (V1.57)
     taskMapActions.goals = async (list) => psPost({ type: "goals", list });
     // Series map notes and month titles (the Map pill): the main window saves them.
     taskMapActions.journal = async (key, patch) => psPost({ type: "looks", patch: { journalOp: { key, ...patch } } });

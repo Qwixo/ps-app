@@ -40,6 +40,8 @@ export interface Pending {
   at: string;                // when this device started joining
   squadId?: string;          // from the hub's answer
   memberId?: string;
+  /** V1.57 invite only: the admin's box key your name was sealed to (you asked to join; the check code comes from it). */
+  asked?: string;
 }
 const pair = (v: unknown): KeyPairB64 | null => {
   const p = v as { pub?: unknown; priv?: unknown } | null;
@@ -52,7 +54,8 @@ function cleanPending(v: unknown): Pending | null {
   if (!sign || !box) return null;
   const ids = typeof r.squadId === "string" && UUID.test(r.squadId) && typeof r.memberId === "string" && UUID.test(r.memberId)
     ? { squadId: r.squadId.toLowerCase(), memberId: r.memberId.toLowerCase() } : {};
-  return { me: cleanName(r.me) || "Me", sign, box, at: typeof r.at === "string" && !Number.isNaN(Date.parse(r.at)) ? r.at : new Date(0).toISOString(), ...ids };
+  const asked = ids.memberId && typeof r.asked === "string" && PUB.test(r.asked) ? { asked: r.asked } : {};
+  return { me: cleanName(r.me) || "Me", sign, box, at: typeof r.at === "string" && !Number.isNaN(Date.parse(r.at)) ? r.at : new Date(0).toISOString(), ...ids, ...asked };
 }
 export function cleanJoinRec(v: unknown): JoinRec | null {
   const r = v as Record<string, unknown> | null;
@@ -84,11 +87,12 @@ export async function newPending(name: string): Promise<Pending> {
 }
 
 // ---------- what the screen shows while you are not in yet ----------
-/** joining: on the way in (the squad key is coming) / left: you left on purpose (Join again) / removed: the admin
- *  took you out / full: 200 people (V1.55, was 30) / error: the hub could not be reached (Try again) / off: Settings,
- *  "Join The G Squad automatically" is Off, so PS does nothing by itself (Join switches it back on). */
-export type AutoStage = "joining" | "left" | "removed" | "full" | "error" | "off";
-export interface AutoView { stage: AutoStage; error?: string | null }
+/** joining: on the way in (the squad key is coming) / asked (V1.57 invite only): waiting for the admin to let you in,
+ *  with the check code / left: you left on purpose (Join again) / removed: the admin took you out or said no / full:
+ *  200 people (V1.55, was 30) / error: the hub could not be reached (Try again) / off: Settings, "Join The G Squad
+ *  automatically" is Off, so PS does nothing by itself (Join switches it back on). */
+export type AutoStage = "joining" | "asked" | "left" | "removed" | "full" | "error" | "off";
+export interface AutoView { stage: AutoStage; error?: string | null; /** asked: the check code the admin sees too */ code?: string | null }
 /** The screen's one step from the join record and the last problem (null: no record yet, so joining). `auto`: the
  *  "Join The G Squad automatically" setting (on unless switched off). */
 export function autoStage(j: JoinRec | null, problem: "full" | "removed" | "error" | null, auto = true): AutoStage {

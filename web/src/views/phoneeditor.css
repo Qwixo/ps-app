@@ -1,19 +1,21 @@
 /* V1.56 the phone layout editor in the Mac's Edit overview (views/PhoneEditor.tsx). Above the overview (89 and 96). */
 .pe-phone-btn {
-  position: fixed; z-index: 98; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border-radius: 13px; cursor: pointer;
-  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-surface, #1A1016) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); box-shadow: 0 10px 30px -8px rgba(0, 0, 0, .7);
+  /* V1.57: 48 px (core/phonedevices.ts PHONE_BTN) with a big glyph and the same tinted fill on both faces, so the phone
+     icon reads as big as the Mac icon that replaces it. */
+  position: fixed; z-index: 98; width: 48px; height: 48px; display: grid; place-items: center; padding: 0; border-radius: 15px; cursor: pointer;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc, #EC4E86) 26%, var(--k-surface, #1A1016));
+  border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); box-shadow: 0 10px 30px -8px rgba(0, 0, 0, .7);
   opacity: 0; transform: translateY(-14px) scale(.85); pointer-events: none;
   transition: opacity .35s ease, transform .5s cubic-bezier(.34, 1.36, .5, 1), top .45s cubic-bezier(.22, 1, .36, 1), left .45s cubic-bezier(.22, 1, .36, 1), background .2s ease;
 }
 .pe-phone-btn.on { opacity: 1; transform: none; pointer-events: auto; transition-delay: .12s, .12s, 0s, 0s, 0s; }
-.pe-phone-btn:hover, .pe-phone-btn.lit { background: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, var(--k-surface, #1A1016)); }
+.pe-phone-btn:hover, .pe-phone-btn.lit { background: color-mix(in srgb, var(--k-acc, #EC4E86) 42%, var(--k-surface, #1A1016)); }
 .pe-phone-btn:active { transform: scale(.92); }
 .pe-pick {
   position: fixed; z-index: 98; width: 300px; display: grid; gap: 6px; padding: 12px; border-radius: 18px;
   background: color-mix(in srgb, var(--k-surface, #1A1016) 96%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent);
   box-shadow: 0 24px 60px -12px rgba(0, 0, 0, .85); color: var(--k-fg, #FFFFFF); font: 500 13px/1.3 var(--k-font, Inter, system-ui, sans-serif);
-  transform-origin: 20px 0; animation: pe-pop .38s cubic-bezier(.34, 1.36, .5, 1) both;
+  transform-origin: 24px 0; animation: pe-pop .38s cubic-bezier(.34, 1.36, .5, 1) both;
 }
 @keyframes pe-pop { from { opacity: 0; transform: translateY(-8px) scale(.92); } to { opacity: 1; transform: none; } }
 .pe-pick-q { margin: 2px 4px 4px; font-weight: 700; font-size: 14px; }
@@ -67,6 +69,18 @@ html.pe-mac-away .ov-room > *, html.pe-mac-away .ov-top > * { pointer-events: no
   translate: var(--pe-rx, 0px) var(--pe-ry, 0px); scale: .04; opacity: 0;
   transition: translate .44s cubic-bezier(.55, .05, .7, .2), scale .44s cubic-bezier(.55, .05, .7, .2), opacity .16s ease .3s; }
 .pe-stage > * { pointer-events: auto; }
+/* V1.57: the pages keep to the part of the screen left of the side sheet (--pe-area), so the two never crowd; the row
+   in it (.pe-track) is what the mouse slides (views/usePhonePan.ts): one translate, written straight to it. */
+.pe-stage > .pe-clip { position: absolute; left: 0; top: 0; bottom: 0; width: var(--pe-area, 100vw); overflow: hidden; pointer-events: none; }
+.pe-track { position: absolute; inset: 0; pointer-events: none; translate: 0px 0px; transition: translate .62s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)); }
+.pe-track.free { transition: none; }
+.pe-track > * { pointer-events: auto; }
+.pe-clip-fade { position: absolute; top: 0; bottom: 0; right: 0; width: 44px; pointer-events: none; background: linear-gradient(90deg, rgba(8, 6, 10, 0), rgba(8, 6, 10, .85)); }
+html.pe-panning, html.pe-panning * { cursor: grabbing !important; }
+.pe-del-at { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 42; transition: transform .62s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)); }
+.pe-room.closing .pe-del-at, .pe-room.leaving .pe-del-at { opacity: 0; transition: opacity .2s ease; }
+/* V1.57: once the phone shows, the Mac's pages behind it (already shrunk into the icon) are not drawn at all. */
+html.pe-mac-gone .ov-room, html.pe-mac-gone .ov-top, html.pe-mac-gone .tm-overlay.ed-able { visibility: hidden; }
 .pe-room.on .pe-stage { translate: 0px 0px; scale: 1; opacity: 1;
   transition: translate .7s cubic-bezier(.2, 1.15, .32, 1), scale .7s cubic-bezier(.2, 1.15, .32, 1), opacity .2s ease; }
 .pe-room.leaving .pe-stage { translate: 0px 0px; scale: .92; opacity: 0; transition: scale .35s ease, opacity .3s ease; }
@@ -80,20 +94,26 @@ html.pe-mac-away .ov-room > *, html.pe-mac-away .ov-top > * { pointer-events: no
 .pe-card {
   position: absolute; left: 0; top: 0; transform-origin: 50% 50%; border-radius: 46px; cursor: pointer;
   box-shadow: 0 0 0 calc(10px * var(--inv, 1)) #0b0b0e, 0 0 0 calc(11.5px * var(--inv, 1)) #2c2a33, 0 calc(40px * var(--inv, 1)) calc(90px * var(--inv, 1)) -10px rgba(0, 0, 0, .9);
-  transition: transform .62s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)), opacity .4s ease, filter .4s ease, box-shadow .3s ease;
-  opacity: 0; filter: brightness(.6);
+  transition: transform .62s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)), opacity .4s ease;
+  opacity: 0;
 }
+/* V1.57: the pages beside are dimmed with a dark layer whose opacity fades (cheap to animate), not a brightness filter
+   (which made every page draw again on each frame of a switch). */
+.pe-card::after { content: ""; position: absolute; inset: 0; z-index: 31; border-radius: inherit; background: #000; opacity: .4; pointer-events: none; transition: opacity .4s ease; }
+.pe-card.cur::after, .pe-card.lit::after { opacity: 0; }
+.pe-card:not(.cur):hover::after { opacity: .18; }
 .pe-room.on .pe-card { opacity: calc(1 - min(var(--d, 0), 3) * .14); }
-.pe-room.on .pe-card.cur { opacity: 1; filter: none; cursor: default; }
+.pe-room.on .pe-card.cur { opacity: 1; cursor: default; }
 /* Going back into the icon: the pages stay as they are while the stage shrinks. */
 .pe-room.closing .pe-card { opacity: calc(1 - min(var(--d, 0), 3) * .14); }
-.pe-room.closing .pe-card.cur { opacity: 1; filter: none; }
+.pe-room.closing .pe-card.cur { opacity: 1; }
 .pe-room.closing .pe-pill, .pe-room.closing .pe-plus { opacity: .75; }
 .pe-room.leaving .pe-card { opacity: 0; transition-duration: .3s; }
-.pe-card.lit { filter: brightness(1.05); box-shadow: 0 0 0 calc(10px * var(--inv, 1)) #0b0b0e, 0 0 0 calc(14px * var(--inv, 1)) var(--k-acc, #EC4E86); }
+.pe-card.lit { box-shadow: 0 0 0 calc(10px * var(--inv, 1)) #0b0b0e, 0 0 0 calc(14px * var(--inv, 1)) var(--k-acc, #EC4E86); }
 .pe-card-hit { position: absolute; inset: 0; border-radius: inherit; z-index: 30; }
-.pe-card:not(.cur):hover { filter: brightness(.85); }
-.pe-screen { position: absolute; inset: 0; overflow: hidden; border-radius: 46px; transition: background .5s ease; }
+.pe-screen { position: absolute; inset: 0; overflow: hidden; border-radius: 46px; transition: background .5s ease; contain: layout paint style; }
+/* V1.57: the pages beside skip the navbar's blur (a blur over every small page cost a lot on each frame). */
+.pe-card:not(.cur) .pe-nav { backdrop-filter: none; -webkit-backdrop-filter: none; background: color-mix(in srgb, #140D12 92%, transparent); }
 .pe-screen.gos { border-radius: 38px; }
 .pe-status { position: absolute; left: 0; right: 0; top: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; font: 700 15px/1 var(--k-font, Inter, system-ui, sans-serif); pointer-events: none; }
 .pe-di { position: absolute; left: 50%; top: 11px; width: 120px; height: 34px; margin-left: -60px; border-radius: 20px; background: #000; }
@@ -120,7 +140,8 @@ html.pe-mac-away .ov-room > *, html.pe-mac-away .ov-top > * { pointer-events: no
 .pe-tile { position: absolute; display: flex; border-radius: 16px; transition: left .32s cubic-bezier(.22, 1, .36, 1), top .32s cubic-bezier(.22, 1, .36, 1), width .32s cubic-bezier(.22, 1, .36, 1), height .32s cubic-bezier(.22, 1, .36, 1); }
 .pe-tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1.5px solid color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); pointer-events: none; transition: border-color .2s ease; }
 .pe-tile:hover::after { border-color: var(--k-acc, #EC4E86); }
-.pe-tile.dragging { transition: none; z-index: 20; filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .7)); }
+.pe-tile.dragging { transition: none; z-index: 20; box-shadow: 0 18px 30px rgba(0, 0, 0, .55); }
+.pe-tile.away { opacity: .55; }
 .pe-tile.dragging::after { border-color: #fff; }
 .pe-tile.fresh { animation: pe-fresh .6s cubic-bezier(.34, 1.56, .5, 1) both; }
 @keyframes pe-fresh { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -184,14 +205,14 @@ html.pe-mac-away .ov-room > *, html.pe-mac-away .ov-top > * { pointer-events: no
   opacity: 0; transform: translateY(-20px); transition: opacity .35s ease .15s, transform .5s cubic-bezier(.34, 1.36, .5, 1) .15s, top .45s ease; }
 .pe-room.on .pe-top { opacity: 1; transform: none; }
 .pe-room.leaving .pe-top, .pe-room.leaving .pe-back, .pe-room.leaving .pe-sheet, .pe-room.leaving .pe-hint { opacity: 0; transition-delay: 0s; }
-.pe-hint { position: fixed; left: 0; right: 316px; bottom: 14px; margin: 0; text-align: center; font: 500 12.5px/1.3 var(--k-font, Inter, system-ui, sans-serif); opacity: 0; transition: opacity .4s ease .3s; pointer-events: none; }
+.pe-hint { position: fixed; left: 0; right: calc(var(--pe-sheet, 284px) + 32px); bottom: 14px; margin: 0; text-align: center; font: 500 12.5px/1.3 var(--k-font, Inter, system-ui, sans-serif); opacity: 0; transition: opacity .4s ease .3s; pointer-events: none; }
 .pe-room.on .pe-hint { opacity: .55; }
 .pe-room.closing .pe-top, .pe-room.closing .pe-sheet, .pe-room.closing .pe-hint, .pe-room.closing .pe-gal { opacity: 0; transition-delay: 0s; transition-duration: .2s; }
-.pe-room:has(.pe-gal) .pe-hint { opacity: 0; transition-delay: 0s; }
+.pe-room:has(.pe-gal) .pe-hint, .pe-room:has(.pe-undo) .pe-hint, .pe-room:has(.pe-del-ask) .pe-hint { opacity: 0; transition-delay: 0s; }
 
 /* ---------- the side sheet ---------- */
 .pe-sheet {
-  position: fixed; z-index: 3; right: 16px; top: 72px; bottom: 16px; width: 284px; overflow-y: auto; scrollbar-width: thin; padding: 14px; border-radius: 22px; display: grid; gap: 14px; align-content: start;
+  position: fixed; z-index: 3; right: 16px; top: 72px; bottom: 16px; width: var(--pe-sheet, 284px); overflow-y: auto; scrollbar-width: thin; padding: 14px; border-radius: 22px; display: grid; gap: 14px; align-content: start;
   background: rgba(24, 19, 28, .94); border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .8); font: 500 13px/1.3 var(--k-font, Inter, system-ui, sans-serif);
   opacity: 0; transform: translateX(30px); transition: opacity .4s ease .12s, transform .55s cubic-bezier(.22, 1, .36, 1) .12s;
 }
@@ -223,7 +244,7 @@ html.pe-mac-away .ov-room > *, html.pe-mac-away .ov-top > * { pointer-events: no
 
 /* ---------- the gallery ---------- */
 .pe-gal {
-  position: fixed; z-index: 5; left: 16px; right: 316px; bottom: 16px; height: 230px; display: grid; grid-template-rows: auto 1fr; gap: 10px; padding: 14px; border-radius: 24px;
+  position: fixed; z-index: 5; left: 16px; right: calc(var(--pe-sheet, 284px) + 32px); bottom: 16px; height: 230px; display: grid; grid-template-rows: auto 1fr; gap: 10px; padding: 14px; border-radius: 24px;
   background: rgba(24, 19, 28, .97); border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 -20px 60px rgba(0, 0, 0, .6); animation: pe-gal-in .5s cubic-bezier(.34, 1.2, .5, 1) both;
 }
 @keyframes pe-gal-in { from { transform: translateY(110%); } to { transform: none; } }
@@ -241,7 +262,7 @@ html.pe-mac-away .ov-room > *, html.pe-mac-away .ov-top > * { pointer-events: no
 .pe-gal-prev { position: relative; display: flex; height: 92px; border-radius: 10px; overflow: hidden; background: rgba(0, 0, 0, .25); }
 
 @media (prefers-reduced-motion: reduce) {
-  .pe-card, .pe-pill, .pe-plus, .pe-tile, .pe-nav, .pe-sheet, .pe-top, .pe-back, .pe-gal, .pe-gal-i, .pe-pick, .pe-phone-btn, .pe-stage, .pe-shade, .pe-face { transition-duration: .01s !important; animation: none !important; }
+  .pe-card, .pe-card::after, .pe-pill, .pe-plus, .pe-tile, .pe-nav, .pe-sheet, .pe-top, .pe-back, .pe-gal, .pe-gal-i, .pe-pick, .pe-phone-btn, .pe-stage, .pe-shade, .pe-face, .pe-track, .pe-del-at { transition-duration: .01s !important; animation: none !important; }
   html.pe-anim .ov-room, html.pe-anim .ov-top, html.pe-anim .tm-overlay.ed-able { transition-duration: .01s !important; }
 }
 

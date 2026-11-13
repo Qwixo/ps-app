@@ -7,16 +7,16 @@ const inert: any = new Proxy(function () {}, {
   construct: () => ({}),
 });
 const _v0: any = { onMouseMove: (..._a: any[]) => undefined, onMouseLeave: (..._a: any[]) => undefined, onMouseDown: (..._a: any[]) => undefined };
-export function PickButton(_p0?: any, ..._more: any[]): any { return undefined; }
-export function useEdgeScroll(_p0?: any, ..._more: any[]): { [k: string]: any; onMouseMove: (_p0?: any, ..._more: any[]) => void; onMouseLeave: (..._more: any[]) => void; onMouseDown: (..._more: any[]) => void } { return _v0; }
+export function PickButton(_p0?: any, ..._more: any[]): any { return null; }
+export function useEdgeScroll(_p0?: any, ..._more: any[]): { [k: string]: any; onMouseMove: (_p0?: { [k: string]: any; getModifierState?: (...a: any[]) => any; preventDefault?: (...a: any[]) => any; isDefaultPrevented?: (...a: any[]) => any; stopPropagation?: (...a: any[]) => any; isPropagationStopped?: (...a: any[]) => any; persist?: (...a: any[]) => any }, ..._more: any[]) => void; onMouseLeave: (..._more: any[]) => void; onMouseDown: (..._more: any[]) => void } { return _v0; }
 export function ago(_p0?: any, ..._more: any[]): string { return ""; }
-export function CampaignStats(_p0?: any, ..._more: any[]): any { return undefined; }
+export function CampaignStats(_p0?: any, ..._more: any[]): any { return null; }
 export function prettyVal(_p0?: any, _p1?: any, ..._more: any[]): string { return ""; }
-export function Spark14(_p0?: any, ..._more: any[]): any { return undefined; }
-export function GmailAccounts(_p0?: any, ..._more: any[]): any { return undefined; }
+export function Spark14(_p0?: any, ..._more: any[]): any { return null; }
+export function GmailAccounts(_p0?: any, ..._more: any[]): any { return null; }
 export function n0(_p0?: any, ..._more: any[]): string { return ""; }
 export function pct(_p0?: any, _p1?: any, ..._more: any[]): string { return ""; }
 export function fmtDay(_p0?: any, _p1?: any, ..._more: any[]): string { return ""; }
 export function campName(_p0?: any, ..._more: any[]): string { return ""; }
-export function Status(_p0?: any, ..._more: any[]): any { return undefined; }
+export function Status(_p0?: any, ..._more: any[]): any { return null; }
 export function prettyKey(_p0?: any, ..._more: any[]): string { return ""; }

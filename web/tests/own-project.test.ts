@@ -115,7 +115,7 @@ ok("the website's and the phone's CSP stay locked to the developer's project", (
   const pb = read("scripts/postbuild.mjs");
   assert.match(pb, /const SB = "https:\/\/mxusokxekkecebwqgeru\.supabase\.co";/);
   // G Squad chat (V1.40): the website also reaches the G Squad hub, exactly that one project and nothing else.
-  assert.match(pb, /`connect-src 'self' \$\{SB\} \$\{SB\.replace\("https", "wss"\)\} \$\{SQUAD_HUB\}`/);
+  assert.match(pb, /`connect-src 'self' \$\{SB\} \$\{SB\.replace\("https", "wss"\)\} \$\{SQUAD_HUB\} \$\{GH_RAW\}`/);
   assert.match(pb, /const SQUAD_HUB = "https:\/\/zxhvchchfrkfqxuyorqo\.supabase\.co";/);
   // G Squad, the mobile web app (/todolist-mobile/), talks to each friend's OWN project: its policy alone has the
   // wildcard, made from the website's by swapping connect-src. The website's own policy never has it.

@@ -29,8 +29,17 @@ export interface SquadView {
   dir?: DirView | null;          // V1.42: See available squads and your request (squad/direngine.ts)
   asks?: SquadAsk[];             // V1.42: requests to join waiting for you, the admin
   /** V1.49 one squad, everyone in: where your automatic join stands while you are not in (squad/autoengine.ts). */
-  auto?: { stage: AutoStage; error?: string | null } | null;
+  auto?: { stage: AutoStage; error?: string | null; /** V1.57 asked: the check code the admin sees too */ code?: string | null } | null;
   friend?: FriendView | null;    // V1.44 Add friend: the QR code's link (made fresh each time the page opens)
+}
+/** Where the automatic join stands, as the Tab list may take it from PS (squad/mirror.ts). V1.57: "asked" with its
+ *  check code (the code only for that stage). */
+const AUTO_STAGES = new Set(["joining", "asked", "left", "removed", "full", "error"]);
+export function cleanAutoView(v: unknown): SquadView["auto"] {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object" || typeof o.stage !== "string" || !AUTO_STAGES.has(o.stage)) return null;
+  return { stage: o.stage as AutoStage, error: typeof o.error === "string" ? o.error.slice(0, 200) : null,
+    ...(o.stage === "asked" && typeof o.code === "string" ? { code: o.code.slice(0, 8) } : {}) };
 }
 /** V1.44 Add friend, as the Tab list sees it (squad/addfriend.ts makes it). */
 export type FriendView =

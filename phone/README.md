@@ -1,8 +1,8 @@
 # PS GOS
 
 PS for Android, built and tested on a Pixel running GrapheneOS. The same web app as cincee.com/client and PS
-on the Mac (`~/Projects/ps/web`), inside a small Kotlin shell. No store listing: the APK and its updates
-come from cincee.com/client/gos/.
+on the Mac (`~/Projects/ps/web`), inside a small Kotlin shell. No store listing: the first APK comes from
+cincee.com/client/gos/, and its updates from GitHub (github.com/RedbyPS/ps).
 
 - What GrapheneOS changes and how PS copes: [docs/gos-findings.md](docs/gos-findings.md)
 - Building, releasing, the signing key: [docs/release.md](docs/release.md)
@@ -12,7 +12,7 @@ come from cincee.com/client/gos/.
 
 - The page is bundled inside the APK and served from `https://appassets.androidplatform.net/client/`
   (a secure origin, so WebCrypto works offline too) with the same strict Content-Security-Policy as
-  the website. It talks to the Supabase vault, cincee.com for update checks (Settings, "Check for updates
+  the website. It talks to the Supabase vault, GitHub for update checks (Settings, "Check for updates
   every", Off stops them), the G Squad hub if you are in The G Squad, Telegram only if you add your own bot,
   and youtube-nocookie.com only when you open a video in Goals.
 - Home is the Tab list from the Mac in three panes a thumb can reach: Plan (clocks, timelines,

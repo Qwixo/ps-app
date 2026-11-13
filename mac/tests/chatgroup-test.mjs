@@ -121,4 +121,13 @@ const card = (id, title, life = 10, sub = "Claude finished", at = T0) => ({ id, 
   ok("a clock a little behind never says minus", ChatRows.ago(T0 + 5000, T0) === "just now");
 }
 
+// V1.57: the card stack self test (Sources/StackSelfTest.swift) needs cards that each stay their own card. Finished AI
+// chat cards are rows of one bubble, so with them the stack never held more than one card and the 3 and 12 card checks
+// failed (found 13 Nov 2026 after V1.57's merge; the bubble came in V1.56).
+{
+  const st = readFileSync(join(here, "..", "Sources", "StackSelfTest.swift"), "utf8");
+  const addFn = st.slice(st.indexOf("func add(_ i: Int)"), st.indexOf("func addMany("));
+  ok("the stack self test adds cards that stack (not AI chat rows)", addFn.includes('"tone": "mail"') && !addFn.includes('"tone": "done"') && !/c:test-s/.test(st));
+  ok("this page groups only AI chat cards into the bubble", /if\(d\.kind==='meet'&&d\.tone==='done'\)\{addChat\(d\);return\}/.test(script));
+}
 console.log(`\n${passed} AI chats bubble checks passed`);

@@ -9,7 +9,7 @@
 | Web build for the phone | `vite build --mode gos` into `web/dist-gos`, copied into the APK by `scripts/build-web.sh` |
 | Release signing key | `~/.ps-gos-signing/ps-gos-release.jks` and `keystore.properties` (passwords, certificate SHA-256). OUTSIDE git. |
 | Release files | `~/Projects/ps/phone/release/` (gitignored), staged in `web/gos-release/` (gitignored) |
-| Update path on the web | `https://cincee.com/client/gos/version.json` and `ps-gos-<version>.apk`: unlisted, `X-Robots-Tag: noindex`, in no sitemap, linked from nowhere |
+| Update path on the web | Since V1.57: the public PS repo's newest GitHub release, `https://github.com/RedbyPS/ps/releases/latest/download/gos-version.json` and `ps-gos-<version>.apk` (web `scripts/github-channel.mjs`). V1.56 and older: `https://cincee.com/client/gos/version.json`, still filled by every release so they can move on |
 | First install copy | Google Drive `YOUR_SYNC_FOLDER/PS App/GOS/ps-gos-<version>.apk` |
 | Package names | release `com.cincee.ps.gos`, debug `com.cincee.ps.gos.debug` (they can sit side by side) |
 

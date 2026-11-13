@@ -12,3 +12,6 @@ rm -rf "$OUT"
 A="$HERE/Sources/AiDone.swift"
 [ "$(grep -c 'installer.install(' "$A")" = "1" ] && grep -q 'on ? installer.install(t) : installer.uninstall(t)' "$A" && ! grep -q 'i.install(.claude)' "$A" || { echo "no-hook-at-launch=FAIL"; exit 1; }
 echo "no-hook-at-launch=ok"
+# V1.57: the card carries the prompt's turn so the page shows one card per prompt.
+grep -q 'if !turn.isEmpty { item\["turn"\] = turn }' "$A" || { echo "turn-sent=FAIL"; exit 1; }
+echo "turn-sent=ok"

@@ -2,7 +2,7 @@ import AppKit
 import WebKit
 
 // Self test for the capped, scrollable card stack (Toast.swift; the developer, 31 Oct 2026: "make it so they don't
-// take up the whole screen... so I can just scroll over them"). FICTIONAL finished chat cards only.
+// take up the whole screen... so I can just scroll over them"). FICTIONAL client email cards only.
 // Checks: 1, 3 and 12 cards (never taller than Toast.cap, the window exactly as tall as what shows, the
 // fade only while more waits below, the "N notifications" bar inside the window), the window never
 // resizes while the stack stays capped, real wheel events over a card's text scroll the stack and leave
@@ -26,9 +26,11 @@ extension SelfTest {
     func geom(_ f: @escaping ([String: Any]) -> Void) { js("window.__note.geom()") { v in f(v as? [String: Any] ?? [:]) } }
     func num(_ g: [String: Any], _ k: String) -> Double { (g[k] as? Double) ?? Double(g[k] as? Int ?? -9999) }
     let iso = ISO8601DateFormatter()
+    // Client email cards: each is its own card on the stack. (Finished AI chat cards are rows of ONE bubble since V1.56,
+    // so they never make a stack of 3 or 12; tests/chatgroup-test.mjs checks the bubble, this checks the stack.)
     func add(_ i: Int) {
-      t.showMeet(["id": "c:test-s\(i)", "tone": "done", "icon": "done", "title": "Fictional chat \(i)", "sub": "Claude finished",
-                  "at": iso.string(from: Date()), "discreetText": "A Claude chat finished", "remind": ["start": 2, "step": 1, "min": 1, "max": 240]])
+      t.showMeet(["id": "m:test-s\(i)", "tone": "mail", "icon": "mail", "title": "Fictional email \(i)", "sub": "Fictional client",
+                  "at": iso.string(from: Date()), "discreetText": "New email", "remind": ["start": 2, "step": 1, "min": 1, "max": 240]])
     }
     func addMany(_ from: Int, _ to: Int, _ f: @escaping () -> Void) {
       guard from <= to else { return later(1.6, f) }
@@ -135,7 +137,7 @@ extension SelfTest {
     }
 
     // The top visible card's own parts (s12 is the newest, at the top).
-    let top = ".card[data-id=\"c:test-s12\"]"
+    let top = ".card[data-id=\"m:test-s12\"]"
     let label = "(document.querySelector('\(top) button.rem')||{}).textContent"
     // The card nearest the middle of the list, and where it is on screen.
     let mid = "(function(){var l=document.getElementById('list').getBoundingClientRect(),m=(l.top+l.bottom)/2,best=null,d=1e9;[].forEach.call(document.querySelectorAll('.card'),function(c){var b=c.getBoundingClientRect(),k=Math.abs((b.top+b.bottom)/2-m);if(k<d){d=k;best=c}});return best?{id:best.dataset.id,y:best.getBoundingClientRect().top}:null})()"
@@ -272,9 +274,9 @@ extension SelfTest {
       add(14)
       later(1.4) {
         geom { g in
-          js("(function(){var cs=[].slice.call(document.querySelectorAll('.card')).sort(function(a,b){return a.getBoundingClientRect().top-b.getBoundingClientRect().top});var n=document.querySelector('.card[data-id=\"c:test-s14\"]');return {id:cs[0]&&cs[0].dataset.id,op:n?getComputedStyle(n).opacity:''}})()") { v in
+          js("(function(){var cs=[].slice.call(document.querySelectorAll('.card')).sort(function(a,b){return a.getBoundingClientRect().top-b.getBoundingClientRect().top});var n=document.querySelector('.card[data-id=\"m:test-s14\"]');return {id:cs[0]&&cs[0].dataset.id,op:n?getComputedStyle(n).opacity:''}})()") { v in
             let d = v as? [String: Any] ?? [:]
-            r.append(("new-card-at-top-when-at-top", num(g, "top") == 0 && (d["id"] as? String) == "c:test-s14" && (d["op"] as? String) == "1" && (g["newer"] as? String) == ""))
+            r.append(("new-card-at-top-when-at-top", num(g, "top") == 0 && (d["id"] as? String) == "m:test-s14" && (d["op"] as? String) == "1" && (g["newer"] as? String) == ""))
             pictures("stack-top-new", screen: false) { axisLock() }
           }
         }
@@ -283,7 +285,7 @@ extension SelfTest {
 
     // ---------- trackpad gestures lock to one axis ----------
     func axisLock() {
-      let target = ".card[data-id=\"c:test-s13\"]"
+      let target = ".card[data-id=\"m:test-s13\"]"
       // Bring a known card to the middle, so both gestures start on it.
       js("(function(){var l=document.getElementById('list'),c=document.querySelector('\(target)');l.scrollTop+=c.getBoundingClientRect().top-l.getBoundingClientRect().top-l.clientHeight/2+c.offsetHeight/2;return l.scrollTop})()") { _ in
         later(0.6) {
@@ -311,7 +313,7 @@ extension SelfTest {
                       gesture(q.0, q.1, side) {
                         later(0.4) {
                           geom { g2 in
-                            r.append(("sideways-swipes-not-scrolls", got.contains("c:test-s13:dismiss") && num(g2, "n") == num(g1, "n") - 1 && abs(num(g2, "top") - num(g1, "top")) <= 1))
+                            r.append(("sideways-swipes-not-scrolls", got.contains("m:test-s13:dismiss") && num(g2, "n") == num(g1, "n") - 1 && abs(num(g2, "top") - num(g1, "top")) <= 1))
                             print("STACK AXIS h: scroll \(Int(num(g1, "top")))->\(Int(num(g2, "top"))) cards \(Int(num(g1, "n")))->\(Int(num(g2, "n"))) actions \(got.suffix(3))")
                             geom { gw in
                               let w = window(gw)

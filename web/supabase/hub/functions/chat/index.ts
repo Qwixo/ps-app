@@ -63,7 +63,8 @@ async function handle(body: Record<string, unknown>) {
   const args = (body.args && typeof body.args === "object" ? body.args : {}) as Record<string, unknown>;
   if (!/^c_[a-z]{2,10}$/.test(act) || !/^[A-Za-z0-9_-]{16,32}$/.test(nonce) || !B64.test(sig) || sig.length > 200) throw new Fail(400, "bad request");
   if (!Number.isInteger(ts) || Math.abs(Date.now() / 1000 - ts) > 120) throw new Fail(401, "clock");
-  const me = must(await db.from("squad_members").select("id, squad_id, sign_pub").eq("id", uuid(member)).is("left_at", null).maybeSingle()) as Me | null;
+  // V1.57 invite only (invite_001_invite_only.sql): someone asking to join (not let in yet) is not a member here.
+  const me = must(await db.from("squad_members").select("id, squad_id, sign_pub").eq("id", uuid(member)).is("left_at", null).eq("admitted", true).maybeSingle()) as Me | null;
   if (!me) throw new Fail(403, "not a member");
   if (!(await verify(me.sign_pub, act, member, ts, nonce, body.args ?? null, sig))) throw new Fail(401, "signature");
   const used = await db.from("squad_nonces").insert({ member_key: await sha256hex(me.sign_pub), nonce });
@@ -92,7 +93,7 @@ async function handle(body: Record<string, unknown>) {
         else q = q.eq("deleted", false).order("created_at", { ascending: false }).limit(FIRST_LOAD);
         msgs = must(await q) as unknown[];
       }
-      let mq = db.from("squad_members").select("id, sign_pub, box_pub, card_ct, card_gen, joined_at, left_at, updated_at").eq("squad_id", me.squad_id).limit(100);
+      let mq = db.from("squad_members").select("id, sign_pub, box_pub, card_ct, card_gen, joined_at, left_at, updated_at").eq("squad_id", me.squad_id).eq("admitted", true).limit(100);
       if (since && !before) mq = mq.gt("updated_at", since);
       const members = before ? [] : must(await mq);
       return { now, status, drops: myDrops, members, msgs, more: !since && msgs.length >= (before ? PAGE : FIRST_LOAD) };

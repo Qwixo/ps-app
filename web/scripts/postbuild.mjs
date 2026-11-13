@@ -6,13 +6,16 @@ import { approved as psDownloadApproved, files as psDownloadFiles } from "./ps-d
 const SB = "https://mxusokxekkecebwqgeru.supabase.co";
 // G Squad hub (V1.40): the website reaches only its chat (src/squad/chathub.ts); every call is signed, nothing secret.
 const SQUAD_HUB = "https://zxhvchchfrkfqxuyorqo.supabase.co";
+// V1.57: the website's "New version" look reads web-version.json from the public PS repo on GitHub, not cincee.com
+// (src/core/webupdate.ts WEB_CHANNEL). Only that host, nothing else on GitHub runs or loads.
+const GH_RAW = "https://raw.githubusercontent.com";
 const csp = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "img-src 'self' data: blob:",
-  `connect-src 'self' ${SB} ${SB.replace("https", "wss")} ${SQUAD_HUB}`,
+  `connect-src 'self' ${SB} ${SB.replace("https", "wss")} ${SQUAD_HUB} ${GH_RAW}`,
   "worker-src 'self'",
   "manifest-src 'self'",
   // Only the Goals "How it works" video (privacy friendly YouTube host), only once its pop-up opens.

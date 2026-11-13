@@ -108,6 +108,56 @@ export function resurrectList<T extends Task>(all: Doc<T>[], p: ListPrefs, now: 
     .sort((a, b) => doneMs(b.data) - doneMs(a.data)).slice(0, COMPLETED_MAX);
 }
 
+// ---------- All completed, and picking tasks to Resurrect (V1.57) ----------
+// The developer, 13 Nov 2026: "scroll to the bottom and be able to view all the completed tasks" and "CMD + left click tasks and
+// then click the resurrect button to only resurrect certain tasks". Completed keeps Today / 7 / 30 days; a "Show all
+// completed" row at its end opens the whole history (every one-off ever ticked, the cleared ones too, newest first),
+// drawn a page at a time as the list scrolls so hundreds of rows stay smooth. In Completed, Cmd + click (Ctrl + click
+// off a Mac; a long press on the phone) picks a task; with any picked, Resurrect brings back only those.
+
+/** Rows drawn per step in the all completed history (the first step, then one more each time the end scrolls in). */
+export const HISTORY_PAGE = 40;
+
+/** Every completed one-off, newest tick first, with no keep window and no cap: the cleared ones too (Clear and a reset
+ *  only take a task out of the short Completed section, it was still completed). Repeating tasks never count.
+ *  A task with no tick time sorts last. */
+export function allCompletedList<T extends Task>(all: Doc<T>[]): Doc<T>[] {
+  const ms = (d: Doc<T>) => { const t = doneMs(d.data); return Number.isFinite(t) ? t : -Infinity; };
+  return all.filter((d) => d.data.type !== "daily" && d.data.done).sort((a, b) => ms(b) - ms(a) || (a.id < b.id ? -1 : 1));
+}
+
+/** How many completed tasks the history has beyond the ones Completed already shows (0: no "Show all completed" row). */
+export function moreCompleted(history: Doc<Task>[], shown: Doc<Task>[]): number {
+  const have = new Set(shown.map((d) => d.id));
+  return history.reduce((n, d) => n + (have.has(d.id) ? 0 : 1), 0);
+}
+
+/** The first `pages` pages of a list (what the history draws), and whether there is more below. */
+export function historySlice<T>(list: T[], pages: number): { rows: T[]; more: boolean } {
+  const n = Math.max(1, Math.floor(pages)) * HISTORY_PAGE;
+  return { rows: list.slice(0, n), more: list.length > n };
+}
+
+/** Does this click pick a task? Cmd on a Mac, Ctrl elsewhere (Ctrl + click on a Mac is a right click, so it never picks). */
+export function isPickClick(e: { metaKey: boolean; ctrlKey: boolean }, mac: boolean): boolean {
+  return mac ? e.metaKey : e.ctrlKey || e.metaKey;
+}
+
+/** What Resurrect brings back: the picked tasks that are completed (in the order they show), or when none of them are
+ *  (nothing picked, or only open tasks picked), everything it brought back before (`back`). `visible` are the rows
+ *  Completed shows right now (the history included), so a task picked in the history can come back too. */
+export function resurrectTargets<T>(back: Doc<T>[], visible: Doc<T>[], picked: ReadonlySet<string>): Doc<T>[] {
+  if (!picked.size) return back;
+  const seen = new Set<string>(), out: Doc<T>[] = [];
+  for (const d of [...visible, ...back]) if (picked.has(d.id) && !seen.has(d.id)) { seen.add(d.id); out.push(d); }
+  return out.length ? out : back;
+}
+
+/** A long press on the phone: a touch held this long without moving this far picks the task. */
+export const LONG_PRESS_MS = 450;
+export const LONG_PRESS_SLOP = 10;
+export function longPressMoved(dx: number, dy: number): boolean { return Math.hypot(dx, dy) > LONG_PRESS_SLOP; }
+
 // ---------- list changes from the Tab list in PS (its main window does the saving) ----------
 // done: several tasks ticked or unticked at once (Complete all, Resurrect and their Undo); clear / unclear: Clear and
 // its Undo; revive: Resurrect of tasks a reset or Clear took off (not cleared any more, not done); bury: its Undo

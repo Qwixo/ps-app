@@ -73,8 +73,11 @@ export function androidName(maker: string, model: string): string {
 /** Where the phone button sits in the Mac's Edit overview: top left, and below the Dynamic Island when the island is
  *  over that corner (the developer: the island must never cover it). island: the island's box in page pixels, or null. */
 export type Box = { left: number; top: number; right: number; bottom: number };
+/** The phone button's size (px, square). V1.57 (the developer: "make the mobile icon on the top left much bigger, same as the macOS
+ *  icon"): 48, the same for both faces (the phone while the Mac shows, the Mac while the phone shows). */
+export const PHONE_BTN = 48;
 export function phoneButtonSpot(island: Box | null, vw: number, opts: { size?: number; left?: number; top?: number } = {}): { left: number; top: number } {
-  const size = opts.size ?? 40, left = opts.left ?? 20, top = opts.top ?? 16;
+  const size = opts.size ?? PHONE_BTN, left = opts.left ?? 20, top = opts.top ?? 16;
   const me: Box = { left, top, right: left + size, bottom: top + size };
   if (!island) return { left, top };
   const gap = 10;

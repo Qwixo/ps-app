@@ -24,13 +24,14 @@ import { morphFade, morphFrames } from "../ui/morphframes";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DIMX_COLORS, type AwareItem, type DimxItem, type DimxStyle, type DimxZone, type Doc, type Todo } from "../core/model";
-import { fmtDate } from "../ui/kit";
+import { fmtDate, useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { PS, psPost } from "../ps";
 import { orderForPriority, taskMapActions } from "./TaskMap";
 import { p1AfterMove, prioNumbers } from "../core/prio";
-import { PrioInput, useTypedPrio } from "./TypedPrio";
-import { typedOrder, type PrioNum } from "../core/typedprio";
+import { PrioInput, typedPrioOn, useTypedPrio } from "./TypedPrio";
+import { settingsData } from "../core/select";
+import { renamedPrio, typedEdit, typedOrder, type PrioNum } from "../core/typedprio";
 import { DimxLists, MoveMenu, listsEscape } from "./DimxLists";
 import { INBOX_NAME } from "../core/aiinbox";
 import "./dimx.css";
@@ -328,6 +329,7 @@ function Board({ prio, aware, dimx, inbox, ready, escRef, view, onClose }: {
   prio: Doc<Todo>[]; aware: AwareItem[]; dimx: DimxItem[]; inbox: Doc<Todo>[]; ready: boolean; escRef: React.MutableRefObject<() => boolean>;
   view: "ideas" | "lists"; onClose: () => void;
 }) {
+  const typedOn = typedPrioOn(settingsData(useVault()));
   const [hold, setHold] = useState<Hold | null>(null);
   useEffect(() => {
     if (!hold) return;
@@ -692,7 +694,24 @@ function Board({ prio, aware, dimx, inbox, ready, escRef, view, onClose }: {
     const cur = vRef.current;
     if (isBand(card.zone)) { const next = cur.dimx.map((x) => (x.id === card.id ? { ...x, text: t.slice(0, 500) } : x)); keep({ dimx: next }); void taskMapActions.dimx(next); }
     else if (card.zone === "ai") { keep({ ai: cur.ai.map((p) => (p.id === card.id ? { ...p, title: t } : p)) }); void taskMapActions.update(card.id, { title: t.slice(0, 500) }); }
-    else { keep({ prio: cur.prio.map((p) => (p.id === card.id ? { ...p, title: t } : p)) }); void taskMapActions.update(card.id, { title: t.slice(0, 500) }); }
+    else {
+      // V1.57: P1, P2 or P3 typed into the name while editing sets the priority, as in Add task (core/typedprio.ts).
+      const typed = typedOn ? renamedPrio(card.text, t) : null;
+      if (typed && typed.title) {
+        const ranked = cur.prio.filter((p) => !p.pending).map((p) => ({ id: p.id, ...(prioDocs.current.get(p.id)?.data ?? {}) })) as { id: string; order?: number; p1?: boolean; unranked?: boolean }[];
+        const at = typedEdit(ranked, card.id, typed.prio);
+        const title = typed.title.slice(0, 500);
+        if (!at) { keep({ prio: cur.prio.map((p) => (p.id === card.id ? { ...p, title } : p)) }); void taskMapActions.update(card.id, { title }); return; }
+        const me = cur.prio.find((p) => p.id === card.id);
+        const rest = cur.prio.filter((p) => p.id !== card.id);
+        const group = rest.filter((p) => p.p1).length, numbered = rest.filter((p) => !p.p1 && !p.unranked).length;
+        const index = at.p1 ? group : group + Math.min(typed.prio - 2, numbered);
+        keep({ prio: insertAt(rest, { ...(me ?? { id: card.id }), title, p1: at.p1, unranked: false }, index) });
+        void taskMapActions.update(card.id, { title, p1: at.p1, order: at.order, unranked: false });
+        return;
+      }
+      keep({ prio: cur.prio.map((p) => (p.id === card.id ? { ...p, title: t } : p)) }); void taskMapActions.update(card.id, { title: t.slice(0, 500) });
+    }
   };
   /** A band card goes: it shrinks away, the others close the gap, and Undo can bring it back. */
   const removeCard = (card: Card) => {

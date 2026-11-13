@@ -283,6 +283,15 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     web.loadHTMLString(Toast.page, baseURL: nil)
   }
 
+  /// V1.57 private mode: the pill a pop up with a window of its own waits behind (PrivateHold.swift). Only the two lines.
+  func showPill(_ key: String) {
+    setUp()
+    let id = PrivateCore.cardId(key)
+    let card: [String: Any] = ["id": id, "title": PrivateCore.title, "sub": PrivateCore.sub, "pill": true, "sticky": true]
+    guard let data = try? JSONSerialization.data(withJSONObject: card), let json = String(data: data, encoding: .utf8) else { return }
+    deliver(json, id: id, kind: NoteDrop.kind(id: id, tone: nil), at: nil)
+  }
+
   /// Plain one-liners keep working: the line becomes the headline.
   func show(_ text: String) { show(title: text) }
 
@@ -416,7 +425,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     if ready { web.evaluateJavaScript("window.__note.look(\(json))", completionHandler: nil) }
   }
   private func chimeOther(_ key: String) {
-    guard let name = otherSound else { return }
+    guard let name = otherSound, PrivateCore.cardSound(privateOn: PrivateHold.shared.on) else { return }   // V1.57: silent in private mode
     let now = Date()
     chimed = chimed.filter { now.timeIntervalSince($0.value) < 600 }
     if chimed[key] != nil { return }
@@ -427,6 +436,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   /// 29 Oct 2026): cards already showing hide or show their details, new ones arrive to match.
   func meetPrivacy(_ on: Bool) {
     privacyNow = on
+    if role == .corner { PrivateHold.shared.set(on) }   // V1.57: pop ups with windows of their own wait behind pills
     if ready { web.evaluateJavaScript("window.__note.privacy(\(on))", completionHandler: nil) }
     if role == .corner, islandMade { islandStack.meetPrivacy(on) }
   }
@@ -578,6 +588,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     case "typing":   // a remind time is being typed (on), or that ended (off)
       if (msg["on"] as? Bool) == true { startTyping() } else { stopTyping() }
     case "action":
+      // V1.57: a waiting pop up's pill. Its click brings the pop up out; a swipe or Clear all only takes the pill away.
+      if let id = msg["id"] as? String, let key = PrivateCore.key(ofCard: id) { if (msg["action"] as? String) == "show" { PrivateHold.shared.opened(key) }; return }
       if let id = msg["id"] as? String, let action = msg["action"] as? String { onAction?(String(id.prefix(40)), String(action.prefix(20))) }
     default: break
     }
@@ -679,7 +691,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             self.web.evaluateJavaScript(look) { p, _ in
               let ps = p as? String ?? ""
-              print("LEAD CHECK: shown=\(shown ? "ok" : "FAIL") private-mode-hides=\(!ps.contains("Lena") && !ps.contains("example.com") && ps.contains("New lead reply") ? "ok" : "FAIL") key=\(self.panel.isKeyWindow)")
+              print("LEAD CHECK: shown=\(shown ? "ok" : "FAIL") private-mode-hides=\(!ps.contains("Lena") && !ps.contains("example.com") && ps.contains("New notification") && ps.contains("Private mode is on") ? "ok" : "FAIL") key=\(self.panel.isKeyWindow)")
               self.meetPrivacy(false)
               self.web.evaluateJavaScript("document.getElementById('clear').click()", completionHandler: nil)
               DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { self.noteLookSelfTest(dir) { SelfTest.stackCheck(dir, done) } }
@@ -819,6 +831,19 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   .meet.discreet .hid{display:block;margin:4px 0 0 33px;font-size:11.5px;font-weight:650;color:rgba(255,255,255,.55)}
   .meet.discreet{animation:none;background:rgba(24,16,21,.96);border-color:rgba(255,255,255,.22)}
   .meet.discreet .ic{background:rgba(255,255,255,.12);color:rgba(255,255,255,.8)}
+  /* V1.57 private mode (a friend of the developer's: "In private mode, PS still shows the full cards with their sounds, covering the
+     screen"): while it is on, EVERY card is a small pill that says only "New notification" and "Private mode is on",
+     nothing of what it is about, until it is clicked (or private mode goes off, or Tab is held). */
+  .pv{display:none}
+  .card.pill{left:auto;right:14px;width:max-content;max-width:calc(100% - 28px);border-radius:99px;animation:none;
+    background:rgba(24,20,24,.96);border-color:rgba(255,255,255,.2);cursor:pointer}
+  body.isl .card.pill{left:0;right:0;margin:0 auto}
+  .card.pill>.in,.card.pill>.x,.card.pill>.life{display:none}
+  .card.pill .pv{display:flex;align-items:center;gap:8px;padding:7px 14px 7px 9px;white-space:nowrap}
+  .pv .pi{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.12);color:rgba(255,255,255,.82)}
+  .pv .pi svg{width:12px;height:12px}
+  .pv b{font-size:13px;font-weight:700;color:#fff}
+  .pv span{font-size:11.5px;font-weight:650;color:rgba(255,255,255,.55)}
   /* V1.55: out of the Dynamic Island (Toast.islandChanged). A new card is born as a sliver of the island's width at the
      top of the window, right under the island while it swells, and pours down into its place on a slightly springier
      spring; a dismissed one shrinks back up into the island, sliding behind the cards above it. Above the island
@@ -920,8 +945,23 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     ICON.swap='<path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>';
     function svg(k){var s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 24 24');s.setAttribute('fill','none');s.setAttribute('stroke','currentColor');s.setAttribute('stroke-width','2.3');s.setAttribute('stroke-linecap','round');s.setAttribute('stroke-linejoin','round');s.innerHTML=ICON[k]||ICON.soon;return s}
     function until(iso){var m=Math.round((Date.parse(iso)-Date.now())/60000);if(isNaN(m))return'';if(m<0)return'Started '+(-m)+' min ago';if(m<1)return'Starting now';if(m<60)return'In '+m+' min';if(m>=2880)return'In '+Math.round(m/1440)+' days';return'In '+Math.floor(m/60)+' h'+(m%60?' '+(m%60)+' min':'')}
-    function shut(c){return c.data.kind==='meet'&&c.data.discreet&&!c.shown&&!revealAll}
+    // >>> private pill model: pure, no page. tests/privatepill-test.mjs runs this block on its own.
+    var Pill={
+      t:'New notification',s:'Private mode is on',
+      // Is this card a pill right now? A pop up with a window of its own waiting behind one always is (PrivateHold.swift);
+      // any other card while private mode is on, until it is clicked open or Tab is held (and a meeting card sent discreet).
+      shut:function(c,priv,reveal){return !!(c.data.pill||((priv||(c.data.kind==='meet'&&c.data.discreet))&&!c.shown&&!reveal))}
+    };
+    // <<< private pill model
+    function shut(c){return Pill.shut(c,privacyOn,revealAll)}
+    // The pill itself, on every card: a lock and the two lines, nothing else.
+    function pillEl(c){
+      if(c.pv)return;
+      c.pv=el('div','pv');var pi=el('span','pi');pi.appendChild(svg('lock'));c.pv.appendChild(pi);
+      c.pv.appendChild(el('b','',Pill.t));c.pv.appendChild(el('span','',Pill.s));c.el.appendChild(c.pv);
+    }
     function paint(c){
+      pillEl(c);c.el.classList.toggle('pill',shut(c));
       if(c.group){var g=shut(c);c.el.classList.toggle('discreet',g);c.ic.innerHTML='';c.ic.appendChild(svg(g?'lock':'done'));c.dt.textContent=ChatRows.discreet(c.m);return}
       if(c.data.kind!=='meet')return;var d=shut(c);c.el.classList.toggle('discreet',d);c.ic.innerHTML='';c.ic.appendChild(svg(d?'lock':(c.data.icon||c.data.tone)));c.t.textContent=d?(c.data.discreetText||'A meeting alert'):c.data.title}
     function ago(t){var m=Math.round((Date.now()-t)/60000);return m<1?'now':m<60?m+'m':Math.round(m/60)+'h'}
@@ -1244,6 +1284,9 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       if(c.swallow){c.swallow=false;return}   // that was a drag
       var t=e.target;
       if(t.tagName==='INPUT')return;
+      // V1.57 private mode: a pop up waiting behind a pill comes out (Swift shows its own window); any other pill shows its card.
+      if(c.data.pill){post({type:'action',id:c.data.id,action:'show'});remove(c);return}
+      if(shut(c)){c.shown=true;paint(c);if(c.group)groupHead(c);layout();return}
       if(t.classList.contains('x')){answer(c,'dismiss');remove(c);return}
       if(c.group&&t.closest&&t.closest('.rx')){                      // one chat's own x: only that row goes
         var row=t.closest('.row'),r=row&&ChatRows.drop(c.m,row.dataset.id);
@@ -1251,7 +1294,6 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         return;
       }
       if(c.data.kind==='meet'){
-        if(shut(c)){c.shown=true;paint(c);layout();return}          // discreet: the first click shows it
         if(t.classList.contains('rv')){edit(c);return}               // the time: type one
         if(t.closest&&t.closest('.rem')){if(!c.editing){answer(c,'remind:'+c.mins);remove(c)}return}
         if(t.dataset&&t.dataset.reply){answer(c,'reply');return}       // Reply: the compose window opens; the card stays until it is sent
@@ -1290,7 +1332,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     }
     window.__note={
       look:look,
-      privacy:function(on){privacyOn=!!on;cards.forEach(function(c){if(c.data.kind==='meet'){c.data.discreet=!!on;if(on){c.shown=false;if(c.editing)endEdit(c,false)}paint(c)}});layout()},
+      // V1.57: every card, not only meeting ones: on, each becomes a pill again; off, each shows as itself.
+      privacy:function(on){privacyOn=!!on;cards.forEach(function(c){if(c.data.kind==='meet'||c.group)c.data.discreet=!!on;if(on){c.shown=false;if(c.editing)endEdit(c,false)}paint(c)});layout()},
       reveal:function(on){revealAll=!!on;cards.forEach(paint);layout()},
       max:function(h){if((h||700)!==maxH){maxH=h||700;layout()}},
       mode:function(m){
@@ -1364,6 +1407,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
           if(d.sub)c.inner.appendChild(el('div','sub',d.sub));
           if(d.body)c.inner.appendChild(el('div','b',d.body));
           if(d.url)c.inner.appendChild(el('div','go','Click to open in Gmail'));
+          paint(c);   // V1.57: a pill while private mode is on
         }
         if(d.actions&&d.actions.length){
           var acts=el('div','acts');

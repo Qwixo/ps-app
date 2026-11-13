@@ -218,6 +218,12 @@ export function fingerDx(deltaX: number, inverted: boolean | undefined): number 
 export function pageDx(fx: number, dir: SwipeDir): number {
   return dir === "drag" ? fx : -fx;
 }
+/** Settings, Controls, "Invert swipe" (V1.57, the developer 13 Nov 2026: "make an option in settings ... to make it inverted"):
+ *  -1 flips every page swipe (the Mac's trackpad, a finger on the phone or a touch screen, the phone's panes and pages
+ *  of panels), 1 leaves it as it is. Off (missing) by default. The arrow keys and the dots are not swipes: unchanged. */
+export const swipeSign = (invert: unknown): 1 | -1 => (invert === true ? -1 : 1);
+/** A page swipe's move after Invert swipe: the same number, or the other way. */
+export const swiped = (dx: number, invert: unknown) => dx * swipeSign(invert);
 
 // ---------- the page slide ----------
 /** Where the pages sit for a move of dx from page `index`: one to one, and past the first or last page it stretches

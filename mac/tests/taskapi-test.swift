@@ -116,6 +116,9 @@ check(!TaskApiCore.logLine(get!.what, 200, ms: 4).contains("inbox") && !TaskApiC
 // ---------- Sentry mode: start only ----------
 check(TaskApiCore.scopeDefaults["sentry"] == false && TaskApiCore.cleanScopes(nil)["sentry"] == false, "Start Sentry mode is off unless switched on")
 check(TaskApiCore.cleanScopes(["sentry": true])["sentry"] == true, "Start Sentry mode can be switched on")
+check(TaskApiCore.scopeDefaults["gym"] == false && TaskApiCore.cleanScopes(nil)["gym"] == false, "the gym switch is off unless switched on (V1.57)")
+check(TaskApiCore.cleanScopes(["gym": true])["gym"] == true, "the gym switch can be switched on, so the page hears it")
+check(TaskApiCore.scopeDefaults["settings"] == false && TaskApiCore.cleanScopes(["settings": true])["settings"] == true, "the settings switch (Invert swipe): off unless switched on, heard when on")
 let sentryReq = ok(TaskApiCore.parse(req("POST /v1/sentry/start HTTP/1.1\nHost: localhost\n\(auth)\n")))!
 check(TaskApiCore.answerWait(sentryReq) == 40 && TaskApiCore.answerWait(get!) == 15, "starting Sentry mode may take its checks' time; everything else 15 s")
 let src = (try? String(contentsOfFile: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "", encoding: .utf8)) ?? ""

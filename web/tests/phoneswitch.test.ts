@@ -15,8 +15,8 @@ const css = src("src/views/phoneeditor.css");
 
 ok("into the phone: the Mac pages fly into the icon's spot, then the phone grows out of it", () => {
   assert.match(ed, /phoneSfx\.zoomIn\(\);\s*macAway\(true, centre\);\s*setOpen\(o\); setStage\("toPhone"\);\s*later\(\(\) => setStage\("phone"\), T_SWAP\);/);
-  assert.match(ed, /const centre = \{ x: spot\.left \+ 20, y: spot\.top \+ 20 \};/, "the spot is the icon's centre");
-  assert.match(ed, /"--pe-rx", `\$\{Math\.round\(p\.x - window\.innerWidth \/ 2\)\}px`/);
+  assert.match(ed, /const centre = \{ x: spot\.left \+ PHONE_BTN \/ 2, y: spot\.top \+ PHONE_BTN \/ 2 \};/, "the spot is the icon's centre (V1.57: whatever its size)");
+  assert.match(ed, /"--pe-rx", `\$\{Math\.round\(p\.x - \(h\.clientWidth \|\| window\.innerWidth\) \/ 2\)\}px`/);
   // The Mac's room, bar and live card shrink to the spot; the card fades with a filter (its opacity is held by tm-fade).
   assert.match(css, /html\.pe-mac-away \.ov-room, html\.pe-mac-away \.ov-top \{\s*translate: var\(--pe-rx, 0px\) var\(--pe-ry, 0px\); scale: \.04; opacity: 0;/);
   assert.match(css, /html\.pe-mac-away\.ov-on \.tm-overlay\.ed-able[^{]*\{\s*translate: var\(--pe-rx, 0px\) var\(--pe-ry, 0px\); scale: \.04; filter: opacity\(0\);/);
@@ -37,7 +37,7 @@ ok("one button: a phone while the Mac shows, a Mac while the phone shows; it pla
 ok("back to the Mac: the phone goes into the icon, then the Mac pages grow back; Esc does the same", () => {
   assert.match(ed, /phoneSfx\.zoomOut\(\);\s*setStage\("toMac"\);\s*later\(\(\) => macAway\(false\), T_BACK\);\s*later\(\(\) => \{ setOpen\(null\); setStage\("mac"\); \}, T_DONE\);/);
   assert.match(ed, /stage=\{stage\} onBack=\{toMac\}/);
-  assert.match(ed, /useEsc\(true, \(\) => \{ if \(gal\) \{ sfx\.click\(\); setGal\(false\); \} else if \(sure\) setSure\(null\); else onBack\(\); \}\);/);
+  assert.match(ed, /useEsc\(true, \(\) => \{ if \(gal\) \{ sfx\.click\(\); setGal\(false\); \} else if \(sure\) \{ sfx\.click\(\); setSure\(null\); \} else onBack\(\); \}\);/);
 });
 ok("a dark shade sits under the overview (z 88 < 89) so nothing behind shows while the pages fly", () => {
   assert.match(css, /\.pe-shade \{ position: fixed; inset: 0; z-index: 88;/);
@@ -64,8 +64,8 @@ ok("no phone of that kind yet: the button opens Link your phone (the V1.55 pairi
   assert.match(li, /import \{ PairPanel, usePhonePairing \} from "\.\/LinkPair";/);
   assert.match(li, /phoneLinkUrl\(PROJECT\.url, PROJECT\.key, PROJECT\.schema, undefined, red \? null : v\.username, PROJECT\)/);
   assert.match(li, /const can = PS && !v\.local && \(red \|\| PROJECT\.custom\);/, "the same rule as the Settings row");
-  // GrapheneOS: install first (a QR to the download page), then the same sign in code.
-  assert.match(li, /useState<"install" \| "link">\(phone === "gos" \? "install" : "link"\)/);
+  // GrapheneOS: V1.57 (phone-link-fast) opens on the sign in code straight away; installing is the second tab.
+  assert.match(li, /useState<"install" \| "link">\("link"\)/);
   assert.match(li, /GOS_INSTALL_URL = "https:\/\/cincee\.com\/ps-app-gos\/"/);
   // It notices by itself: Allow done, or a new phone record of that kind arrives; a chime, then the zoom.
   assert.match(li, /if \(linked \|\| !\(pair\.phase\.k === "done" \|\| fresh\)\) return;\s*setLinked\(true\);\s*phoneSfx\.linked\(\);/);

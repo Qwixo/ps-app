@@ -23,6 +23,9 @@ function srcStamp(): string {
 // Worked out once per build, so the page's own stamp (__WEB_SRC__) and version.json always agree.
 let stampMemo = "";
 const stamp = () => (stampMemo ||= srcStamp());
+// The same for the build time (__WEB_BUILT__ and version.json "built"), so a page knows whether a note is older than itself.
+let builtMemo = "";
+const built = () => (builtMemo ||= new Date().toISOString());
 // The page compatibility number (src/core/webupdate.ts WEB_COMPAT): an open page with a lower one asks
 // to be reloaded and says why (it never reloads by itself).
 function webCompat(): number {
@@ -34,7 +37,7 @@ function versionFile(): Plugin {
   return {
     name: "cv-version",
     generateBundle() {
-      this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ src: stamp(), built: new Date().toISOString(), compat: webCompat() }) });
+      this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ src: stamp(), built: built(), compat: webCompat() }) });
     },
   };
 }
@@ -87,7 +90,7 @@ function psWhatsNew(): { version: string; keyword: string; notes: string[]; code
 export default defineConfig(({ mode, command }) => ({
   base: "/client/",
   plugins: [react(), versionFile(), ...(mode === "gos" ? [gosEntry()] : [])],
-  define: { __PS_VERSION__: JSON.stringify(psVersion()), __PS_WHATSNEW__: JSON.stringify(psWhatsNew()), __WEB_SRC__: JSON.stringify(command === "build" ? stamp() : "") },
+  define: { __PS_VERSION__: JSON.stringify(psVersion()), __PS_WHATSNEW__: JSON.stringify(psWhatsNew()), __WEB_SRC__: JSON.stringify(command === "build" ? stamp() : ""), __WEB_BUILT__: JSON.stringify(command === "build" ? built() : "") },
   build: { outDir: mode === "ps" ? "dist-ps" : mode === "gos" ? "dist-gos" : "dist/client", emptyOutDir: true, sourcemap: false, assetsInlineLimit: 0,
     // The website build also builds G Squad, the mobile web app (todolist-mobile/index.html, src/mobile/), from the same
     // code in the same run, so the two can never drift apart. scripts/postbuild.mjs moves it to cincee.com/todolist-mobile/.

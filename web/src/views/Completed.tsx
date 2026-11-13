@@ -5,17 +5,19 @@
 // one back where it was. Clear takes them out of
 // Completed. Both have Undo (bottom right, Cmd+Z). Settings, General, To do list: Move to Completed or Disappear,
 // show the section or not, and how long it keeps ticks.
+// V1.57: "Show all completed" at the end of the area opens every task ever ticked, a page at a time as it scrolls; Cmd +
+// click (Ctrl + click off a Mac, a long press on the phone) picks tasks, and Resurrect then brings back only those.
 import type { Doc, Settings, Todo } from "../core/model";
-import { COMPLETE_ALL_ASK, KEEP_LABEL, listPrefs, type KeepFor } from "../core/completed";
+import { COMPLETE_ALL_ASK, KEEP_LABEL, LONG_PRESS_MS, historySlice, isPickClick, listPrefs, longPressMoved, moreCompleted, resurrectTargets, type KeepFor } from "../core/completed";
 import { TICK_SOUNDS, tickSoundOf } from "../core/ticksound";
 import { ADD_ANIMS, ADD_COLORS, ADD_COLOR_DEFAULT, addAnimOf, addColorOf, addInkOn, type AddAnim } from "../core/addbutton";
 import { p1Color } from "../core/prio";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { fmtDay, fmtTime, homeTz, wall } from "../core/tz";
 import { settingsData } from "../core/select";
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
-import { Editor, clickTick, playAddAnim, pressTick, pushUndoAction, sendBury, sendClear, sendCompleteAll, sendRevive, sendTicks, taskMapActions, tickTask, useFlipIn } from "./TaskMap";
+import { Editor, clearSel, clickTick, playAddAnim, pressTick, pushUndoAction, sendBury, sendClear, sendCompleteAll, sendRevive, sendTicks, taskMapActions, tickTask, toggleSel, useFlipIn, useSelection } from "./TaskMap";
 import { openTaskMenu, openTaskMenuAt } from "./TaskMenu";
 
 type ClientOpt = { id: string; name: string };
@@ -42,15 +44,25 @@ const ALL_ICON = (
 
 /** The end of the list (V1.34, V1.47): one row with Resurrect (whenever something can come back: `back`), Clear (while
  *  Completed shows tasks), Complete all (while the list has open tasks: `open`) and Sleep (`extra`), then Completed. */
-export function Completed({ list, back, open, keep, editing, onEdit, clients, extra, title }: { list: Doc<Todo>[]; back: Doc<Todo>[]; open: string[]; keep: KeepFor; editing: string | null; onEdit: (id: string | null) => void; clients: ClientOpt[]; extra?: ReactNode; title?: ReactNode }) {
+export function Completed({ list, back, history, open, keep, editing, onEdit, clients, extra, title }: { list: Doc<Todo>[]; back: Doc<Todo>[]; history: Doc<Todo>[]; open: string[]; keep: KeepFor; editing: string | null; onEdit: (id: string | null) => void; clients: ClientOpt[]; extra?: ReactNode; title?: ReactNode }) {
   const ids = list.map((d) => d.id);
   const name = (l: Doc<Todo>[]) => (l.length === 1 ? l[0].data.title : `${l.length} tasks`);
+  const [all, setAll] = useState(false);
+  const [pages, setPages] = useState(1);
+  const picked = useSelection();
+  const more = moreCompleted(history, list);
+  const showAll = all && history.length > 0;
+  const slice = showAll ? historySlice(history, pages) : { rows: list, more: false };
+  // Resurrect: the picked completed tasks when any are picked, otherwise everything it brought back before.
+  const targets = resurrectTargets(back, showAll ? history : list, picked);
+  const picking = targets.some((d) => picked.has(d.id)) && targets !== back;
   const resurrect = () => {
-    if (!back.length) return;
-    const r = back.map((d) => d.id), cleared = back.filter((d) => !!d.data.clearedAt).map((d) => d.id);
+    if (!targets.length) return;
+    const r = targets.map((d) => d.id), cleared = targets.filter((d) => !!d.data.clearedAt).map((d) => d.id);
     sfx.drop();
+    if (picking) clearSel();
     sendRevive(r, cleared);
-    pushUndoAction(`res:${r[0]}:${r.length}`, `Resurrect ${name(back)}`, () => sendBury(r, cleared));
+    pushUndoAction(`res:${r[0]}:${r.length}`, `Resurrect ${name(targets)}`, () => sendBury(r, cleared));
   };
   const clear = () => {
     if (!ids.length) return;
@@ -58,33 +70,63 @@ export function Completed({ list, back, open, keep, editing, onEdit, clients, ex
     sendClear(ids, true);
     pushUndoAction(`clr:${ids[0]}:${ids.length}`, `Clear ${name(list)}`, () => sendClear(ids, false));
   };
-  const backTitle = list.length
-    ? "Put every task in Completed back on your list (Undo brings them back here)"
-    : `Bring back the ${back.length === 1 ? "task" : `${back.length} tasks`} you ticked off lately (Undo takes ${back.length === 1 ? "it" : "them"} off again)`;
+  const backTitle = picking
+    ? `Bring back only the ${targets.length === 1 ? "task" : `${targets.length} tasks`} you picked (Esc lets them go; Undo takes ${targets.length === 1 ? "it" : "them"} off again)`
+    : list.length
+      ? "Put every task in Completed back on your list (Undo brings them back here). Cmd + click tasks to bring back only some."
+      : `Bring back the ${back.length === 1 ? "task" : `${back.length} tasks`} you ticked off lately (Undo takes ${back.length === 1 ? "it" : "them"} off again)`;
+  const rows = slice.rows;
+  const hasArea = list.length > 0 || more > 0 || showAll;
+  // A click on the empty space around the rows lets every pick go.
+  const bare = (e: React.MouseEvent<HTMLElement>) => { const t = e.target as HTMLElement; if (t === e.currentTarget || t.classList.contains("tm-done-bar") || t.classList.contains("tm-done-area")) clearSel(); };
   return (
-    <section className={`tm-sec tm-sec-done${list.length ? "" : " tm-sec-done-empty"}`} aria-label={list.length ? "Completed" : "End of the list"}>
+    <section className={`tm-sec tm-sec-done${hasArea ? "" : " tm-sec-done-empty"}`} aria-label={hasArea ? "Completed" : "End of the list"} onClick={bare}>
       <div className="tm-done-bar">
-        {back.length > 0 && (
-          <button type="button" className="tm-done-res" onClick={resurrect} title={backTitle}>
-            {RESURRECT_ICON}<span>Resurrect</span><b className="num">{back.length}</b>
+        {targets.length > 0 && (
+          <button type="button" className={`tm-done-res${picking ? " picking" : ""}`} onClick={resurrect} title={backTitle}>
+            {RESURRECT_ICON}<span>{picking ? "Resurrect picked" : "Resurrect"}</span><b className="num">{targets.length}</b>
           </button>
         )}
         {list.length > 0 && <button type="button" className="tm-done-clear" onClick={clear} title="Take these off Completed (Undo brings them back)">Clear</button>}
         <CompleteAll open={open} />
         {extra}
       </div>
-      {list.length > 0 && (
-        <div className="tm-done-area">
-          <h3 className="tm-sec-h tm-done-h">{title ?? "Completed"}<span className="tm-sec-note">{keep === "today" ? "today" : `last ${KEEP_LABEL[keep]}`}</span></h3>
-          <ul className="tm-list tm-done-list">
-            {list.map((d) => editing === d.id
-              ? <Editor key={d.id} d={d} clients={clients} onDone={() => onEdit(null)} />
-              : <DoneRow key={d.id} d={d} />)}
-          </ul>
+      {hasArea && (
+        <div className="tm-done-area" onClick={bare}>
+          <h3 className="tm-sec-h tm-done-h">{title ?? "Completed"}<span className="tm-sec-note">{showAll ? `all ${history.length}` : keep === "today" ? "today" : `last ${KEEP_LABEL[keep]}`}</span></h3>
+          {rows.length > 0 && (
+            <ul className="tm-list tm-done-list">
+              {rows.map((d) => editing === d.id
+                ? <Editor key={d.id} d={d} clients={clients} onDone={() => onEdit(null)} />
+                : <DoneRow key={d.id} d={d} picked={picked.has(d.id)} any={picked.size > 0} />)}
+            </ul>
+          )}
+          {showAll && slice.more && <HistoryEnd pages={pages} onMore={() => setPages((p) => p + 1)} />}
+          {!showAll && more > 0 && (
+            <button type="button" className="tm-done-all" onClick={() => { sfx.click(); setAll(true); setPages(1); }}
+              title="Every task you have ever ticked off, newest first">Show all completed<b className="num">{history.length}</b></button>
+          )}
+          {showAll && (
+            <button type="button" className="tm-done-all tm-done-less" onClick={() => { sfx.click(); setAll(false); setPages(1); }}>Show less</button>
+          )}
         </div>
       )}
     </section>
   );
+}
+
+/** The end of the drawn history: when it scrolls into view (a little early), the next page is drawn. */
+function HistoryEnd({ pages, onMore }: { pages: number; onMore: () => void }) {
+  const el = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const n = el.current;
+    if (!n || typeof IntersectionObserver !== "function") return;
+    // Made again after every page, so a page too short to push this out of view still asks for the next one.
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) onMore(); }, { rootMargin: "400px 0px" });
+    io.observe(n);
+    return () => io.disconnect();
+  }, [pages]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <div ref={el} className="tm-done-more" aria-hidden="true">Loading more...</div>;
 }
 
 /** Complete all (V1.47): ticks every open task on the list. More than a few asks first, in place (Esc or No says no,
@@ -123,15 +165,45 @@ function CompleteAll({ open }: { open: string[] }) {
   );
 }
 
-function DoneRow({ d }: { d: Doc<Todo> }) {
+const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+
+/** One completed task. Cmd + click (Ctrl + click off a Mac) picks it for Resurrect; on the phone a long press picks it,
+ *  and while any are picked a tap picks or lets go. */
+const DoneRow = memo(function DoneRow({ d, picked, any }: { d: Doc<Todo>; picked: boolean; any: boolean }) {
   const t = d.data;
   const flip = useFlipIn(d.id);
   const untick = () => tickTask(d.id);
   const at = tickedAt(t.doneAt);
+  const hold = useRef<{ timer: number; x: number; y: number; pid: number } | null>(null);
+  const longAt = useRef(0);
+  const stopHold = () => { if (hold.current) { window.clearTimeout(hold.current.timer); hold.current = null; } };
+  useEffect(() => stopHold, []);
+  const justHeld = () => Date.now() - longAt.current < 900;
   return (
-    <li ref={(el) => { flip.current = el; }} className="tm-row tm-done-row done" data-id={d.id} data-type={t.type}
-      onMouseEnter={() => sfx.hover()} onContextMenu={(e) => openTaskMenu(e, d.id, "done")}
+    <li ref={(el) => { flip.current = el; }} className={`tm-row tm-done-row done${picked ? " sel" : ""}`} data-id={d.id} data-type={t.type}
+      onMouseEnter={() => sfx.hover()}
+      onPointerDown={(e) => {
+        if (e.pointerType === "mouse" || !e.isPrimary) return;
+        stopHold();
+        const timer = window.setTimeout(() => {
+          hold.current = null; longAt.current = Date.now();
+          sfx.click(); try { navigator.vibrate?.(15); } catch { /* no buzz */ }
+          toggleSel(d.id);
+        }, LONG_PRESS_MS);
+        hold.current = { timer, x: e.clientX, y: e.clientY, pid: e.pointerId };
+      }}
+      onPointerMove={(e) => { const h = hold.current; if (h && e.pointerId === h.pid && longPressMoved(e.clientX - h.x, e.clientY - h.y)) stopHold(); }}
+      onPointerUp={stopHold} onPointerCancel={stopHold} onPointerLeave={stopHold}
+      onContextMenu={(e) => { if (justHeld()) { e.preventDefault(); return; } openTaskMenu(e, d.id, "done"); }}
+      // Cmd + click picks (or lets go) instead of what the click would do; a plain click lets every pick go.
+      onClickCapture={(e) => {
+        const touch = (e.nativeEvent as PointerEvent).pointerType === "touch";
+        if (justHeld()) { e.preventDefault(); e.stopPropagation(); }
+        else if (isPickClick(e, MAC) || (touch && any)) { e.preventDefault(); e.stopPropagation(); sfx.click(); toggleSel(d.id); }
+        else clearSel();
+      }}
       onKeyDown={(e) => { if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) { e.preventDefault(); openTaskMenuAt(e.currentTarget, d.id, "done"); } }}>
+      {picked && <span className="tm-sel-mark" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7" /></svg></span>}
       <button type="button" className="tm-tick no-drag" aria-pressed="true" aria-label={`Untick: ${t.title}`} title="Untick: back on your list, where it was"
         onPointerDown={(e) => pressTick(e, d.id, untick)} onClick={() => clickTick(d.id, untick)}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>
@@ -142,7 +214,7 @@ function DoneRow({ d }: { d: Doc<Todo> }) {
       </span>
     </li>
   );
-}
+});
 
 /** Settings, General, To do list: one card each (part), or all three in a row for the small gear menu. */
 export function ListBehaviourControls({ part }: { part: "mode" | "show" | "keep" | "sound" }) {

@@ -63,7 +63,7 @@ const world = () => fake({
 
 // ---------- switches ----------
 ok("defaults: add, read and the AI Inbox on, everything else off", () => {
-  assert.deepEqual(DEFAULT_SCOPES, { inbox: true, lists: false, rename: false, read: true, add: true, edit: false, done: false, delete: false, remind: false, sentry: false });
+  assert.deepEqual(DEFAULT_SCOPES, { inbox: true, lists: false, rename: false, read: true, add: true, edit: false, done: false, delete: false, remind: false, sentry: false, gym: false, settings: false });
   assert.deepEqual(cleanScopes({ lists: true, delete: "yes", bogus: true }), { ...DEFAULT_SCOPES, lists: true });
   assert.deepEqual(cleanScopes(null), DEFAULT_SCOPES);
 });
@@ -429,6 +429,111 @@ ok("nowhere in the page code is there a message or store call that stops Sentry 
   assert.ok(!/(stop|end|pause|leave|disengage|cancel)Sentry/i.test(api), "no stop in the API or its store");
 });
 
+// ---------- the gym reminder (V1.57) ----------
+ok("gym: the switch is off by default, both endpoints refuse with scope_off and nothing is saved", async () => {
+  const s = world();
+  for (const m of ["GET", "PATCH"]) {
+    const r = await call(s, m, "/v1/gym", m === "PATCH" ? { time: "23:00" } : undefined);
+    assert.deepEqual([r.status, r.body.error.code, r.body.error.scope], [403, "scope_off", "gym"], m);
+  }
+  assert.equal(DEFAULT_SCOPES.gym, false);
+  assert.ok(!s.log.some((x) => x.startsWith("settings")));
+  assert.equal((await call(fake({ locked: true }), "GET", "/v1/gym", undefined, { ...DEFAULT_SCOPES, gym: true })).status, 423);
+});
+ok("GET /v1/gym: the times as they are, old settings with the defaults", async () => {
+  const s = fake({ settings: { gym: { on: true, time: "08:00", days: [1, 3, 5] } } });
+  const r = await call(s, "GET", "/v1/gym", undefined, { ...DEFAULT_SCOPES, gym: true });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.gym, { on: true, time: "08:00", endTime: "09:30", days: ["mon", "wed", "fri"], nag: false, nagStart: "10:00", nagEvery: 15, ringTime: "07:44", saidYesToday: false });
+  // Someone else's, never saved: off (the public default).
+  assert.equal((await call(fake(), "GET", "/v1/gym", undefined, { ...DEFAULT_SCOPES, gym: true })).body.gym.on, false);
+});
+ok("PATCH /v1/gym: the developer's night gym, nag mode and ring time; only the fields sent change", async () => {
+  const s = fake({ settings: { gym: { on: true, time: "08:00", days: [0, 1, 2, 3, 4, 5, 6] } } });
+  const sc = { ...DEFAULT_SCOPES, gym: true };
+  const r = await call(s, "PATCH", "/v1/gym", { time: "23:00", endTime: "01:00", ringTime: "22:55", nag: true, nagStart: "10:00", nagEvery: 15, days: ["Mon", "tue", 3] }, sc);
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.gym, { on: true, time: "23:00", endTime: "01:00", days: ["mon", "tue", "wed"], nag: true, nagStart: "10:00", nagEvery: 15, ringTime: "22:55", saidYesToday: false });
+  assert.deepEqual(s.set().gym, { on: true, time: "23:00", end: "01:00", days: [1, 2, 3], nag: true, nagStart: "10:00", nagEvery: 15, ringAt: "22:55" });
+  const back = await call(s, "PATCH", "/v1/gym", { ringTime: null, endTime: null }, sc);
+  assert.deepEqual([back.body.gym.ringTime, back.body.gym.endTime, back.body.gym.time], ["22:44", "00:30", "23:00"]);
+});
+ok("PATCH /v1/gym: bad values and unknown fields are refused, nothing saved", async () => {
+  const s = fake({ settings: { gym: { on: true, time: "08:00", days: [1] } } });
+  const sc = { ...DEFAULT_SCOPES, gym: true };
+  for (const [b, field] of [[{ time: "25:00" }, "time"], [{ nagEvery: 2 }, "nagEvery"], [{ nagEvery: 15.5 }, "nagEvery"], [{ days: ["someday"] }, "days"],
+    [{ on: "yes" }, "on"], [{ endTime: "08:00" }, "endTime"], [{ ringTime: "7:44" }, "ringTime"], [{ colour: "red" }, "colour"]] as const) {
+    const r = await call(s, "PATCH", "/v1/gym", b, sc);
+    assert.equal(r.status, 400, JSON.stringify(b));
+    assert.equal(r.body.error.field, field, JSON.stringify(b));
+  }
+  assert.ok(!s.log.some((x) => x.startsWith("settings")));
+});
+ok("the API can never say Yes to the gym: no field, path or method does, gymAck is never written", async () => {
+  const s = fake({ settings: { gym: { on: true, time: "08:00" }, gymAck: [] } });
+  const sc = { ...ALL, gym: true };
+  for (const k of ["yes", "ack", "acknowledge", "gymAck", "saidYes", "saidYesToday", "going", "done"]) {
+    const r = await call(s, "PATCH", "/v1/gym", { [k]: true }, sc);
+    assert.deepEqual([r.status, r.body.error.field], [400, k], k);
+    assert.match(r.body.error.message, /never say Yes/);
+  }
+  for (const p of ["/v1/gym/yes", "/v1/gym/ack", "/v1/gym/acknowledge", "/v1/gym/today", "/v1/gym/going"])
+    for (const m of ["GET", "POST", "PUT", "PATCH"]) assert.equal((await call(s, m, p, { yes: true }, sc)).status, 404, `${m} ${p}`);
+  for (const m of ["POST", "PUT", "DELETE"]) assert.equal((await call(s, m, "/v1/gym", {}, sc)).status, 405, m);
+  assert.deepEqual(s.set().gymAck, []);
+  assert.ok(!s.log.some((x) => x.startsWith("settings")));
+  // A real PATCH carries the gym prefs only, never gymAck.
+  await call(s, "PATCH", "/v1/gym", { time: "09:00" }, sc);
+  assert.deepEqual(s.log.filter((x) => x.startsWith("settings")), ["settings gym"]);
+  const src = readFileSync(new URL("../src/core/taskapi.ts", import.meta.url), "utf8");
+  assert.ok(!/gymAck\s*:/.test(src) && !/ackGym/.test(src), "the API's code never writes a Yes");
+});
+ok("GET /v1 lists the gym endpoints; saidYesToday reads the day the nagging started", async () => {
+  const list = (await call(world(), "GET", "/v1")).body.endpoints;
+  assert.ok(list.includes("GET /v1/gym") && list.includes("PATCH /v1/gym"));
+  // 12 Nov 10:00 UTC; nag from 10:00, gym 23:00 to 01:00: the day is 12 Nov.
+  const s = fake({ settings: { gym: { on: true, time: "23:00", end: "01:00", nag: true, nagStart: "10:00", days: [0, 1, 2, 3, 4, 5, 6] }, gymAck: ["2026-11-12"] } });
+  assert.equal((await call(s, "GET", "/v1/gym", undefined, { ...DEFAULT_SCOPES, gym: true })).body.gym.saidYesToday, true);
+});
+
+// ---------- settings (V1.57: Invert swipe) ----------
+ok("settings: the switch is off by default, both endpoints refuse with scope_off and nothing is saved", async () => {
+  const s = world();
+  for (const m of ["GET", "PATCH"]) {
+    const r = await call(s, m, "/v1/settings", m === "PATCH" ? { invertSwipe: true } : undefined);
+    assert.deepEqual([r.status, r.body.error.code, r.body.error.scope], [403, "scope_off", "settings"], m);
+  }
+  assert.equal(DEFAULT_SCOPES.settings, false);
+  assert.ok(!s.log.some((x) => x.startsWith("settings")));
+});
+ok("GET and PATCH /v1/settings: Invert swipe read, switched on and off, saved as swipeInvert only", async () => {
+  const s = world();
+  const sc = { ...DEFAULT_SCOPES, settings: true };
+  assert.deepEqual((await call(s, "GET", "/v1/settings", undefined, sc)).body, { settings: { invertSwipe: false } });
+  const on = await call(s, "PATCH", "/v1/settings", { invertSwipe: true }, sc);
+  assert.deepEqual([on.status, on.body], [200, { settings: { invertSwipe: true } }]);
+  assert.equal(s.set().swipeInvert, true);
+  assert.deepEqual(s.log.filter((x) => x.startsWith("settings")), ["settings swipeInvert"]);
+  assert.deepEqual((await call(s, "GET", "/v1/settings", undefined, sc)).body.settings, { invertSwipe: true });
+  await call(s, "PATCH", "/v1/settings", { invertSwipe: false }, sc);
+  assert.equal(s.set().swipeInvert, false);
+  assert.equal((await call(fake({ locked: true }), "GET", "/v1/settings", undefined, sc)).status, 423);
+});
+ok("PATCH /v1/settings refuses anything else: other fields, bad values, an empty body, sub paths, other methods", async () => {
+  const s = world();
+  const sc = { ...ALL, settings: true };
+  for (const [b, code, field] of [[{ invertSwipe: "yes" }, "bad_field", "invertSwipe"], [{ tmNames: {} }, "unknown_field", "tmNames"], [{ gymAck: ["2026-11-12"] }, "unknown_field", "gymAck"],
+    [{ swipeInvert: true }, "unknown_field", "swipeInvert"], [{}, "bad_request", undefined]] as const) {
+    const r = await call(s, "PATCH", "/v1/settings", b, sc);
+    assert.deepEqual([r.status, r.body.error.code, r.body.error.field], [400, code, field], JSON.stringify(b));
+  }
+  for (const m of ["POST", "PUT", "DELETE"]) assert.equal((await call(s, m, "/v1/settings", { invertSwipe: true }, sc)).status, 405, m);
+  assert.equal((await call(s, "PATCH", "/v1/settings/invertSwipe", { invertSwipe: true }, sc)).status, 404);
+  assert.ok(!s.log.some((x) => x.startsWith("settings")));
+  const list = (await call(s, "GET", "/v1")).body.endpoints;
+  assert.ok(list.includes("GET /v1/settings") && list.includes("PATCH /v1/settings"));
+});
+
 // ---------- Copy for AI ----------
 ok("Copy for AI: self explaining, every endpoint, the switches as they are, the key slot, no dashes", () => {
   const g = aiGuide({ scopes: { ...DEFAULT_SCOPES, delete: true }, today: T });
@@ -443,6 +548,9 @@ ok("Copy for AI: self explaining, every endpoint, the switches as they are, the 
   assert.ok(g.includes("curl -s -X POST http://127.0.0.1:47836/v1/sentry/start"), "Sentry mode has its curl example");
   assert.ok(g.includes("It cannot be turned off through the API"), "and its one plain line");
   assert.ok(g.includes("- sentry: OFF."), "and its switch");
+  assert.ok(g.includes("- gym: OFF.") && g.includes("GET /v1/gym") && g.includes("PATCH /v1/gym"), "the gym switch and endpoints");
+  assert.ok(g.includes("You can NEVER say Yes"), "and that it can never say Yes");
+  assert.ok(g.includes("- settings: OFF.") && g.includes("PATCH /v1/settings") && g.includes('{"invertSwipe": true}'), "the settings switch, endpoints and example");
   assert.ok(!/[\u2013\u2014]/.test(g), "no en or em dashes");
   assert.ok(!/\bRed\b|Cincee/.test(g), "nothing personal");
 });

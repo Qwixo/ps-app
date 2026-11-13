@@ -96,7 +96,7 @@ ok("the vault engine: local mode never talks to a server and signing out never d
   assert.match(v, /export async function signOutAndForget\(\) \{\s*if \(meta\?\.local\) \{ lock\(\); return; \}/, "sign out keeps it");
   assert.match(v, /if \(meta\.local\) \{ await localKv\.setMany\(\[\[kMeta\(meta\.login\), meta\], \[kRows\(meta\.login\)/, "one transaction");
   assert.match(v, /if \(!meta\?\.red \|\| meta\.local\) return;\s*rtChannel = sb\.channel/, "no realtime");
-  assert.match(v, /if \(fitCh \|\| !meta \|\| meta\.local \|\| snap\.status !== "unlocked"\) return;/, "no fitness poke channel");
+  assert.match(v, /if \(fitCh \|\| secondCh \|\| !meta \|\| meta\.local \|\| snap\.status !== "unlocked"\) return;/, "no fitness poke channel");   // V1.57: secondCh reused
   assert.match(v, /if \(psKeepOpen \|\| localOnly\(\)\) return;/, "no auto lock in local mode");
   assert.match(v, /if \(moveGate && role === "owner" && !red\) moved = await moveGate/, "the move never runs for the developer's account");
   for (const f of ["createWorkspace", "createInvite", "workspaceAccess", "revokeAccess", "destroyWorkspace", "accessLog"]) {
