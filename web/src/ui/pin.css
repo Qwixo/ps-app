@@ -1,0 +1,6 @@
+/* A pinned screen's top bar (src/ui/pin.ts): lit slightly white. Inset shadows paint over the bar's own
+   colour or gradient and under its words, so every bar keeps its look, just brighter. */
+[data-ps-pinned] {
+  box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent), inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent), 0 0 22px -4px color-mix(in srgb, var(--k-glow, #FFFFFF) 35%, transparent) !important;
+  transition: box-shadow .2s ease;
+}

@@ -1,0 +1,181 @@
+/* PS GOS list layouts (src/gos/layout.ts): Compact, Cards, Focus and Simple. The developer, 30 Oct 2026: the
+   tasks looked too big, like a desktop port. Every rule sits under html.gos[data-gos-layout], so the Mac
+   and the website never see it, and it overrides polish/list.css (loaded before this file).
+   Touch: ticks and pencils stay 44 px to a finger (polish/list.css gives them an invisible ring), even
+   where they look smaller. Only transform and opacity animate; a switch is a view transition crossfade. */
+
+/* ---------- shared: a phone sized head, no hint line, quieter section titles ---------- */
+html.gos[data-gos-layout] .gos-home .tm-inner { gap: calc(12px * var(--k-dn, 1)); }
+html.gos[data-gos-layout] .gos-home .tm-head { margin-top: 0; }
+html.gos[data-gos-layout] .gos-home .tm-title { font-size: calc(26px * var(--k-fs, 1)); letter-spacing: -.03em; line-height: 1.1; }
+html.gos[data-gos-layout] .gos-home .tm-hint { display: none; }
+html.gos[data-gos-layout] .gos-home .tm-sec { gap: calc(6px * var(--k-dn, 1)); }
+html.gos[data-gos-layout] .gos-home .tm-sec-h { font-size: calc(11px * var(--k-fs, 1)); letter-spacing: .14em; padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) 0; }
+html.gos[data-gos-layout] .gos-home .tm-list { gap: var(--gl-gap, 6px); }
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor) .mt-box { padding-left: calc(40px * var(--k-dn, 1)); }
+html.gos[data-gos-layout] .gos-home .tm-row.done:not(.working) { opacity: .45; }
+
+/* Every layout: one grid line, tick | title (and its date) | mini tasks | streak | P number | pencil.
+   Cards and the Focus hero put the small things on a second line instead (below). */
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor) {
+  grid-template-columns: 38px minmax(0, 1fr) auto auto auto 32px; grid-template-rows: auto auto;
+  min-height: var(--gl-minh); padding: var(--gl-pad); border-radius: var(--gl-rad); column-gap: 0;
+  background: var(--gl-bg); border-color: var(--gl-line); box-shadow: none;
+}
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor):hover { background: var(--gl-bg); border-color: var(--gl-line); box-shadow: none; }
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor) > .tm-tick { grid-column: 1; grid-row: 1; }
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor) > .tm-text { grid-column: 2; grid-row: 1; padding: calc(2px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)); gap: calc(1px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); }
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor) > .mt-toggle { grid-column: 3; grid-row: 1; margin: 0 4px 0 0; }
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor) > .tm-streak { grid-column: 4; grid-row: 1; margin: 0 4px 0 0; }
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor) > .tm-prio { grid-column: 5; grid-row: 1; margin: 0 2px 0 0; }
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor) > .tm-edit { grid-column: 6; grid-row: 1; }
+html.gos[data-gos-layout] .gos-home .tm-row:not(.tm-editor) > .mt-panel { grid-column: 1 / -1; grid-row: 2; }
+html.gos[data-gos-layout] .gos-home .tm-t {
+  font-size: var(--gl-t); font-weight: var(--gl-tw); line-height: 1.28; letter-spacing: -.005em;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--gl-lines); overflow: hidden;
+}
+html.gos[data-gos-layout] .gos-home .tm-row.working .tm-t { -webkit-line-clamp: 4; }
+html.gos[data-gos-layout] .gos-home .tm-due { font-size: calc(11.5px * var(--k-fs, 1)); }
+html.gos[data-gos-layout] .gos-home .tm-working { font-size: calc(9.5px * var(--k-fs, 1)); margin-bottom: 0; }
+html.gos[data-gos-layout] .gos-home .tm-tick { width: var(--gl-tick); height: var(--gl-tick); min-width: 0; min-height: 0; border-width: var(--gl-tickw); justify-self: center; }
+html.gos[data-gos-layout] .gos-home .tm-tick svg { width: calc(var(--gl-tick) * .5); height: calc(var(--gl-tick) * .5); }
+html.gos[data-gos-layout] .gos-home .tm-edit { width: 28px; height: 28px; background: transparent; border-color: transparent; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(38% * var(--k-ia, 1))), transparent); }
+html.gos[data-gos-layout] .gos-home .tm-edit svg { width: 15px; height: 15px; }
+html.gos[data-gos-layout] .gos-home .tm-prio { padding: calc(1px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); font-size: calc(10.5px * var(--k-fs, 1)); letter-spacing: .04em; }
+html.gos[data-gos-layout] .gos-home .tm-streak { padding: calc(1px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); font-size: calc(11px * var(--k-fs, 1)); }
+html.gos[data-gos-layout] .gos-home .mt-toggle { height: 24px; padding: 0 calc(7px * var(--k-dn, 1)); gap: calc(2px * var(--k-dn, 1)); }
+html.gos[data-gos-layout] .gos-home .mt-count { font-size: calc(11px * var(--k-fs, 1)); }
+html.gos[data-gos-layout] .gos-home .mt-toggle svg { width: 13px; height: 13px; }
+/* Working on: its title gets the full width; P number, streak and Mini tasks move to a line under it. */
+html.gos[data-gos-layout] .gos-home .tm-row.working:not(.tm-editor) { grid-template-columns: 38px auto auto auto minmax(0, 1fr) 32px; grid-template-rows: auto auto auto; }
+html.gos[data-gos-layout] .gos-home .tm-row.working:not(.tm-editor) > .tm-tick, html.gos[data-gos-layout] .gos-home .tm-row.working:not(.tm-editor) > .tm-edit { grid-row: 1 / 3; }
+html.gos[data-gos-layout] .gos-home .tm-row.working:not(.tm-editor) > .tm-text { grid-column: 2 / 6; }
+html.gos[data-gos-layout] .gos-home .tm-row.working:not(.tm-editor) > .tm-prio { grid-column: 2; grid-row: 2; margin: 4px 6px 2px 2px; justify-self: start; }
+html.gos[data-gos-layout] .gos-home .tm-row.working:not(.tm-editor) > .tm-streak { grid-column: 3; grid-row: 2; margin: 4px 6px 2px 0; }
+html.gos[data-gos-layout] .gos-home .tm-row.working:not(.tm-editor) > .mt-toggle { grid-column: 4; grid-row: 2; margin: 4px 0 2px; }
+html.gos[data-gos-layout] .gos-home .tm-row.working:not(.tm-editor) > .mt-panel { grid-row: 3; }
+/* Working on: no grow (it pushed the edges past the gutters), the pencil shows plainly. */
+html.gos[data-gos-layout] .gos-home .tm-overlay .tm-row.working, html.gos[data-gos-layout] .gos-home .tm-overlay .tm-row.working:hover { transform: none; }
+html.gos[data-gos-layout] .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working, html.gos[data-gos-layout] .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working:hover {
+  background: var(--k-fg, #FFFFFF); border-color: var(--k-fg, #FFFFFF); box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent), 0 10px 30px -8px color-mix(in srgb, var(--k-glow, #FFFFFF) 32%, transparent);
+}
+html.gos[data-gos-layout] .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .tm-edit { color: color-mix(in srgb, var(--k-surface, #17121A) 60%, transparent); background: transparent; border-color: transparent; }
+html.gos[data-gos-layout] .gos-home .tm-list > .tm-row.p1:not(.working), html.gos[data-gos-layout] .gos-home .tm-list > .tm-row.p1:not(.working):hover { background: var(--gl-bg); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); }
+
+/* ---------- Compact (default): slim lines, 48 px tall, the most tasks on one screen ---------- */
+html.gos[data-gos-layout="compact"] .gos-home {
+  --gl-minh: 48px; --gl-pad: 4px 4px 4px 4px; --gl-rad: 14px; --gl-gap: 4px;
+  --gl-bg: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); --gl-line: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent);
+  --gl-t: 15px; --gl-tw: 600; --gl-lines: 2; --gl-tick: 24px; --gl-tickw: 2px;
+}
+
+/* ---------- Cards: a small card each, the date and P number on a line under the title ---------- */
+html.gos[data-gos-layout="cards"] .gos-home {
+  --gl-minh: 58px; --gl-pad: 7px 6px 8px 4px; --gl-rad: 18px; --gl-gap: 7px;
+  --gl-bg: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); --gl-line: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent);
+  --gl-t: 15px; --gl-tw: 650; --gl-lines: 2; --gl-tick: 28px; --gl-tickw: 2px;
+}
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor) { grid-template-columns: 42px auto auto auto minmax(0, 1fr) 32px; grid-template-rows: auto auto auto; position: relative; overflow: hidden; }
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor) > .tm-tick { grid-row: 1 / 3; }
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor) > .tm-text { grid-column: 2 / 6; }
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor) > .tm-prio { grid-column: 2; grid-row: 2; margin: 3px 6px 0 2px; justify-self: start; }
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor) > .tm-streak { grid-column: 3; grid-row: 2; margin: 3px 6px 0 0; }
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor) > .mt-toggle { grid-column: 4; grid-row: 2; margin: 3px 0 0; }
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor) > .tm-edit { grid-row: 1 / 3; }
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor) > .mt-panel { grid-row: 3; }
+/* A colour edge: red for overdue, pink for Priority 1. */
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor):is(:has(.tm-due.late), .p1)::after {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 calc(3px * var(--k-rd, 1)) calc(3px * var(--k-rd, 1)) 0; background: var(--k-acc, #EC4E86);
+}
+html.gos[data-gos-layout="cards"] .gos-home .tm-row:not(.tm-editor):has(.tm-due.late)::after { background: var(--k-bad-t, #FF6B66); }
+html.gos[data-gos-layout="cards"] .gos-home .tm-row.working::after { display: none; }
+
+/* ---------- Focus: the task you work on grows big where it is (dragging keeps its order), the rest shrink back ---------- */
+html.gos[data-gos-layout="focus"] .gos-home {
+  --gl-minh: 44px; --gl-pad: 2px 4px; --gl-rad: 12px; --gl-gap: 3px;
+  --gl-bg: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(3.5% * var(--k-ia, 1))), transparent); --gl-line: transparent;
+  --gl-t: 14px; --gl-tw: 550; --gl-lines: 1; --gl-tick: 22px; --gl-tickw: 1.6px;
+}
+html.gos[data-gos-layout="focus"] .gos-home .tm-row:not(.tm-editor):not(.working) { opacity: .72; transition: opacity .3s ease, transform .32s var(--gos-spring); }
+html.gos[data-gos-layout="focus"] .gos-home .tm-row:not(.tm-editor):not(.working) .tm-streak,
+html.gos[data-gos-layout="focus"] .gos-home .tm-row:not(.tm-editor):not(.working) .tm-due:not(.late) { display: none; }
+/* The hero: the task being worked on (or, with none, the first task of the first list). */
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working,
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child {
+  opacity: 1; min-height: 112px; padding: calc(16px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(24px * var(--k-rd, 1)); margin-bottom: 8px;
+  grid-template-columns: 64px auto auto auto minmax(0, 1fr) 40px; grid-template-rows: auto auto auto;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent), color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent) 70%); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent);
+}
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working > .tm-tick,
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child > .tm-tick {
+  --gl-tick: 46px; --gl-tickw: 2.5px; grid-row: 1 / 3;
+}
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working > .tm-text,
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child > .tm-text { grid-column: 2 / 6; }
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working .tm-t,
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child .tm-t { font-size: calc(21px * var(--k-fs, 1)); font-weight: 750; line-height: 1.22; -webkit-line-clamp: 4; letter-spacing: -.02em; }
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working > :is(.tm-prio, .tm-streak, .mt-toggle),
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child > :is(.tm-prio, .tm-streak, .mt-toggle) { grid-row: 2; margin: 8px 6px 0 2px; justify-self: start; }
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working > .tm-prio,
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child > .tm-prio { grid-column: 2; }
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working > .tm-streak,
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child > .tm-streak { grid-column: 3; }
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working > .mt-toggle,
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child > .mt-toggle { grid-column: 4; }
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working > .tm-edit,
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child > .tm-edit { grid-row: 1 / 3; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working > .mt-panel,
+html.gos[data-gos-layout="focus"] .gos-home .tm-scroll:not(:has(.tm-row.working)) .tm-sec:first-of-type .tm-list > .tm-row:first-child > .mt-panel { grid-row: 3; }
+html.gos[data-gos-layout="focus"] .gos-home .tm-list > .tm-row.working .tm-prio { font-size: calc(12px * var(--k-fs, 1)); padding: calc(2px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); }
+
+/* ---------- Simple: no boxes, thin lines between rows, big section titles (like a notes app) ---------- */
+html.gos[data-gos-layout="simple"] .gos-home {
+  --gl-minh: 50px; --gl-pad: 3px 2px 3px 0; --gl-rad: 0; --gl-gap: 0;
+  --gl-bg: transparent; --gl-line: transparent;
+  --gl-t: 16px; --gl-tw: 450; --gl-lines: 2; --gl-tick: 23px; --gl-tickw: 1.5px;
+}
+html.gos[data-gos-layout="simple"] .gos-home .tm-row:not(.tm-editor) { border-width: 0 0 1px; border-style: solid; border-bottom-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent) !important; }
+html.gos[data-gos-layout="simple"] .gos-home .tm-list > .tm-row:last-child:not(.tm-editor) { border-bottom-color: transparent !important; }
+html.gos[data-gos-layout="simple"] .gos-home .tm-tick { border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(42% * var(--k-ia, 1))), transparent); }
+html.gos[data-gos-layout="simple"] .gos-home .tm-prio { background: transparent; border-color: transparent; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(42% * var(--k-ia, 1))), transparent); padding: 0 calc(4px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); }
+html.gos[data-gos-layout="simple"] .gos-home .tm-sec-h { font-size: calc(21px * var(--k-fs, 1)); font-weight: 750; letter-spacing: -.02em; text-transform: none; color: var(--k-fg, #FFFFFF); padding: calc(10px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)); }
+html.gos[data-gos-layout="simple"] .gos-home .tm-sec { gap: calc(2px * var(--k-dn, 1)); }
+html.gos[data-gos-layout="simple"] .gos-home .tm-row:not(.tm-editor):not(.working) .tm-edit { opacity: 0; }   /* tap a task first: its pencil shows on the working row */
+html.gos[data-gos-layout="simple"] .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working,
+html.gos[data-gos-layout="simple"] .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working:hover { border-radius: calc(14px * var(--k-rd, 1)); padding-left: calc(4px * var(--k-dn, 1)); margin: 4px 0; border-bottom-color: transparent !important; }
+html.gos[data-gos-layout="simple"] .gos-home .tm-p1-frame:not(.mini) { border-radius: calc(18px * var(--k-rd, 1)); }
+html.gos[data-gos-layout="simple"] .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .tm-tick { border-color: color-mix(in srgb, var(--k-surface, #17121A) 55%, transparent); }
+html.gos[data-gos-layout="simple"] .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .tm-prio { color: color-mix(in srgb, var(--k-surface, #17121A) 60%, transparent); }
+
+/* ---------- the switch: a quick crossfade of the whole page ---------- */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .28s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+
+/* ---------- the Layout picker in the PS settings sheet: four small drawings ---------- */
+.gos-lay { display: grid; grid-template-columns: 1fr 1fr; gap: calc(10px * var(--k-dn, 1)); }
+.gos-lay-o {
+  display: grid; gap: calc(4px * var(--k-dn, 1)); align-content: start; text-align: left; padding: calc(10px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1)); color: var(--k-fg, #FFFFFF); font: inherit;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4.5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); transition: border-color .2s ease, background .2s ease, transform .14s ease;
+}
+.gos-lay-o:active { transform: scale(.97); }
+.gos-lay-o.on { border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); box-shadow: 0 0 0 1px var(--k-acc, #EC4E86) inset; }
+.gos-lay-t { font-size: calc(15px * var(--k-fs, 1)); font-weight: 750; margin-top: 4px; }
+.gos-lay-d { font-size: calc(12px * var(--k-fs, 1)); line-height: 1.35; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.gos-lay-pic { display: grid; gap: calc(3px * var(--k-dn, 1)); height: 74px; padding: calc(7px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-base, #000000) 35%, transparent); overflow: hidden; align-content: start; }
+.gos-lay-pic i { display: flex; align-items: center; gap: calc(5px * var(--k-dn, 1)); height: 9px; padding: 0 calc(4px * var(--k-dn, 1)); border-radius: calc(4px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.gos-lay-pic b { flex: none; width: 5px; height: 5px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.gos-lay-pic em { flex: 1; height: 3px; border-radius: calc(2px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.gos-lay-pic.cards { gap: calc(5px * var(--k-dn, 1)); }
+.gos-lay-pic.cards i { height: 16px; border-radius: calc(6px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(11% * var(--k-ia, 1))), transparent); }
+.gos-lay-pic.cards i:first-child { box-shadow: inset 2px 0 0 var(--k-bad-t, #FF6B66); }
+.gos-lay-pic.cards em { height: 3px; box-shadow: 0 5px 0 -1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(25% * var(--k-ia, 1))), transparent); }
+.gos-lay-pic.focus i.hero { height: 26px; border-radius: calc(8px * var(--k-rd, 1)); background: linear-gradient(160deg, color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent), color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent)); margin-bottom: 2px; }
+.gos-lay-pic.focus i.hero b { width: 10px; height: 10px; }
+.gos-lay-pic.focus i.hero em { height: 5px; background: var(--k-fg, #FFFFFF); }
+.gos-lay-pic.focus i:not(.hero) { opacity: .6; height: 7px; }
+.gos-lay-pic.simple { gap: 0; }
+.gos-lay-pic.simple i { background: transparent; border-radius: 0; height: 12px; border-bottom: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.gos-lay-pic.simple em { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent); height: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+}

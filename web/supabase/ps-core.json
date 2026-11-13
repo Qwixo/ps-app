@@ -1,0 +1,41 @@
+{
+  "about": "What a personal PS Supabase project needs (5 Nov 2026, Connect your own Supabase). PS's setup applies these migrations in order and deploys these functions on a project someone links themselves (ps-mac Sources/ProjectSetup.swift), and applies new ones on update. scripts/ps-kit.mjs packs them into the Mac app (Contents/Resources/project-kit). tests/ps-core.test.ts checks every table and function the app calls exists after them. The developer only feeds (Gmail, calendar, Instantly, Telegram, follow up, cron and pg_net, Claude's drop keys) never go to anyone else's project. A release that changes this list or one of these files must be a release with the app (npm run release -- --app).",
+  "migrations": [
+    "001_vault.sql",
+    "002_service_helpers.sql",
+    "003_access_log.sql",
+    "004_signup_allowances.sql",
+    "005_revoke_trigger_fn_execute.sql",
+    "006_prev_wrap_and_setup_retry.sql",
+    "010_blobs.sql",
+    "012_realtime.sql",
+    "015_ps_presence.sql",
+    "016_agent.sql",
+    "021_vault_probe.sql",
+    "025_multi_owner.sql",
+    "026_second.sql",
+    "029_phone_signin.sql"
+  ],
+  "functions": [
+    { "slug": "vault-auth", "entry": "index.ts", "files": ["index.ts"], "verify_jwt": false, "secrets": [] }
+  ],
+  "redOnly": {
+    "migrations": [
+      "008_gmail_inbox.sql",
+      "009_gmail_readonly_flag.sql",
+      "011_drop_keys.sql",
+      "013_calendar_inbox.sql",
+      "014_instantly_inbox.sql",
+      "017_telegram_inbox.sql",
+      "018_followup_feed.sql",
+      "019_instantly_webhook.sql",
+      "020_followup_drop_key_vault.sql",
+      "022_instantly_threads_content_hash.sql",
+      "024_pg_net_to_extensions.sql",
+      "027_calendar_live.sql",
+      "028_calendar_feeds.sql"
+    ],
+    "functions": ["vault-drop", "gmail-inbox", "calendar-inbox", "instantly-inbox", "instantly-replies", "instantly-webhook", "telegram-inbox", "fireflies-inbox", "campaigns-live"],
+    "calls": ["gmail_status", "instantly_status", "gmail-inbox", "calendar-inbox", "instantly-inbox", "campaigns-live", "fireflies-inbox"]
+  }
+}

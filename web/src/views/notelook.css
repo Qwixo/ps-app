@@ -1,0 +1,59 @@
+/* Settings, Notifications (views/NoteLook.tsx, V1.36). The preview is a picture of the Mac's card (ps-mac Toast.swift):
+   every colour on it comes in as a --nl- variable from the page, so it shows the card's own colours in every look. */
+.nl-cols { align-items: stretch; }
+.nl-kind { align-content: start; }
+/* V1.36 layout: each kind is one wide card, its name, preview and note on the left, its colour and sound on the right.
+   On a narrow window the controls go under the preview. */
+.gs-card.nl-kind { display: grid; grid-template-columns: minmax(260px, 380px) minmax(0, 1fr); grid-template-rows: auto auto 1fr; column-gap: calc(32px * var(--k-dn, 1)); row-gap: calc(10px * var(--k-dn, 1)); align-items: start; }
+.nl-kind > .tm-panel-h { grid-column: 1; grid-row: 1; }
+.nl-kind > .nl-card { grid-column: 1; grid-row: 2; }
+.nl-kind > .tm-pop-note { grid-column: 1; grid-row: 3; margin-top: 0; }
+.nl-kind > .nl-ctl { grid-column: 2; grid-row: 1 / span 3; }
+.nl-ctl { display: grid; gap: calc(10px * var(--k-dn, 1)); align-content: start; min-width: 0; }
+@media (max-width: 860px) {
+  .gs-card.nl-kind { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .nl-kind > .nl-ctl { grid-column: 1; grid-row: 3; }
+  .nl-kind > .tm-pop-note { grid-row: 4; }
+}
+.nl-lbl { font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .6; margin-top: 2px; }
+
+.nl-card { position: relative; overflow: hidden; border-radius: calc(18px * var(--k-rd, 1)); padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)); color: var(--nl-fg);
+  border: 1.5px solid color-mix(in srgb, var(--nl-c) 60%, transparent);
+  background: linear-gradient(160deg, var(--nl-top), var(--nl-bot) 60%);
+  box-shadow: 0 12px 30px var(--nl-shadow); font-family: var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif); font-size: calc(13px * var(--k-fs, 1)); line-height: 1.4;
+  animation: nl-in .55s cubic-bezier(.22, 1, .36, 1) both; }
+.nl-card.plain { border-width: 1px; border-color: color-mix(in srgb, var(--nl-c) 36%, transparent); }
+.nl-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; transform: translateX(-130%);
+  background: linear-gradient(105deg, transparent 30%, color-mix(in srgb, var(--nl-fg) 13%, transparent) 48%, color-mix(in srgb, var(--nl-fg) 5%, transparent) 56%, transparent 70%);
+  animation: nl-sheen 1.15s .2s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes nl-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+@keyframes nl-sheen { to { transform: translateX(130%); } }
+.nl-h { display: flex; align-items: center; gap: calc(9px * var(--k-dn, 1)); }
+.nl-ic { flex: none; width: 26px; height: 26px; border-radius: calc(9px * var(--k-rd, 1)); display: grid; place-items: center; margin-left: -2px; background: var(--nl-icbg); color: var(--nl-ic); }
+.nl-ic svg { width: 15px; height: 15px; }
+.nl-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--nl-c); box-shadow: 0 0 10px var(--nl-c); }
+.nl-t { flex: 1; min-width: 0; font-weight: 700; font-size: calc(14.5px * var(--k-fs, 1)); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nl-card.plain .nl-t { font-size: calc(14px * var(--k-fs, 1)); }
+.nl-when { flex: none; font-size: calc(11.5px * var(--k-fs, 1)); color: var(--nl-dim); }
+.nl-sub, .nl-b, .nl-acts, .nl-cd { margin-left: 33px; }
+.nl-card.plain .nl-sub, .nl-card.plain .nl-b { margin-left: 17px; }
+.nl-sub { margin-top: 3px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; color: var(--nl-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nl-b { margin-top: 6px; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; color: var(--nl-b); }
+.nl-cd { display: inline-block; margin-top: 7px; padding: calc(3px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 800; background: var(--nl-icbg); color: var(--nl-sub); }
+.nl-acts { display: flex; gap: calc(5px * var(--k-dn, 1)); margin: 10px 0 0; flex-wrap: wrap; }
+.nl-btn { border-radius: calc(99px * var(--k-rd, 1)); padding: calc(7px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; white-space: nowrap; color: var(--nl-fg); background: var(--nl-chip); }
+.nl-btn.main { background: var(--nl-white); color: var(--nl-dark); }
+.nl-btn.rem { background: var(--nl-rem); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nl-line) 45%, transparent); }
+.nl-btn.rem i { font-style: normal; margin-left: 1px; padding: 0 calc(4px * var(--k-dn, 1)); border-radius: calc(6px * var(--k-rd, 1)); background: var(--nl-chip); }
+.nl-btn.dis { margin-left: auto; box-shadow: inset 0 0 0 1px var(--nl-chipline); }
+
+.nl-now { border-radius: 999px; padding: calc(3px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); height: 22px; font: inherit; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 750; cursor: pointer;
+  color: inherit; background: transparent; border: 1.5px solid currentColor; opacity: .7; transition: opacity .15s ease, transform .15s ease; }
+.nl-now:hover { opacity: 1; }
+.nl-now.on { opacity: 1; }
+.nl-snd.off .tm-snd-i { opacity: .5; }
+.nl-snd.off .tm-snd-i.on .tm-snd-pick { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px currentColor; }
+.nl-reset { justify-self: start; border: 0; background: transparent; color: inherit; font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; padding: calc(2px * var(--k-dn, 1)) 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; opacity: .7; }
+.nl-reset:hover { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .nl-card, .nl-card::after { animation: none; } }
+.gs-card .nl-open { justify-self: start; align-self: flex-start; }

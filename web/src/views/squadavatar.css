@@ -1,0 +1,13 @@
+/* G Squad (V1.43): a person's picture, initials in a coloured circle (views/SquadAvatar.tsx). Six colours, each from
+   the current look, with the text colour the look made readable on it. A small green ring while they are working. */
+.gsa { flex: none; position: relative; box-sizing: border-box; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 800; letter-spacing: -.02em; line-height: 1;
+  font-family: var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif); user-select: none; -webkit-user-select: none;
+  --c: var(--k-acc, #EC4E86); --on: var(--k-on-acc, #FFFFFF);
+  background: linear-gradient(150deg, color-mix(in srgb, var(--c) 78%, #FFFFFF), var(--c) 60%, color-mix(in srgb, var(--c) 82%, #000000)); /* k-keep */ color: var(--on); }
+.gsa.t1 { --c: var(--k-info, #60A5FA); --on: var(--k-on-info, #06182E); }
+.gsa.t2 { --c: var(--k-ok, #34D399); --on: var(--k-on-ok, #062A16); }
+.gsa.t3 { --c: var(--k-warn, #FBBF24); --on: var(--k-on-warn, #2A1B00); }
+.gsa.t4 { --c: var(--k-acc2, #8B5CF6); --on: var(--k-on-acc2, #FFFFFF); }
+.gsa.t5 { --c: var(--k-bad, #FF5A5A); --on: var(--k-on-bad, #FFFFFF); }
+.gsa.on::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 28%; height: 28%; min-width: 8px; min-height: 8px; border-radius: 50%;
+  background: var(--k-ok, #34D399); box-shadow: 0 0 0 2px var(--k-surface, #17121A); }

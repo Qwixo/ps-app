@@ -1,0 +1,95 @@
+/* PS Mac app: the Sign in window's page (PsSignIn.tsx). One plain surface, no card, no scrollbar; PS sizes
+   the window to .ps-si. Colours follow the "PS is active" pop-up: plum in dark, blush in light. */
+.ps-si-page {
+  --si-bg: linear-gradient(180deg, #FFF8FB 0%, #FCEEF4 100%);
+  --si-glow: color-mix(in srgb, var(--pink) 16%, transparent);
+  --si-field: #FFFFFF; --si-field-line: #EAD9E0; --si-field-hover: #DCC5CF;
+  --si-text: #1B1A1D; --si-sub: #6F6873; --si-label: #5A5360;
+  --si-icon-shadow: drop-shadow(0 10px 14px rgba(166, 40, 87, .35));
+  --si-check-line: #D5BFC9;
+  min-height: 100vh; background: radial-gradient(70% 45% at 50% 0%, var(--si-glow), transparent 75%), var(--si-bg);
+  color: var(--si-text);
+}
+:root[data-theme="dark"] .ps-si-page {
+  --si-bg: linear-gradient(180deg, #24121F 0%, #140A12 100%);
+  --si-glow: rgba(236, 78, 134, .16);
+  --si-field: rgba(255, 255, 255, .06); --si-field-line: rgba(255, 255, 255, .12); --si-field-hover: rgba(255, 255, 255, .2);
+  --si-text: #F7EEF3; --si-sub: #B9A9B4; --si-label: #CDBFC8;
+  --si-icon-shadow: drop-shadow(0 12px 16px rgba(0, 0, 0, .55));
+  --si-check-line: rgba(255, 255, 255, .28);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ps-si-page {
+    --si-bg: linear-gradient(180deg, #24121F 0%, #140A12 100%);
+    --si-glow: rgba(236, 78, 134, .16);
+    --si-field: rgba(255, 255, 255, .06); --si-field-line: rgba(255, 255, 255, .12); --si-field-hover: rgba(255, 255, 255, .2);
+    --si-text: #F7EEF3; --si-sub: #B9A9B4; --si-label: #CDBFC8;
+    --si-icon-shadow: drop-shadow(0 12px 16px rgba(0, 0, 0, .55));
+  --si-check-line: rgba(255, 255, 255, .28);
+  }
+}
+html.ps-si-on, html.ps-si-on body { overflow: hidden; }
+html.ps-si-on::-webkit-scrollbar, html.ps-si-on body::-webkit-scrollbar { display: none; }
+
+/* Top padding leaves room for the window's close button (transparent title bar). */
+.ps-si { padding: 46px 34px 26px; display: grid; gap: 22px; }
+.ps-si-head { display: grid; justify-items: center; text-align: center; gap: 6px; }
+/* The icon file has macOS's own margin around its rounded square: a drop shadow follows that shape. */
+.ps-si-icon { width: 84px; height: 84px; filter: var(--si-icon-shadow); margin: -6px 0 2px; user-select: none; -webkit-user-drag: none; }
+.ps-si-head h1 { margin: 0; font-size: 21px; font-weight: 750; letter-spacing: -.01em; }
+.ps-si-head p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--si-sub); max-width: 290px; }
+
+.ps-si-form { display: grid; gap: 14px; }
+.ps-si-field { display: grid; gap: 6px; }
+.ps-si-field > span:first-child { font-size: 12px; font-weight: 650; color: var(--si-label); }
+.ps-si-field input, .ps-si-field textarea {
+  width: 100%; font: inherit; font-size: 14px; color: var(--si-text); background: var(--si-field);
+  border: 1px solid var(--si-field-line); border-radius: 11px; padding: 0 12px; height: 40px; outline: none;
+  transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+}
+.ps-si-field textarea { height: 76px; padding: 10px 12px; resize: none; line-height: 1.5; }
+.ps-si-field textarea.mono { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+.ps-si-field input:hover, .ps-si-field textarea:hover { border-color: var(--si-field-hover); }
+.ps-si-field input:focus, .ps-si-field textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pink) 24%, transparent); }
+.ps-si-pass { position: relative; display: block; }
+.ps-si-pass input { padding-right: 42px; }
+.ps-si-eye {
+  position: absolute; right: 5px; top: 5px; width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--si-sub); display: grid; place-items: center; cursor: pointer;
+}
+.ps-si-eye:hover { color: var(--si-text); background: color-mix(in srgb, var(--si-text) 8%, transparent); }
+
+.ps-si-remember { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; margin-top: 2px; }
+.ps-si-remember input {
+  appearance: none; -webkit-appearance: none; flex: none; width: 18px; height: 18px; margin: 1px 0 0; border-radius: 6px; cursor: pointer;
+  border: 1.5px solid var(--si-check-line); background: var(--si-field) center / 12px 12px no-repeat;
+  transition: background-color .15s var(--ease), border-color .15s var(--ease);
+}
+.ps-si-remember input:checked {
+  border-color: transparent; background-color: #EC4E86;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.ps-si-remember input:focus-visible { outline: 3px solid color-mix(in srgb, var(--pink) 35%, transparent); outline-offset: 2px; }
+.ps-si-remember span { display: grid; gap: 2px; }
+.ps-si-remember b { font-size: 13px; font-weight: 600; }
+.ps-si-remember small { font-size: 12px; color: var(--si-sub); line-height: 1.4; }
+
+/* The pop-up's pink pill. */
+.ps-si-go {
+  height: 42px; border: 0; border-radius: 999px; font: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer;
+  background: linear-gradient(180deg, #F5729F, #EC4E86); margin-top: 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 10px 24px -12px rgba(236, 78, 134, .9);
+  transition: filter .15s var(--ease), transform .15s var(--ease);
+}
+.ps-si-go:hover { filter: brightness(1.06); }
+.ps-si-go:active { transform: scale(.985); }
+.ps-si-go:disabled { opacity: .65; cursor: default; }
+.ps-si-go:focus-visible { outline: 3px solid color-mix(in srgb, var(--pink) 40%, transparent); outline-offset: 2px; }
+.ps-si-note { margin: -4px 0 0; font-size: 12px; color: var(--si-sub); text-align: center; }
+.ps-si-link {
+  justify-self: center; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--pink-d);
+  cursor: pointer; padding: 4px 8px; border-radius: 8px;
+}
+.ps-si-link.start { justify-self: start; padding-left: 0; margin-top: -4px; }
+.ps-si-link:hover { text-decoration: underline; }
+.ps-si-form .err { margin: 0; text-align: center; }

@@ -1,0 +1,14 @@
+node_modules
+dist
+private
+.env*
+.netlify
+dist-ps
+dist-gos
+tsconfig.tsbuildinfo
+.DS_Store
+.claude/settings.local.json
+gos-release
+ps-release
+build-prompt
+!.env.example

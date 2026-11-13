@@ -1,0 +1,32 @@
+// One squad (V1.47), the developer 10 Nov 2026: "make it so there's only one squad and it's already created, called The G Squad.
+// Get rid of any features to add new squads, because it doesn't really work."
+// V1.49, the developer 11 Nov 2026: "I want to make it there's automatically one squad already and we're all automatically in
+// it." No list of squads, no Create a squad, no Ask to join, no claim code, no approval: every PS joins by itself
+// (squad/autoengine.ts). The rules of the screen you see before you are in, with no DOM.
+import type { SquadView } from "./view.ts";
+import { THE_SQUAD as NAME, type AutoStage } from "../core/squadauto.ts";
+
+/** The one squad's name everywhere in PS. */
+export const THE_SQUAD = NAME;
+
+/** What the G Squad screen shows before you are in, one at a time:
+ *  - "joining": on the way in (PS joined by itself and is getting the squad key)
+ *  - "left":    you left on purpose (Join again)
+ *  - "removed": the admin took you out
+ *  - "full":    200 people (V1.55, was 30)
+ *  - "error":   the hub could not be reached (with the reason and Try again) */
+export function notInStage(v: Pick<SquadView, "in" | "auto">): AutoStage | null {
+  if (v.in) return null;
+  return v.auto?.stage ?? "joining";
+}
+
+// ---------- Squad settings (V1.47: simpler, one page per thing) ----------
+export const SETTINGS_PAGES = [
+  { id: "share", title: "What you share", line: "Choose what the squad can see" },
+  { id: "name", title: "Your name", line: "How the squad sees you" },
+  { id: "notify", title: "Notifications", line: "Sound for new messages, Do Not Disturb" },
+  { id: "looks", title: "Appearance", line: "Light or dark, colour, bubbles, text size, background" },
+  { id: "leave", title: "Leave the squad", line: "Take your shared things off" },
+] as const;
+export type SettingsPage = (typeof SETTINGS_PAGES)[number]["id"];
+export const isSettingsPage = (v: unknown): v is SettingsPage => SETTINGS_PAGES.some((p) => p.id === v);

@@ -1,0 +1,54 @@
+/* The small Fitness screen on the setup menu's Fitness cards (FitPeek.tsx). Colours come only from the Fitness tokens
+   (fitness.css), so volt, chalk and pulse in light and dark all work. Only transform and opacity animate. */
+.wfp-frame { border-radius: calc(18px * var(--k-rd, 1)); overflow: hidden; box-shadow: 0 18px 40px -22px rgba(0, 0, 0, .7); /* k-keep */ }
+.wfp { display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: inherit;
+  border: var(--f-line-w) solid var(--f-line); animation: wfp-in .42s var(--f-ease) both; }
+@keyframes wfp-in { from { opacity: 0; transform: scale(.97); } }
+
+.wfp-top { display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--k-dn, 1)); }
+.wfp-ex { font: var(--f-title-w) calc(16px * var(--k-fs, 1))/1.15 var(--f-font); letter-spacing: -.01em; color: var(--f-ink); }
+.wfp-mode { display: inline-flex; align-items: center; gap: calc(5px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); border-radius: var(--f-r-pill); background: var(--f-surface-2); color: var(--f-ink-2);
+  font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 700; transition: transform var(--f-mid) var(--f-spring); }
+.wfp-mode.hl { color: var(--f-on-accent); background: var(--f-accent); transform: scale(1.06); }
+
+.wfp-ex.hl { color: var(--f-accent); }
+.wfp-setof { display: flex; align-items: baseline; gap: calc(8px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; color: var(--f-ink-2); }
+.wfp-setof em { font-style: normal; font-weight: 650; color: var(--f-ink-3); }
+.wfp-setof.hl { color: var(--f-accent); }
+
+.wfp-sets { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.wfp-sets.n5 { gap: calc(4px * var(--k-dn, 1)); }
+.wfp-sets li { display: flex; align-items: baseline; gap: calc(4px * var(--k-dn, 1)); padding: calc(7px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: var(--f-r-s); background: var(--f-surface); border: var(--f-line-w) solid var(--f-line);
+  font-size: calc(11px * var(--k-fs, 1)); color: var(--f-ink-2); animation: wfp-row .4s calc(var(--i, 0) * 50ms) var(--f-ease) both; transition: opacity var(--f-mid) var(--f-ease); }
+.wfp-sets.n5 li { padding: calc(4px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+@keyframes wfp-row { from { opacity: 0; transform: translateY(6px); } }
+.wfp-sets li b { font-size: calc(16px * var(--k-fs, 1)); color: var(--f-ink); }
+.wfp-sets.n5 li b { font-size: calc(13px * var(--k-fs, 1)); }
+.wfp-sets li .x { margin: 0 4px; color: var(--f-ink-3); }
+.wfp-sets li .tick { margin-left: auto; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--f-line); }
+.wfp-sets li.done { background: var(--f-done-bg); }
+.wfp-sets li.done .tick { background: var(--f-accent); border-color: var(--f-accent); color: var(--f-on-accent); }
+.wfp-sets li.cur { border-color: var(--f-accent); box-shadow: var(--f-glow); }
+.wfp-sets li.skip { opacity: .4; text-decoration: line-through; text-decoration-color: var(--f-ink-3); }
+
+.wfp-rest { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: var(--f-r-s); background: var(--f-surface-2); transition: transform var(--f-mid) var(--f-spring); }
+.wfp-rest.hl { transform: scale(1.02); box-shadow: var(--f-glow); }
+.wfp-ring { width: 40px; height: 40px; transform: rotate(-90deg); flex: none; }
+.wfp-ring circle { fill: none; stroke-width: 4.5; }
+.wfp-ring .bg { stroke: var(--f-line); }
+.wfp-ring .fg { stroke: var(--f-accent); stroke-linecap: round; stroke-dasharray: 100; transition: stroke-dashoffset 1s linear; }
+.wfp-rest-t { display: grid; }
+.wfp-rest-t small { font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--f-ink-3); }
+.wfp-rest-t b { font-size: calc(24px * var(--k-fs, 1)); color: var(--f-ink); animation: wfp-pop .35s var(--f-spring) both; }
+@keyframes wfp-pop { from { transform: scale(.85); opacity: .4; } }
+
+.wfp-skip { display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.wfp-next { justify-self: start; display: inline-flex; align-items: center; gap: calc(4px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: var(--f-r-pill); background: var(--f-accent); color: var(--f-on-accent);
+  font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; animation: wfp-nudge 1.6s .5s var(--f-ease) infinite; }
+@keyframes wfp-nudge { 0%, 70%, 100% { transform: none; } 80% { transform: translateX(4px); } }
+.wfp-skip p { margin: 0; font-size: calc(11.5px * var(--k-fs, 1)); line-height: 1.4; color: var(--f-ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wfp, .wfp-sets li, .wfp-rest-t b, .wfp-next { animation: none; }
+  .wfp-ring .fg, .wfp-rest, .wfp-mode { transition: none; }
+}

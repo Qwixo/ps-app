@@ -1,0 +1,422 @@
+/* Edit mode for the floating Tab list (views/EditMode.tsx, core/tablayout.ts). */
+
+/* A slot has no box of its own, so the columns lay out exactly as before. */
+.ed-slot { display: contents; }
+.ed-slot.ed-hidden { display: none; }
+/* Moved: lifted out of its column to a fixed place (left, top or bottom, width from tablayout.ts slotStyle). */
+.ed-slot.ed-moved { display: flex; flex-direction: column; position: fixed; z-index: 4; pointer-events: auto; min-height: 0; }
+/* Hidden wins over moved: a moved panel that was removed, or sits on another page, is never drawn here. */
+.ed-slot.ed-moved.ed-hidden { display: none; }
+.ed-slot.ed-moved > * { position: relative; left: auto; top: auto; right: auto; bottom: auto; margin: 0; flex: 0 1 auto; min-height: 0; max-width: 100%; }
+.ed-slot.ed-moved > .tm-glass-wrap { transform: none; }
+.ed-slot.ed-moved > .nt-slot { align-self: stretch; }
+/* A column or row is its own layer (z-index 2 or 3): one holding a moved panel comes up, so the panel is never
+   under the other column's panels, and the one being dragged is above everything. */
+.tm-overlay.ed-able .tm-side:has(.ed-moved), .tm-overlay.ed-able .tm-tr:has(.ed-moved) { z-index: 5; }
+.tm-overlay.ed-able .tm-side:has(.ed-dragging), .tm-overlay.ed-able .tm-tr:has(.ed-dragging) { z-index: 7; }
+/* While dragged: lifted, a soft shadow and the accent outline; it moves by its translate only (no layout). */
+.ed-slot.ed-dragging { z-index: 70; will-change: translate; }
+.ed-slot.ed-dragging > * { box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .7), 0 0 0 2px var(--k-acc, #EC4E86); border-radius: calc(16px * var(--k-rd, 1)); }
+/* Removed (the x): it shrinks and fades, then goes. Brought back (or Reset): it fades in. */
+.ed-slot.ed-out > * { transition: opacity .18s ease, scale .18s ease; opacity: 0; scale: .9; }
+.ed-slot.ed-fresh > * { animation: ed-in .32s cubic-bezier(.2, .9, .3, 1.2) both; }
+@keyframes ed-in { from { opacity: 0; scale: .9; } }
+
+/* The Edit button, top left; the side column starts below it. */
+.tm-overlay.ed-able .tm-left { top: calc(64px + var(--safe-top, 0px)); }
+.ed-corner { position: absolute; top: calc(20px + var(--safe-top, 0px)); left: 24px; z-index: 60; display: grid; gap: calc(8px * var(--k-dn, 1)); justify-items: start; }
+.ed-btn {
+  display: inline-flex; align-items: center; gap: calc(7px * var(--k-dn, 1)); height: 32px; padding: 0 calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .01em; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-surface, #160E13) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, border-color .15s ease, transform .12s ease, opacity .15s ease;
+}
+.ed-btn:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), var(--k-surface, #160E13)); }
+.ed-btn:active { transform: scale(.96); }
+.ed-btn:disabled { opacity: .45; cursor: default; transform: none; }
+.ed-btn.on { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); }
+.ed-btn.sm { height: 26px; font-size: calc(12px * var(--k-fs, 1)); padding: 0 calc(11px * var(--k-dn, 1)); }
+.ed-done { background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); border-color: transparent; }
+.ed-done:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 85%, var(--k-fg, #FFFFFF)); }
+.ed-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 calc(5px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(11px * var(--k-fs, 1)); font-weight: 800;
+  background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.ed-bar { display: flex; gap: calc(8px * var(--k-dn, 1)); animation: ed-in .22s cubic-bezier(.2, .9, .3, 1.2) both; }
+.ed-tray {
+  display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); width: min(360px, calc(100vw - 48px)); padding: calc(12px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-surface, #160E13) 100%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .7); animation: ed-in .2s cubic-bezier(.2, .9, .3, 1.2) both; transform-origin: top left;
+}
+.ed-none { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(65% * var(--k-ia, 1))), transparent); }
+.ed-chip {
+  display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); height: 30px; padding: 0 calc(12px * var(--k-dn, 1)) 0 calc(8px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit;
+  font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 700; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent);
+  border: 1px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, border-color .15s ease, transform .12s ease;
+}
+.ed-chip:hover { border-style: solid; border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent); }
+.ed-chip:active { transform: scale(.96); }
+.ed-plus { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-weight: 800; line-height: 1;
+  background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.ed-isl { flex-basis: 100%; display: grid; gap: calc(8px * var(--k-dn, 1)); justify-items: start; margin-top: 4px; padding-top: calc(10px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1));
+  border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+
+/* The edit layer: over everything in the list (so nothing inside a panel is clicked by accident), under the bar. */
+.ed-layer { position: absolute; inset: 0; z-index: 50; cursor: default; touch-action: none; user-select: none; -webkit-user-select: none;
+  background-image: radial-gradient(color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent) 1px, transparent 1.4px); background-size: 24px 24px;
+  animation: ed-fade .2s ease both; }
+@keyframes ed-fade { from { opacity: 0; } }
+.ed-hint { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); margin: 0; padding: calc(8px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); white-space: nowrap; pointer-events: none;
+  font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-surface, #160E13) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); }
+.ed-box {
+  position: fixed; box-sizing: border-box; cursor: grab; border-radius: calc(14px * var(--k-rd, 1));
+  border: 1.5px dashed color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent);
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 7%, transparent);
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.ed-box:hover { border-style: solid; background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent); }
+.ed-box:active { cursor: grabbing; }
+.ed-box.ed-lift { opacity: 0; }
+.ed-name { position: absolute; left: 8px; top: -9px; max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: calc(1px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .04em; color: var(--k-on-acc, #FFFFFF); background: var(--k-acc, #EC4E86); pointer-events: none; }
+.ed-x {
+  position: absolute; right: -9px; top: -9px; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border-radius: 50%; cursor: pointer;
+  color: var(--k-on-bad, #FFFFFF); background: var(--k-bad, #E5484D); border: 2px solid var(--k-surface, #160E13); box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
+  transition: transform .12s ease, background .12s ease;
+}
+.ed-x:hover { transform: scale(1.12); background: var(--k-bad, #F2555A); }
+.ed-x:active { transform: scale(.94); }
+/* A small button's name would cover its neighbours: it shows only while the pointer is on it. */
+.ed-box.ed-small .ed-name { opacity: 0; transform: translateY(3px); transition: opacity .12s ease, transform .12s ease; max-width: none; }
+.ed-box.ed-small:hover .ed-name { opacity: 1; transform: none; z-index: 3; }
+.ed-box:hover { z-index: 2; }
+.ed-guide { position: fixed; pointer-events: none; opacity: 0; transition: opacity .1s ease; background: var(--k-acc, #EC4E86); z-index: 2; }
+.ed-guide.x { left: 0; top: 0; bottom: 0; width: 1px; }
+.ed-guide.y { left: 0; right: 0; top: 0; height: 1px; }
+
+/* Hover mode (everything faint until the mouse is on it): a slot still in its column hands that to its panel. */
+.tm-hovermode .tm-side > .ed-slot:not(.ed-moved) > * { opacity: .05; transition: opacity .28s ease; will-change: opacity; }
+.tm-hovermode .tm-side > .ed-slot[data-hm]:not(.ed-moved) > *, .tm-hovermode .tm-side > .ed-slot:not(.ed-moved) > *:focus-within { opacity: 1; transition-duration: .12s; }
+.tm-hovermode[data-mouse-out] .tm-side > .ed-slot[data-hm]:not(.ed-moved) > *:not(:focus-within) { opacity: .05; }
+.tm-hovermode .ed-corner { opacity: .05; transition: opacity .28s ease; }
+.tm-hovermode .ed-corner[data-hm], .tm-hovermode .ed-corner:focus-within, .tm-hovermode .ed-corner.on { opacity: 1; transition-duration: .12s; }
+/* Rules that named a panel as a direct child of its row or column, with the slot in between now. */
+.tm-xrow > .ed-slot > .dx-dock { align-self: auto; }
+.nu-tlrow > .ed-slot > .tm-tl.tm-tl { margin-top: 0; flex: 0 1 auto; min-width: 0; display: flex; }
+.tm-right .ed-slot:has(> .tm-mail):has(~ .ed-slot > .tm-mn) > .tm-mail { margin-bottom: 0; }
+.tm-overlay.tm-hovermode .tm-side > .ed-slot > .nt-slot.show { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-slot.ed-fresh > *, .ed-bar, .ed-tray, .ed-layer { animation: none; }
+  .ed-slot.ed-out > * { transition: none; }
+}
+
+/* The Dynamic Island menu's Position row (TaskMap.tsx IslandPosRow, G Squad). */
+.tm-isl-pos { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(11px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); margin-top: 6px; border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent); }
+.tm-isl-posbtn { flex: none; height: 28px; padding: 0 calc(11px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 18%, transparent); transition: background .15s ease, opacity .15s ease; }
+.tm-isl-posbtn:hover:not(:disabled) { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 18%, transparent); }
+.tm-isl-posbtn:disabled { opacity: .4; cursor: default; }
+
+/* A moved panel can land over the task list: it gets a solid backing (like the clear background's), so its words
+   never mix with the tasks under it. */
+.ed-slot.ed-moved > :is(.tm-meet, .tm-mn, .tm-mail, .tm-aware, .tm-nl, .tm-undo) {
+  background: color-mix(in srgb, var(--k-surface, #160E13) 96%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.ed-slot.ed-moved > .tm-aware { background: color-mix(in srgb, var(--k-bad-bg, #300A0E) 97%, transparent); }
+
+/* ---------- V1.55: the overview (views/EditMode.tsx Overview). The list itself is the card in the middle: it springs
+   down to --ov-s of the screen, its corners round, the room around it goes dark, the other pages sit beside it. ---------- */
+.ed-slot.ed-z > * { zoom: var(--ed-z, 1); }
+.ed-inner { display: contents; }
+.ed-slot.ed-away > * { opacity: .22; transition: opacity .15s ease; }
+/* Back to full screen: a calm ease, no overshoot past the screen's edges. Into the overview: the spring. */
+.tm-overlay.ed-able {
+  transform-origin: 50% 50%;
+  transition: background-color .22s ease, transform .5s cubic-bezier(.2, .85, .25, 1), border-radius .4s ease, box-shadow .4s ease;
+}
+html.ov-on .tm-overlay.ed-able {
+  transition: background-color .22s ease, transform .68s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)), border-radius .45s ease, box-shadow .45s ease;
+  transform: translateY(var(--ov-y, 0px)) scale(var(--ov-s, 1)); border-radius: 36px;
+  box-shadow: 0 60px 160px -30px rgba(0, 0, 0, .92), 0 0 0 2px color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent), 0 0 90px -10px color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent);
+}
+/* Labels, the x and the handles stay readable at the card's size. */
+html.ov-on .tm-overlay.ed-able :is(.ed-name, .ed-x, .ed-cal, .ed-rs, .ed-rw) { scale: var(--ov-inv, 1); }
+html.ov-on .tm-overlay.ed-able .ed-name { transform-origin: left bottom; }
+/* They grow outward from the box's corner, so on a small button they never cover the button itself. */
+html.ov-on .tm-overlay.ed-able .ed-x { transform-origin: left bottom; right: auto; left: calc(100% - 6px); top: -16px; }
+html.ov-on .tm-overlay.ed-able .ed-rs { transform-origin: left top; right: -12px; bottom: -12px; }
+html.ov-on .tm-overlay.ed-able .ed-rw { transform-origin: left center; right: -10px; }
+html.ov-on .tm-overlay.ed-able .ed-cal { transform-origin: right top; }
+html.ov-on .tm-overlay.ed-able .ed-hint { display: none; }
+
+/* The room under the card (z 89, the list is 90) and the bar over it (z 96). */
+.ov-room, .ov-top { position: fixed; inset: 0; pointer-events: none; }
+.ov-room { z-index: 89; }
+.ov-top { z-index: 96; }
+.ov-room > *, .ov-top > * { pointer-events: auto; }
+/* V1.56, the spotlight (the developer, 13 Nov 2026: "make it like a spotlight look instead in the background instead of just
+   black"): a soft pool of light where the page sits, a faint beam from above, a glow on the floor under the card, all
+   fading to dark at the edges. The light is a warm white with a touch of the look's own accent, so it suits every
+   look (light looks become a bright card under the light). All still: no animation runs while the overview is open. */
+.ov-dim { position: fixed; inset: 0; overflow: hidden; opacity: 0; transition: opacity .5s ease;
+  --ov-light: color-mix(in srgb, #FFF6EE 82%, var(--k-acc, #EC4E86));
+  background:
+    radial-gradient(ellipse 38% 36% at 50% 50%, color-mix(in srgb, var(--ov-light) 26%, transparent), transparent 100%),
+    radial-gradient(ellipse 66% 62% at 50% 50%, color-mix(in srgb, var(--ov-light) 11%, transparent), transparent 100%),
+    radial-gradient(ellipse 92% 88% at 50% 50%, rgba(20, 15, 19, .5), rgba(3, 2, 4, .95) 100%);
+  -webkit-backdrop-filter: blur(10px) saturate(.8); backdrop-filter: blur(10px) saturate(.8); }
+.ov-room.on .ov-dim { opacity: 1; }
+.ov-room.leaving .ov-dim { opacity: 0; transition-duration: .4s; }
+.ov-beam, .ov-floor { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+/* The beam: a narrow cone from above the screen, soft edged, gone before the bottom. It switches on just after the room
+   darkens, with the pool widening a touch, like a stage light coming up. */
+.ov-beam {
+  background: conic-gradient(from 163deg at 50% -18%, transparent 0deg, color-mix(in srgb, var(--ov-light) 11%, transparent) 10deg, color-mix(in srgb, var(--ov-light) 15%, transparent) 17deg, color-mix(in srgb, var(--ov-light) 11%, transparent) 24deg, transparent 34deg);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, .7) 45%, transparent 92%); mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, .7) 45%, transparent 92%);
+  filter: blur(18px); transform: scaleX(.8); transform-origin: 50% 0;
+  transition: opacity .9s ease .18s, transform 1.1s cubic-bezier(.2, .8, .25, 1) .18s; }
+.ov-floor {
+  background: radial-gradient(ellipse 34% 7% at 50% 87%, color-mix(in srgb, var(--ov-light) 16%, transparent), transparent 100%);
+  transition: opacity .8s ease .3s; }
+.ov-room.on .ov-beam { opacity: 1; transform: none; }
+.ov-room.on .ov-floor { opacity: 1; }
+.ov-room.leaving :is(.ov-beam, .ov-floor) { opacity: 0; transition-delay: 0s; transition-duration: .3s; }
+/* The gallery lifts the card: the floor glow would sit behind the sheet, so it goes. */
+.ov-room:has(~ .ov-top .ov-gal) .ov-floor { opacity: 0; transition-delay: 0s; }
+
+/* The row of pages slides as one (EditMode.tsx cam): the cards, the + cards and the name pills sit in the track. */
+.ov-room > .ov-track { position: fixed; inset: 0; pointer-events: none; }
+.ov-track > * { pointer-events: auto; }
+/* The page in the middle changed with the row slid: one frame with no glides, so nothing jumps (then the camera glides). */
+.ov-room.ov-snap :is(.ov-slot, .ov-plus, .ov-pill, .ov-card) { transition: none !important; }
+.ov-room { -webkit-user-select: none; user-select: none; }
+html.ov-panning, html.ov-panning * { cursor: grabbing !important; }
+/* The + cards moved one place out (a page was added or deleted): they pop in again where they are now. */
+.ov-room.on .ov-plus.again { animation: ov-pop .6s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)) both; }
+@keyframes ov-pop { from { opacity: 0; scale: .7; } }
+
+/* The pages beside, each where it sits in the order: they glide (springy) when the order or the middle page changes. */
+.ov-slot { position: fixed; left: 0; top: 0; transition: transform .62s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)), width .5s ease, height .5s ease; }
+.ov-slot.lifting { transition: none; z-index: 2; }
+.ov-card {
+  position: absolute; inset: 0; overflow: hidden; cursor: pointer; border-radius: 28px; outline: none;
+  background:
+    radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent), transparent 60%),
+    color-mix(in srgb, var(--k-surface, #160E13) 86%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, transparent);
+  box-shadow: 0 40px 100px -40px rgba(0, 0, 0, .9);
+  opacity: 0; transform: scale(.86) translateY(30px);
+  transition: opacity .45s ease, transform .62s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)), border-color .2s ease, box-shadow .2s ease, filter .2s ease;
+  transition-delay: calc(var(--d, 1) * 60ms + 90ms);
+}
+.ov-room.on .ov-card { opacity: .78; transform: none; }
+.ov-room.on .ov-card:hover, .ov-card:focus-visible { opacity: 1; border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) 34%, transparent); transition-delay: 0s; }
+.ov-card.lit { opacity: 1 !important; border-color: var(--k-acc, #EC4E86); box-shadow: 0 0 0 5px color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent), 0 40px 100px -40px rgba(0, 0, 0, .9); transform: scale(1.025) !important; transition-delay: 0s; }
+.ov-room.leaving .ov-card { opacity: 0; transform: scale(.9); transition-delay: 0s; transition-duration: .3s; }
+.ov-card-head { position: absolute; left: 50%; top: 9%; transform: translateX(-50%); width: 56%; font-weight: 850; letter-spacing: -.02em; line-height: 1.05;
+  color: var(--k-fg, #FFFFFF); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-card-secs { position: absolute; left: 22%; right: 22%; top: 22%; display: grid; gap: 10px; }
+.ov-card-secs span { display: block; height: 18px; border-radius: 9px; font-size: 0; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 11%, transparent); }
+.ov-mini { position: absolute; display: grid; place-items: center; overflow: hidden; border-radius: 7px;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 9%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 20%, transparent); }
+.ov-mini i { font-style: normal; font-size: 9.5px; font-weight: 750; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) 70%, transparent); }
+.ov-card-add { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px 0 12px;
+  border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 750; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); border: 1.5px dashed color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); }
+.ov-card-add:hover { border-style: solid; background: color-mix(in srgb, var(--k-acc, #EC4E86) 34%, transparent); }
+
+/* The + cards past each end: a new page there. */
+.ov-plus {
+  position: fixed; left: 0; top: 0; display: grid; place-items: center; align-content: center; gap: 12px; padding: 0; cursor: pointer; font: inherit;
+  border-radius: 26px; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 4%, transparent);
+  border: 2px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) 24%, transparent);
+  opacity: 0; scale: .6;
+  transition: transform .62s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)), opacity .4s ease .25s, scale .7s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)) .22s, border-color .2s ease, background .2s ease;
+}
+.ov-room.on .ov-plus { opacity: 1; scale: 1; }
+.ov-room.leaving .ov-plus { opacity: 0; scale: .7; transition-delay: 0s; transition-duration: .25s; }
+.ov-plus:hover, .ov-plus.lit { border-color: var(--k-acc, #EC4E86); border-style: solid; background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); }
+.ov-plus-c { display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; color: var(--k-on-acc, #FFFFFF);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--k-acc, #EC4E86) 70%, #FFFFFF), var(--k-acc, #EC4E86));
+  box-shadow: 0 14px 40px -10px color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); transition: transform .35s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)); }
+.ov-plus:hover .ov-plus-c { transform: scale(1.12) rotate(90deg); }
+.ov-plus:active .ov-plus-c { transform: scale(.94); }
+.ov-plus-t { font-size: 14px; font-weight: 750; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 75%, transparent); }
+
+/* Each page's name pill, above its card. */
+.ov-pill {
+  position: fixed; left: 0; top: 0; display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 12px; border-radius: 999px; cursor: grab;
+  font-size: 13px; font-weight: 800; color: var(--k-fg, #FFFFFF); white-space: nowrap; user-select: none; -webkit-user-select: none; touch-action: none;
+  background: color-mix(in srgb, var(--k-surface, #160E13) 90%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 18%, transparent);
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, .8);
+  opacity: 0; transition: transform .62s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)), opacity .35s ease .3s, background .15s ease;
+}
+.ov-room.on .ov-pill { opacity: 1; }
+.ov-room.leaving .ov-pill { opacity: 0; transition-delay: 0s; transition-duration: .2s; }
+.ov-pill.cur { background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); border-color: transparent; }
+.ov-pill.lifting { transition: opacity .2s ease; cursor: grabbing; box-shadow: 0 18px 40px -10px rgba(0, 0, 0, .9); z-index: 3; }
+.ov-pill:not(:has(.ov-grip)) { cursor: default; padding-right: 12px; }
+.ov-grip { width: 10px; height: 14px; opacity: .6; background: radial-gradient(circle, currentColor 1.2px, transparent 1.6px) 0 0 / 5px 5px; }
+.ov-pill-n { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.ov-pill-x { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 800;
+  color: inherit; background: color-mix(in srgb, currentColor 16%, transparent); border: 0; transition: background .15s ease; }
+.ov-pill-x:hover, .ov-pill-x.sure { background: var(--k-bad, #E5484D); color: var(--k-on-bad, #FFFFFF); }
+.ov-pill-x.sure { padding: 0 9px; }
+
+/* The bar, top middle, and the hint at the bottom. */
+/* Its place (EditMode.tsx barSpot): top middle, or a top corner when the Dynamic Island is there. Nothing sits over anything. */
+.ov-bar { position: fixed; top: calc(16px + var(--safe-top, 0px)); left: 0; display: flex; gap: 8px; padding: 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--k-surface, #160E13) 92%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent);
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, .9);
+  transform: translateY(-80px); opacity: 0;
+  transition: transform .6s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)) .08s, opacity .3s ease .08s; }
+/* Once placed, a new place (the island moved or grew) is a glide, never a jump. */
+.ov-top[data-placed] :is(.ov-bar, .ov-hint) { transition-property: transform, opacity, left, top; }
+.ov-top[data-placed] .ov-bar { transition-duration: .6s, .3s, .5s, .5s; transition-delay: .08s, .08s, 0s, 0s; }
+.ov-top[data-placed] .ov-hint { transition-duration: .5s, .4s, .5s, .5s; transition-delay: .35s, .35s, 0s, 0s; }
+.ov-top.on .ov-bar { transform: none; opacity: 1; }
+.ov-top.leaving .ov-bar { transform: translateY(-80px); opacity: 0; transition-delay: 0s; }
+.ov-add .ed-plus { width: 17px; height: 17px; }
+.ed-btn.ov-sure { background: var(--k-bad, #E5484D); color: var(--k-on-bad, #FFFFFF); border-color: transparent; }
+.ov-hint { position: fixed; left: 0; top: 0; margin: 0; transform: translateY(20px); opacity: 0; pointer-events: none; white-space: nowrap;
+  font-size: 12.5px; font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 72%, transparent);
+  transition: opacity .4s ease .35s, transform .5s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)) .35s; }
+.ov-top.on .ov-hint { opacity: 1; transform: none; }
+.ov-top.leaving .ov-hint, .ov-top:has(.ov-gal) .ov-hint { opacity: 0; transition-delay: 0s; }
+
+/* Add panel: the gallery, a sheet that springs up from the bottom while the card moves up out of its way. */
+.ov-gal {
+  position: fixed; left: 50%; bottom: calc(14px + var(--safe-bottom, 0px)); width: min(1040px, calc(100vw - 32px)); max-height: 31vh; display: grid; grid-template-rows: auto 1fr auto; gap: 10px;
+  padding: 14px; border-radius: 24px; transform: translateX(-50%);
+  background: color-mix(in srgb, var(--k-surface, #160E13) 96%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent);
+  box-shadow: 0 -20px 80px -30px rgba(0, 0, 0, .9); animation: ov-sheet .55s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)) both;
+}
+@keyframes ov-sheet { from { transform: translate(-50%, 70%); opacity: 0; } }
+.ov-gal-head { display: flex; align-items: center; gap: 10px; }
+.ov-gal-head b { font-size: 15px; font-weight: 850; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-gal-q { flex: 1; min-width: 80px; height: 30px; padding: 0 12px; border-radius: 999px; font: inherit; font-size: 13px; color: var(--k-fg, #FFFFFF); outline: none;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 7%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); }
+.ov-gal-q:focus { border-color: var(--k-acc, #EC4E86); }
+.ov-gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.ov-tile {
+  position: relative; display: grid; grid-template-columns: 34px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; text-align: left; padding: 9px 30px 9px 9px;
+  border-radius: 14px; cursor: pointer; font: inherit; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent);
+  transition: background .15s ease, border-color .15s ease, transform .3s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1));
+  animation: ov-tile .45s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)) both;
+}
+@keyframes ov-tile { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+.ov-tile:hover { border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent); transform: translateY(-2px); }
+.ov-tile:active { transform: scale(.96); }
+.ov-tile-ic { grid-row: span 2; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; font-size: 12px; font-weight: 850; letter-spacing: .02em;
+  color: var(--k-on-acc, #FFFFFF); background: linear-gradient(135deg, color-mix(in srgb, var(--k-acc, #EC4E86) 85%, #FFFFFF), color-mix(in srgb, var(--k-acc, #EC4E86) 75%, #000000)); }
+.ov-tile.removed .ov-tile-ic { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); color: var(--k-fg, #FFFFFF); }
+.ov-tile-n { font-size: 13px; font-weight: 750; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ov-tile-s { font-size: 11px; font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 55%, transparent); }
+.ov-tile.removed .ov-tile-s { color: var(--k-warn-t, #FFC27A); }
+.ov-tile-plus { position: absolute; right: 9px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-weight: 850; line-height: 1;
+  background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); transition: transform .3s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)); }
+.ov-tile:hover .ov-tile-plus { transform: scale(1.18) rotate(90deg); }
+.ov-gal .ed-isl { margin-top: 0; }
+
+/* A panel being taken to another page: a chip follows the pointer. */
+.ov-ghost { position: fixed; left: 0; top: 0; z-index: 98; pointer-events: none; translate: -50% -140%; padding: 6px 12px; border-radius: 999px; white-space: nowrap;
+  font-size: 12.5px; font-weight: 800; color: var(--k-on-acc, #FFFFFF); background: var(--k-acc, #EC4E86); box-shadow: 0 12px 30px -8px rgba(0, 0, 0, .8); }
+
+/* A Meetings panel's calendar menu. */
+.ov-cal { position: fixed; z-index: 97; display: grid; gap: 4px; width: 290px; padding: 10px; border-radius: 16px;
+  background: color-mix(in srgb, var(--k-surface, #160E13) 98%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent);
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .9); animation: ed-in .25s cubic-bezier(.2, .9, .3, 1.2) both; }
+.ov-cal b { font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 6px 6px; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 65%, transparent); }
+.ov-cal button { text-align: left; padding: 8px 10px 8px 28px; position: relative; border-radius: 10px; border: 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 650;
+  color: var(--k-fg, #FFFFFF); background: transparent; }
+.ov-cal button:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 9%, transparent); }
+.ov-cal button[aria-checked="true"]::before { content: ""; position: absolute; left: 10px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: var(--k-acc, #EC4E86); }
+
+/* The handles on the card in the middle: size (corner), width (right edge, wide panels), calendar (Meetings). */
+.ed-rs { position: absolute; right: -8px; bottom: -8px; width: 16px; height: 16px; border-radius: 50%; cursor: nwse-resize; z-index: 3;
+  background: var(--k-acc, #EC4E86); border: 2px solid var(--k-surface, #160E13); box-shadow: 0 2px 8px rgba(0, 0, 0, .5); transition: transform .15s ease; }
+.ed-rs:hover { transform: scale(1.2); }
+.ed-rw { position: absolute; right: -5px; top: 50%; width: 8px; height: 36px; margin-top: -18px; border-radius: 4px; cursor: ew-resize; z-index: 3;
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 85%, #FFFFFF); border: 1.5px solid var(--k-surface, #160E13); transform-origin: right center; }
+.ed-cal { position: absolute; left: -10px; bottom: -10px; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border-radius: 50%; cursor: pointer; z-index: 4;
+  color: var(--k-on-acc, #FFFFFF); background: var(--k-info, #3B82F6); border: 2px solid var(--k-surface, #160E13); transform-origin: right top; }
+.ed-box.ed-small .ed-rs { opacity: .55; }
+.ed-box.ed-small:hover .ed-rs { opacity: 1; }
+.ed-inner-box { border-radius: 50%; z-index: 2; cursor: grab; border: 1.5px dashed color-mix(in srgb, var(--k-info, #3B82F6) 90%, transparent);
+  background: color-mix(in srgb, var(--k-info, #3B82F6) 12%, transparent); }
+.ed-inner-box:hover { background: color-mix(in srgb, var(--k-info, #3B82F6) 28%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-info, #3B82F6) 22%, transparent); }
+.ed-copybox { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 60%, #FFFFFF); }
+/* A button dragged out of its panel stands on its own: solid, so nothing shows through it. */
+.ed-slot.ed-copy.ed-moved > :is(.tm-mask, .tm-cal-ref, .tm-isl-btn) { background: color-mix(in srgb, var(--k-surface, #160E13) 92%, transparent); }
+
+/* V1.56 Saved looks: the Looks menu and Save, a sheet under the bar. */
+.ov-looks { position: fixed; z-index: 97; padding: 14px; border-radius: 22px; max-height: min(62vh, 560px); overflow-y: auto; overscroll-behavior: contain;
+  background: color-mix(in srgb, var(--k-surface, #160E13) 97%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent);
+  box-shadow: 0 30px 80px -24px rgba(0, 0, 0, .92); animation: ov-drop .38s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)) both; transform-origin: 30% 0; }
+@keyframes ov-drop { from { opacity: 0; transform: translateY(-10px) scale(.96); } }
+.ov-looks b { font-size: 15px; font-weight: 850; }
+.ov-save { display: grid; gap: 10px; }
+.ov-save p { margin: 0; font-size: 12.5px; font-weight: 600; line-height: 1.4; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 65%, transparent); }
+.ov-save-row { display: flex; gap: 8px; align-items: center; }
+.ov-save-row .ov-gal-q { height: 34px; font-size: 14px; }
+.ov-save-note { font-size: 12px; font-weight: 650; color: var(--k-warn-t, #FFC27A); }
+.ov-lk { display: grid; gap: 12px; }
+.ov-lk-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ov-lk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ov-lk-card { display: grid; gap: 6px; padding: 8px; border-radius: 16px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); animation: ov-tile .4s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)) both;
+  transition: border-color .15s ease, transform .3s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)); }
+.ov-lk-card:hover { border-color: var(--k-acc, #EC4E86); transform: translateY(-2px); }
+.ov-lk-card.auto { border-style: dashed; }
+.ov-lk-pick { display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 10px; }
+.ov-lk-thumb { position: relative; display: block; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 10px;
+  background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent), transparent 60%), color-mix(in srgb, var(--k-base, #0B0709) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, transparent); }
+.ov-lk-thumb i { position: absolute; display: block; border-radius: 3px; }
+.ov-lk-head-line { left: 32%; right: 32%; top: 12%; height: 9%; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 34%, transparent); }
+.ov-lk-row { left: 28%; right: 28%; height: 7%; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); }
+.ov-lk-box { background: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 75%, transparent); }
+.ov-lk-dots { position: absolute; left: 0; right: 0; bottom: 6%; display: flex; justify-content: center; gap: 3px; }
+.ov-lk-dots i { position: static; width: 4px; height: 4px; border-radius: 50%; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 35%, transparent); }
+.ov-lk-dots i.on { background: var(--k-fg, #FFFFFF); }
+.ov-lk-name { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 13px; font-weight: 750; }
+.ov-lk-name > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.ov-lk-in { flex: 1; min-width: 0; height: 24px; padding: 0 8px; border-radius: 8px; font: inherit; font-size: 13px; color: var(--k-fg, #FFFFFF); outline: none;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent); border: 1px solid var(--k-acc, #EC4E86); }
+.ov-lk-ic { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; cursor: pointer; color: inherit;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 9%, transparent); opacity: .7; transition: opacity .15s ease, background .15s ease; }
+.ov-lk-ic:hover { opacity: 1; }
+.ov-lk-ic.x:hover { background: var(--k-bad, #E5484D); color: var(--k-on-bad, #FFFFFF); }
+.ov-lk-when { font-size: 11px; font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 50%, transparent); }
+/* Undo, for about 10 seconds after a switch, a reset or a delete: the line underneath runs out. */
+.ov-toast { position: fixed; left: 50%; bottom: calc(52px + var(--safe-bottom, 0px)); z-index: 97; display: flex; align-items: center; gap: 12px; overflow: hidden;
+  padding: 7px 7px 7px 16px; border-radius: 999px; transform: translateX(-50%); font-size: 13px; font-weight: 750; white-space: nowrap;
+  background: color-mix(in srgb, var(--k-surface, #160E13) 96%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 18%, transparent);
+  box-shadow: 0 20px 50px -18px rgba(0, 0, 0, .9); animation: ov-toast .45s var(--ov-spring, cubic-bezier(.3, 1.32, .45, 1)) both; }
+@keyframes ov-toast { from { opacity: 0; transform: translate(-50%, 16px) scale(.94); } }
+.ov-toast i { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--k-acc, #EC4E86); transform-origin: left; animation: ov-run 10s linear both; }
+@keyframes ov-run { to { transform: scaleX(0); } }
+.ov-top:has(.ov-toast) .ov-hint { opacity: 0; transition-delay: 0s; }
+/* Switching looks: the page softens for a moment while everything moves to its new place. */
+html.ov-swap.ov-on .tm-overlay.ed-able { animation: ov-swap .62s ease both; }
+@keyframes ov-swap { 40% { opacity: .55; filter: blur(5px) saturate(1.2); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-overlay.ed-able, .ov-slot, .ov-card, .ov-plus, .ov-pill, .ov-bar, .ov-hint, .ov-beam, .ov-floor { transition-duration: .01s; transition-delay: 0s; }
+  .ov-room.on .ov-plus.again { animation: none; }
+  .ov-top[data-placed] :is(.ov-bar, .ov-hint) { transition-duration: .01s; transition-delay: 0s; }
+  .ov-looks, .ov-lk-card, .ov-toast { animation: none; }
+  html.ov-swap.ov-on .tm-overlay.ed-able { animation: none; }
+  .ov-gal, .ov-tile { animation: none; }
+}
+/* On the card in the middle a small button's x shows only while the pointer is on it (they would cover each other). */
+html.ov-on .ed-box.ed-small .ed-x { opacity: 0; transition: opacity .12s ease; }
+html.ov-on .ed-box.ed-small:hover .ed-x { opacity: 1; }
+html.ov-on .ov-empty-page { visibility: hidden; }

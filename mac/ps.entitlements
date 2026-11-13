@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- PS is signed with the hardened runtime (build.sh). These are the only exceptions it needs. -->
+  <!-- Apple events: Reconfigure AirPods Max (Spotify, Music) and the auto-reboot setup prompt. -->
+  <key>com.apple.security.automation.apple-events</key><true/>
+  <!-- Audio input: the volume mixer reads each app's sound through Core Audio process taps. -->
+  <key>com.apple.security.device.audio-input</key><true/>
+  <!-- Calendars: the Meetings panel reads this Mac's Calendar app (read only) on any account but the developer's. -->
+  <key>com.apple.security.personal-information.calendars</key><true/>
+</dict>
+</plist>

@@ -1,0 +1,78 @@
+/* PS Fitness (i) cards and "Every word explained" (V1.47). Tokens only (var(--f-...)), so all three looks and light
+   and dark work. Only transform and opacity animate. */
+
+/* the (i): small to the eye, a full finger to tap (the hit area spills past the icon) */
+.fit .fi-i {
+  position: relative; display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; margin: -2px 0 -2px 6px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--f-ink-3); cursor: help; vertical-align: middle;
+  transition: color var(--f-fast) var(--f-ease), transform var(--f-fast) var(--f-ease);
+}
+.fit .fi-i::before { content: ""; position: absolute; inset: -11px; border-radius: 50%; }
+.fit .fi-i:hover, .fit .fi-i.on { color: var(--f-accent); }
+.fit[data-fit-style="chalk"] .fi-i:hover, .fit[data-fit-style="chalk"] .fi-i.on { color: var(--f-ink); }
+.fit .fi-i:active { transform: scale(.9); }
+.fit .fi-i:focus-visible { outline: 2px solid var(--f-accent); outline-offset: 2px; }
+.fit .fi-i svg { display: block; }
+.fi-lab { display: inline-flex; align-items: center; gap: 0; }
+
+/* in Fitness settings: the (i) beside each group title and each setting name */
+.fs .fs-sec-h { display: flex; align-items: center; }
+/* the shared settings card (looks/settings.css) colours titles with the site's own ink, white over Chalk light: Fitness ink here */
+.fit .fs .fs-sec-h { color: var(--f-ink); }
+.fs .fs-sec-h .fi-i { margin-left: 4px; }
+.fs .fs-term { display: inline-flex; align-items: center; }
+.fs-words-lead { margin-bottom: 16px !important; }
+
+/* the card */
+.fi-card {
+  position: fixed; z-index: 90; box-sizing: border-box; width: min(340px, calc(100vw - 24px));
+  padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(15px * var(--k-dn, 1));
+  border-radius: var(--f-r-s, 14px); background: var(--f-surface-2); color: var(--f-ink);
+  border: var(--f-line-w) solid var(--f-line); box-shadow: var(--f-shadow);
+  font-family: var(--f-font); text-align: left; letter-spacing: normal; text-transform: none; font-weight: 500;
+  animation: fi-in .2s var(--f-ease) both; transform-origin: var(--fi-arrow, 50%) 0;
+}
+.fi-card.up { transform-origin: var(--fi-arrow, 50%) 100%; animation-name: fi-in-up; }
+.fi-arrow {
+  position: absolute; top: -6px; left: calc(var(--fi-arrow, 50%) - 6px); width: 12px; height: 12px; transform: rotate(45deg);
+  background: var(--f-surface-2); border-left: var(--f-line-w) solid var(--f-line); border-top: var(--f-line-w) solid var(--f-line);
+}
+.fi-card.up .fi-arrow { top: auto; bottom: -6px; border: 0; border-right: var(--f-line-w) solid var(--f-line); border-bottom: var(--f-line-w) solid var(--f-line); }
+.fi-head { display: flex; align-items: flex-start; gap: calc(8px * var(--k-dn, 1)); }
+.fi-head b { flex: 1; font-size: calc(17px * var(--k-fs, 1)); font-weight: 850; line-height: 1.25; color: var(--f-ink); }
+.fit .fi-x {
+  display: grid; place-items: center; width: 34px; height: 34px; margin: -7px -9px -6px 0; padding: 0; border: 0; border-radius: 50%;
+  background: none; color: var(--f-ink-2); cursor: pointer;
+}
+.fit .fi-x:active { transform: scale(.92); }
+.fi-card p, .fi-gloss p { margin: 0; }
+.fi-what { margin-top: 6px !important; font-size: calc(15px * var(--k-fs, 1)); line-height: 1.45; color: var(--f-ink); }
+.fi-ex, .fi-why { margin-top: 10px !important; font-size: calc(14px * var(--k-fs, 1)); line-height: 1.45; color: var(--f-ink-2); }
+.fi-ex span, .fi-why span {
+  display: block; margin-bottom: 2px; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--f-accent);
+}
+.fit[data-fit-style="chalk"] .fi-ex span, .fit[data-fit-style="chalk"] .fi-why span { color: var(--f-ink); }
+@keyframes fi-in { from { opacity: 0; transform: translateY(-4px) scale(.97); } }
+@keyframes fi-in-up { from { opacity: 0; transform: translateY(4px) scale(.97); } }
+
+/* "Every word explained" */
+.fi-gloss { display: grid; gap: calc(18px * var(--k-dn, 1)); }
+.fi-gloss-g h4 { margin: 0 0 6px; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--f-ink-2); }
+.fi-gloss-t { border-top: var(--f-line-w) solid var(--f-line); }
+.fi-gloss-t:last-child { border-bottom: var(--f-line-w) solid var(--f-line); }
+.fi-gloss-t summary {
+  display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); min-height: 48px; padding: 0 calc(2px * var(--k-dn, 1)); list-style: none; cursor: pointer;
+  font-size: calc(16px * var(--k-fs, 1)); color: var(--f-ink);
+}
+.fi-gloss-t summary::-webkit-details-marker { display: none; }
+.fi-gloss-t summary b { flex: 1; font-weight: 700; }
+.fi-gloss-chev { width: 9px; height: 9px; margin-right: 6px; border-right: 2.4px solid var(--f-ink-3); border-bottom: 2.4px solid var(--f-ink-3); transform: rotate(45deg); transition: transform var(--f-fast) var(--f-ease); }
+.fi-gloss-t[open] .fi-gloss-chev { transform: rotate(225deg); }
+.fi-gloss-b { padding: 0 calc(2px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); animation: fi-in .2s var(--f-ease) both; }
+.fi-gloss-b .fi-what { margin-top: 0 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-card, .fi-card.up, .fi-gloss-b { animation: fi-fade .15s ease both; }
+  .fit .fi-i, .fi-gloss-chev { transition: none; }
+}
+@keyframes fi-fade { from { opacity: 0; } }

@@ -1,0 +1,145 @@
+/* Settings in the Security style (V1.31, the developer: he likes the Security panel and wants every settings screen built
+   on it). The Security window is the Mac settings shell with rounded cards: a soft surface, a hairline, a bold title,
+   label left and value right. These rules give More settings, Fitness settings and the phone's settings the same
+   cards, and draw the Appearance section (AppearanceSettings.tsx). Colours are look tokens with the dark glass as the
+   fallback, sizes follow the text size and density. (Security's own sec-* classes stay in security.css only.) */
+
+/* ---------- the shared card ---------- */
+.ms-scroll { gap: calc(16px * var(--k-dn, 1)); }
+.ms-sec, .ap-card, .fit .fs-sec {
+  display: grid; gap: calc(10px * var(--k-dn, 1)); align-content: start; min-width: 0;
+  padding: calc(16px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1));
+  border-radius: calc(18px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4.5% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+  animation: ap-in .42s cubic-bezier(.2, .9, .3, 1) both;
+}
+.ms-sec:nth-child(2) { animation-delay: .03s; } .ms-sec:nth-child(3) { animation-delay: .06s; } .ms-sec:nth-child(n+4) { animation-delay: .09s; }
+@keyframes ap-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.ms-h, .fit .fs-sec-h {
+  margin: 0 !important; font-size: calc(17px * var(--k-fs, 1)); font-weight: 750; letter-spacing: -.01em; text-transform: none;
+  color: var(--k-fg, #FFFFFF); font-family: var(--k-head, inherit);
+}
+.ms-note { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.fit .fs-sec { background: var(--f-surface); border-color: var(--f-line); margin-top: calc(14px * var(--k-dn, 1)); }
+
+/* ---------- Appearance ---------- */
+.ap-sec { gap: calc(14px * var(--k-dn, 1)); }
+.ap-top { display: grid; gap: 4px; }
+.ap-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(12px * var(--k-dn, 1)); align-items: start; }
+@media (max-width: 1100px) { .ap-cols { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 720px) { .ap-cols { grid-template-columns: 1fr; } }
+@media (min-width: 721px) { .ap-cols[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }   /* two columns while Notebook is off (core/features.ts) */
+.ap-col { display: grid; gap: calc(6px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-base, #000000) 26%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.ap-col-h { display: grid; gap: 1px; padding: 2px 4px 6px; }
+.ap-col-h b { font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--k-acc-t, #F49BBE); }
+.ap-col-h span { font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.ap-empty { margin: 4px; font-size: calc(12.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+
+.ap-look { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; border-radius: calc(12px * var(--k-rd, 1));
+  border: 1px solid transparent; transition: background .18s ease, border-color .18s ease, box-shadow .25s ease; }
+.ap-look:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); }
+.ap-look.on { border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent), 0 10px 30px -18px var(--k-acc, #EC4E86); }
+.ap-look .ap-pick { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 74px minmax(0, 1fr) 18px; gap: calc(10px * var(--k-dn, 1)); align-items: center;
+  padding: calc(7px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); cursor: pointer; min-width: 0; border-radius: inherit; }
+.ap-look .ap-pick:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 1px; }
+.ap-name { display: grid; gap: 1px; min-width: 0; }
+.ap-name b { font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 700; color: var(--k-fg, #FFFFFF); }
+.ap-name span { font-size: calc(11.5px * var(--k-fs, 1)); line-height: 1.35; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(58% * var(--k-ia, 1))), transparent);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ap-check { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: transparent; border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent);
+  transition: background .2s ease, color .2s ease, border-color .2s ease, transform .3s cubic-bezier(.3, 1.5, .5, 1); }
+.ap-check svg { opacity: 0; transition: opacity .2s ease; }
+.ap-look.on .ap-check svg { opacity: 1; }
+.ap-look.on .ap-check { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); transform: scale(1.08); }
+.ap-look .ap-peek { all: unset; box-sizing: border-box; width: 34px; display: grid; place-items: center; cursor: pointer; border-radius: 0 calc(12px * var(--k-rd, 1)) calc(12px * var(--k-rd, 1)) 0;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); transition: color .15s ease, background .15s ease; }
+.ap-look .ap-peek:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent); }
+
+/* the sample: the look's page, two task rows in its card colour, its accent and its type (colours are inline) */
+.ap-sample:not(.nb-sample) { position: relative; height: 50px; border-radius: 8px; overflow: hidden; display: grid; align-content: center; gap: 4px; padding: 0 6px;
+  background: var(--s-base); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--s-fg) 14%, transparent); }
+.ap-s-card { margin-right: 18px; display: flex; align-items: center; gap: 4px; height: 15px; padding: 0 5px; border-radius: 4px; background: var(--s-surf);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--s-fg) 10%, transparent); }
+.ap-s-card.dim { opacity: .8; }
+.ap-s-tick { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--s-acc); }
+.ap-s-tick.o { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--s-fg) 55%, transparent); }
+.ap-s-l1, .ap-s-l2 { height: 3px; border-radius: 2px; background: var(--s-fg); flex: 1; }
+.ap-s-l2 { opacity: .5; flex: .7; }
+.ap-s-pill { flex: none; width: 12px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--s-acc) 30%, transparent); box-shadow: inset 0 0 0 1px var(--s-acct); }
+.ap-s-aa { position: absolute; right: 6px; bottom: 1px; font-style: normal; font-weight: 700; font-size: 11px; color: var(--s-acct); font-family: var(--s-font); }
+.ap-sample.nb-sample { height: 50px; min-height: 0; padding-top: 14px; }
+
+/* accent and type cards */
+.ap-card { background: color-mix(in srgb, var(--k-base, #000000) 22%, transparent); }
+.ap-card-h { display: grid; gap: 2px; }
+.ap-card-h b { font-size: calc(15px * var(--k-fs, 1)); font-weight: 750; color: var(--k-fg, #FFFFFF); }
+.ap-card-h span, .ap-fine { font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(58% * var(--k-ia, 1))), transparent); margin: 0; }
+.ap-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.ap-sw { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; height: 32px; min-width: 32px; padding: 4px; border-radius: 99px; cursor: pointer;
+  border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, transparent); transition: transform .2s cubic-bezier(.3, 1.5, .5, 1), border-color .15s ease; }
+.ap-sw i { width: 22px; height: 22px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
+.ap-sw.own { padding-right: 12px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; color: var(--k-fg, #FFFFFF); }
+.ap-sw:hover { transform: scale(1.08); }
+.ap-sw.on { border-color: var(--k-fg, #FFFFFF); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); }
+.ap-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: center; }
+.ap-row.top { align-items: start; }
+.ap-l { font-size: calc(13px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.ap-custom { display: grid; grid-template-columns: 96px minmax(0, 1fr) 22px 76px; gap: 12px; align-items: center; }
+.ap-hue { -webkit-appearance: none; appearance: none; height: 12px; border-radius: 99px; outline: none; cursor: pointer;
+  background: linear-gradient(90deg, hsl(0 72% 56%), hsl(60 72% 56%), hsl(120 72% 56%), hsl(180 72% 56%), hsl(240 72% 56%), hsl(300 72% 56%), hsl(359 72% 56%)); }
+.ap-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35), 0 3px 8px rgba(0, 0, 0, .4); }
+.ap-dot { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .2); transition: background .15s ease; }
+.ap-hex { font-size: calc(12.5px * var(--k-fs, 1)); color: var(--k-fg, #FFFFFF); font-family: var(--k-mono, ui-monospace, Menlo, monospace); }
+.ap-seg { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 12px; justify-self: start;
+  background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); }
+.ap-seg button, .ap-fonts button { all: unset; box-sizing: border-box; cursor: pointer; border-radius: 9px; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(72% * var(--k-ia, 1))), transparent);
+  transition: background .2s ease, color .2s ease, box-shadow .2s ease; }
+.ap-seg button { padding: 6px 12px; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 650; }
+.ap-seg button:hover, .ap-fonts button:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 7%, transparent); }
+.ap-seg button.on, .ap-fonts button.on { color: var(--k-on-acc, #FFFFFF); background: var(--k-acc, #EC4E86); box-shadow: 0 6px 18px -8px var(--k-acc, #EC4E86); }
+.ap-fonts { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.ap-fonts button { display: grid; justify-items: center; gap: 1px; padding: 8px 6px; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); text-align: center; }
+.ap-fonts b { font-size: calc(20px * var(--k-fs, 1)); font-weight: 600; line-height: 1.1; }
+.ap-fonts span { font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 650; }
+.ap-fonts em { font-size: calc(10.5px * var(--k-fs, 1)); font-style: normal; opacity: .75; }
+
+@media (prefers-reduced-motion: reduce) { .ms-sec, .ap-card, .fit .fs-sec { animation: none; } }
+
+/* the Working on card: the styles in a grid, each a small working row in this look's colours (working.css) */
+.ap-works { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px; }
+.ap-look.ap-wk .ap-pick { grid-template-columns: 112px minmax(0, 1fr) 18px; }
+
+/* V1.43: the live example list on the Accent and Layout and text cards (AppearanceSettings.tsx LiveSample). Painted
+   only from the --s-* values core/looksample.ts sampleVars sets, so it changes the moment a choice is pointed at,
+   clicked or slid to. */
+.ap-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 18px; align-items: start; }
+.ap-split-l { display: grid; gap: 14px; min-width: 0; }
+@media (max-width: 760px) { .ap-split { grid-template-columns: minmax(0, 1fr); } }
+.ap-live { display: grid; gap: calc(6px * var(--s-dn, 1)); padding: calc(12px * var(--s-dn, 1)); border-radius: 14px; background: var(--s-base); color: var(--s-fg);
+  font-family: var(--s-font); font-size: calc(12.5px * var(--s-fs, 1)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--s-fg) 14%, transparent);
+  transition: background-color .25s ease, color .25s ease, padding .25s ease, gap .25s ease; }
+.ap-type .ap-live { max-width: 420px; }
+.ap-live-h { display: flex; align-items: center; gap: 8px; margin-bottom: calc(2px * var(--s-dn, 1)); }
+.ap-live-h b { font-size: calc(17px * var(--s-fs, 1)); font-weight: 800; letter-spacing: -.01em; }
+.ap-live-add { display: grid; place-items: center; width: calc(20px * var(--s-fs, 1)); height: calc(20px * var(--s-fs, 1)); border-radius: 50%; font-style: normal; font-weight: 800;
+  background: var(--s-acc); color: var(--s-onacc); transition: background-color .25s ease; }
+.ap-live-row { display: flex; align-items: center; gap: calc(8px * var(--s-dn, 1)); padding: calc(7px * var(--s-dn, 1)) calc(10px * var(--s-dn, 1)); border-radius: 9px;
+  background: var(--s-surf); transition: padding .25s ease, box-shadow .25s ease, background-color .25s ease; }
+.ap-live-row span { flex: 1; min-width: 0; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-live-row.done span { text-decoration: line-through; opacity: .55; }
+.ap-live-row.sel { box-shadow: inset 0 0 0 1.5px var(--s-acc); background: color-mix(in srgb, var(--s-acc) 16%, var(--s-surf)); }
+.ap-live-tick { flex: none; width: calc(12px * var(--s-fs, 1)); height: calc(12px * var(--s-fs, 1)); border-radius: 50%; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--s-fg) 50%, transparent); }
+.ap-live-tick.on { background: var(--s-acc); box-shadow: none; }
+.ap-live-p { flex: none; font-style: normal; font-weight: 800; font-size: .82em; padding: 1px 6px; border-radius: 99px; background: var(--s-acc); color: var(--s-onacc); }
+.ap-live-sw { display: flex; align-items: center; justify-content: space-between; padding: calc(2px * var(--s-dn, 1)) calc(4px * var(--s-dn, 1)); font-weight: 650; }
+.ap-live-tog { position: relative; width: 30px; height: 17px; border-radius: 99px; background: var(--s-acc); transition: background-color .25s ease; }
+.ap-live-tog b { position: absolute; top: 2px; right: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--s-onacc); }
+.ap-live-key { display: flex; flex-wrap: wrap; gap: 4px 10px; padding-top: 4px; font-family: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; color: var(--s-acct); }
+.ap-live-key span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; background: var(--s-acc); vertical-align: 0; }
+@media (prefers-reduced-motion: reduce) { .ap-live, .ap-live-row, .ap-live-add, .ap-live-tog { transition: none; } }
+/* V1.47: the Accent and Layout and text pictures in the pinned preview (ui/PinnedPreview.tsx) */
+.ap-card .pp .ap-live { width: 100%; box-sizing: border-box; }
+.ap-type-set { display: grid; gap: inherit; min-width: 0; }

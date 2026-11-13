@@ -1,0 +1,192 @@
+{
+ "1.36": {
+  "en": [
+   "A cleaner Settings layout: everything lines up and nothing gets cut off.",
+   "New Notifications settings: pick a colour and a sound for each kind of pop up, or turn the sound off.",
+   "Time zones: hover a zone and type a time, like 2pm, to see what it is for you.",
+   "Dynamic Island: give it any background colour, and click the small grey line at the top to hide it for 5 seconds.",
+   "Name the app whatever you like in Settings, under Mac settings."
+  ],
+  "ru": []
+ },
+ "1.37": {
+  "en": [
+   "Connect your own Supabase: PS can now set itself up inside a project you already use. It keeps to its own separate part and leaves your tables, data and users alone.",
+   "Access tokens limited to one project now work. If PS cannot list your projects, paste your project's address instead.",
+   "Not signed in yet? PS now offers new versions with an Update now card, so you never need to download it from the website again."
+  ],
+  "ru": []
+ },
+ "1.38": {
+  "en": [
+   "Meetings panel: see your upcoming meetings from your Mac's Calendar app, with the Dynamic Island switch and meeting settings right there.",
+   "Do Not Disturb is here: one button quiets pop ups while you focus.",
+   "Daily reminder: a card checks in once a day until you confirm. Write your own question for it in Settings.",
+   "Time zones: scroll over a time, or use the up and down arrow keys, to change it.",
+   "Hold Tab and let go, and the list now stays open. Hold Tab again to hide it. You can turn this off in Settings."
+  ],
+  "ru": []
+ },
+ "1.39": {
+  "en": [
+   "Time zones: add anyone with their time zone, and search a name to jump straight to where they are."
+  ],
+  "ru": []
+ },
+ "1.40": {
+  "en": [
+   "G Squad: start a squad with friends, see who is working right now, share and hand over tasks, and chat. All end to end encrypted.",
+   "Leaderboards for money, tasks and screen time, plus gym boards, personal bests and compare any exercise with your squad.",
+   "Fitness: your own rest times and sets, finish an exercise early, a sleep log, and Sleep mode with a big clock and alarms.",
+   "A new setup menu explains every setting in plain words, and updates now show right in your list.",
+   "Edit mode to move and hide panels and the Dynamic Island, PS fits any screen, plus colour backgrounds and rain.",
+   "Time zones by city, country or CET, type P1 to P3 when adding a task, Headphones mode, and Tab over every app."
+  ],
+  "ru": []
+ },
+ "1.41": {
+  "en": [
+   "Holding Tab is never dead without a reason: if macOS blocks keys (Secure Input), a permission is missing or PS is waiting for you to sign in, PS now tells you and shows the fix.",
+   "Sleep mode: Wake up always works, and the unlock prompt shows in front of the sleep screen.",
+   "Esc always backs you out, on every screen, Sleep mode included."
+  ],
+  "ru": []
+ },
+ "1.42": {
+  "en": [
+   "See available squads: The G Squad is listed. Tap Ask to join and the squad admin approves you.",
+   "The G Squad button now always shows, in one tidy row at the top of your list.",
+   "Sleep mode: customise the clock, add a stopwatch, the pointer hides when you leave the mouse alone, and take a short break when you wake up.",
+   "Fitness: a picture and a moving figure for every exercise.",
+   "Choose when your tasks reset, for example 4am instead of midnight.",
+   "A shorter setup menu, and every appearance option now previews properly and changes colour as you pick."
+  ],
+  "ru": []
+ },
+ "1.43": {
+  "en": [
+   "G Squad looks like a messenger now, with a Fitness section, maximise and minimise. Task sharing is off until you switch it on, and you can rename the squad and yourself.",
+   "Reply to client emails right in PS: your signature, quick replies, and send now or at a random time a few minutes later.",
+   "Settings has a search bar and simple groups, and every button shows what it does when you hover over it.",
+   "Fitness is simpler: one menu, today's workout first. Timelines open big with birthdays, weddings and more.",
+   "Sleep mode: more fonts and colours, a clock face, Wake me up in, and new wake styles.",
+   "Do Not Disturb focus modes, sparkly mouse trails, rename any time zone, and no more accidental text highlighting."
+  ],
+  "ru": []
+ },
+ "1.44": {
+  "en": [
+   "Keep everything on this Mac or phone: use PS with no account and no Supabase. Turn on sync later and nothing is lost, and Export my data now works for every account.",
+   "PS in your browser: the website's To-do page is now the full Tab list. Add friend in Settings shows a QR code a friend scans to join or ask to join your G Squad.",
+   "Fitness History: a calendar of your sleep and workouts, the month in numbers, charts, and Export with Copy for Claude, CSV or JSON.",
+   "Alarms: pick your own sound, set how loud it rings and test it. The built in sounds are no longer quiet.",
+   "The transparency slider is back at the top of your list, and you can pick the Overdue card's colour, text colour and effect in Settings.",
+   "Hold Tab to open PS over any app, Signal and 1Password included, even when locked. Fixes: the list no longer piles up after Tab, and the Dynamic Island moves to the side in full screen and never shows a stuck Working task."
+  ],
+  "ru": []
+ },
+ "1.46": {
+  "en": [
+   "Annoying 15 min reminder: add as many reminders as you like, each with its own words, times, buttons, colour and sound, on the Mac and the phone.",
+   "Auto reboot: the restart helper now stays switched on through updates."
+  ],
+  "ru": []
+ },
+ "1.47": {
+  "en": [
+   "G Squad: one squad for everyone, The G Squad. Tap Ask to join. It now opens full screen like a messenger, with bigger chat, simpler settings and its own looks.",
+   "Phone app: a tidier menu with Screen time, Timelines, Goals and Time zones, simpler Settings, smoother Fitness, and backgrounds of its own you can crop.",
+   "Fitness: a quick setup that saves as you go, an (i) on every setting explaining it, a clear menu button, and type any rest time.",
+   "New: a Soundboard for your audio and video, alarm playlists with a different sound each day, and alarms that ring even without Sleep mode.",
+   "Your list: Complete all, Resurrect is back, Sleep sits at the bottom right, and Time zones fit any screen zoom with a Create event button.",
+   "Settings: Tab overlay shortcuts with any key or combo, Add Telegram Bot, and simpler Sleep settings with a pinned preview."
+  ],
+  "ru": []
+ },
+ "1.48": {
+  "en": [
+   "New: Sentry mode. Press the AI button to lock your Mac while it stays fully awake, even on battery, so long jobs keep running.",
+   "The screen goes very dim to save power. Touch anything and it shows Protected by PS. Only Touch ID or your password gets you back in.",
+   "If nobody unlocks it within 8 hours, your Mac restarts by itself into its most secure state. Change the time in the AI button's gear.",
+   "Optional: keep your Mac awake with the lid closed, with a safety stop at low battery or high heat."
+  ],
+  "ru": []
+ },
+ "1.49": {
+  "en": [
+   "The app is now called PS app.",
+   "The G Squad is now automatic: everyone with PS app is in it, no codes or asking to join.",
+   "Setting up is much simpler: PS app opens each Supabase page for you, shows you where to click, and comes back by itself when your token is copied.",
+   "New accounts only need a passphrase. No name or username to fill in.",
+   "Sentry mode: hover over Dim Screen to save battery, and the screen comes back the moment you move away.",
+   "Update pop-ups now appear at the top centre, and the Meetings panel keeps its layout before you link a calendar."
+  ],
+  "ru": []
+ },
+ "1.50": {
+  "en": [
+   "The left column is back at the bottom left: the Meetings panel and its buttons sit where they always did.",
+   "Fixed: the \"Restart helper is on\" message no longer stays on screen, and the Soundboard name fits inside its button."
+  ],
+  "ru": []
+ },
+ "1.51": {
+  "en": [
+   "The restart helper fixes itself after an update. No more switching PS app off and on in System Settings.",
+   "Update now always installs the newest version in one go.",
+   "About and updates is now at the top of Settings, and the update check button is a reload symbol."
+  ],
+  "ru": []
+ },
+ "1.52": {
+  "en": [
+   "Sleep mode has an AI Sentry button: one click keeps your Mac protected and locked while you sleep, with its own 18 hour restart timer.",
+   "Sentry mode now checks that auto restart is working before it starts, and tells you how to fix it if not.",
+   "The helper steps now say to switch PS app off and on again if it already looks on.",
+   "Skipped a few updates? What's new now shows everything from every version you missed.",
+   "No more heat warning when you first use Sentry mode."
+  ],
+  "ru": []
+ },
+ "1.53": {
+  "en": [
+   "Sentry mode: keeping your Mac awake with the lid closed now really works, and Dim Screen turns the screen fully black while you hover over it.",
+   "Sentry mode now warns you before it starts if FileVault is off, with a button that opens the FileVault settings.",
+   "Keep overlay and Hover mode now slide out of the Dynamic Island's way, nothing on screen covers anything else, and the googly eyes look is gone.",
+   "What's new now catches you up from any older version, and the Settings background no longer flickers between dark and light.",
+   "Link your iPhone by scanning a code on your Mac, and the iPhone app now shows you how to save it to your Home Screen.",
+   "Get a card when a Claude Code, Codex, Gemini or Cursor chat finishes. Turn it on in Settings, Notifications."
+  ],
+  "ru": []
+ },
+ "1.54": {
+  "en": [
+   "PS app now checks for updates every 5 minutes. Pick 5, 10, 15 or 30 minutes in Settings, About and updates.",
+   "Sentry mode checks the lid before it starts: if keeping your Mac awake with the lid closed will not work, it tells you why and how to fix it.",
+   "The Sentry screen no longer shows lid text, and Sentry mode no longer says the restart helper is off when you have just switched it on."
+  ],
+  "ru": []
+ },
+ "1.55": {
+  "en": [
+   "New: more to-do lists. Swipe with two fingers to move between pages, with dots at the bottom like an iPhone, and give each page its own background and look.",
+   "New: Edit zooms out to show all your pages. Add pages on either side, move any panel or button between pages, add as many panels as you like and resize them.",
+   "New: put an annoying reminder on any task. Right click it or edit it, pick the times and how often it repeats, and tick Done right from the reminder.",
+   "Notifications and reminders now come out of the Dynamic Island. Choose island or top right for each kind in the Dynamic Island settings.",
+   "AI chat finished cards now go away by themselves after 15 seconds. Change the time or turn it off in Settings.",
+   "Rename any list or section, and quick tips show you the new tricks. Swipe to tick and delete and the Notebook looks are gone."
+  ],
+  "ru": []
+ },
+ "1.56": {
+  "en": [
+   "New: your AI can manage your tasks. Turn on the AI task API in Settings, press Copy for AI, and paste it into Claude Code or Codex. Tasks it adds land in your AI Inbox in Dimension X, and it can start Sentry mode once you allow it.",
+   "New: Auto approve says Yes to your AI's permission prompts so long jobs keep going. Pick AI mode, Sleep mode or always in Settings. Questions still wait for you.",
+   "New: edit your phone's layout from your Mac. Press the phone icon in Edit and your changes glide across live. Your phone has its own Edit mode too, and a QR code links it if it isn't linked yet.",
+   "Edit overview: click a page to fly into it, click the background to go back, drag to move around, save looks you like and reset to the default, all with new sounds.",
+   "Finished AI chats now share one bubble, each with its own timer and the real chat name, and stay 10 seconds. Fixed: PS app no longer freezes when a reminder pops up.",
+   "The island glides to the top left in full screen apps, private mode is easy to spot and switch off, the tick circle stays on the left, and Dimension X manages your list pages."
+  ],
+  "ru": []
+ }
+}

@@ -1,0 +1,6 @@
+build/
+.DS_Store
+signing/.keychain-pass
+signing/*.keychain-db
+signing/.fl*
+signing/update-ed25519.key

@@ -1,0 +1,15 @@
+/* Auto reboot card (RebootCard.tsx). Same panel, pill, tab and banner looks as the other settings.
+   Only arb classes here: the rule book owns .rb (a full screen page), see tests/rebootcard.test.ts. */
+.arb .arb-l { font-weight: 600; color: var(--ink-2); }
+.arb .arb-col { display: grid; gap: calc(8px * var(--k-dn, 1)); }
+.arb .arb-hours { gap: calc(6px * var(--k-dn, 1)); align-items: center; flex-wrap: wrap; }
+.arb .arb-h { min-width: 76px; text-align: center; font-variant-numeric: tabular-nums; }
+.arb .arb-next { display: grid; gap: calc(2px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: var(--soft, var(--k-fg, #FDEEF4)); }
+.arb .arb-next b { font-variant-numeric: tabular-nums; }
+.arb .arb-log summary { cursor: pointer; }
+.arb .arb-log ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: calc(6px * var(--k-dn, 1)); max-height: 240px; overflow: auto; }
+.arb .arb-log li { display: grid; grid-template-columns: 108px 1fr; gap: calc(8px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.35; }
+.arb .arb-kind { font-weight: 600; color: var(--ink-2); }
+.arb .arb-k-restart .arb-kind, .arb .arb-k-remote .arb-kind { color: var(--deep, var(--k-acc, #C8366B)); }
+.arb .arb-k-gaveup .arb-kind { color: var(--k-warn, #B45309); }
+.arb .arb-remove { justify-self: start; opacity: 0.7; }

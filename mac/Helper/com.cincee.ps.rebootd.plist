@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- PS's restart helper (Helper/rebootd.swift). Shipped inside PS.app at
+     Contents/Library/LaunchDaemons and registered with SMAppService only when the developer clicks Set up;
+     macOS runs it only after the developer switches it on in Login Items & Extensions. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cincee.ps.rebootd</string>
+  <key>BundleProgram</key><string>Contents/Resources/rebootd</string>
+  <key>MachServices</key><dict><key>com.cincee.ps.rebootd</key><true/></dict>
+  <key>AssociatedBundleIdentifiers</key><array><string>com.cincee.ps</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Interactive</string>
+</dict>
+</plist>

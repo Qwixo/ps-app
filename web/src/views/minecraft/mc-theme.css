@@ -1,0 +1,219 @@
+/* Minecraft mode theme (the developer, 4 Nov 2026: "a full-on Minecraft theme"). Our own blocky look, never Mojang's art,
+   logo, textures or font. Everything is scoped: theme tokens and the mcm-* kit only apply inside .mcm-theme, the
+   scene's own classes are mcs-*. The pixel fonts are bundled (fonts/, SIL Open Font License 1.1), nothing loads
+   from the internet.
+
+   Light and dark: data-mcm-theme="light" | "dark" on the .mcm-theme element, or "auto" (or nothing) to follow the
+   system setting. */
+
+@font-face { font-family: "PS Pixelify"; src: url("./fonts/PixelifySans-Variable.ttf") format("truetype"); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "PS Silkscreen"; src: url("./fonts/Silkscreen-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+
+/* ---------- tokens ---------- */
+.mcm-theme, .mcs-root {
+  /* The block palette (the same colours the scene paints with). */
+  --mcm-grass: #5fae3c; --mcm-grass-hi: #74c24a; --mcm-grass-lo: #3f7f27;
+  --mcm-dirt: #8a5a35; --mcm-dirt-hi: #9c6b42; --mcm-dirt-lo: #5f3b22;
+  --mcm-stone: #8b8f96; --mcm-stone-hi: #a9adb3; --mcm-stone-lo: #5d6168;
+  --mcm-plank: #b9894f; --mcm-plank-hi: #d1a466; --mcm-plank-lo: #7d5a2e;
+  --mcm-obsidian: #1c1828; --mcm-obsidian-hi: #3a3150; --mcm-obsidian-lo: #0c0a12;
+  --mcm-gold: #f2c230; --mcm-gold-lo: #b88a12;
+  --mcm-ruby: #d8413a; --mcm-ruby-lo: #8e2420;
+  --mcm-gem: #4fd6c8; --mcm-gem-lo: #1f8a80;
+  --mcm-spark: #fff3a0;
+
+  /* One pixel of the look, and the chunky edges built from it. */
+  --mcm-px: 3px;
+  --mcm-edge: #121014;
+  --mcm-font: "PS Pixelify", "PS Silkscreen", ui-monospace, Menlo, monospace;
+  --mcm-font-head: "PS Silkscreen", "PS Pixelify", ui-monospace, Menlo, monospace;
+
+  /* Light (day) surfaces. */
+  --mcm-bg: #cfeafc;
+  --mcm-panel: #e9dcc0;          /* birch planks */
+  --mcm-panel-hi: #f6ecd6;
+  --mcm-panel-lo: #b39d72;
+  --mcm-ink: #1d1a16;
+  --mcm-ink-soft: #4a4034;
+  --mcm-btn: #9ea2a8; --mcm-btn-hi: #c9ccd0; --mcm-btn-lo: #5d6168; --mcm-btn-ink: #121014;
+  --mcm-btn-on: #5fae3c; --mcm-btn-on-hi: #8bd463; --mcm-btn-on-lo: #2f6b1c; --mcm-btn-on-ink: #0d1a08;
+  --mcm-focus: #ffd23a;
+  --mcm-shadow: rgba(18, 16, 20, 0.35);
+  color-scheme: light;
+}
+
+/* Dark (night): deep stone and obsidian, light text. */
+.mcm-theme[data-mcm-theme="dark"], .mcs-root[data-mcm-theme="dark"] {
+  --mcm-bg: #0a1030;
+  --mcm-panel: #2a2733;
+  --mcm-panel-hi: #3d3948;
+  --mcm-panel-lo: #15131b;
+  --mcm-ink: #f4efe2;
+  --mcm-ink-soft: #c9c0ad;
+  --mcm-btn: #4a4d55; --mcm-btn-hi: #6c707a; --mcm-btn-lo: #24262b; --mcm-btn-ink: #f4efe2;
+  --mcm-btn-on: #2f7a1f; --mcm-btn-on-hi: #4f9e38; --mcm-btn-on-lo: #18400f; --mcm-btn-on-ink: #f4ffe8;
+  --mcm-shadow: rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  .mcm-theme:not([data-mcm-theme="light"]) {
+    --mcm-bg: #0a1030;
+    --mcm-panel: #2a2733; --mcm-panel-hi: #3d3948; --mcm-panel-lo: #15131b;
+    --mcm-ink: #f4efe2; --mcm-ink-soft: #c9c0ad;
+    --mcm-btn: #4a4d55; --mcm-btn-hi: #6c707a; --mcm-btn-lo: #24262b; --mcm-btn-ink: #f4efe2;
+    --mcm-btn-on: #2f7a1f; --mcm-btn-on-hi: #4f9e38; --mcm-btn-on-lo: #18400f; --mcm-btn-on-ink: #f4ffe8;
+    --mcm-shadow: rgba(0, 0, 0, 0.55);
+    color-scheme: dark;
+  }
+}
+
+.mcm-theme {
+  font-family: var(--mcm-font);
+  color: var(--mcm-ink);
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  image-rendering: pixelated;
+}
+
+/* ---------- the kit ---------- */
+
+/* Notched pixel corners: one --mcm-px square cut from each corner. */
+.mcm-theme .mcm-notch, .mcm-theme .mcm-panel, .mcm-theme .mcm-btn, .mcm-theme .mcm-chip, .mcm-theme .mcm-input, .mcs-root .mcm-btn {
+  clip-path: polygon(
+    var(--mcm-px) 0, calc(100% - var(--mcm-px)) 0, calc(100% - var(--mcm-px)) var(--mcm-px), 100% var(--mcm-px),
+    100% calc(100% - var(--mcm-px)), calc(100% - var(--mcm-px)) calc(100% - var(--mcm-px)), calc(100% - var(--mcm-px)) 100%,
+    var(--mcm-px) 100%, var(--mcm-px) calc(100% - var(--mcm-px)), 0 calc(100% - var(--mcm-px)), 0 var(--mcm-px), var(--mcm-px) var(--mcm-px));
+}
+
+/* A panel is a block: a dark outline, a light top left bevel, a dark bottom right bevel. */
+.mcm-theme .mcm-panel {
+  position: relative;
+  background: var(--mcm-panel);
+  color: var(--mcm-ink);
+  padding: calc(var(--mcm-px) * 4);
+  border: var(--mcm-px) solid var(--mcm-edge);
+  box-shadow:
+    inset var(--mcm-px) var(--mcm-px) 0 var(--mcm-panel-hi),
+    inset calc(var(--mcm-px) * -1) calc(var(--mcm-px) * -1) 0 var(--mcm-panel-lo);
+}
+/* Block flavours for panels. Each keeps its text at 4.5:1 or better. */
+.mcm-theme .mcm-panel--stone { --mcm-panel: #a3a7ad; --mcm-panel-hi: #c0c3c8; --mcm-panel-lo: #6e7279; --mcm-ink: #0f0e10; --mcm-ink-soft: #2e2c33; }
+.mcm-theme .mcm-panel--plank { --mcm-panel: #cfa065; --mcm-panel-hi: #e2b97f; --mcm-panel-lo: #8d6634; --mcm-ink: #1a1208; --mcm-ink-soft: #3d2b12; }
+.mcm-theme .mcm-panel--dirt { --mcm-panel: #6b4428; --mcm-panel-hi: #8a5a35; --mcm-panel-lo: #432a17; --mcm-ink: #fff4e0; --mcm-ink-soft: #f0dcc0; }
+.mcm-theme .mcm-panel--obsidian { --mcm-panel: #1c1828; --mcm-panel-hi: #3a3150; --mcm-panel-lo: #0c0a12; --mcm-ink: #f4efe2; --mcm-ink-soft: #cbc3e0; }
+/* Grass topped: a green strip with ragged drips along the top. */
+.mcm-theme .mcm-panel--grass { border-top-width: calc(var(--mcm-px) * 3); border-top-color: var(--mcm-grass); }
+.mcm-theme .mcm-panel--grass::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--mcm-px) * 2); pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--mcm-grass) 0 18%, transparent 18% 27%, var(--mcm-grass-lo) 27% 38%, transparent 38% 52%, var(--mcm-grass) 52% 61%, transparent 61% 79%, var(--mcm-grass-lo) 79% 88%, transparent 88%) top / 100% var(--mcm-px) no-repeat,
+    linear-gradient(90deg, transparent 0 8%, var(--mcm-grass) 8% 14%, transparent 14% 56%, var(--mcm-grass-lo) 56% 60%, transparent 60%) 0 var(--mcm-px) / 100% var(--mcm-px) no-repeat;
+}
+
+.mcm-theme .mcm-title {
+  font-family: var(--mcm-font-head);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  margin: 0;
+  /* A hard 1 pixel drop shadow, the pixel way. */
+  text-shadow: calc(var(--mcm-px) * 0.67) calc(var(--mcm-px) * 0.67) 0 var(--mcm-shadow);
+}
+.mcm-theme .mcm-sub { color: var(--mcm-ink-soft); }
+
+/* Buttons: raised blocks that press in. */
+.mcm-theme .mcm-btn, .mcs-root .mcm-btn {
+  --b: var(--mcm-px);
+  appearance: none;
+  font: inherit; font-family: var(--mcm-font); font-size: 15px; line-height: 1;
+  color: var(--mcm-btn-ink);
+  background: var(--mcm-btn);
+  border: var(--b) solid var(--mcm-edge);
+  padding: calc(var(--b) * 2.4) calc(var(--b) * 4) calc(var(--b) * 2.8);
+  min-height: 32px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; user-select: none;
+  box-shadow: inset var(--b) var(--b) 0 var(--mcm-btn-hi), inset calc(var(--b) * -1) calc(var(--b) * -2) 0 var(--mcm-btn-lo);
+  transform: translateY(0);
+  transition: transform 70ms steps(2, end), filter 120ms steps(3, end), box-shadow 70ms steps(2, end);
+}
+.mcm-theme .mcm-btn:hover, .mcs-root .mcm-btn:hover { filter: brightness(1.08); }
+.mcm-theme .mcm-btn:active, .mcm-theme .mcm-btn.is-pressed, .mcs-root .mcm-btn:active {
+  transform: translateY(var(--b));
+  box-shadow: inset var(--b) var(--b) 0 var(--mcm-btn-lo), inset calc(var(--b) * -1) calc(var(--b) * -1) 0 var(--mcm-btn-hi);
+  filter: brightness(0.94);
+}
+.mcm-theme .mcm-btn:focus-visible, .mcs-root .mcm-btn:focus-visible { outline: var(--mcm-px) solid var(--mcm-focus); outline-offset: 0; }
+.mcm-theme .mcm-btn[disabled] { filter: grayscale(0.7) brightness(0.8); cursor: default; }
+.mcm-theme .mcm-btn--green, .mcm-theme .mcm-btn.is-on, .mcs-root .mcm-btn.is-on {
+  --mcm-btn: var(--mcm-btn-on); --mcm-btn-hi: var(--mcm-btn-on-hi); --mcm-btn-lo: var(--mcm-btn-on-lo); --mcm-btn-ink: var(--mcm-btn-on-ink);
+}
+.mcm-theme .mcm-btn--red { --mcm-btn: var(--mcm-ruby); --mcm-btn-hi: #f0716a; --mcm-btn-lo: var(--mcm-ruby-lo); --mcm-btn-ink: #fff; }
+.mcm-theme .mcm-btn--gold { --mcm-btn: var(--mcm-gold); --mcm-btn-hi: #ffe27a; --mcm-btn-lo: var(--mcm-gold-lo); --mcm-btn-ink: #1a1404; }
+.mcm-theme .mcm-btn--icon, .mcs-root .mcm-btn--icon { padding: 0; width: 34px; height: 34px; min-height: 0; }
+
+/* Chips and inputs. */
+.mcm-theme .mcm-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 13px; padding: 2px 8px 3px;
+  background: var(--mcm-panel-lo); color: var(--mcm-ink);
+  border: var(--mcm-px) solid var(--mcm-edge);
+}
+.mcm-theme .mcm-input {
+  font: inherit; font-family: var(--mcm-font); font-size: 15px;
+  color: var(--mcm-ink); background: var(--mcm-panel-lo);
+  border: var(--mcm-px) solid var(--mcm-edge);
+  box-shadow: inset var(--mcm-px) var(--mcm-px) 0 rgba(0, 0, 0, 0.3);
+  padding: 6px 9px;
+}
+.mcm-theme .mcm-input:focus { outline: var(--mcm-px) solid var(--mcm-focus); outline-offset: 0; }
+
+/* A thin row of blocks to use as a divider. */
+.mcm-theme .mcm-rule {
+  height: calc(var(--mcm-px) * 3); border: 0; margin: 10px 0;
+  background: repeating-linear-gradient(90deg, var(--mcm-dirt) 0 18px, var(--mcm-dirt-lo) 18px 21px);
+  box-shadow: inset 0 var(--mcm-px) 0 var(--mcm-grass);
+}
+
+/* ---------- the scene ---------- */
+.mcs-root {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  background: var(--mcm-bg);
+  contain: strict;
+  z-index: 0;
+  isolation: isolate;
+}
+.mcs-root[data-own] { background: #08090f; }
+.mcs-canvas {
+  position: absolute; left: 0; bottom: 0;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+}
+.mcs-own {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover;
+  pointer-events: none; user-select: none;
+}
+/* The overlay alpha is measured on the picture's pixels (own-bg.ts) so light text on top reaches 4.5:1. */
+.mcs-ov {
+  position: absolute; inset: 0;
+  background: rgb(8 10 18 / var(--mcs-ov-a, 0.6));
+  pointer-events: none;
+}
+.mcs-ctl {
+  position: absolute; z-index: 2;
+  left: var(--mcs-ctl-left, 10px); bottom: var(--mcs-ctl-bottom, 10px);
+  display: flex; gap: 6px; align-items: center;
+}
+.mcs-ctl .mcm-btn { --mcm-px: 2px; }
+.mcs-ctl svg { display: block; }
+.mcs-err {
+  font-family: var(--mcm-font); font-size: 13px;
+  background: #1c1828; color: #fff4e0; padding: 4px 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mcm-theme .mcm-btn, .mcs-root .mcm-btn { transition: none; }
+}

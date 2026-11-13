@@ -1,0 +1,440 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>Connect your own Supabase</title>
+<!--
+  PS's "Connect your own Supabase" window (Sources/ProjectSetup.swift). Built into the app. No network, no
+  vault data: it shows what PS hands it and passes clicks (and the pasted access token) to PS. The token
+  field is cleared the moment it is sent. Animations move only transform and opacity.
+-->
+<style>
+  :root {
+    --pink: #EC4E86; --deep: #C8366B; --ink: #F6F1F4; --mute: rgba(246, 241, 244, .62); --faint: rgba(246, 241, 244, .38);
+    --line: rgba(255, 255, 255, .08); --ok: #3BB273; --bad: #E5675F;
+    --ease: cubic-bezier(.2, .8, .2, 1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #141116; color: var(--ink); font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    -webkit-font-smoothing: antialiased; overflow: hidden; user-select: none; -webkit-user-select: none; cursor: default; height: 100%; }
+  input, select { user-select: text; -webkit-user-select: text; }
+  button { font: inherit; border: 0; cursor: pointer; color: inherit; background: none; }
+  .hidden { display: none !important; }
+  .glow { position: absolute; width: 560px; height: 560px; left: 40px; top: -300px; border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(62, 207, 142, .16), rgba(236, 78, 134, .10) 55%, rgba(236, 78, 134, 0)); pointer-events: none; }
+  .page { position: absolute; inset: 0; padding: 34px 48px 0; transition: opacity .35s, transform .5s var(--ease); }
+  .page.away { opacity: 0; transform: translateX(-36px); pointer-events: none; }
+  .page.later { opacity: 0; transform: translateX(36px); pointer-events: none; }
+  .mark { width: 44px; height: 44px; border-radius: 13px; background: linear-gradient(145deg, var(--pink), var(--deep)); box-shadow: 0 10px 28px rgba(236,78,134,.35);
+    display: grid; place-items: center; font: 700 18px -apple-system; letter-spacing: -1px; animation: pop .7s var(--ease) both; }
+  @keyframes pop { from { opacity: 0; transform: scale(.7) translateY(8px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 23px; font-weight: 700; letter-spacing: -.4px; margin-top: 14px; }
+  .lead { color: var(--mute); font-size: 13.5px; margin-top: 6px; max-width: 520px; }
+  .btn { height: 32px; padding: 0 14px; border-radius: 9px; background: rgba(255,255,255,.08); transition: transform .12s, opacity .2s; white-space: nowrap; }
+  .btn:active { transform: scale(.96); }
+  .btn.go { background: linear-gradient(145deg, var(--pink), var(--deep)); font-weight: 600; box-shadow: 0 3px 10px rgba(236,78,134,.3); }
+  .btn:disabled { opacity: .45; pointer-events: none; }
+  .big { height: 38px; padding: 0 22px; border-radius: 11px; font-size: 14px; }
+  .link { color: var(--faint); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
+  .link:hover { color: var(--mute); }
+
+  /* three steps (V1.49: the token step guides every click on screen and catches the copied token by itself) */
+  .rise { animation: rise .65s var(--ease) both; animation-delay: var(--d, 0s); }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  .three { list-style: none; margin-top: 18px; }
+  .three li { position: relative; padding: 13px 16px 13px 56px; border-radius: 14px; background: rgba(255,255,255,.04); box-shadow: 0 0 0 .5px var(--line) inset; margin-bottom: 10px; min-height: 64px;
+    transition: opacity .35s; }
+  .three li.dim { opacity: .55; }
+  .halo { position: absolute; inset: 0; border-radius: 14px; pointer-events: none; opacity: 0; transition: opacity .45s;
+    box-shadow: 0 0 0 1px rgba(236,78,134,.5) inset, 0 12px 34px rgba(236,78,134,.10); background: linear-gradient(120deg, rgba(236,78,134,.07), transparent 55%); }
+  .three li.on .halo { opacity: 1; }
+  .three li.ok .halo { opacity: 1; box-shadow: 0 0 0 1px rgba(59,178,115,.55) inset, 0 12px 34px rgba(59,178,115,.12); background: linear-gradient(120deg, rgba(59,178,115,.08), transparent 55%); }
+  /* the rail between the numbers fills as steps are done */
+  .three li:not(:last-child)::before, .three li:not(:last-child)::after { content: ""; position: absolute; left: 28px; top: 46px; bottom: -22px; width: 2px; border-radius: 1px; }
+  .three li:not(:last-child)::before { background: rgba(255,255,255,.07); }
+  .three li:not(:last-child)::after { background: linear-gradient(180deg, var(--ok), rgba(59,178,115,.4)); transform-origin: 50% 0; transform: scaleY(0); transition: transform .6s var(--ease); }
+  .three li.done:not(:last-child)::after { transform: none; }
+  .num { position: absolute; left: 16px; top: 16px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12.5px;
+    background: rgba(255,255,255,.08); z-index: 1; }
+  .num::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(145deg, var(--pink), var(--deep)); opacity: 0; transform: scale(.4); transition: opacity .3s, transform .45s var(--ease); }
+  .num::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--ok); opacity: 0; transform: scale(.4); transition: opacity .3s, transform .5s cubic-bezier(.3, 1.6, .5, 1); }
+  .three li.on .num::before { opacity: 1; transform: none; }
+  .three li.done .num::after { opacity: 1; transform: none; }
+  .num em { position: relative; z-index: 1; font-style: normal; transition: opacity .2s, transform .3s var(--ease); }
+  .num svg { position: absolute; inset: 0; z-index: 1; opacity: 0; transform: scale(.4) rotate(-20deg); transition: opacity .25s .1s, transform .5s .1s cubic-bezier(.3, 1.6, .5, 1); }
+  .three li.done .num em { opacity: 0; transform: scale(.5); }
+  .three li.done .num svg { opacity: 1; transform: none; }
+  .three li > b { font-size: 14px; font-weight: 600; display: block; }
+  .three li > p { color: var(--mute); font-size: 12px; margin-top: 2px; max-width: 330px; }
+  #t1 > p { max-width: 272px; }
+  .acts { position: absolute; right: 14px; top: 16px; display: flex; gap: 6px; transition: opacity .3s, transform .4s var(--ease); }
+  .three li.done .acts { opacity: 0; transform: translateX(8px); pointer-events: none; }
+  /* while the guide runs: a live line under the step it is on */
+  .live { display: flex; gap: 9px; align-items: center; height: 0; overflow: hidden; opacity: 0; color: var(--ink); font-size: 12px; font-weight: 500;
+    transition: opacity .3s, transform .45s var(--ease); transform: translateY(-4px); }
+  .live.on { height: auto; margin-top: 8px; opacity: 1; transform: none; }
+  .live .link { margin-left: 4px; }
+  .radar { position: relative; flex: none; width: 14px; height: 14px; }
+  .radar i { position: absolute; inset: 4px; border-radius: 50%; background: var(--pink); }
+  .radar b { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--pink); animation: radar 1.6s var(--ease) infinite; }
+  .radar b + b { animation-delay: .8s; }
+  .radar.ok i { background: var(--ok); } .radar.ok b { border-color: var(--ok); }
+  @keyframes radar { from { opacity: .9; transform: scale(.4); } to { opacity: 0; transform: scale(1.9); } }
+  /* the field: a sheen while it waits for the copied token, dots that fill in when it arrives */
+  .fw { position: relative; flex: 1; border-radius: 9px; overflow: hidden; }
+  .fw .field { width: 100%; }
+  .fw .sweep { position: absolute; top: 0; bottom: 0; width: 45%; background: linear-gradient(90deg, transparent, rgba(236,78,134,.22), transparent); transform: translateX(-110%); opacity: 0; pointer-events: none; }
+  li.waiting .fw .sweep { opacity: 1; animation: sweep 1.8s var(--ease) infinite; }
+  @keyframes sweep { to { transform: translateX(260%); } }
+  .fw .dots { position: absolute; inset: 0; display: flex; align-items: center; gap: 4px; padding: 0 12px; pointer-events: none; }
+  .fw .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); opacity: 0; transform: scale(.2) translateY(4px); transition: opacity .2s, transform .35s cubic-bezier(.3, 1.6, .5, 1); }
+  .fw .dots.on i { opacity: 1; transform: none; }
+  .fw .okline { position: absolute; inset: 0; border-radius: 9px; box-shadow: 0 0 0 1.5px var(--ok) inset; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  li.got .fw .okline { opacity: 1; }
+  .gotchip { display: inline-flex; gap: 7px; align-items: center; margin-top: 7px; padding: 4px 10px 4px 6px; border-radius: 20px; font-size: 12px; font-weight: 600; color: #DFF5E8;
+    background: rgba(59,178,115,.16); box-shadow: 0 0 0 .5px rgba(59,178,115,.5) inset; opacity: 0; transform: translateY(6px) scale(.96); transition: opacity .3s, transform .5s cubic-bezier(.3, 1.4, .5, 1); }
+  .gotchip.on { opacity: 1; transform: none; }
+  .errline { position: relative; min-height: 23px; }
+  .errline .gotchip { position: absolute; left: 0; top: 0; margin-top: 5px; }
+  .gotchip span { width: 16px; height: 16px; border-radius: 50%; background: var(--ok); display: grid; place-items: center; }
+  .tok { display: flex; gap: 8px; margin-top: 9px; }
+  .field { flex: 1; height: 34px; border-radius: 9px; border: 0; background: rgba(0,0,0,.32); box-shadow: 0 0 0 1px rgba(255,255,255,.1) inset; color: var(--ink);
+    padding: 0 12px; font: 13px ui-monospace, Menlo, monospace; outline: none; transition: box-shadow .2s; }
+  .field:focus { box-shadow: 0 0 0 1.5px var(--pink) inset; }
+  .err { color: var(--bad); font-size: 12px; margin-top: 7px; min-height: 16px; }
+  .keep { display: flex; gap: 9px; align-items: flex-start; margin-top: 6px; color: var(--mute); font-size: 12px; }
+  .keep input { margin-top: 2px; accent-color: var(--pink); }
+  .keep b { color: var(--ink); font-weight: 500; }
+  .foot { position: absolute; left: 48px; right: 48px; bottom: 22px; display: flex; justify-content: space-between; align-items: center; }
+  .spin { display: inline-block; width: 13px; height: 13px; margin-right: 7px; vertical-align: -2px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* choose */
+  .opt { position: relative; display: block; padding: 14px 16px 14px 46px; border-radius: 14px; background: rgba(255,255,255,.04); box-shadow: 0 0 0 .5px var(--line) inset; margin-top: 12px; transition: box-shadow .2s; }
+  .opt.sel { box-shadow: 0 0 0 1.5px var(--pink) inset; }
+  /* Local first (V1.44): the one plain line for people whose only project already holds their own app. */
+  .safe { color: var(--mute); font-size: 12px; line-height: 1.45; margin-top: 10px; padding: 9px 12px; border-radius: 10px; background: rgba(59,178,115,.08); box-shadow: 0 0 0 .5px rgba(59,178,115,.35) inset; }
+  .opt .radio { position: absolute; left: 16px; top: 16px; width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255,255,255,.3) inset; }
+  .opt.sel .radio::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--pink); }
+  .opt b { font-size: 14px; font-weight: 600; }
+  .opt p { color: var(--mute); font-size: 12px; margin-top: 2px; }
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .row label { color: var(--mute); font-size: 12px; }
+  select { height: 30px; border-radius: 8px; border: 0; background: rgba(0,0,0,.32); color: var(--ink); padding: 0 8px; font: inherit; box-shadow: 0 0 0 1px rgba(255,255,255,.1) inset; outline: none; }
+  .plist { max-height: 132px; overflow: auto; margin-top: 8px; }
+  .pitem { display: flex; gap: 10px; align-items: center; padding: 7px 8px; border-radius: 8px; }
+  .pitem:hover { background: rgba(255,255,255,.04); }
+  .pitem.sel { background: rgba(236,78,134,.14); }
+  .pitem small { color: var(--faint); margin-left: auto; font-size: 11px; }
+
+  /* work */
+  .steps { list-style: none; margin-top: 26px; }
+  .steps li { position: relative; height: 50px; padding-left: 34px; }
+  .dot { position: absolute; left: 0; top: 2px; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255,255,255,.22) inset; }
+  .dot i { position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(145deg, var(--pink), var(--deep)); opacity: 0; transform: scale(.3); transition: opacity .3s, transform .45s var(--ease); }
+  .dot svg { position: absolute; inset: 0; opacity: 0; transform: scale(.5); transition: opacity .25s .1s, transform .4s .1s var(--ease); }
+  .dot .ring { position: absolute; inset: -3px; opacity: 0; transition: opacity .3s; }
+  .dot .ring svg { opacity: 1; transform: none; width: 26px; height: 26px; animation: spin 1s linear infinite; }
+  li.now .dot .ring { opacity: 1; }
+  li.done .dot i, li.done .dot svg { opacity: 1; transform: none; }
+  .st { font-size: 14px; font-weight: 500; transition: opacity .3s; opacity: .45; }
+  li.now .st, li.done .st { opacity: 1; }
+  .sd { position: absolute; left: 34px; right: 0; top: 22px; font-size: 12px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { position: absolute; left: 290px; right: 0; top: 8px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.09); overflow: hidden; opacity: 0; transition: opacity .3s; }
+  li.now .bar.on { opacity: 1; }
+  .fill { position: absolute; inset: 0; border-radius: 3px; background: linear-gradient(90deg, #3ECF8E, var(--pink)); transform-origin: 0 50%; transform: scaleX(0); transition: transform .6s var(--ease); will-change: transform; }
+  .sheen { position: absolute; top: 0; bottom: 0; width: 40%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); transform: translateX(-100%); animation: sheen 1.4s var(--ease) infinite; }
+  @keyframes sheen { to { transform: translateX(260%); } }
+  .oops { position: absolute; left: 48px; right: 48px; bottom: 22px; padding: 14px 16px; border-radius: 14px; background: rgba(229,103,95,.12); box-shadow: 0 0 0 .5px rgba(229,103,95,.4) inset;
+    opacity: 0; transform: translateY(10px); transition: opacity .3s, transform .45s var(--ease); pointer-events: none; }
+  .oops.on { opacity: 1; transform: none; pointer-events: auto; }
+  .oops p { font-size: 13px; padding-right: 8px; user-select: text; -webkit-user-select: text; }
+  .oops .row { justify-content: flex-end; }
+  .alldone { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 0 70px; }
+  .tick { width: 64px; height: 64px; margin: 0 auto; border-radius: 50%; background: var(--ok); display: grid; place-items: center; box-shadow: 0 10px 30px rgba(59,178,115,.35); animation: pop .7s var(--ease) both; }
+  .alldone .lead { margin: 8px auto 0; }
+  .alldone .btn { margin-top: 24px; }
+  /* "Why do I need this, and is it safe?" (G Squad): plain words in a sheet over the page, so the window keeps its size. */
+  .why { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 28px; background: rgba(12, 9, 12, .62); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .why.on { opacity: 1; pointer-events: auto; }
+  .why .card { width: 100%; max-width: 500px; padding: 22px 24px 18px; border-radius: 18px; background: #1E1820; box-shadow: 0 0 0 .5px var(--line) inset, 0 24px 60px rgba(0,0,0,.55);
+    transform: translateY(14px) scale(.97); transition: transform .45s var(--ease); }
+  .why.on .card { transform: none; }
+  .why h2 { font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+  .why p { color: var(--mute); font-size: 12.5px; line-height: 1.5; margin-top: 10px; user-select: text; -webkit-user-select: text; }
+  .why p b { color: var(--ink); font-weight: 600; }
+  .why .row2 { display: flex; justify-content: flex-end; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+
+<section class="page" id="pStart">
+  <div class="mark">PS</div>
+  <h1 id="sTitle" class="rise" style="--d:.04s">Connect your own Supabase</h1>
+  <p class="lead rise" style="--d:.1s" id="sLead">PS app keeps your encrypted data in a free Supabase project that belongs to you. Three quick steps, about two minutes, and PS app shows you every click.</p>
+  <ol class="three">
+    <li id="t1" class="on rise" style="--d:.16s"><span class="halo"></span><span class="num"><em>1</em><svg viewBox="0 0 26 26"><path d="m8 13.5 3.4 3.4L18 9.6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><b>Make a free Supabase account</b><p>Supabase stores your data. Only you can read it: PS app encrypts everything on this Mac first.</p>
+      <div class="acts"><button class="btn" id="have">I have one</button><button class="btn go" data-guide="account">Sign up free</button></div>
+      <div class="live" id="live1"><span class="radar"><b></b><b></b><i></i></span><span>Follow the card beside your browser</span><button class="link" data-stopguide>Stop</button></div></li>
+    <li id="t2" class="rise" style="--d:.24s"><span class="halo"></span><span class="num"><em>2</em><svg viewBox="0 0 26 26"><path d="m8 13.5 3.4 3.4L18 9.6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><b>Make an access token</b><p>PS app opens the right page and points at every click, right on your screen. It uses the token only to set up your project and its own tables in it.</p>
+      <div class="acts"><button class="btn go" data-guide="generate">Show me how</button></div>
+      <div class="live" id="live2"><span class="radar"><b></b><b></b><i></i></span><span>Follow the card beside your browser</span><button class="link" data-stopguide>Stop</button></div></li>
+    <li id="t3" class="rise" style="--d:.32s"><span class="halo"></span><span class="num"><em>3</em><svg viewBox="0 0 26 26"><path d="m8 13.5 3.4 3.4L18 9.6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><b id="t3b">Your token lands here</b>
+      <p id="t3p">Copy it in your browser and PS app comes back with it by itself. You can also paste it here.</p>
+      <div class="tok"><div class="fw"><input class="field" id="token" type="password" placeholder="sbp_..." autocomplete="off" spellcheck="false"><div class="sweep"></div><div class="dots" id="tdots"></div><div class="okline"></div></div><button class="btn go" id="go">Continue</button></div>
+      <div class="errline"><div class="err" id="tErr"></div><div class="gotchip" id="gotchip"><span><svg width="10" height="10" viewBox="0 0 20 20"><path d="m5 10.5 3.2 3.2L15 7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Token received</div></div>
+      <label class="keep"><input type="checkbox" id="keep" checked><span><b>Keep it in this Mac's Keychain</b>, so new versions of PS app can update your project by themselves. You can delete the token on Supabase at any time.</span></label>
+    </li>
+  </ol>
+  <p class="safe" id="safe">Already have a Supabase project with your own app in it? PS stays in its own separate part and never touches your tables, functions or users.</p>
+  <div class="foot"><button class="link" id="whyOpen">Why do I need this, and is it safe?</button><button class="link hidden" id="local">Keep everything on this Mac instead</button><button class="link" id="skip">Skip: I sign in with an account I already have</button></div>
+</section>
+
+<div class="why" id="why" role="dialog" aria-modal="true" aria-labelledby="whyH">
+  <div class="card">
+    <h2 id="whyH">Why do I need this, and is it safe?</h2>
+    <p><b>Why a database?</b> PS saves your list in a free Supabase project that belongs to you. That is what keeps your Mac and your phone in sync, even when you are away from home.</p>
+    <p><b>Is it safe?</b> Yes. PS scrambles (encrypts) everything on this Mac before it is sent. The key is the passphrase you pick when you create your PS account, right after this setup. Your passphrase never leaves this Mac.</p>
+    <p>Even if someone broke into your Supabase account, all they would find is scrambled data they cannot read. Supabase cannot read it either. Only you can, because only you know your passphrase.</p>
+    <p>Your Supabase password is not the key, and you never need a database password: PS makes one for you. Only your passphrase unlocks your data.</p>
+    <div class="row2"><button class="btn go" id="whyClose">Got it</button></div>
+  </div>
+</div>
+
+<section class="page later" id="pChoose">
+  <h1 style="margin-top:0">Where should PS keep your data?</h1>
+  <p class="lead" id="cLead">A new project is the easy choice. PS sets everything up for you.</p>
+  <div class="row" id="orgRow"><label for="org">Organisation</label><select id="org"></select></div>
+  <div class="opt sel" id="oNew" data-pick="new"><span class="radio"></span><b>Create a new project</b><p>Named ps-vault. Free plan.</p>
+    <div class="row"><label for="region">Region</label><select id="region"></select><span class="link" style="text-decoration:none" id="near">nearest to you</span></div></div>
+  <div class="opt" id="oOld" data-pick="old"><span class="radio"></span><b>Use an existing project</b><p>PS keeps its data in its own separate part of the project. Your own tables, data and users stay exactly as they are.</p>
+    <div class="plist" id="plist"></div>
+    <div class="tok hidden" id="prefRow"><input class="field" id="pref" placeholder="Paste your project's address, like https://abcd...supabase.co" autocomplete="off" spellcheck="false"></div></div>
+  <div class="foot"><button class="link" data-back>Back</button><button class="btn go big" id="setup">Set it up</button></div>
+</section>
+
+<section class="page later" id="pWork">
+  <h1 style="margin-top:0" id="wTitle">Setting up your project</h1>
+  <p class="lead" id="wLead">You can leave this window open and carry on with something else.</p>
+  <ul class="steps" id="steps"></ul>
+  <div class="oops" id="oops"><p id="oopsText"></p><div class="row"><button class="btn" data-back>Back</button><button class="btn go" id="again">Try again</button></div></div>
+</section>
+
+<section class="page later" id="pDone">
+  <div class="alldone"><div>
+    <div class="tick"><svg width="30" height="30" viewBox="0 0 26 26"><path d="m7 13.5 4 4L19.5 8.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h1 id="dTitle">Your Supabase project is ready</h1>
+    <p class="lead" id="dLead">Next, create your PS account and pick a passphrase. Your passphrase is the key to your data: it never leaves this Mac, and without it nobody, not even Supabase, can read anything.</p>
+    <button class="btn go big" id="next">Create your account</button>
+  </div></div>
+</section>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const send = (o) => { try { webkit.messageHandlers.sb.postMessage(JSON.stringify(o)); } catch (e) {} };
+  const SVG_RING = '<svg viewBox="0 0 26 26"><path d="M13 2a11 11 0 0 1 11 11" fill="none" stroke="#EC4E86" stroke-width="2" stroke-linecap="round"/></svg>';
+  const SVG_TICK = '<svg viewBox="0 0 20 20"><path d="m6 10.5 2.8 2.8L14.5 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const LABELS = { create: 'Create the project', wait: 'Start it', database: 'Set up the database', functions: 'Install the sign in service', check: 'Check it works', save: 'Save on this Mac' };
+  let mode = 'first', pick = 'new', picked = null, projects = [], working = false;
+
+  function page(p) {
+    const order = ['pStart', 'pChoose', 'pWork', 'pDone'];
+    order.forEach((id, i) => { const el = $(id); el.classList.toggle('away', i < order.indexOf(p)); el.classList.toggle('later', i > order.indexOf(p)); });
+  }
+  function goBusy(text) {
+    const b = $('go');
+    if (text) { b.disabled = true; b.innerHTML = '<span class="spin"></span>'; b.append(text); } else { b.disabled = false; b.textContent = 'Continue'; }
+  }
+
+  document.addEventListener('click', (e) => {
+    const o = e.target.closest('[data-open]'); if (o) { send({ type: 'open', what: o.dataset.open }); return; }
+    const gd = e.target.closest('[data-guide]'); if (gd) { if (!working) send({ type: 'guide', from: gd.dataset.guide }); return; }
+    if (e.target.closest('[data-stopguide]')) { send({ type: 'guideStop' }); guideOff(false); return; }
+    if (e.target.closest('[data-back]')) { if (!working) { $('oops').classList.remove('on'); send({ type: 'back' }); } return; }
+    const pk = e.target.closest('[data-pick]'); if (pk) { pick = pk.dataset.pick; $('oNew').classList.toggle('sel', pick === 'new'); $('oOld').classList.toggle('sel', pick === 'old'); syncSetup(); }
+    const pi = e.target.closest('[data-ref]'); if (pi) { picked = pi.dataset.ref; [...document.querySelectorAll('.pitem')].forEach((x) => x.classList.toggle('sel', x === pi)); syncSetup(); }
+  });
+  // V1.49: where the three steps stand. 1 account, 2 token, 3 paste. Done steps turn green and the rail fills.
+  const T = ['t1', 't2', 't3'];
+  function at(n, opt) {
+    opt = opt || {};
+    T.forEach((id, i) => {
+      const li = $(id);
+      li.classList.toggle('done', i + 1 < n || (!!opt.all));
+      li.classList.toggle('on', i + 1 === n && !opt.all);
+      li.classList.toggle('ok', !!opt.all && i === 2);
+    });
+  }
+  let guiding = false;
+  function guideOn(stage) {
+    guiding = true;
+    const acc = stage === 'account', copy = stage === 'copy';
+    at(acc ? 1 : copy ? 3 : 2);
+    $('live1').classList.toggle('on', acc);
+    $('live2').classList.toggle('on', !acc && !copy);
+    $('t3').classList.toggle('waiting', copy);
+    $('token').placeholder = copy ? 'Waiting for you to copy the token' : 'sbp_...';
+  }
+  function guideOff(focus) {
+    guiding = false;
+    $('live1').classList.remove('on'); $('live2').classList.remove('on');
+    $('t3').classList.remove('waiting');
+    $('token').placeholder = 'sbp_...';
+    if (focus) { at(3); setTimeout(() => $('token').focus(), 250); }
+  }
+  $('have').addEventListener('click', () => at(2));
+  function submitToken() {
+    const t = $('token').value.trim();
+    $('tErr').textContent = '';
+    if (!t) { $('tErr').textContent = 'Paste your access token first.'; return; }
+    send({ type: 'token', token: t, keep: $('keep').checked });
+    $('token').value = '';   // the token leaves the page at once
+  }
+  $('go').addEventListener('click', submitToken);
+  $('token').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitToken(); });
+  $('token').addEventListener('input', () => { if (!guiding) at(3); $('tErr').textContent = ''; $('gotchip').classList.remove('on'); });
+  $('skip').addEventListener('click', () => send({ type: 'skip' }));
+  $('local').addEventListener('click', () => send({ type: 'local' }));
+  $('whyOpen').addEventListener('click', () => { $('why').classList.add('on'); $('whyClose').focus(); });
+  $('whyClose').addEventListener('click', () => $('why').classList.remove('on'));
+  $('why').addEventListener('click', (e) => { if (e.target === $('why')) $('why').classList.remove('on'); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('why').classList.contains('on')) { e.preventDefault(); $('why').classList.remove('on'); } }, true);
+  $('again').addEventListener('click', () => { $('oops').classList.remove('on'); working = true; send({ type: 'retry' }); });
+  $('next').addEventListener('click', () => send({ type: mode === 'update' ? 'close' : 'done' }));
+  const typedRef = () => { const m = /(?:^|\/\/)([a-z0-9]{20})(?:\.supabase\.co)?\/?$/.exec($('pref').value.trim().toLowerCase()); return m ? m[1] : null; };
+  function syncSetup() { $('setup').disabled = pick === 'old' && !picked && !typedRef(); }
+  $('pref').addEventListener('input', () => { picked = null; document.querySelectorAll('.pitem').forEach((x) => x.classList.remove('sel')); syncSetup(); });
+  $('setup').addEventListener('click', () => {
+    const org = $('org').value;
+    if (pick === 'new') send({ type: 'create', org, region: $('region').value });
+    else { const p = projects.find((x) => x.ref === picked); const r = typedRef(); if (p) send({ type: 'use', ref: p.ref, name: p.name }); else if (r) send({ type: 'use', ref: r, name: r }); }
+  });
+
+  function unGot() {
+    $('token').disabled = false; $('token').placeholder = 'sbp_...'; $('gotchip').classList.remove('on'); $('t3').classList.remove('got'); $('tdots').classList.remove('on');
+    setTimeout(() => { if (!$('tdots').classList.contains('on')) $('tdots').innerHTML = ''; }, 400);
+    at(3);
+  }
+  function buildSteps(ids) {
+    $('steps').innerHTML = ids.map((id) => '<li id="s-' + id + '"><span class="dot"><i></i><span class="ring">' + SVG_RING + '</span>' + SVG_TICK + '</span><span class="st">' + LABELS[id] +
+      '</span><div class="bar' + (id === 'wait' || id === 'database' ? ' on' : '') + '"><div class="fill"></div>' + (id === 'wait' ? '<div class="sheen"></div>' : '') + '</div><div class="sd"></div></li>').join('');
+  }
+
+  window.__sb = {
+    start(o) {
+      mode = o.mode; working = false; projects = []; picked = null; pick = 'new';
+      goBusy(null); $('tErr').textContent = ''; $('oops').classList.remove('on');
+      guideOff(false); $('gotchip').classList.remove('on'); $('t3').classList.remove('got'); $('tdots').classList.remove('on'); $('tdots').innerHTML = ''; $('token').disabled = false;
+      at(mode === 'update' ? 2 : 1);
+      // Local first (V1.44): while nothing is linked the footer offers "everything on this Mac" in Skip's place (the
+      // page's own choice screen has "I already have an account").
+      $('skip').classList.toggle('hidden', mode !== 'first' || !!o.canLocal);
+      // Local first (V1.44): while no project of their own is linked, the way back to "everything on this Mac".
+      $('local').classList.toggle('hidden', !o.canLocal);
+      $('local').textContent = o.fromLocal ? 'Not now, keep everything on this Mac' : 'Keep everything on this Mac instead';
+      $('safe').classList.toggle('hidden', mode === 'update');
+      const fresh = mode === 'first' || (mode === 'change' && o.fresh);
+      $('sTitle').textContent = mode === 'update' ? 'Update your Supabase project' : o.fromLocal ? 'Turn on sync' : mode === 'change' && !fresh ? 'Change Supabase project' : 'Connect your own Supabase';
+      $('sLead').textContent = mode === 'update'
+        ? 'This version of PS has a small update for your project' + (o.linked ? ' (' + o.linked.name + ')' : '') + '. Paste an access token and PS applies it. Your data stays as it is.'
+        : o.fromLocal
+          ? 'Connect a free Supabase project of your own. Then PS moves everything on this Mac into it, encrypted, and checks every record arrived before it switches over. Nothing on this Mac is deleted.'
+          : mode === 'change' && !fresh
+            ? (o.linked ? 'This Mac uses your project ' + o.linked.name + '. ' : 'This Mac uses the PS default server. ') + 'Pick another project with an access token. Changing it signs you out of this Mac.'
+            : 'PS app keeps your encrypted data in a free Supabase project that belongs to you. Three quick steps, about two minutes, and PS app shows you every click.';
+      $('t1').classList.toggle('hidden', mode === 'update');
+      $('region').innerHTML = '';
+      for (const r of o.regions) { const op = document.createElement('option'); op.value = r.code; op.textContent = r.label; $('region').append(op); }
+      $('region').value = o.region;
+      $('near').textContent = 'nearest to you';
+      $('region').onchange = () => { $('near').textContent = $('region').value === o.region ? 'nearest to you' : ''; };
+      page('pStart');
+      setTimeout(() => $('token').focus(), 400);
+    },
+    tokenError(msg) { goBusy(null); unGot(); $('tErr').textContent = msg; },
+    // V1.49 token guide (SetupGuide.swift): the guide's steps, its end, and the copied token arriving.
+    guideStarted(stage) { guideOn(stage); },
+    guideStep(stage) { guideOn(stage); },
+    guideEnded(o) { guideOff(!!(o && o.focus)); },
+    caught() {
+      guideOff(false);
+      $('tErr').textContent = ''; $('token').value = ''; $('token').placeholder = ''; $('token').disabled = true;
+      // The page never sees the token: it shows dots, a green tick and "Token received", then PS app carries on.
+      const d = $('tdots'); d.innerHTML = Array.from({ length: 22 }, (_, i) => '<i style="transition-delay:' + (i * 22) + 'ms"></i>').join('');
+      at(3);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        d.classList.add('on'); $('t3').classList.add('got');
+        setTimeout(() => { at(3, { all: true }); $('gotchip').classList.add('on'); }, 520);
+        setTimeout(() => { send({ type: 'useCaught', keep: $('keep').checked }); }, 1250);
+      }));
+    },
+    busy(text) { goBusy(text); },
+    choose(o) {
+      goBusy(null);
+      $('org').innerHTML = '';
+      for (const g of o.orgs) { const op = document.createElement('option'); op.value = g.slug; op.textContent = g.name; $('org').append(op); }
+      $('orgRow').classList.toggle('hidden', o.orgs.length < 2);
+      projects = o.projects;
+      // A token limited to one project sees no organisation: only "use an existing project", and when it cannot
+      // list projects either, a box for the project's address.
+      const scoped = !!o.scoped || !o.orgs.length;
+      $('oNew').classList.toggle('hidden', scoped);
+      $('oOld').classList.toggle('hidden', !scoped && !projects.length);
+      $('prefRow').classList.toggle('hidden', !!projects.length);
+      $('pref').value = '';
+      pick = scoped ? 'old' : 'new';
+      $('oNew').classList.toggle('sel', pick === 'new'); $('oOld').classList.toggle('sel', pick === 'old');
+      $('cLead').textContent = scoped ? 'PS sets itself up in its own part of your project and leaves your tables, data and users alone.' : 'A new project is the easy choice. PS sets everything up for you.';
+      $('plist').innerHTML = '';
+      for (const p of projects) {
+        const d = document.createElement('div'); d.className = 'pitem'; d.dataset.ref = p.ref;
+        const n = document.createElement('span'); n.textContent = p.name; const s = document.createElement('small'); s.textContent = p.region + (p.status && p.status !== 'ACTIVE_HEALTHY' ? ' · ' + p.status.toLowerCase().replace(/_/g, ' ') : '');
+        d.append(n, s); $('plist').append(d);
+      }
+      syncSetup();
+      page('pChoose');
+    },
+    work(o) {
+      working = true;
+      $('oops').classList.remove('on');
+      $('wTitle').textContent = o.update ? 'Updating your project' : 'Setting up your project';
+      buildSteps(o.update ? ['database', 'functions'] : o.create ? ['create', 'wait', 'database', 'functions', 'check', 'save'] : ['wait', 'database', 'functions', 'check', 'save']);
+      page('pWork');
+    },
+    step(o) {
+      const li = $('s-' + o.id); if (!li) return;
+      li.classList.toggle('now', o.state === 'now'); li.classList.toggle('done', o.state === 'done');
+      const f = li.querySelector('.fill'); if (f && o.frac != null) f.style.transform = 'scaleX(' + Math.max(0, Math.min(1, o.frac)).toFixed(4) + ')';
+      if (o.detail != null) li.querySelector('.sd').textContent = o.detail;
+    },
+    error(o) {
+      working = false; goBusy(null);
+      if (!$('pStart').classList.contains('away') && $('pChoose').classList.contains('later')) { unGot(); $('tErr').textContent = o.message; return; }
+      if ($('pWork').classList.contains('later')) page('pWork');
+      document.querySelectorAll('#steps li.now').forEach((li) => li.classList.remove('now'));   // nothing spins while stopped
+      $('oopsText').textContent = o.message; $('again').classList.toggle('hidden', !o.retry); $('oops').classList.add('on');
+    },
+    done(o) {
+      working = false;
+      $('dTitle').textContent = 'Your Supabase project is ready';
+      $('dLead').textContent = o.first ? 'Next, create your PS account and pick a passphrase. Your passphrase is the key to your data: it never leaves this Mac, and without it nobody, not even Supabase, can read anything.'
+        : 'This project already has an account. Sign in with it next.';
+      $('next').textContent = o.first ? 'Create your account' : 'Sign in';
+      setTimeout(() => page('pDone'), 500);
+    },
+    updated() {
+      working = false;
+      $('dTitle').textContent = 'Your project is up to date';
+      $('dLead').textContent = 'PS applied the update. Nothing else changed.';
+      $('next').textContent = 'Close';
+      setTimeout(() => page('pDone'), 500);
+    },
+  };
+  send({ type: 'ready' });
+})();
+</script>
+</body>
+</html>

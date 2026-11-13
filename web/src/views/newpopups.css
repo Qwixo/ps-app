@@ -1,0 +1,33 @@
+/* "New in this version" pop-ups (views/NewPopups.tsx, core/newpopups.ts). The same small card as the first use tips
+   (tips.css: .tp-card, .tp-title, .tp-line), a little wider, with buttons. Nothing here takes the keyboard focus. */
+.np-card { width: min(340px, calc(100vw - 24px)); transform-origin: 50% 100%; }
+.np-head { display: flex; align-items: flex-start; gap: calc(10px * var(--k-dn, 1)); }
+.np-head .tp-title { flex: 1; min-width: 0; padding-top: calc(3px * var(--k-dn, 1)); }
+.np-icon {
+  flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent);
+  transition: background .25s ease, color .25s ease;
+}
+.np-card.copied .np-icon { color: var(--k-ok, #22C55E); background: color-mix(in srgb, var(--k-ok, #22C55E) 18%, transparent); }
+.np-card.copied { border-color: color-mix(in srgb, var(--k-ok, #22C55E) 70%, transparent); }
+.np-card .tp-line { margin-top: calc(8px * var(--k-dn, 1)); }
+.np-risk {
+  margin-top: calc(10px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1));
+  font-size: calc(12px * var(--k-fs, 1)); line-height: 1.4; opacity: .85;
+  background: color-mix(in srgb, var(--k-fg, #fff) 7%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #fff) 10%, transparent);
+}
+.np-risk b { font-weight: 750; margin-right: 4px; }
+.np-row { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--k-dn, 1)); margin-top: calc(12px * var(--k-dn, 1)); }
+.np-main, .np-sec, .np-later {
+  height: 30px; padding: 0 calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750;
+  outline: none; transition: transform .12s ease, filter .15s ease, background .15s ease;
+}
+.np-main { border: 0; color: var(--k-on-acc, #fff); background: var(--k-acc, #EC4E86); }
+.np-main:hover { filter: brightness(1.1); }
+.np-main.busy { opacity: .7; cursor: default; filter: none; }
+.np-sec { color: inherit; background: transparent; border: 1px solid color-mix(in srgb, var(--k-fg, #fff) 28%, transparent); }
+.np-sec:hover { background: color-mix(in srgb, var(--k-fg, #fff) 9%, transparent); }
+.np-later { border: 0; color: inherit; background: transparent; opacity: .6; margin-left: auto; }
+.np-later:hover { opacity: 1; }
+.np-main:active, .np-sec:active, .np-later:active { transform: scale(.95); }
+@media (prefers-reduced-motion: reduce) { .np-card, .np-icon, .np-main, .np-sec, .np-later { transition: none; } }

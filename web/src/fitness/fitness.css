@@ -1,0 +1,396 @@
+/* PS Fitness: the three looks (the developer: "a different style to what the actual PS app right now is ... a nice big
+   screen, very readable"). Every Fitness screen draws with these tokens only, so a switch in Fitness
+   settings changes everything at once. The look is a data attribute on the Fitness root
+   (.fit[data-fit-style]); nothing outside Fitness changes. Only transform and opacity animate.
+     volt   graphite and gold, heavy numerals (default; gold since 2 Nov 2026, it was lime)
+     chalk  HIGH CONTRAST for a bright gym: white, pure black, thick lines, safety yellow
+     pulse  deep ink with an electric cyan to violet glow */
+
+.fit {
+  --f-font: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-num: "Inter Variable", Inter, system-ui, sans-serif;     /* numerals: tabular, heavy */
+  --f-num-w: 850;
+  --f-title-w: 800;
+  --f-tap: 64px;              /* primary targets (research: 56 to 64 px in the thumb zone) */
+  --f-tap-s: 52px;            /* secondary targets */
+  --f-r: 22px; --f-r-s: 14px; --f-r-pill: 999px;
+  --f-gap: 12px;
+  --f-ease: cubic-bezier(.22, 1, .36, 1);
+  --f-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --f-fast: .18s; --f-mid: .32s; --f-slow: .5s;
+  --f-line-w: 1px;
+
+  /* volt (default) */
+  --f-bg: var(--k-base, #0B0C0E);
+  --f-surface: var(--k-surface, #16181C);
+  --f-surface-2: var(--k-surface2, #20232A);
+  --f-line: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent);
+  --f-ink: var(--k-fg, #F4F6F2);
+  --f-ink-2: color-mix(in srgb, var(--k-fg, #F4F6F2) min(100%, calc(62% * var(--k-ia, 1))), transparent);
+  --f-ink-3: color-mix(in srgb, var(--k-fg, #F4F6F2) min(100%, calc(38% * var(--k-ia, 1))), transparent);
+  --f-accent: var(--k-fit, #F5C542);          /* a look gives Fitness its accent (core/looks.ts) */
+  --f-accent-2: var(--k-fit-t, #C9971C);
+  --f-on-accent: var(--k-on-fit, #0B0C0E);
+  --f-good: var(--k-ok, #4BE38A);
+  --f-warn: var(--k-warn, #FFB547);
+  --f-bad: var(--k-bad, #FF5A5A);
+  --f-best: var(--k-fit-t, #FFF0C2);          /* champagne: a personal best still stands out from the gold accent */
+  --f-glow: 0 0 0 1px color-mix(in srgb, var(--k-fit, #F5C542) 38%, transparent), 0 12px 40px -12px color-mix(in srgb, var(--k-fit, #F5C542) 45%, transparent);
+  --f-shadow: 0 18px 40px -18px rgba(0, 0, 0, .7);
+  --f-done-bg: color-mix(in srgb, var(--k-fit, #F5C542) 10%, transparent);
+
+  font-family: var(--f-font);
+  color: var(--f-ink);
+  background: var(--f-bg);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+.fit[data-fit-style="chalk"] {
+  --f-num-w: 900;
+  --f-title-w: 900;
+  --f-line-w: 3px;
+  --f-r: 16px; --f-r-s: 10px;
+  --f-bg: #FFFFFF;
+  --f-surface: #FFFFFF;
+  --f-surface-2: #F1F1EE;
+  --f-line: #000000;
+  --f-ink: #000000;
+  --f-ink-2: #1F1F1F;
+  --f-ink-3: #555555;
+  --f-accent: #000000;
+  --f-accent-2: #FFE500;
+  --f-on-accent: #FFE500;
+  --f-good: #007A33;
+  --f-warn: #B35900;
+  --f-bad: #C00000;
+  --f-best: #000000;
+  --f-glow: 0 0 0 3px #000000;
+  --f-shadow: 6px 6px 0 #000000;
+  --f-done-bg: #FFE500;
+}
+.fit[data-fit-style="pulse"] {
+  --f-num-w: 800;
+  --f-r: 26px; --f-r-s: 16px;
+  --f-bg: var(--k-base, #070818);
+  --f-surface: var(--k-surface, #10122B);
+  --f-surface-2: var(--k-info-bg, #191C3D);
+  --f-line: color-mix(in srgb, var(--k-info-t, #8CA0FF) 16%, transparent);
+  --f-ink: var(--k-fg, #EEF1FF);
+  --f-ink-2: color-mix(in srgb, var(--k-fg, #EEF1FF) min(100%, calc(66% * var(--k-ia, 1))), transparent);
+  --f-ink-3: color-mix(in srgb, var(--k-fg, #EEF1FF) min(100%, calc(40% * var(--k-ia, 1))), transparent);
+  --f-accent: var(--k-info, #29E0FF);
+  --f-accent-2: var(--k-acc2, #8A5CFF);
+  --f-on-accent: var(--k-base, #050616);
+  --f-good: var(--k-ok, #3DFFB4);
+  --f-warn: var(--k-warn, #FFC15E);
+  --f-bad: var(--k-acc, #FF5C8A);
+  --f-best: var(--k-warn-t, #FFE066);
+  --f-glow: 0 0 0 1px color-mix(in srgb, var(--k-info, #29E0FF) 40%, transparent), 0 14px 46px -12px color-mix(in srgb, var(--k-acc2, #8A5CFF) 60%, transparent);
+  --f-shadow: 0 20px 50px -20px rgba(0, 0, 0, .8);
+  --f-done-bg: linear-gradient(135deg, color-mix(in srgb, var(--k-info, #29E0FF) 14%, transparent), color-mix(in srgb, var(--k-acc2, #8A5CFF) 14%, transparent));
+}
+
+/* Numbers everywhere in Fitness: same width digits, so a countdown or a stepper never jiggles. */
+.fit .f-num { font-family: var(--f-num); font-weight: var(--f-num-w); font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1; }
+.fit button { font: inherit; color: inherit; touch-action: manipulation; }
+.fit :focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fit, .fit * { animation-duration: .01s !important; transition-duration: .01s !important; }
+}
+
+/* The Tab list's Fitness button (FitnessButton.tsx): sits with Dimension X in the bottom left row. Gold, not PS pink. */
+.fit-tab-btn { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: calc(7px * var(--k-dn, 1)); height: 38px; padding: 0 calc(14px * var(--k-dn, 1)) 0 calc(11px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+  font: 650 calc(13px * var(--k-fs, 1))/1 var(--k-font, "Inter Variable", Inter, system-ui, sans-serif); color: var(--k-warn-t, #FFE7A3); background: color-mix(in srgb, var(--k-warn, #F5C542) 12%, transparent); border: 1px solid color-mix(in srgb, var(--k-warn, #F5C542) 42%, transparent);
+  transition: background .2s ease, border-color .2s ease, transform .2s cubic-bezier(.34, 1.56, .64, 1); }
+.fit-tab-btn:hover, .fit-tab-btn.on { background: color-mix(in srgb, var(--k-warn, #F5C542) 22%, transparent); border-color: var(--k-warn, #F5C542); }
+/* The light Tab list (More settings > Theme, for bright sun): deep gold on a pale wash, so the word stays readable. */
+.tm-light-on .fit-tab-btn { color: #6B4D00; background: rgba(201, 151, 28, .14); border-color: rgba(150, 108, 8, .5); }
+.tm-light-on .fit-tab-btn:hover, .tm-light-on .fit-tab-btn.on { background: rgba(201, 151, 28, .24); border-color: #96700A; }
+.fit-tab-btn:active { transform: scale(.94); }
+/* PS on the Mac (V1.24, the developer: "cramped"): the row is wider than its 300px column, so centring it squeezed Fitness
+   (its word spilled out of the pill) and pushed the mail button off the left edge. The row now starts at the
+   column's edge, nothing in it shrinks, and Fitness sits a little further right. Where the screen is too narrow
+   for the full pill to clear the list (under 1700px wide), Fitness is the round gold button, like its neighbours.
+   The phone and the docked To-do page keep their own rows. */
+@media (min-width: 761px) {
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow { justify-content: flex-start; }
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > * { flex-shrink: 0; }
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > .fit-tab-btn { margin-left: 4px; }
+}
+@media (min-width: 761px) and (max-width: 1699px) {
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > .fit-tab-btn { margin-left: 0; width: 38px; padding: 0; justify-content: center; }
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > .fit-tab-btn span { display: none; }
+}
+
+/* ---------- the shell (FitnessApp.tsx) ---------- */
+.fit-phone { position: absolute; inset: 0; overflow: hidden; isolation: isolate; }
+.fit-page .fit-phone { position: relative; inset: auto; min-height: calc(100dvh - 120px); border-radius: var(--f-r); }
+/* Program, History and Settings: full height sheets that slide up over the gym screen (transform only). */
+.fit-sheet {
+  position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; background: var(--f-bg);
+  transform: translate3d(0, 104%, 0); transition: transform var(--f-slow) var(--f-ease); will-change: transform;
+  padding-top: var(--fit-top, 12px);
+}
+.fit-sheet.open { transform: none; }
+.fit-sheet-h { flex: none; display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-bottom: var(--f-line-w) solid var(--f-line); }
+.fit-sheet-h h2 { margin: 0; font: var(--f-title-w) calc(24px * var(--k-fs, 1))/1.1 var(--f-font); letter-spacing: -.02em; color: var(--f-ink); }
+.fit-sheet-x { width: var(--f-tap-s); height: var(--f-tap-s); display: grid; place-items: center; border: 0; border-radius: var(--f-r-pill); background: var(--f-surface-2); color: var(--f-ink); cursor: pointer; transition: transform var(--f-fast) var(--f-spring); }
+.fit-sheet-x:active { transform: scale(.9); }
+.fit-sheet-b { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: calc(14px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) var(--fit-bottom, 20px); }
+
+/* Desk (PS's main window on the Mac, the website): tabs on top, the screen under them. */
+.fit-desk { border-radius: var(--f-r); min-height: calc(100vh - 140px); padding: calc(18px * var(--k-dn, 1)) calc(22px * var(--k-dn, 1)) calc(28px * var(--k-dn, 1)); }
+.fit-desk-top { display: flex; align-items: center; gap: calc(18px * var(--k-dn, 1)); flex-wrap: wrap; margin-bottom: 18px; }
+.fit-desk-brand { display: flex; align-items: center; gap: calc(9px * var(--k-dn, 1)); font: var(--f-title-w) calc(22px * var(--k-fs, 1))/1 var(--f-font); letter-spacing: -.02em; color: var(--f-ink); }
+.fit-desk-brand svg { color: var(--f-accent); }
+.fit[data-fit-style="chalk"] .fit-desk-brand svg { color: var(--f-ink); }
+.fit-desk-brand small { font: 650 calc(13px * var(--k-fs, 1))/1 var(--f-font); color: var(--f-ink-2); margin-left: 6px; letter-spacing: 0; }
+.fit-desk-tabs { display: flex; gap: calc(6px * var(--k-dn, 1)); padding: calc(5px * var(--k-dn, 1)); border-radius: var(--f-r-pill); background: var(--f-surface); border: var(--f-line-w) solid var(--f-line); }
+.fit-desk-tabs button { border: 0; background: none; cursor: pointer; padding: calc(10px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: var(--f-r-pill); font: 700 calc(14px * var(--k-fs, 1))/1 var(--f-font); color: var(--f-ink-2); transition: background var(--f-fast) ease, color var(--f-fast) ease; }
+.fit-desk-tabs button:hover { color: var(--f-ink); }
+.fit-desk-tabs button.on { background: var(--f-accent); color: var(--f-on-accent); }
+.fit-desk-back { margin-left: auto; border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink); border-radius: var(--f-r-pill); padding: calc(10px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); font: 650 calc(13px * var(--k-fs, 1))/1 var(--f-font); cursor: pointer; }
+.fit-desk-body { animation: fit-in var(--f-mid) var(--f-ease) both; }
+@keyframes fit-in { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
+.fit-stub { padding: calc(40px * var(--k-dn, 1)); font: 800 calc(28px * var(--k-fs, 1))/1 var(--f-font); }
+/* The website and PS's main window give Fitness the whole page width. */
+.page:has(> .fit-page), .fit-page { max-width: none; }
+html.fit-test, html.fit-test body { background: var(--k-base, #000000); margin: 0; }
+html.fit-test .fit-page .fit-phone, html.fit-test .fit-page .fit-desk { min-height: 100vh; border-radius: 0; }
+
+/* ---------- Pulse: its own character, not just Volt in blue ----------
+   Gradient actions (cyan to violet), a soft glowing current set, gradient numbers on the big screens,
+   a deep radial backdrop. Colour and glow only: same shapes, so nothing moves when the look changes. */
+.fit[data-fit-style="pulse"] {
+  --f-grad: linear-gradient(135deg, var(--k-info, #29E0FF) 0%, var(--k-info, #5A8CFF) 52%, var(--k-acc2, #8A5CFF) 100%);
+  background: radial-gradient(120% 70% at 50% -10%, var(--k-info-bg, #1A1F5A) 0%, var(--k-base, #070818) 62%) fixed, var(--k-base, #070818);
+}
+.fit[data-fit-style="pulse"] .fg .fg-go,
+.fit[data-fit-style="pulse"] .fg .fg-tick-big,
+.fit[data-fit-style="pulse"] .fit-desk-tabs button.on,
+.fit[data-fit-style="pulse"] .fp-act.on,
+.fit[data-fit-style="pulse"] .fp-day.on { background: var(--f-grad); color: var(--k-base, #050616); box-shadow: 0 10px 34px -10px color-mix(in srgb, var(--k-info-t, #6E78FF) 75%, transparent); }
+.fit[data-fit-style="pulse"] .fg .fg-set.big.cur { border-color: transparent; background:
+  linear-gradient(var(--f-surface), var(--f-surface)) padding-box, var(--f-grad) border-box; box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-info, #29E0FF) 25%, transparent), 0 18px 60px -18px color-mix(in srgb, var(--k-acc2, #8A5CFF) 70%, transparent); }
+.fit[data-fit-style="pulse"] .fg .fg-prog i,
+.fit[data-fit-style="pulse"] .fg .fg-drain i { background: var(--f-grad); }
+.fit[data-fit-style="pulse"] .fg .fg-hero,
+.fit[data-fit-style="pulse"] .fg .fg-rest-t,
+.fit[data-fit-style="pulse"] .fg .fg-restbig-t,
+.fit[data-fit-style="pulse"] .fg .fg-set.big.cur .fg-step-v { background: linear-gradient(180deg, var(--k-fg, #FFFFFF) 10%, var(--k-info-t, #A9C4FF) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.fit[data-fit-style="pulse"] .fg .fg-rest { border-color: color-mix(in srgb, var(--k-info, #29E0FF) 35%, transparent); box-shadow: 0 -12px 50px -20px color-mix(in srgb, var(--k-info, #29E0FF) 45%, transparent); }
+/* The self test page only: its hidden picture windows never tick animations, so every one jumps to its end. */
+html.fit-test .fit *, html.fit-test .fit *::before, html.fit-test .fit *::after, html.fit-test .fit {
+  animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; transition-delay: 0s !important;
+}
+
+/* ---------- Fitness inside the Tab list (FitnessButton.tsx, 2 Nov 2026): a near full screen window that grows
+   out of the button, like Dimension X. It replaces the separate PS Fitness window. ---------- */
+.fit-scr-layer { z-index: 40; }
+.fit-scr-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--k-base, #000000) 62%, transparent); pointer-events: auto; }
+.fit-scr {
+  position: absolute; top: calc(var(--safe-top, 0px) + 2.2vh); bottom: 2.2vh; left: 2vw; right: 2vw; pointer-events: auto;
+  border-radius: calc(22px * var(--k-rd, 1)); overflow: hidden; background: var(--k-base, #0B0C0E); isolation: isolate; will-change: transform;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-warn, #F5C542) 18%, transparent), 0 40px 120px rgba(0, 0, 0, .75);
+}
+.fit-scr-morph { position: absolute; inset: 0; z-index: 5; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 50%, var(--k-warn, #F5C542), var(--k-warn, #9A6F0B)); }
+.fit-scr-content { position: relative; z-index: 2; height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+.fit-scr-content > .fit-desk { min-height: 100%; border-radius: 0; box-sizing: border-box; }
+/* The tabs stay at the top while a long screen scrolls under them. */
+.fit-scr .fit-desk-top { position: sticky; top: 0; z-index: 4; margin: -18px -22px 18px; padding: calc(18px * var(--k-dn, 1)) calc(22px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); background: var(--f-bg);
+  border-bottom: var(--f-line-w) solid var(--f-line); }
+
+/* ---------- Light and dark (V1.29, theme.ts): the sun / moon at the top of Fitness. Fitness only. ----------
+   Light is built for bright sunlight: a white page, near black words, strong edges, and actions that keep their
+   colour (the gold Done with black words; Pulse's gradient deepened so white words stay readable). Remembered on
+   this device only. Chalk is already the white look, so its dark side is chalk turned over (black, white, yellow). */
+.fit[data-fit-style="volt"][data-fit-theme="light"] {
+  --f-bg: #FFFFFF;
+  --f-surface: #F7F5EF;
+  --f-surface-2: #EBE6D8;
+  --f-line: rgba(20, 16, 4, .26);
+  --f-line-w: 1.5px;
+  --f-ink: #0A0A0A;
+  --f-ink-2: rgba(10, 10, 10, .8);
+  --f-ink-3: rgba(10, 10, 10, .58);
+  --f-accent: #F2B90C;
+  --f-accent-2: #7A5600;
+  --f-on-accent: #0A0A0A;
+  --f-good: #0A7A3B;
+  --f-warn: #9A4E00;
+  --f-bad: #C21A1A;
+  --f-best: #6B4A00;
+  --f-glow: 0 0 0 2px #7A5600, 0 10px 28px -12px rgba(122, 86, 0, .45);
+  --f-shadow: 0 12px 28px -14px rgba(0, 0, 0, .28);
+  --f-done-bg: rgba(242, 185, 12, .16);
+}
+.fit[data-fit-style="pulse"][data-fit-theme="light"] {
+  --f-bg: #FFFFFF;
+  --f-surface: #F2F4FF;
+  --f-surface-2: #E2E7FA;
+  --f-line: rgba(16, 20, 70, .26);
+  --f-line-w: 1.5px;
+  --f-ink: #060818;
+  --f-ink-2: rgba(6, 8, 24, .8);
+  --f-ink-3: rgba(6, 8, 24, .58);
+  --f-accent: #0063D1;
+  --f-accent-2: #5B2BD9;
+  --f-on-accent: #FFFFFF;
+  --f-good: #00753A;
+  --f-warn: #9A4E00;
+  --f-bad: #C2183F;
+  --f-best: #5B2BD9;
+  --f-glow: 0 0 0 2px rgba(0, 99, 209, .6), 0 12px 32px -12px rgba(91, 43, 217, .45);
+  --f-shadow: 0 14px 32px -16px rgba(10, 20, 60, .3);
+  --f-done-bg: linear-gradient(135deg, rgba(0, 140, 200, .1), rgba(91, 43, 217, .1));
+  --f-grad: linear-gradient(135deg, #0079B8 0%, #2F55E6 52%, #5B2BD9 100%);
+  background: radial-gradient(120% 60% at 50% -10%, #E8EDFF 0%, #FFFFFF 60%) fixed, #FFFFFF;
+}
+.fit[data-fit-style="chalk"][data-fit-theme="dark"] {
+  --f-bg: #000000;
+  --f-surface: #000000;
+  --f-surface-2: #1C1C1C;
+  --f-line: #FFFFFF;
+  --f-ink: #FFFFFF;
+  --f-ink-2: #E8E8E8;
+  --f-ink-3: #A8A8A8;
+  --f-accent: #FFE500;
+  --f-accent-2: #FFE500;
+  --f-on-accent: #000000;
+  --f-good: #4BE38A;
+  --f-warn: #FFB547;
+  --f-bad: #FF5A5A;
+  --f-best: #FFE500;
+  --f-glow: 0 0 0 3px #FFE500;
+  --f-shadow: 6px 6px 0 #3A3A3A;
+  --f-done-bg: rgba(255, 229, 0, .2);
+}
+/* Pulse in the sun: the gradient keeps white words (it was dark on cyan), numbers go deep ink instead of white. */
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fg .fg-go,
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fg .fg-tick-big,
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fg .fg-extra.add,
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fit-desk-tabs button.on,
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fp-act.on,
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fp-day.on { color: #FFFFFF; box-shadow: 0 10px 28px -10px rgba(47, 85, 230, .6); }
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fg .fg-hero,
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fg .fg-rest-t,
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fg .fg-restbig-t,
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fg .fg-set.big.cur .fg-step-v { background: linear-gradient(180deg, #060818 25%, #2F3FB8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fg .fg-rest { border-color: rgba(0, 99, 209, .45); box-shadow: 0 -10px 36px -18px rgba(47, 85, 230, .45); }
+/* Volt in the sun: gold fills keep black words; a deep gold edge so they never melt into the white. */
+.fit[data-fit-style="volt"][data-fit-theme="light"] .fg .fg-tick-big,
+.fit[data-fit-style="volt"][data-fit-theme="light"] .fg .fg-go:not(.fg-danger),
+.fit[data-fit-style="volt"][data-fit-theme="light"] .fg .fg-extra.add { box-shadow: inset 0 0 0 2px #7A5600, 0 10px 24px -12px rgba(122, 86, 0, .5); }
+.fit[data-fit-style="volt"][data-fit-theme="light"] .fg .fg-drain i { background: #7A5600; }
+.fit[data-fit-theme="light"] .fg .fg-rest { border-width: 2px; }
+.fit[data-fit-theme="light"] .fg .fg-rest-t { color: var(--f-ink); }
+.fit[data-fit-theme="light"] :focus-visible { outline-color: var(--f-accent-2); }
+.fit[data-fit-theme="light"] .fit-desk-brand svg { color: var(--f-accent-2); }
+/* The switch itself crossfades the whole screen: colours only, so nothing moves. */
+.fit { transition: background-color var(--f-mid) ease, color var(--f-mid) ease; }
+
+/* ---------- Top of Fitness: Sync, sun / moon, and the pop up's Minimise and Close (V1.29) ---------- */
+.fit-sync {
+  flex: 0 1 auto; min-width: 0; height: 44px; padding: 0 calc(14px * var(--k-dn, 1)) 0 calc(12px * var(--k-dn, 1)); display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1));
+  border-radius: var(--f-r-pill); border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink-2);
+  font: 750 calc(14px * var(--k-fs, 1))/1 var(--f-font); cursor: pointer; white-space: nowrap; transition: background-color var(--f-fast) ease, color var(--f-fast) ease, border-color var(--f-fast) ease, transform var(--f-fast) var(--f-ease);
+}
+.fit-sync:active { transform: scale(.96); }
+.fit-sync svg { flex: none; color: var(--f-good); }
+.fit-sync-t { overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.fit-sync.busy svg, .fit-sync.spin svg { color: var(--f-accent); animation: fit-spin .9s linear infinite; }
+.fit[data-fit-style="chalk"] .fit-sync.busy svg, .fit[data-fit-style="chalk"] .fit-sync.spin svg { color: var(--f-ink); }
+.fit-sync.warn { color: var(--f-warn); border-color: var(--f-warn); background: color-mix(in srgb, var(--f-warn) 14%, var(--f-surface)); }
+.fit-sync.warn svg { color: var(--f-warn); }
+@keyframes fit-spin { to { transform: rotate(360deg); } }
+.fit-theme-b {
+  flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; cursor: pointer;
+  border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink); transition: transform var(--f-fast) var(--f-spring);
+}
+.fit-theme-b:active { transform: scale(.9); }
+.fit-theme-i { position: relative; width: 22px; height: 22px; display: block; }
+.fit-theme-i svg { position: absolute; inset: 0; transition: opacity var(--f-mid) ease, transform var(--f-mid) var(--f-ease); }
+/* It shows where a tap takes you: the sun in the dark, the moon in the light. */
+.fit-theme-i svg:last-child { opacity: 0; transform: rotate(-60deg) scale(.6); }
+.fit-theme-i.light svg:first-child { opacity: 0; transform: rotate(60deg) scale(.6); }
+.fit-theme-i.light svg:last-child { opacity: 1; transform: none; }
+
+/* Phone: one bar above the gym screen (the pop up's Minimise and Close at the two ends, in thumb reach of a stretch). */
+.fit-phone { display: flex; flex-direction: column; }
+.fit-bar { flex: none; display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: var(--fit-top, 12px) calc(12px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); }
+.fit-bar .fit-sync { flex: 1 1 auto; justify-content: flex-start; }
+.fit-bar-b {
+  flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; cursor: pointer;
+  border: var(--f-line-w) solid var(--f-line); background: var(--f-surface-2); color: var(--f-ink); transition: transform var(--f-fast) var(--f-spring);
+}
+.fit-bar-b:active { transform: scale(.9); }
+.fit-bar-back { flex: none; height: 44px; padding: 0 calc(14px * var(--k-dn, 1)); border-radius: var(--f-r-pill); border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink); font: 650 calc(13px * var(--k-fs, 1))/1 var(--f-font); cursor: pointer; }
+.fit-phone-body { position: relative; flex: 1 1 auto; min-height: 0; --fit-top: 6px; }
+.fit-phone-body > .fg { height: 100%; }
+
+/* Mac and the website: Sync, sun / moon, Minimise and Close at the right of the tabs. */
+.fit-desk-end { margin-left: auto; display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); flex-wrap: wrap; }
+.fit-desk-end .fit-desk-back { margin-left: 0; }
+.fit-chrome-b {
+  height: 44px; padding: 0 calc(16px * var(--k-dn, 1)) 0 calc(12px * var(--k-dn, 1)); display: inline-flex; align-items: center; gap: calc(7px * var(--k-dn, 1)); border-radius: var(--f-r-pill); cursor: pointer;
+  border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink); font: 750 calc(14px * var(--k-fs, 1))/1 var(--f-font);
+  transition: background-color var(--f-fast) ease, transform var(--f-fast) var(--f-ease);
+}
+.fit-chrome-b:hover { background: var(--f-surface-2); }
+.fit-chrome-b:active { transform: scale(.96); }
+.fit-chrome-b.close { background: var(--f-ink); color: var(--f-bg); border-color: var(--f-ink); }
+
+/* ---------- The phone pop up (FitnessPop.tsx): large, over PS, grows out of the Gym button ---------- */
+.fit-pop-layer { position: fixed; inset: 0; z-index: 66; }
+.fit-pop-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--k-base, #000000) 58%, transparent); }
+.fit-pop {
+  position: absolute; top: calc(var(--gos-top, 0px) + 8px); bottom: calc(var(--gos-bottom, 0px) + 8px); left: 8px; right: 8px;
+  border-radius: calc(26px * var(--k-rd, 1)); overflow: hidden; isolation: isolate; background: var(--k-base, #0B0C0E); will-change: transform;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent), 0 30px 80px rgba(0, 0, 0, .6);
+}
+/* V1.47 the phone: a lighter shadow. The 80 px blur over a whole screen sized layer was the slowest thing for a phone's
+   graphics chip to draw when the window appeared; over the dimmed list it looks the same. */
+html.gos .fit-pop { box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent), 0 14px 36px rgba(0, 0, 0, .5); }
+.fit-pop .fit-scr-content { height: 100%; overflow: hidden; }
+.fit-pop .fit-phone { --fit-top: 10px; --fit-bottom: 12px; }
+html.gos body:has(.fit-pop-layer) .gos-offline { display: none; }   /* it once took taps over the RIR digits and Finish */
+
+/* ---------- Minimised: the floating bubble (FitMini.tsx) ---------- */
+.fit-mini {
+  position: fixed; z-index: 52; display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); margin: 0;
+  border-radius: 999px; cursor: pointer; text-align: left; font-family: var(--f-font);
+  background: var(--f-surface); color: var(--f-ink); border: var(--f-line-w) solid var(--f-line);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, .6), var(--f-glow);
+  animation: fit-mini-in .48s var(--f-spring) both; will-change: transform;
+  transition: transform var(--f-fast) var(--f-ease);
+}
+.fit-mini:active { transform: scale(.94); }
+.fit-mini.pre { opacity: 0; animation: none; pointer-events: none; }
+/* V1.47 the phone: while the window shrinks into it (500 ms), the bubble fades in from 180 ms, under the window's own
+   fade (ui/morphframes.ts morphFade), opacity only, so the morph still aims at its true size. Then it stays put. */
+html.gos .fit-mini-gos.pre { opacity: 1; animation: fit-mini-fade .26s ease .18s both; }
+html.gos .fit-mini-gos.early { animation: none; }
+html.gos .fit-mini-gos.early.over { animation: fg-pulse 1.8s ease-in-out .5s infinite; }   /* keeps "Rest over" pulsing */
+@keyframes fit-mini-fade { from { opacity: 0; } }
+.fit-mini-ring { position: relative; flex: none; width: 50px; height: 50px; display: grid; place-items: center; color: var(--f-accent); }
+.fit[data-fit-style="chalk"].fit-mini .fit-mini-ring { color: var(--f-ink); }
+.fit-mini-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.fit-mini-ring circle { fill: none; stroke-width: 4; stroke-linecap: round; }
+.fit-mini-ring .bg { stroke: var(--f-surface-2); }
+.fit-mini-ring .prog { stroke: var(--f-accent); transition: stroke-dashoffset var(--f-slow) var(--f-ease); }
+.fit-mini-ring .rest { stroke: var(--f-accent); animation-name: fit-mini-drain; animation-timing-function: linear; animation-fill-mode: both; }
+.fit[data-fit-style="chalk"].fit-mini .fit-mini-ring .prog, .fit[data-fit-style="chalk"].fit-mini .fit-mini-ring .rest { stroke: var(--f-ink); }
+.fit-mini-t { display: flex; flex-direction: column; gap: calc(3px * var(--k-dn, 1)); min-width: 0; }
+.fit-mini-t b { font-size: calc(26px * var(--k-fs, 1)); }
+.fit-mini-t small { font-size: calc(12px * var(--k-fs, 1)); font-weight: 750; color: var(--f-ink-2); white-space: nowrap; }
+.fit-mini.over { background: var(--f-accent); color: var(--f-on-accent); animation: fit-mini-in .48s var(--f-spring) both, fg-pulse 1.8s ease-in-out .5s infinite; }
+.fit-mini.over small, .fit-mini.over .fit-mini-ring { color: inherit; }
+.fit-mini-gos { right: 14px; bottom: calc(var(--gos-dock-h, 64px) + var(--gos-bottom, 0px) + 82px); }
+.fit-mini-mac { right: 24px; bottom: 84px; z-index: 45; pointer-events: auto; }   /* above the Notes button */
+@keyframes fit-mini-in { from { opacity: 0; transform: scale(.55); } }
+@keyframes fit-mini-drain { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 131.95; } }
+
+/* While Fitness covers the Tab list its moving looks rest behind it (nothing to see, nothing to redraw). */
+.tm-overlay.scr-open .tm-storm, .tm-overlay.scr-open .tm-p1-scene, .tm-overlay.scr-open .tm-p1-frame:not(.mini) { visibility: hidden; }
+.tm-overlay.scr-open .tm-p1-frame *, .tm-overlay.scr-open .tm-p1-scene * { animation-play-state: paused !important; }

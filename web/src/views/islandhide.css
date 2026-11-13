@@ -1,0 +1,23 @@
+/* The island hide time picker (views/IslandHide.tsx). Drawn from currentColor, so it fits both the Tab list's
+   island menu and the Mac settings panel in any look. */
+.ih-row { display: flex; flex-direction: column; gap: calc(8px * var(--k-dn, 1)); padding: calc(11px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); }
+.tm-isl-menu .ih-row { margin-top: 6px; border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent); }
+.ih-l { display: flex; flex-direction: column; gap: calc(2px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); font-weight: 600; }
+.ih-l em { font-style: normal; font-weight: 400; font-size: calc(11.5px * var(--k-fs, 1)); opacity: .62; }
+.ih-chips { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); }
+.ih-chip { height: 28px; padding: 0 calc(11px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650;
+  color: inherit; background: color-mix(in srgb, currentColor 9%, transparent); border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  transition: background .16s ease, border-color .16s ease, transform .12s ease; }
+.ih-chip:hover:not(:disabled) { background: color-mix(in srgb, currentColor 17%, transparent); }
+.ih-chip:active:not(:disabled) { transform: scale(.96); }
+.ih-chip.sel { background: color-mix(in srgb, currentColor 26%, transparent); border-color: color-mix(in srgb, currentColor 48%, transparent); }
+.ih-chip:disabled { opacity: .4; cursor: default; }
+.ih-chip:focus-visible, .ih-num:focus-visible, .ih-unit:focus-visible { outline: 2px solid color-mix(in srgb, currentColor 60%, transparent); outline-offset: 2px; }
+.ih-custom { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6px * var(--k-dn, 1)); animation: ih-in .18s ease-out; }
+.ih-num, .ih-unit { height: 28px; border-radius: calc(8px * var(--k-rd, 1)); font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); color: inherit;
+  background: color-mix(in srgb, currentColor 7%, transparent); border: 1px solid color-mix(in srgb, currentColor 18%, transparent); padding: 0 calc(8px * var(--k-dn, 1)); }
+.ih-num { width: 76px; }
+.ih-unit option { color: initial; }
+.ih-bad { font-size: calc(11.5px * var(--k-fs, 1)); opacity: .7; }
+@keyframes ih-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ih-custom { animation: none; } .ih-chip { transition: none; } }

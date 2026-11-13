@@ -1,0 +1,11 @@
+/* V1.55 which cards come out of the Dynamic Island (views/IslandCards.tsx): one line per kind with Island or Top right,
+   greyed out while the main switch is off. Drawn from currentColor like the hide time picker (islandhide.css). */
+.ic-kinds { display: flex; flex-direction: column; gap: calc(6px * var(--k-dn, 1)); margin-top: calc(2px * var(--k-dn, 1)); transition: opacity .2s ease; }
+.ic-kinds.ic-off { opacity: .45; }
+.ic-kind { display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--k-dn, 1)); flex-wrap: wrap; }
+.ic-kind-wrap { display: contents; }
+.ic-head { margin-top: calc(6px * var(--k-dn, 1)); font-size: calc(11px * var(--k-fs, 1)); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .62; }
+.ic-name { font-size: calc(12.5px * var(--k-fs, 1)); min-width: 0; }
+.ic-seg { display: inline-flex; gap: calc(4px * var(--k-dn, 1)); flex: none; }
+.ic-seg .ih-chip { height: 26px; padding: 0 calc(9px * var(--k-dn, 1)); }
+@media (prefers-reduced-motion: reduce) { .ic-kinds { transition: none; } }

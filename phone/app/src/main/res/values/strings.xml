@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PS app</string>
+    <string name="tile_label">PS list</string>
+    <string name="widget_label">PS tasks</string>
+</resources>

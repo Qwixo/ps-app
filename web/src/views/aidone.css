@@ -1,0 +1,8 @@
+/* Settings, AI chat finished cards (views/AiDone.tsx). */
+.ai-list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.ai-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.ai-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ai-name { font-weight: 600; }
+.ai-line { font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.4; color: var(--gs-soft); }
+.ai-missing .ai-name { opacity: .6; }
+.ai-foot { margin-top: 4px; }

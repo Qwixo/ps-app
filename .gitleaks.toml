@@ -1,0 +1,25 @@
+# gitleaks settings for this repo. The values below are made up test vectors, allowed one by one as exact strings:
+# fake JWTs whose parts decode to {"role":"anon"}, {"sub":"1234567890"} or {"ref":"red"} and the word "signature",
+# a dummy Supabase access token, an AWS key shaped string and an API key shaped string that redaction tests must catch, and known answer vectors
+# derived from passphrases the test itself calls "fictional". Supabase publishable keys (sb_publishable_...) are
+# public by design: they ship inside the app, and the database rules decide what they may do. Every other finding
+# still fails the scan.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Made up test vectors, not secrets"
+regexTarget = "match"
+regexes = [
+  '''sb_publishable_[A-Za-z0-9_-]{20,}''',
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJyb2xlIjoiYW5vbiJ9\.c2lnbmF0dXJlLXNpZ25hdHVyZQ''',
+  '''eyJhbGciOiJIUzI1NiJ9\.c2VydmljZV9yb2xlXw\.c2lnbmF0dXJlLXNpZ25hdHVyZQ''',
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.abcdefghijklmnop''',
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJyZWYiOiJyZWQifQ\.cmVkLXNpZ25hdHVyZS14eA''',
+  '''AKIAABCDEFGHIJKLMNOP''',
+  '''sk-abc123def456ghi789jkl''',
+  '''P_uFkuhoCjjX1rrKXN0Hgo2wbO3egTB3XdpMM6hDp3E''',
+  '''eh9Z-pv1ZqqYRlmb_mwXgh9q7_QqPScA8C8RlOkg2sY''',
+  '''qV93MYaAWWy-70hB0w8BAZPlkyWhO16ad_E6wyv97So''',
+  '''vaDAwLp3ZsAguzRrcQ_ofO0rQHuQlEG8mDksYXs4GXA''',
+]

@@ -1,0 +1,12 @@
+/* Link your iPhone (Mac Settings, views/LinkIphone.tsx): only its own pieces; the QR frame is addfriend.css. */
+.li { display: grid; justify-items: center; gap: calc(14px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) 0 calc(6px * var(--k-dn, 1)); text-align: center; animation: liIn .45s cubic-bezier(.22, 1, .36, 1) both; }
+.li .af-qr { width: min(260px, 70vw, 100%); }
+.li-err { color: var(--k-bad, #FF6B6B); }
+@keyframes liIn { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .li { animation: none; } }
+/* V1.55: sign the phone in from here (views/LinkPair.tsx). */
+.li-pair { display: grid; justify-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)); border-radius: 14px; background: var(--k-card2, rgba(255,255,255,.06)); width: min(340px, 100%); }
+.li-pair-code { font-size: calc(30px * var(--k-dn, 1)); font-weight: 700; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.li-pair-btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.li-phones { display: grid; gap: 6px; width: min(340px, 100%); text-align: left; }
+.li-phone { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

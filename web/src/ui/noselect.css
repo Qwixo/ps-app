@@ -1,0 +1,16 @@
+/* V1.43 No stray highlighting. The developer, 8 Nov 2026: "occasionally I accidentally select a lot of text, highlight a lot
+   of text in the PS app. Stop that and fix it so I can't do that again."
+
+   ONE rule for every screen (the Tab overlay, the website, PS GOS and the mobile web app all load styles.css,
+   which imports this file first): nothing highlights by drag, double click or triple click, so a new screen gets it
+   by itself. Text boxes keep selecting as usual. Anything else that people need to copy opts in with the class
+   "selectable" (its children follow it). Cmd A outside a text box: src/ui/noselect.ts.
+   tests/noselect.test.ts checks this rule is in place. */
+html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]),
+textarea,
+[contenteditable]:not([contenteditable="false"]),
+.selectable {
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+}

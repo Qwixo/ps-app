@@ -1,0 +1,87 @@
+/* Local first (V1.44, views/LocalFirst.tsx): Start now, the local vault's own states, the move, the one line warning. */
+.lf-start, .lf-card, .lf-note { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.lf-start { margin: 0 0 6px; }
+.lf-h { margin: 0; font-size: calc(19px * var(--k-fs, 1)); font-weight: 700; letter-spacing: -0.01em; }
+.lf-sub { margin: 0; font-size: calc(13.5px * var(--k-fs, 1)); line-height: 1.45; opacity: 0.78; }
+.lf-fine { margin: 0; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.4; opacity: 0.62; }
+.lf-field { display: grid; gap: calc(5px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); }
+.lf-field > span { opacity: 0.75; }
+.lf-field input {
+  font: inherit; font-size: calc(15px * var(--k-fs, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); color: inherit;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent); background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.lf-field input:focus { outline: 2px solid color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); outline-offset: 1px; }
+.lf-go {
+  font: inherit; font-weight: 650; font-size: calc(15px * var(--k-fs, 1)); padding: calc(11px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border: 0; border-radius: calc(11px * var(--k-rd, 1)); cursor: pointer;
+  color: var(--k-on-acc, #FFFFFF); background: linear-gradient(180deg, var(--k-acc, #F0609A), var(--k-acc, #D63D77)); box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--k-acc, #D63D77) 70%, transparent);
+  transition: transform 160ms ease, filter 160ms ease;
+}
+.lf-go:hover { filter: brightness(1.06); }
+.lf-go:active { transform: scale(0.985); }
+.lf-go:disabled { opacity: 0.6; cursor: default; }
+.lf-go.sm { font-size: calc(13px * var(--k-fs, 1)); padding: calc(7px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-rd, 1)); }
+.lf-link {
+  font: inherit; font-size: calc(13px * var(--k-fs, 1)); background: none; border: 0; padding: calc(4px * var(--k-dn, 1)) 0; cursor: pointer; color: inherit;
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); opacity: 0.85;
+}
+.lf-link:hover { opacity: 1; }
+.lf-or { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); opacity: 0.5; }
+.lf-or::before, .lf-or::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.25; }
+.lf-row { display: flex; flex-wrap: wrap; align-items: center; gap: calc(10px * var(--k-dn, 1)); }
+.lf-note { padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; }
+.lf-note p { margin: 0; }
+.lf-note .lf-link { justify-self: start; }
+
+/* The move: a quiet full screen card with a bar. */
+.lf-screen { min-height: 100vh; display: grid; place-items: center; padding: calc(24px * var(--k-dn, 1)); box-sizing: border-box; }
+.lf-screen .lf-card { width: min(440px, 100%); padding: calc(24px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); background: color-mix(in srgb, currentColor 5%, transparent); }
+.lf-screen.lf-ps { min-height: 0; padding: calc(18px * var(--k-dn, 1)); }
+.lf-bar { height: 8px; border-radius: calc(99px * var(--k-rd, 1)); overflow: hidden; background: color-mix(in srgb, currentColor 12%, transparent); }
+.lf-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--k-acc, #F0609A), var(--k-acc, #D63D77)); transition: width 300ms ease; }
+
+/* The Tab list and the phone: one line under the headline, and the week old card. */
+.lf-line-wrap { display: grid; gap: calc(8px * var(--k-dn, 1)); margin: 2px 0 10px; }
+.lf-line { margin: 0; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.4; opacity: 0.7; }
+.lf-line .lf-link { font-size: calc(12px * var(--k-fs, 1)); padding: 0; margin-left: 4px; }
+.lf-line.lf-ok { opacity: 0.85; }
+.lf-nudge { padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent); animation: lf-in 360ms cubic-bezier(.2, .8, .2, 1); }
+.lf-nudge p { margin: 0 0 8px; }
+@keyframes lf-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.lf-needs { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); opacity: 0.75; }
+
+/* Settings rows. */
+.lf-set { display: grid; gap: calc(10px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; }
+.lf-set p { margin: 0; }
+.lf-set .btn { justify-self: start; }
+.lf-form { display: grid; gap: calc(8px * var(--k-dn, 1)); max-width: 420px; }
+@media (prefers-reduced-motion: reduce) { .lf-nudge { animation: none; } .lf-go, .lf-bar i { transition: none; } }
+.gos-card.lf-phone { padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); }
+.gos-card.lf-phone .btn { justify-self: start; }
+
+/* The setup choice (V1.44): two cards, the picked one's action slides open under them. */
+.lf-choice { display: grid; gap: calc(10px * var(--k-dn, 1)); text-align: left; }
+.lf-opts { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.lf-opt {
+  position: relative; display: grid; gap: calc(3px * var(--k-dn, 1)); width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(42px * var(--k-dn, 1));
+  border: 0; border-radius: calc(13px * var(--k-rd, 1)); background: color-mix(in srgb, currentColor 5%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent) inset; transition: box-shadow 200ms ease, background 200ms ease;
+}
+.lf-opt:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+.lf-opt:focus-visible { outline: 2px solid color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); outline-offset: 2px; }
+.lf-opt.sel { box-shadow: 0 0 0 1.5px var(--k-acc, #EC4E86) inset; background: color-mix(in srgb, var(--k-acc, #EC4E86) 8%, transparent); }
+.lf-opt b { font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 650; }
+.lf-opt-what { font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.45; opacity: 0.72; }
+.lf-opt-safe { font-size: calc(11.5px * var(--k-fs, 1)); line-height: 1.4; opacity: 0.62; margin-top: 3px; }
+.lf-radio { position: absolute; left: calc(14px * var(--k-dn, 1)); top: calc(14px * var(--k-dn, 1)); width: 17px; height: 17px; border-radius: 50%;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 35%, transparent) inset; }
+.lf-radio::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--k-acc, #EC4E86); transform: scale(0); transition: transform 260ms cubic-bezier(.2, .8, .2, 1); }
+.lf-opt.sel .lf-radio::after { transform: scale(1); }
+.lf-reveal { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 320ms cubic-bezier(.2, .8, .2, 1), opacity 220ms ease; }
+.lf-reveal > div { overflow: hidden; min-height: 0; }
+.lf-reveal.on { grid-template-rows: 1fr; opacity: 1; }
+.lf-reveal .lf-start { margin: 2px 0 0; padding: calc(2px * var(--k-dn, 1)); }
+.lf-wide { width: 100%; margin-top: 2px; }
+.lf-center { justify-self: center; }
+@media (prefers-reduced-motion: reduce) { .lf-reveal, .lf-radio::after, .lf-opt { transition: none; } }

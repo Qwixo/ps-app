@@ -1,0 +1,88 @@
+#!/bin/bash
+# PS GOS release. Builds a signed APK from the same web code as the website and PS on the Mac,
+# checks it, and leaves it where the next website deploy picks it up. It deploys NOTHING itself:
+# the manager runs `npm run release` in ~/Projects/ps/web, which publishes
+# cincee.com/client/gos/ (unlisted, noindex) together with the website.
+#
+#   scripts/release.sh "What changed, in plain words"
+#
+# Needs the signing key in ~/.ps-gos-signing/ (outside git; back it up, see docs/release.md).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+NOTES="${1:-}"
+export JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@21}
+export ANDROID_HOME=${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}
+BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+SIGN=$HOME/.ps-gos-signing/keystore.properties
+STAGE=../web/gos-release
+DRIVE="$HOME/YOUR_SYNC_FOLDER/PS App/GOS"
+
+[ -f "$SIGN" ] || { echo "No signing key in ~/.ps-gos-signing. Stop."; exit 1; }
+PIN=$(grep '^certSha256=' "$SIGN" | cut -d= -f2)
+
+# 1. web's COMMITTED code only (a clean worktree of HEAD): other sessions' unfinished
+#    edits in that folder never reach the developer's phone. The version comes from there too.
+CLEAN=$(mktemp -d)/web
+git -C ../web worktree add -q --detach "$CLEAN" HEAD
+trap 'git -C ../web worktree remove --force "$CLEAN" 2>/dev/null || true' EXIT
+ln -s "$(cd ../web && pwd)/node_modules" "$CLEAN/node_modules"
+cp ../web/.env "$CLEAN/.env"
+echo "web from web $(git -C ../web rev-parse --short HEAD) (committed code only)"
+
+# 2. Version. ONE PS version for the Mac and the phone (the developer, 27 Oct 2026): the name and its keyword
+#    come from web's ps-version.json (the manager bumps it; this only reads it), e.g.
+#    "V1.07" and "Wisdom". versionCode is the phone's own counter and always goes up, so a re-spin of
+#    the same version gets a new code and a file name with -b<code>.
+V=$(node "$CLEAN/scripts/ps-version.mjs")
+NUM=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).version)' "$V")
+KEYWORD=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).keyword || "")' "$V")
+NAME="V$NUM"
+CODE=$(( $(grep '^code=' version.properties | cut -d= -f2) + 1 ))
+PREV=$(node -e 'try{process.stdout.write(require(process.argv[1]).versionName||"")}catch{}' "$PWD/release/version.json")
+FILE="ps-gos-$NUM.apk"; [ "$PREV" = "$NAME" ] && FILE="ps-gos-$NUM-b$CODE.apk"
+printf 'code=%s\nname=%s\nkeyword=%s\n' "$CODE" "$NAME" "$KEYWORD" > version.properties
+echo "version: $NAME ($KEYWORD), code $CODE, file $FILE"
+
+# 3. The real web build (never the fictional test data).
+WEB_DIR="$CLEAN" ./scripts/build-web.sh
+if [ -e app/src/main/assets/client/FICTIONAL-TEST-DATA ] || ls app/src/main/assets/client/assets/fake-*.js >/dev/null 2>&1; then
+  echo "The web files contain fictional test data. Stop."; exit 1
+fi
+
+# 3. Signed release build.
+./gradlew -q clean assembleRelease
+APK=app/build/outputs/apk/release/app-release.apk
+[ -f "$APK" ] || { echo "No release APK was built. Stop."; exit 1; }
+
+# 4. Check the signature is exactly PS's release key and the APK holds no test hook.
+CERT=$("$BT/apksigner" verify --print-certs "$APK" | grep 'certificate SHA-256 digest' | head -1 | awk '{print $NF}')
+[ "$CERT" = "$PIN" ] || { echo "Signed with the wrong key ($CERT). Stop."; exit 1; }
+if "$BT/aapt2" dump xmltree "$APK" --file AndroidManifest.xml | grep -q DebugHooks; then echo "Debug hook in a release build. Stop."; exit 1; fi
+
+# 5. The file and its manifest.
+OUT=release/$FILE
+mkdir -p release
+cp "$APK" "$OUT"
+SHA=$(shasum -a 256 "$OUT" | cut -d' ' -f1)
+SIZE=$(stat -f%z "$OUT")
+# V1.52: "history" = the approved notes of the earlier versions (last 20, newest first), so an update across several
+# versions shows every skipped one. The developer's approved words only (ps-public.mjs history-json), checked again here; old
+# phones read only the keys they know, so it never breaks them.
+HIST="${PS_HISTORY:-$(node "$CLEAN/scripts/ps-public.mjs" history-json 2>/dev/null || echo '[]')}"
+node -e 'const [code,name,keyword,apk,sha,size,cert,notes,hist]=process.argv.slice(1);
+let h=[];try{h=JSON.parse(hist||"[]")}catch{}
+const bad=/[\u2013\u2014<>]/;
+h=(Array.isArray(h)?h:[]).filter(x=>x&&/^\d{1,3}\.\d{1,3}$/.test(String(x.version))&&Array.isArray(x.notes)&&x.notes.length>0&&x.notes.length<=6&&x.notes.every(n=>typeof n==="string"&&n.trim()&&n.length<=220&&!bad.test(n))&&!bad.test(String(x.keyword||""))).slice(0,20).map(x=>({version:String(x.version),keyword:String(x.keyword||""),notes:x.notes.map(n=>n.trim())}));
+const o={versionCode:+code,versionName:name,keyword,apk,sha256:sha,size:+size,cert,notes,released:new Date().toISOString()};if(h.length)o.history=h;
+process.stdout.write(JSON.stringify(o,null,1))' \
+  "$CODE" "$NAME" "$KEYWORD" "$FILE" "$SHA" "$SIZE" "$CERT" "$NOTES" "$HIST" > release/version.json
+
+# 6. Staged for the website (only the newest APK; gitignored there) and a copy in Google Drive.
+mkdir -p "$STAGE"
+rm -f "$STAGE"/ps-gos-*.apk
+cp "$OUT" release/version.json "$STAGE/"
+if [ -d "$(dirname "$(dirname "$DRIVE")")" ]; then mkdir -p "$DRIVE" && rm -f "$DRIVE"/ps-gos-*.apk && cp "$OUT" "$DRIVE/" && echo "Copied to Google Drive: YOUR_SYNC_FOLDER/PS App/GOS/$FILE"
+else echo "Google Drive folder not found: copy $OUT by hand."; fi
+
+git add version.properties && git commit -q -m "PS GOS $NAME" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- version.properties || true
+echo "Ready: PS GOS $NAME · $KEYWORD, code $CODE, $FILE ($SIZE bytes, sha256 $SHA). Not deployed: the manager's next website release publishes cincee.com/client/gos/."

@@ -1,0 +1,50 @@
+/* The update card on the Tab list itself (views/UpdateFace.tsx, V1.40): the gear menu's card (macupdate.css) floating
+   at the top of the list, and "Updated to" with a little burst. Only transform and opacity ever animate. */
+.uf-layer { position: fixed; top: var(--uf-top, calc(22px * var(--k-dn, 1))); left: 50%; z-index: 2147483000; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - var(--uf-top, 22px) - 22px);
+  transform: translateX(-50%); pointer-events: auto; font-family: var(--k-font, "Inter Variable", Inter, system-ui, -apple-system, sans-serif); color: var(--k-fg, #FFFFFF); }
+.uf-card { position: relative; max-height: calc(100vh - var(--uf-top, 22px) - 22px); overflow: auto; border-radius: calc(20px * var(--k-rd, 1));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 34%, transparent), 0 0 70px -14px color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent), 0 26px 80px rgba(0, 0, 0, .55);
+  animation: uf-drop .55s cubic-bezier(.2, 1.25, .35, 1) both; will-change: transform; }
+.uf-card > .mu-card { border-radius: inherit; padding: calc(16px * var(--k-dn, 1)); }
+.uf-layer.out .uf-card { animation: uf-lift .22s cubic-bezier(.4, 0, .7, .2) both; }
+/* V1.53: placed below the top bar and the Dynamic Island (UpdateFace.tsx); after its first place it glides when that moves. */
+.uf-layer.placed { transition: top .45s cubic-bezier(.22, 1.12, .36, 1); }
+.uf-x { all: unset; position: absolute; top: calc(10px * var(--k-dn, 1)); right: calc(10px * var(--k-dn, 1)); z-index: 2; width: 26px; height: 26px; display: grid; place-items: center; cursor: pointer;
+  border-radius: calc(99px * var(--k-rd, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 65%, transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent); }
+.uf-x:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); }
+
+/* "Updated to V1.xx" */
+.uf-done { display: grid; gap: calc(14px * var(--k-dn, 1)); padding: calc(18px * var(--k-dn, 1)); box-sizing: border-box;
+  background: radial-gradient(130% 100% at 0% 0%, color-mix(in srgb, var(--k-ok, #7BE3A6) 20%, transparent), transparent 62%), linear-gradient(180deg, var(--k-surface, #221420), var(--k-surface, #160D14));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-ok, #7BE3A6) 40%, transparent), 0 0 70px -14px color-mix(in srgb, var(--k-ok, #7BE3A6) 40%, transparent), 0 26px 80px rgba(0, 0, 0, .55); }
+.uf-head { display: flex; align-items: center; gap: calc(14px * var(--k-dn, 1)); }
+.uf-orb { flex: none; position: relative; width: 48px; height: 48px; border-radius: calc(99px * var(--k-rd, 1)); display: grid; place-items: center;
+  color: var(--k-ok, #7BE3A6); background: color-mix(in srgb, var(--k-ok, #7BE3A6) 18%, transparent); animation: uf-pop .6s .1s cubic-bezier(.3, 1.6, .5, 1) both; }
+.uf-orb svg { position: relative; }
+.uf-tick { stroke-dasharray: 1; stroke-dashoffset: 1; animation: uf-draw .5s .45s cubic-bezier(.5, 0, .3, 1) forwards; }
+.uf-ring { position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--k-ok, #7BE3A6); opacity: 0; animation: uf-ring 1s .55s cubic-bezier(.2, .7, .3, 1) both; }
+.uf-ring.r2 { animation-delay: .75s; }
+.uf-spark { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--k-ok, #7BE3A6); opacity: 0;
+  animation: uf-spark .8s .6s cubic-bezier(.2, .8, .3, 1) both; }
+.uf-titles { min-width: 0; display: grid; gap: calc(2px * var(--k-dn, 1)); }
+.uf-eyebrow { font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--k-ok, #7BE3A6); animation: mu-text .45s .15s cubic-bezier(.2, .9, .3, 1) both; }
+.uf-titles h2 { margin: 0; font-size: calc(19px * var(--k-fs, 1)); line-height: 1.25; font-weight: 800; animation: mu-text .45s .2s cubic-bezier(.2, .9, .3, 1) both; }
+.uf-titles h2 i { font-style: normal; margin: 0 calc(6px * var(--k-dn, 1)); opacity: .4; }
+.uf-titles h2 em { font-style: normal; font-weight: 700; color: var(--k-ok, #7BE3A6); }
+.uf-sub { font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); animation: mu-text .45s .25s cubic-bezier(.2, .9, .3, 1) both; }
+.uf-list { margin: 0; padding: 0 0 0 calc(18px * var(--k-dn, 1)); display: grid; gap: calc(6px * var(--k-dn, 1)); font-size: calc(13.5px * var(--k-fs, 1)); line-height: 1.45;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) 85%, transparent); }
+.uf-list li { animation: mu-text .45s calc(.5s + var(--i, 0) * .07s) cubic-bezier(.2, .9, .3, 1) both; }
+.uf-list li::marker { color: var(--k-ok, #7BE3A6); }
+
+@keyframes uf-drop { from { opacity: 0; transform: translate3d(0, -26px, 0) scale(.96); } }
+@keyframes uf-lift { to { opacity: 0; transform: translate3d(0, -18px, 0) scale(.97); } }
+@keyframes uf-pop { from { transform: scale(.2); opacity: 0; } }
+@keyframes uf-draw { to { stroke-dashoffset: 0; } }
+@keyframes uf-ring { 0% { opacity: .8; transform: scale(1); } 100% { opacity: 0; transform: scale(2.2); } }
+@keyframes uf-spark { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-34px) scale(.3); } }
+@media (prefers-reduced-motion: reduce) {
+  .uf-layer.placed { transition: none; }
+  .uf-card, .uf-layer.out .uf-card, .uf-orb, .uf-ring, .uf-spark, .uf-list li { animation: none; }
+  .uf-tick { animation: none; stroke-dashoffset: 0; }
+}

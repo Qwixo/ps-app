@@ -1,0 +1,52 @@
+/* V1.56 a page of panels on the phone (gos/PhonePages.tsx). Between the list (z 40) and the thumb row (50) and the
+   navbar (60). The navbar can sit at the top or the bottom (html[data-gos-nav]); --gos-top and --gos-dock-h already
+   make room for it (gos/gos.css). */
+.pp-page {
+  position: fixed; z-index: 45; left: 0; right: 0; top: calc(var(--gos-top, 0px) + 58px); bottom: calc(var(--gos-dock-h, 64px) + var(--gos-bottom, 0px) + 12px);
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; --pp-drag: 0px;
+  transform: translate3d(var(--pp-drag), 0, 0); transition: transform .46s cubic-bezier(.22, 1, .36, 1);
+  animation: pp-in-r .5s cubic-bezier(.22, 1, .36, 1) both;
+}
+.pp-page.from-l { animation-name: pp-in-l; }
+.pp-page.dragging { transition: none; }
+.pp-page::-webkit-scrollbar { display: none; }
+@keyframes pp-in-r { from { transform: translate3d(40%, 0, 0); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pp-in-l { from { transform: translate3d(-40%, 0, 0); opacity: 0; } to { transform: none; opacity: 1; } }
+.pp-grid { position: relative; margin: 6px 0 24px; }
+.pp-tile { position: absolute; display: flex; animation: pp-tile .5s cubic-bezier(.34, 1.36, .5, 1) both; animation-delay: calc(var(--i, 0) * 30ms);
+  /* A change from the Mac glides: a moved or sized panel slides to its new cell. */
+  transition: left .5s cubic-bezier(.22, 1, .36, 1), top .5s cubic-bezier(.22, 1, .36, 1), width .5s cubic-bezier(.22, 1, .36, 1), height .5s cubic-bezier(.22, 1, .36, 1); }
+.pp-grid { transition: height .5s cubic-bezier(.22, 1, .36, 1); }
+@keyframes pp-tile { from { transform: scale(.86); opacity: 0; } to { transform: none; opacity: 1; } }
+.pp-body { position: relative; flex: 1; min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; border-radius: calc(16px * var(--k-rd, 1)); }
+.pp-body.still { pointer-events: none; }
+.pp-body.wide { place-items: start; flex: none; width: 100%; }
+.pp-inner { transform-origin: 50% 50%; max-width: none; }
+.pp-inner > * { position: static !important; margin: 0 !important; }
+.pp-none { display: grid; gap: 2px; place-items: center; text-align: center; padding: 8px; font: 600 calc(12px * var(--k-fs, 1))/1.25 var(--k-font, Inter, system-ui, sans-serif); color: var(--k-fg, #FFFFFF); opacity: .7; }
+.pp-none em { font-style: normal; font-weight: 500; font-size: .85em; opacity: .7; }
+.pp-empty { margin: 30vh 28px 0; text-align: center; font: 500 calc(14px * var(--k-fs, 1))/1.4 var(--k-font, Inter, system-ui, sans-serif); color: var(--k-fg, #FFFFFF); opacity: .6; }
+/* A new background fades in over the old one (the colours already do, looks/peek.css tm-bgc-in). */
+html.gos .tm-p1-scene { animation: pp-bg-in .6s ease-out both; }
+@keyframes pp-bg-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pp-page, .pp-tile, .pp-grid, html.gos .tm-p1-scene { animation: none; transition: none; } }
+
+/* The list slides away to the side the page of panels is on (gos/gos.css shifts the panes with --gos-shift). */
+.gos-home[data-pane="panels-l"] { --gos-shift: 300%; }
+.gos-home[data-pane="panels-r"] { --gos-shift: -300%; }
+/* The list's page dots and its thumb row belong to the list: not on a page of panels. */
+.gos-home[data-pane^="panels"] .tl-dots { opacity: 0; pointer-events: none; }
+
+/* ---------- the navbar's place (core/phonelayout.ts PhoneNav) ---------- */
+/* Top: the navbar sits under the status bar and everything the page put at the top moves down by its height; the
+   bottom then has no navbar to keep clear of. The shell's real inset is --gos-inset-top (gos/bridge.ts). */
+html.gos[data-gos-nav="top"] { --gos-top: calc(var(--gos-inset-top, env(safe-area-inset-top, 0px)) + 76px); --gos-dock-h: 0px; }
+html.gos[data-gos-nav="top"] .gos-dock { top: calc(var(--gos-inset-top, env(safe-area-inset-top, 0px)) + 8px); bottom: auto; height: 64px; animation-name: gos-drop; }
+@keyframes gos-drop { from { transform: translate3d(0, -30px, 0); opacity: 0; } to { transform: none; opacity: 1; } }
+html.gos[data-gos-nav="top"] .gos-thumb { bottom: calc(var(--gos-bottom) + 16px); }
+/* Along the edge: full width (as before), or a compact bar at the left, the centre or the right. */
+.gos-dock[data-align="left"], .gos-dock[data-align="center"], .gos-dock[data-align="right"] { width: min(calc(var(--n, 5) * 58px + 14px), calc(100% - 20px)); }
+.gos-dock[data-align="left"] { margin-right: auto; }
+.gos-dock[data-align="right"] { margin-left: auto; }
+.gos-dock[data-align="center"] { margin-left: auto; margin-right: auto; }
+.gos-dock { transition: transform .42s var(--gos-ease), width .4s var(--gos-ease), margin .4s var(--gos-ease); }

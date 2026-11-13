@@ -1,0 +1,20 @@
+/* The hover card (V1.43, src/ui/hovercard.ts): a dark glass card with white words, so it reads over every look,
+   light or dark, picture or video. Name in bold, one short line under it, a small arrow at the button. */
+.hc-card { position: fixed; z-index: 2147483600; left: 0; top: 0; max-width: 248px; box-sizing: border-box; padding: 8px 11px 9px; border-radius: 11px; pointer-events: none;
+  background: rgba(20, 18, 24, .94); color: #FFFFFF; border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .35); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3);
+  font: 12.5px/1.3 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; letter-spacing: .005em; text-align: left; white-space: normal; overflow-wrap: anywhere;
+  opacity: 0; visibility: hidden; transform: translateY(var(--hc-from, -4px)) scale(.96); transform-origin: var(--hc-ox, 50%) var(--hc-oy, 0%);
+  transition: opacity .12s ease, transform .12s ease, visibility 0s linear .12s; }
+.hc-card.above { --hc-from: 4px; --hc-oy: 100%; }
+.hc-card.in { opacity: 1; visibility: visible; transform: none; transition: opacity .16s ease, transform .22s cubic-bezier(.2, 1.2, .35, 1), visibility 0s; }
+.hc-name { display: block; font-weight: 750; font-size: 12.5px; color: #FFFFFF; }
+.hc-line { display: block; margin-top: 2px; font-weight: 500; font-size: 11.75px; color: rgba(255, 255, 255, .74); }
+.hc-line[hidden] { display: none; }
+.hc-arrow { position: absolute; top: -5px; width: 9px; height: 9px; margin-left: -5px; transform: rotate(45deg); border-radius: 2px 0 0 0;
+  background: rgb(20, 18, 24); border-left: 1px solid rgba(255, 255, 255, .14); border-top: 1px solid rgba(255, 255, 255, .14); }
+.hc-card.above .hc-arrow { top: auto; bottom: -5px; transform: rotate(225deg); }
+@media (prefers-reduced-motion: reduce) {
+  .hc-card, .hc-card.in { transform: none; transition: opacity .1s linear, visibility 0s linear .1s; }
+  .hc-card.in { transition: opacity .1s linear, visibility 0s; }
+}

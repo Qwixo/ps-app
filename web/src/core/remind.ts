@@ -1,0 +1,605 @@
+// The Annoying 15 min reminder (the developer, 10 Nov 2026, after a G Squad friend asked for the daily reminder card to be
+// "EASILY customizable to any notification and timing"): "Make it so you can add multiple throughout the day, edit
+// the notifications, change the colour of the pop up, even play a sound you select from audio files too. I want to
+// decide the times of the day it begins to pop up etc. Also make it so you can edit the text under each pop up from
+// 'Yes' to something else too. Do the same with the notifications on the GOS app too."
+//
+// A list of reminders. Each one pops up (a card on the Mac, a notification on the phone) from its start time until it
+// is confirmed, on the days picked; "Remind me in N mins" puts it away for its snooze length. The daily reminder card
+// of V1.38 to V1.45 (ps-mac FollowUp.swift, Settings > Daily reminder) is reminder number one, id "fu", with its words,
+// window and time zone kept (the developer's: Dubai time and "HAVE YOU RAN FOLLOW UP SYSTEM YET?").
+//
+// Storage: ONE small encrypted vault record per account (kind "remind", owner private), never inside the big settings
+// record, so a change uploads a couple of KB and only when something changed (egress rule). It holds the list and each
+// reminder's state (confirmed for which day, snoozed until when), so Yes on the phone clears the Mac's card and
+// "Remind me in" on one device snoozes the other. Two devices that change it at once are merged (mergeRemind).
+// Own sound files never go in it: each device keeps its own (ps-mac Reminders.swift, ps-gos Remind.kt).
+//
+// Pure: no vault, no clock, no storage. tests/remind.test.ts checks it; the Mac (ps-mac Sources/Reminders.swift
+// RemMath) and the phone (ps-gos RemClock.kt) do the same schedule maths.
+import { wall, zonedToTs } from "./tz.ts";
+
+export const REM_MAX = 20;                 // reminders in the list (not counting the ones on tasks)
+export const REM_TASK_MAX = 60;            // reminders on tasks (V1.55): their own count, so they never crowd out the list
+export const REM_ALL_MAX = REM_MAX + REM_TASK_MAX;   // what a shell takes (ps-mac RemMath.maxItems, ps-gos RemClock.MAX)
+export const TASK_PILL = "Task reminder";
+export const OPEN_WORDS = "Open task";
+export const REM_TEXT_MAX = 80;            // the question (the old card's limit)
+export const REM_LABEL_MAX = 30;           // the small pill on top, and each button
+export const REM_SNOOZE_DEF = 15, REM_SNOOZE_MIN = 1, REM_SNOOZE_MAX = 240;
+export const REM_VOL_DEF = 0.8, REM_VOL_MIN = 0.1;
+export const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];   // 0 Sunday to 6 Saturday
+export const RED_QUESTION = "HAVE YOU RAN FOLLOW UP SYSTEM YET?";     // The developer's exact words (his default)
+export const PUBLIC_QUESTION = "HAVE YOU DONE YOUR DAILY TASK YET?";  // anyone else's default
+export const RED_TZ = "Asia/Dubai";
+export const FIRST_ID = "fu";
+
+/** The built in sounds (core/alarmsound.ts tone tables at the one level), none, or this device's own file. */
+export type RemSound = "none" | "soft" | "alarm" | "own";
+export const REM_SOUNDS: { id: RemSound; label: string }[] = [
+  { id: "none", label: "No sound" }, { id: "soft", label: "Soft chime" }, { id: "alarm", label: "Alarm tone" }, { id: "own", label: "Your own sound" },
+];
+
+export interface Reminder {
+  id: string;
+  on: boolean;
+  label: string;        // the small pill on the card ("Daily reminder"); empty = that
+  text: string;         // the question; empty = the default question (reminder one only: the developer's or the public one)
+  at: string;           // "HH:MM" it starts popping up
+  until: string;        // "HH:MM" it stops opening (a card already up stays until answered); may run past midnight
+  days: number[];       // the days a window may START on, 0 Sunday to 6 Saturday
+  tz: string;           // "" = the device's own time zone, else an IANA zone (the developer's first one: Dubai)
+  snooze: number;       // minutes "Remind me in" puts it away for
+  later: string;        // the snooze button's words; empty = "Remind me in N mins" ({n} = the minutes)
+  yes: string;          // the confirm button's words; empty = "Yes"
+  word: string;         // what has to be typed to clear it; empty = the confirm button's words
+  click: boolean;       // true: one click on the confirm button clears it, nothing typed
+  bg: string;           // "#rrggbb" the card's background
+  accent: string;       // "#rrggbb" its border, pill, stripe and confirm button
+  sound: RemSound;
+  vol: number;          // 0.1 to 1: the sound's share of the device's volume
+  edited: number;       // ms: last change to these settings (merging two devices)
+  seed?: boolean;       // reminder one made from the defaults, not yet from a Mac's old daily reminder
+  // Reminders ON tasks (V1.55, the developer 12 Nov 2026: "So it blends tasks with the reminders, so I get reminders ON my tasks").
+  task?: string;        // the task's id: the pop-up shows its name (text empty), Done ticks it, Open task opens it
+  date?: string;        // "YYYY-MM-DD": once, on that day only (its window starts that day). None: on the days picked
+}
+/** One reminder's state on every device: confirmed for which window (its start day), snoozed until when. */
+export interface RemState { done?: string; snoozeUntil?: number; at: number; by?: "mac" | "phone" | "web" }
+export interface RemindRec { v: 1; list: Reminder[]; state: Record<string, RemState>; gone: Record<string, number>; at: number }
+
+// ---------- colours ----------
+export const REM_COLOURS: { id: string; label: string; bg: string; accent: string }[] = [
+  { id: "pink", label: "Pink", bg: "#28121e", accent: "#ec4e86" },
+  { id: "ocean", label: "Ocean", bg: "#0f1b2d", accent: "#3b82f6" },
+  { id: "forest", label: "Forest", bg: "#0f2418", accent: "#22c55e" },
+  { id: "amber", label: "Amber", bg: "#2a1a08", accent: "#f59e0b" },
+  { id: "violet", label: "Violet", bg: "#1c1230", accent: "#8b5cf6" },
+  { id: "red", label: "Red alert", bg: "#2a0d0d", accent: "#ef4444" },
+  { id: "mono", label: "Graphite", bg: "#18181b", accent: "#e5e7eb" },
+  { id: "paper", label: "Paper", bg: "#f6f3ee", accent: "#e0457b" },
+];
+export const REM_BG = REM_COLOURS[0].bg, REM_ACCENT = REM_COLOURS[0].accent;
+const HEX = /^#[0-9a-f]{6}$/;
+export const okHex = (v: unknown, def: string) => (typeof v === "string" && HEX.test(v.toLowerCase()) ? v.toLowerCase() : def);
+/** Relative luminance 0 (black) to 1 (white). */
+export function luma(hex: string): number {
+  const n = parseInt(okHex(hex, "#000000").slice(1), 16);
+  const f = (c: number) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f((n >> 16) & 255) + 0.7152 * f((n >> 8) & 255) + 0.0722 * f(n & 255);
+}
+/** The text colour that reads on a background: white on dark, near black on light. */
+export const inkFor = (bg: string) => (luma(bg) > 0.45 ? "#17121a" : "#ffffff");
+
+// ---------- cleaning ----------
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const ID = /^[a-z0-9]{1,16}$/;
+const TASK_ID = /^[A-Za-z0-9-]{1,64}$/;
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+export const okTaskId = (v: unknown): v is string => typeof v === "string" && TASK_ID.test(v);
+/** One line, no control characters, trimmed, at most `max` characters. */
+export function oneLine(v: unknown, max: number): string {
+  if (typeof v !== "string") return "";
+  return v.slice(0, 400).replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim().slice(0, max).trim();
+}
+const num = (v: unknown, lo: number, hi: number, def: number, step = 1) => {
+  const n = Number(v);
+  return typeof v === "number" || (typeof v === "string" && v.trim()) ? (Number.isFinite(n) ? Math.round(Math.max(lo, Math.min(hi, n)) / step) * step : def) : def;
+};
+export const okSnooze = (v: unknown) => num(v, REM_SNOOZE_MIN, REM_SNOOZE_MAX, REM_SNOOZE_DEF);
+export const okVol = (v: unknown) => Math.round(num(v, REM_VOL_MIN, 1, REM_VOL_DEF, 0.05) * 100) / 100;
+export function okTz(v: unknown): string {
+  if (typeof v !== "string" || !v || v.length > 64 || !/^[A-Za-z0-9_+\-/]+$/.test(v)) return "";
+  try { new Intl.DateTimeFormat("en-US", { timeZone: v }); return v; } catch { return ""; }
+}
+export const okDays = (v: unknown): number[] =>
+  Array.isArray(v) ? [...new Set(v.filter((d): d is number => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))].sort((a, b) => a - b) : [...ALL_DAYS];
+
+/** A brand new reminder (Add reminder): on, 09:00 to 21:00 every day, this device's zone, pink, no sound. */
+export function newReminder(id: string, now: number, n = 2): Reminder {
+  return { id, on: true, label: `Reminder ${n}`, text: "HAVE YOU DONE IT YET?", at: "09:00", until: "21:00", days: [...ALL_DAYS], tz: "",
+    snooze: REM_SNOOZE_DEF, later: "", yes: "", word: "", click: false, bg: REM_BG, accent: REM_ACCENT, sound: "none", vol: REM_VOL_DEF, edited: now };
+}
+/** A reminder checked field by field (an old or broken copy keeps what is good). Null when it has no usable id. */
+export function cleanReminder(v: unknown, now = 0): Reminder | null {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  if (typeof o.id !== "string" || !ID.test(o.id)) return null;
+  const at = typeof o.at === "string" && HHMM.test(o.at) ? o.at : "09:00";
+  let until = typeof o.until === "string" && HHMM.test(o.until) ? o.until : "21:00";
+  if (until === at) until = at === "21:00" ? "09:00" : "21:00";   // never an empty window
+  const sound = REM_SOUNDS.some((s) => s.id === o.sound) ? (o.sound as RemSound) : "none";
+  const r: Reminder = {
+    id: o.id, on: typeof o.on === "boolean" ? o.on : true,
+    label: oneLine(o.label, REM_LABEL_MAX), text: oneLine(o.text, REM_TEXT_MAX), at, until, days: okDays(o.days), tz: okTz(o.tz),
+    snooze: okSnooze(o.snooze), later: oneLine(o.later, REM_LABEL_MAX), yes: oneLine(o.yes, REM_LABEL_MAX), word: oneLine(o.word, REM_LABEL_MAX),
+    click: o.click === true, bg: okHex(o.bg, REM_BG), accent: okHex(o.accent, REM_ACCENT), sound, vol: okVol(o.vol),
+    edited: typeof o.edited === "number" && Number.isFinite(o.edited) ? o.edited : now,
+  };
+  if (o.seed === true) r.seed = true;
+  if (typeof o.task === "string" && TASK_ID.test(o.task)) r.task = o.task;
+  if (r.task && typeof o.date === "string" && DAY.test(o.date)) r.date = o.date;
+  return r;
+}
+function cleanState(v: unknown): RemState | null {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const s: RemState = { at: typeof o.at === "number" && Number.isFinite(o.at) ? o.at : 0 };
+  if (typeof o.done === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.done)) s.done = o.done;
+  if (typeof o.snoozeUntil === "number" && Number.isFinite(o.snoozeUntil) && o.snoozeUntil > 0) s.snoozeUntil = o.snoozeUntil;
+  if (o.by === "mac" || o.by === "phone" || o.by === "web") s.by = o.by;
+  return s;
+}
+/** The record checked: known fields only, at most REM_MAX reminders, no id twice, state only for kept reminders. */
+export function cleanRemind(v: unknown): RemindRec {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const list: Reminder[] = [];
+  let plain = 0, onTasks = 0;
+  for (const x of Array.isArray(o.list) ? o.list : []) {
+    const r = cleanReminder(x);
+    if (!r || list.some((y) => y.id === r.id)) continue;
+    if (r.task ? onTasks >= REM_TASK_MAX : plain >= REM_MAX) continue;
+    if (r.task) onTasks++; else plain++;
+    list.push(r);
+  }
+  const state: Record<string, RemState> = {};
+  const st = (o.state && typeof o.state === "object" ? o.state : {}) as Record<string, unknown>;
+  for (const r of list) { const s = cleanState(st[r.id]); if (s && st[r.id]) state[r.id] = s; }
+  const gone: Record<string, number> = {};
+  const g = (o.gone && typeof o.gone === "object" ? o.gone : {}) as Record<string, unknown>;
+  for (const [id, t] of Object.entries(g).slice(0, 160)) if (ID.test(id) && typeof t === "number" && Number.isFinite(t)) gone[id] = t;
+  return { v: 1, list, state, gone, at: typeof o.at === "number" && Number.isFinite(o.at) ? o.at : 0 };
+}
+export const sameRemind = (a: RemindRec, b: RemindRec) => JSON.stringify(cleanRemind(a)) === JSON.stringify(cleanRemind(b));
+
+// ---------- words ----------
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+/** "15 mins", "1 min", "1 hour", "1 h 30 mins". */
+export function minsWords(n: number): string {
+  const m = okSnooze(n);
+  if (m < 60) return plural(m, "min");
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `${h} h ${plural(r, "min")}` : plural(h, "hour");
+}
+export const pillOf = (r: Pick<Reminder, "label"> & { task?: string }) => r.label || (r.task ? TASK_PILL : "Daily reminder");
+export const defaultQuestion = (red: boolean) => (red ? RED_QUESTION : PUBLIC_QUESTION);
+export const questionOf = (r: Pick<Reminder, "text">, red: boolean) => r.text || defaultQuestion(red);
+/** The snooze button: its own words with {n} as the minutes, else "Remind me in 15 mins" (the number follows the length). */
+export const laterOf = (r: Pick<Reminder, "later" | "snooze">) => (r.later ? r.later.replace(/\{n\}/g, String(okSnooze(r.snooze))) : `Remind me in ${minsWords(r.snooze)}`);
+export const yesOf = (r: Pick<Reminder, "yes">) => r.yes || "Yes";
+export const wordOf = (r: Pick<Reminder, "word" | "yes">) => r.word || yesOf(r);
+/** Does what was typed clear it? Any case, spaces at the ends trimmed; one click when `click`. */
+export function confirms(r: Pick<Reminder, "word" | "yes" | "click">, typed: string): boolean {
+  if (r.click) return true;
+  return typed.trim().toLowerCase() === wordOf(r).trim().toLowerCase();
+}
+
+// ---------- the schedule ----------
+const pad = (n: number) => String(n).padStart(2, "0");
+export const zoneOf = (r: Pick<Reminder, "tz">, deviceTz: string) => r.tz || deviceTz;
+export const minutesOf = (hm: string) => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
+const dayKey = (ts: number, tz: string) => { const w = wall(ts, tz); return `${w.y}-${pad(w.mo)}-${pad(w.d)}`; };
+const addDays = (day: string, n: number) => {
+  const [y, m, d] = day.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+};
+export const weekdayOf = (day: string) => { const [y, m, d] = day.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); };
+const tsOf = (day: string, hm: string, tz: string) => { const [y, m, d] = day.split("-").map(Number); const [h, mi] = hm.split(":").map(Number); return zonedToTs(y, m, d, h, mi, tz); };
+
+export interface RemWindow { day: string; start: number; end: number }
+/** The window that starts on `day` (its start day in the reminder's zone), whatever the days picked. */
+export function windowOn(r: Pick<Reminder, "at" | "until" | "tz">, day: string, deviceTz: string): RemWindow {
+  const tz = zoneOf(r, deviceTz);
+  const over = minutesOf(r.until) <= minutesOf(r.at);   // runs past midnight
+  return { day, start: tsOf(day, r.at, tz), end: tsOf(over ? addDays(day, 1) : day, r.until, tz) };
+}
+/** The window a moment belongs to: from the start time on it is that day's, before it the day before's (the old
+ *  card's "cycle day"). Done is kept per window, so confirming at 05:00 clears that night's window only. */
+export function cycleDay(r: Pick<Reminder, "at" | "tz">, now: number, deviceTz: string): string {
+  const tz = zoneOf(r, deviceTz), w = wall(now, tz), today = `${w.y}-${pad(w.mo)}-${pad(w.d)}`;
+  return w.h * 60 + w.mi < minutesOf(r.at) ? addDays(today, -1) : today;
+}
+/** The window open right now on a picked day, else null. */
+/** May a window start on this day? Once: that one day. Else: one of the days picked. */
+export const startsOn = (r: Pick<Reminder, "days"> & { date?: string }, day: string) => (r.date ? day === r.date : r.days.includes(weekdayOf(day)));
+const anyDay = (r: Pick<Reminder, "days"> & { date?: string }) => !!r.date || r.days.length > 0;
+export function openWindow(r: Reminder, now: number, deviceTz: string): RemWindow | null {
+  if (!r.on || !anyDay(r)) return null;
+  const w = windowOn(r, cycleDay(r, now, deviceTz), deviceTz);
+  return startsOn(r, w.day) && now >= w.start && now < w.end ? w : null;
+}
+/** The next window start after `now` on a picked day (within 8 days), 0 when none. */
+export function nextStart(r: Reminder, now: number, deviceTz: string): number {
+  if (!r.on || !anyDay(r)) return 0;
+  if (r.date) { const s = windowOn(r, r.date, deviceTz).start; return s > now ? s : 0; }
+  const today = dayKey(now, zoneOf(r, deviceTz));
+  for (let i = -1; i <= 8; i++) {
+    const day = addDays(today, i);
+    if (!startsOn(r, day)) continue;
+    const s = windowOn(r, day, deviceTz).start;
+    if (s > now) return s;
+  }
+  return 0;
+}
+
+export type RemStatus = "off" | "done" | "closed" | "snoozed" | "show";
+/** What a reminder is doing now. "show": it may open (the Mac still waits while you are away, in a meeting, under Do
+ *  Not Disturb or over 1Password and Signal). A card already up when the window closes stays until answered; that is
+ *  the shell's to keep (this says "closed"). A snooze that ends after the window does not bring it back. */
+export function remStatus(r: Reminder, s: RemState | undefined, now: number, deviceTz: string): RemStatus {
+  if (!r.on) return "off";
+  if (s?.done && s.done === cycleDay(r, now, deviceTz)) return "done";
+  if (!openWindow(r, now, deviceTz)) return "closed";
+  if (s?.snoozeUntil && s.snoozeUntil > now) return "snoozed";
+  return "show";
+}
+/** When anything about it can change next (a window opens or closes, a snooze ends), 0 when never. */
+export function remNextWake(r: Reminder, s: RemState | undefined, now: number, deviceTz: string): number {
+  const t: number[] = [];
+  const n = nextStart(r, now, deviceTz); if (n) t.push(n);
+  const w = openWindow(r, now, deviceTz); if (w) t.push(w.end);
+  if (s?.snoozeUntil && s.snoozeUntil > now) t.push(s.snoozeUntil);
+  return t.length ? Math.min(...t) : 0;
+}
+
+// ---------- answers (on any device) ----------
+export type RemAct = { id: string; act: "done" | "snooze"; day?: string; until?: number; at: number; by?: RemState["by"] };
+/** Confirm: done for the window it is in now. */
+export function doneAct(r: Reminder, now: number, deviceTz: string, by?: RemState["by"]): RemAct {
+  return { id: r.id, act: "done", day: cycleDay(r, now, deviceTz), at: now, by };
+}
+/** Remind me in: away for its snooze length. */
+export function snoozeAct(r: Reminder, now: number, by?: RemState["by"]): RemAct {
+  return { id: r.id, act: "snooze", until: now + okSnooze(r.snooze) * 60_000, at: now, by };
+}
+/** An answer (from this page, the Mac's card or the phone's notification) put into the record. Null: nothing changes
+ *  (unknown reminder, a broken answer, or an older answer than the one kept). */
+export function applyAct(rec: RemindRec, a: unknown): RemindRec | null {
+  const o = (a && typeof a === "object" ? a : {}) as Record<string, unknown>;
+  if (typeof o.id !== "string" || !rec.list.some((r) => r.id === o.id)) return null;
+  const at = typeof o.at === "number" && Number.isFinite(o.at) ? o.at : 0;
+  const old = rec.state[o.id];
+  if (old && old.at >= at) return null;
+  const by = o.by === "mac" || o.by === "phone" || o.by === "web" ? o.by : undefined;
+  let s: RemState;
+  if (o.act === "done" && typeof o.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.day)) s = { done: o.day, at };
+  else if (o.act === "snooze" && typeof o.until === "number" && Number.isFinite(o.until)) s = { ...(old?.done ? { done: old.done } : {}), snoozeUntil: o.until, at };
+  else return null;
+  if (by) s.by = by;
+  return { ...rec, state: { ...rec.state, [o.id]: s }, at: Math.max(rec.at, at) };
+}
+
+// ---------- editing the list ----------
+export function emptyRemind(): RemindRec { return { v: 1, list: [], state: {}, gone: {}, at: 0 }; }
+/** One reminder changed (settings only; its state stays). Its edited time moves on, so a merge keeps this copy. */
+export function patchReminder(rec: RemindRec, id: string, patch: Partial<Reminder>, now: number): RemindRec {
+  const list = rec.list.map((r) => {
+    if (r.id !== id) return r;
+    const { seed: _seed, ...rest } = { ...r, ...patch, id, edited: Math.max(now, r.edited + 1) };
+    return cleanReminder(rest, now) ?? r;
+  });
+  // A new start time or new days: what was confirmed or snoozed for the old window no longer holds.
+  const old = rec.list.find((r) => r.id === id), now2 = list.find((r) => r.id === id);
+  let state = rec.state;
+  if (old && now2 && (old.at !== now2.at || old.tz !== now2.tz) && state[id]) { state = { ...state }; delete state[id]; }
+  return { ...rec, list, state, at: Math.max(now, rec.at) };
+}
+/** The reminders in the list (Settings), without the ones on tasks. */
+export const plainOf = (rec: RemindRec) => rec.list.filter((r) => !r.task);
+export const onTasksOf = (rec: RemindRec) => rec.list.filter((r) => !!r.task);
+export function addReminder(rec: RemindRec, id: string, now: number): RemindRec {
+  const plain = plainOf(rec).length;
+  if (plain >= REM_MAX || !ID.test(id) || rec.list.some((r) => r.id === id)) return rec;
+  const gone = { ...rec.gone }; delete gone[id];
+  // Before the first reminder on a task, so the list's own order stays together.
+  const list = [...rec.list];
+  const at = list.findIndex((r) => !!r.task);
+  list.splice(at < 0 ? list.length : at, 0, newReminder(id, now, plain + 1));
+  return { ...rec, list, gone, at: Math.max(now, rec.at) };
+}
+export function removeReminder(rec: RemindRec, id: string, now: number): RemindRec {
+  if (!rec.list.some((r) => r.id === id)) return rec;
+  const state = { ...rec.state }; delete state[id];
+  return { ...rec, list: rec.list.filter((r) => r.id !== id), state, gone: { ...rec.gone, [id]: now }, at: Math.max(now, rec.at) };
+}
+export function moveReminder(rec: RemindRec, id: string, by: -1 | 1, now: number): RemindRec {
+  const i = rec.list.findIndex((r) => r.id === id);
+  if (i < 0) return rec;
+  // Only past one of its own kind (the list's reminders, or the ones on tasks).
+  let j = i + by;
+  while (j >= 0 && j < rec.list.length && !!rec.list[j].task !== !!rec.list[i].task) j += by;
+  if (j < 0 || j >= rec.list.length) return rec;
+  const list = [...rec.list]; [list[i], list[j]] = [list[j], list[i]];
+  return { ...rec, list, at: Math.max(now, rec.at) };
+}
+/** A fresh id that is not in the list: 8 lowercase letters and digits. */
+export function freshId(rec: RemindRec, rnd: () => number = Math.random): string {
+  for (;;) {
+    const id = Array.from({ length: 8 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(rnd() * 36)]).join("");
+    if (!rec.list.some((r) => r.id === id) && !rec.gone[id]) return id;
+  }
+}
+
+/** At most REM_MAX of the list's own and REM_TASK_MAX on tasks, in order. */
+function capKinds(list: Reminder[]): Reminder[] {
+  let a = 0, b = 0;
+  return list.filter((r) => (r.task ? ++b <= REM_TASK_MAX : ++a <= REM_MAX));
+}
+
+// ---------- two devices at once ----------
+/** Two copies changed on two devices: each reminder's newer settings, each reminder's newer state, removals win over
+ *  older edits (a reminder edited after it was removed elsewhere comes back), the order of the newer copy. */
+export function mergeRemind(a: RemindRec, b: RemindRec): RemindRec {
+  const [newer, older] = b.at >= a.at ? [b, a] : [a, b];
+  const gone: Record<string, number> = { ...older.gone };
+  for (const [id, t] of Object.entries(newer.gone)) gone[id] = Math.max(gone[id] ?? 0, t);
+  const pick = new Map<string, Reminder>();
+  for (const r of [...older.list, ...newer.list]) { const h = pick.get(r.id); if (!h || r.edited >= h.edited) pick.set(r.id, r); }
+  const order = [...newer.list.map((r) => r.id), ...older.list.map((r) => r.id).filter((id) => !newer.list.some((r) => r.id === id))];
+  const list = capKinds(order.filter((id, i) => order.indexOf(id) === i).map((id) => pick.get(id)!).filter((r) => !(gone[r.id] >= r.edited)));
+  for (const r of list) delete gone[r.id];
+  const state: Record<string, RemState> = {};
+  for (const r of list) {
+    const x = a.state[r.id], y = b.state[r.id];
+    const s = !x ? y : !y ? x : y.at >= x.at ? y : x;
+    if (s) state[r.id] = s;
+  }
+  return { v: 1, list, state, gone, at: Math.max(a.at, b.at) };
+}
+
+// ---------- the old daily reminder (V1.38 to V1.45) becomes reminder one ----------
+/** What a Mac's ps-mac FollowUp.swift kept (UserDefaults fu.prefs, fu.doneFor, fu.snoozeUntil), sent by the Mac as
+ *  psSettings rem.legacy. Absent when that Mac never had it, or already handed it over. */
+export interface Legacy { on: boolean; at: string; until: string; text: string; doneFor?: string; snoozeUntil?: number }
+export function cleanLegacy(v: unknown): Legacy | null {
+  const o = (v && typeof v === "object" ? v : null) as Record<string, unknown> | null;
+  if (!o) return null;
+  const at = typeof o.at === "string" && HHMM.test(o.at) ? o.at : "02:00", until = typeof o.until === "string" && HHMM.test(o.until) ? o.until : "06:00";
+  const l: Legacy = { on: o.on !== false, at, until: until === at ? "06:00" : until, text: oneLine(o.text, REM_TEXT_MAX) };
+  if (typeof o.doneFor === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.doneFor)) l.doneFor = o.doneFor;
+  if (typeof o.snoozeUntil === "number" && Number.isFinite(o.snoozeUntil) && o.snoozeUntil > 0) l.snoozeUntil = o.snoozeUntil;
+  return l;
+}
+const FIRST_DEFAULT = { on: true, at: "02:00", until: "06:00", text: "" };
+/** Reminder one, as the old card was: its words, its window, its time zone (the developer: Dubai, everyone else: the device's),
+ *  no sound, the old pink. `legacy` absent: the defaults, marked seed (a Mac's old settings may still fill it in). */
+export function firstReminder(red: boolean, legacy: Legacy | null, now: number): Reminder {
+  const l = legacy ?? FIRST_DEFAULT;
+  const r: Reminder = { id: FIRST_ID, on: l.on, label: "", text: l.text, at: l.at, until: l.until, days: [...ALL_DAYS], tz: red ? RED_TZ : "",
+    snooze: REM_SNOOZE_DEF, later: "", yes: "", word: "", click: false, bg: REM_BG, accent: REM_ACCENT, sound: "none", vol: REM_VOL_DEF, edited: legacy ? now : 0 };
+  if (!legacy) r.seed = true;
+  return r;
+}
+function legacyState(l: Legacy, now: number): RemState | null {
+  if (!l.doneFor && !(l.snoozeUntil && l.snoozeUntil > now)) return null;
+  const s: RemState = { at: now, by: "mac" };
+  if (l.doneFor) s.done = l.doneFor;
+  if (l.snoozeUntil && l.snoozeUntil > now) s.snoozeUntil = l.snoozeUntil;
+  return s;
+}
+/** What Settings shows and edits when there is no record yet: reminder one from the defaults (not saved until a change). */
+export function remindOrDefault(rec: RemindRec | null, red: boolean): RemindRec {
+  return rec ?? { v: 1, list: [firstReminder(red, null, 0)], state: {}, gone: {}, at: 0 };
+}
+/** The Mac hands its old daily reminder over, once. Returns the record to save, or null when nothing changes:
+ *  - no record yet: reminder one from the old settings, with today's Yes or snooze kept (nothing pops up again);
+ *  - a record whose reminder one is still the untouched default (made on the phone or the website first): the old
+ *    settings fill in what was never changed there;
+ *  - anything else (reminder one edited or removed, no old settings): nothing. */
+export function migrateLegacy(rec: RemindRec | null, legacy: Legacy | null, red: boolean, now: number): RemindRec | null {
+  if (!legacy) return null;
+  if (!rec) {
+    const s = legacyState(legacy, now);
+    return { v: 1, list: [firstReminder(red, legacy, now)], state: s ? { [FIRST_ID]: s } : {}, gone: {}, at: now };
+  }
+  const i = rec.list.findIndex((r) => r.id === FIRST_ID);
+  if (i < 0 || !rec.list[i].seed) return null;
+  const r = rec.list[i];
+  const keep = (k: keyof typeof FIRST_DEFAULT) => (r[k] === FIRST_DEFAULT[k] ? legacy[k] : r[k]);
+  const { seed: _s, ...rest } = r;
+  const next: Reminder = { ...rest, on: keep("on") as boolean, at: keep("at") as string, until: keep("until") as string, text: keep("text") as string, edited: Math.max(now, r.edited + 1) };
+  if (next.at === next.until) next.until = r.until;
+  const list = [...rec.list]; list[i] = next;
+  const state = { ...rec.state };
+  const s = legacyState(legacy, now);
+  if (s && !state[FIRST_ID]) state[FIRST_ID] = s;
+  return { ...rec, list, state, at: Math.max(now, rec.at) };
+}
+
+// ---------- what each shell gets ----------
+/** The plan for the Mac (ps-mac Reminders.swift) and the phone (ps-gos Remind.kt): every reminder with its words
+ *  already worked out (so no shell needs the defaults), its state, and the zone to use when it says "". Small, and
+ *  sent only when it changed. */
+export interface PlanItem {
+  id: string; on: boolean; pill: string; text: string; at: string; until: string; days: number[]; tz: string;
+  snooze: number; later: string; yes: string; word: string; click: boolean; bg: string; accent: string; ink: string;
+  sound: RemSound; vol: number; done: string; snoozeUntil: number; stateAt: number;
+  // V1.55, reminders on tasks ("" on the list's own): the task's id, the one day of a once reminder, the third button's words.
+  task: string; date: string; open: string;
+}
+/** What the plan needs to know about one task (core/model.ts Todo). */
+export interface TaskInfo { title: string; done: boolean; daily: boolean; doneAt?: string | null }
+/** The plan's view of the tasks: their names and whether they are ticked. Without it (Settings' preview) a reminder on
+ *  a task shows its own words. */
+export interface PlanCtx { tasks: Map<string, TaskInfo>; now: number; deviceTz: string }
+const clip = (t: string, max: number) => { const x = oneLine(t, 400); return x.length <= max ? x : `${x.slice(0, max - 3).trimEnd()}...`; };
+/** The pop-up's words for a reminder on a task: its own question, else the task's name. */
+export function taskQuestion(r: Pick<Reminder, "text">, title: string | undefined): string {
+  return r.text || (title ? clip(title, REM_TEXT_MAX) : "YOUR TASK");
+}
+export function remPlan(rec: RemindRec | null, red: boolean, ctx?: PlanCtx): { v: 1; items: PlanItem[] } {
+  if (!rec) return { v: 1, items: [] };
+  return {
+    v: 1,
+    items: rec.list.map((r) => {
+      const s = rec.state[r.id];
+      let on = r.on, done = s?.done ?? "", stateAt = s?.at ?? 0;
+      let text = r.id === FIRST_ID ? questionOf(r, red) : r.text || PUBLIC_QUESTION;
+      if (r.task) {
+        const t = ctx?.tasks.get(r.task);
+        text = taskQuestion(r, t?.title);
+        if (ctx && !t) on = false;   // the task is gone (deleted here or on another device): quiet until it is swept
+        else if (ctx && t?.done) {
+          // Ticked in the list: nothing to nag about for the window it is in now (a repeating one comes back next time).
+          const day = cycleDay(r, ctx.now, ctx.deviceTz);
+          if (done !== day) { done = day; stateAt = Math.max(stateAt, Date.parse(t.doneAt ?? "") || 0, s?.at ?? 0) || ctx.now; }
+        }
+      }
+      return { id: r.id, on, pill: pillOf(r), text, at: r.at, until: r.until, days: r.days, tz: r.tz,
+        snooze: r.snooze, later: laterOf(r), yes: yesOf(r), word: wordOf(r), click: r.click, bg: r.bg, accent: r.accent, ink: inkFor(r.bg),
+        sound: r.sound, vol: r.vol, done, snoozeUntil: s?.snoozeUntil ?? 0, stateAt,
+        task: r.task ?? "", date: r.date ?? "", open: r.task ? OPEN_WORDS : "" };
+    }),
+  };
+}
+
+/** "02:00 to 06:00, every day" / "09:00 to 21:00, weekdays" for the list. */
+export function windowWords(r: Pick<Reminder, "at" | "until" | "days"> & { date?: string }): string {
+  if (r.date) return `${r.at} to ${r.until}${minutesOf(r.until) <= minutesOf(r.at) ? " (next day)" : ""}, once on ${dayWords(r.date)}`;
+  const d = r.days.join(",");
+  const days = d === "0,1,2,3,4,5,6" ? "every day" : d === "1,2,3,4,5" ? "weekdays" : d === "0,6" ? "weekends" : !r.days.length ? "no days"
+    : r.days.map((x) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][x]).join(", ");
+  return `${r.at} to ${r.until}${minutesOf(r.until) <= minutesOf(r.at) ? " (next day)" : ""}, ${days}`;
+}
+
+// ---------- the record in the vault ----------
+/** This account's reminders record: the newest copy kept, every copy merged (two devices that each made one before
+ *  they synced), the others to remove on the next save. */
+export function pickRemind<D extends { id: string; data: unknown }>(docs: D[]): { keep: D | null; extra: D[]; rec: RemindRec | null } {
+  if (!docs.length) return { keep: null, extra: [], rec: null };
+  const all = docs.map((d) => ({ d, r: cleanRemind(d.data) })).sort((a, b) => b.r.at - a.r.at || (a.d.id < b.d.id ? -1 : 1));
+  const rec = all.slice(1).reduce((m, x) => mergeRemind(m, x.r), all[0].r);
+  return { keep: all[0].d, extra: all.slice(1).map((x) => x.d), rec };
+}
+export type RemindOp = { op: "put"; id: string; data: RemindRec };
+/** The Tab list holds no keys: its save goes to the main page as this, checked again there. */
+export function cleanRemindOp(v: unknown): RemindOp | null {
+  const o = (v && typeof v === "object" ? v : {}) as { op?: unknown; id?: unknown; data?: unknown; kind?: unknown };
+  if (o.op !== "put" || typeof o.id !== "string" || !/^[A-Za-z0-9-]{8,64}$/.test(o.id) || (o.kind !== undefined && o.kind !== "remind")) return null;
+  return { op: "put", id: o.id, data: cleanRemind(o.data) };
+}
+
+// ---------- reminders ON tasks (V1.55) ----------
+// The developer, 12 Nov 2026: "if I right click on the task or click edit on the task I can add an annoying 15 minute reminder and
+// when I click on the settings for it it will pop up with the 15 minute reminder display where I can then customize the
+// reminder for the task and I can have a task recurring every day etc."
+// One reminder per task, in the same record as the list (same sync, same encryption, same cards and notifications).
+// Its pop-up says the task's name (unless its own words are set) and has a third button, Open task. Done ticks the task
+// and ends today's nagging; a repeating one comes back next time. Ticking the task in the list does the same. Deleting
+// a task, or finishing a one-off task, takes its reminder away (after a short wait, so Undo brings both back), and a once
+// reminder goes a day after its day.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** "Thu 12 Nov". */
+export function dayWords(day: string): string {
+  const [, m, d] = day.split("-").map(Number);
+  return `${WEEKDAYS[weekdayOf(day)]} ${d} ${MONTHS[m - 1] ?? ""}`.trim();
+}
+export const TASK_GRACE_MS = 2 * 60_000;   // a task gone or finished this long takes its reminder with it
+
+export type RepeatKind = "once" | "daily" | "weekdays" | "days";
+export const REPEAT_KINDS: { id: RepeatKind; label: string }[] = [
+  { id: "once", label: "Once" }, { id: "daily", label: "Every day" }, { id: "weekdays", label: "Weekdays" }, { id: "days", label: "Chosen days" },
+];
+export function repeatOf(r: Pick<Reminder, "days"> & { date?: string }): RepeatKind {
+  if (r.date) return "once";
+  const d = r.days.join(",");
+  return d === "0,1,2,3,4,5,6" ? "daily" : d === "1,2,3,4,5" ? "weekdays" : "days";
+}
+/** The change a repeat choice makes. Once: on `day` (the day it was on, else today). Chosen days: the days it had. */
+export function repeatPatch(r: Pick<Reminder, "days"> & { date?: string }, kind: RepeatKind, today: string): Partial<Reminder> {
+  if (kind === "once") return { date: r.date || today };
+  if (kind === "daily") return { date: undefined, days: [...ALL_DAYS] };
+  if (kind === "weekdays") return { date: undefined, days: [1, 2, 3, 4, 5] };
+  const keep = repeatOf(r) === "days" && r.days.length ? r.days : r.date ? [weekdayOf(r.date)] : [1, 3, 5];
+  return { date: undefined, days: [...keep] };
+}
+const hm = (m: number) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
+/** A new reminder on a task: once, today, from the next whole hour (tomorrow 09:00 when it is late), for 3 hours,
+ *  Done in one click, the pink look. Its words are the task's name until the developer writes his own. */
+export function newTaskReminder(id: string, task: string, now: number, deviceTz: string): Reminder {
+  const w = wall(now, deviceTz);
+  const today = `${w.y}-${pad(w.mo)}-${pad(w.d)}`;
+  const next = (w.h + 1) * 60;
+  const late = next > 21 * 60;
+  const at = late ? "09:00" : hm(next);
+  return { ...newReminder(id, now), label: "", text: "", at, until: hm(minutesOf(at) + 180), yes: "Done", click: true,
+    task, date: late ? addDays(today, 1) : today };
+}
+export const reminderOfTask = (rec: RemindRec | null, task: string) => rec?.list.find((r) => r.task === task) ?? null;
+/** A reminder on a task joins the record (at the end). Nothing changes when that task has one already, or there are
+ *  REM_TASK_MAX already. */
+export function addTaskReminder(rec: RemindRec, r: Reminder, now: number): RemindRec {
+  const c = cleanReminder(r, now);
+  if (!c?.task || rec.list.some((x) => x.id === c.id || x.task === c.task) || onTasksOf(rec).length >= REM_TASK_MAX) return rec;
+  const gone = { ...rec.gone }; delete gone[c.id];
+  return { ...rec, list: [...rec.list, { ...c, edited: Math.max(now, c.edited) }], gone, at: Math.max(now, rec.at) };
+}
+/** A one-line state for the bell's hover: "Showing now", "Snoozed until 14:30", "Done for today. Next: Fri 13 Nov, 09:00". */
+export function nextWords(r: Reminder, s: RemState | undefined, now: number, deviceTz: string, taskDone = false): string {
+  if (!r.on) return "Reminder off";
+  const st = taskDone && remStatus(r, s, now, deviceTz) !== "off" ? "done" : remStatus(r, s, now, deviceTz);
+  const tz = zoneOf(r, deviceTz);
+  const when = (ts: number) => {
+    const w = wall(ts, tz), day = `${w.y}-${pad(w.mo)}-${pad(w.d)}`;
+    const today = dayKey(now, tz), tomorrow = addDays(today, 1);
+    return `${day === today ? "Today" : day === tomorrow ? "Tomorrow" : dayWords(day)}, ${pad(w.h)}:${pad(w.mi)}`;
+  };
+  const n = nextStart(r, now, deviceTz);
+  const next = n ? `Next: ${when(n)}` : r.date ? "No more times" : "";
+  if (st === "show") return "Reminding you now";
+  if (st === "snoozed" && s?.snoozeUntil) return `Snoozed until ${when(s.snoozeUntil).replace(/^Today, /, "")}`;
+  if (st === "done") return `Done for now${next ? `. ${next}` : ""}`;
+  return next || "No more times";
+}
+/** Reminders on tasks to take away now, and the times tasks were first seen gone or finished (kept by the caller,
+ *  in memory). A task gone, or a one-off task finished, for TASK_GRACE_MS; a once reminder a day after its window. */
+export function staleTaskReminders(rec: RemindRec, tasks: Map<string, TaskInfo>, since: Record<string, number>, now: number, deviceTz: string):
+  { remove: string[]; since: Record<string, number> } {
+  const remove: string[] = [];
+  const next: Record<string, number> = {};
+  for (const r of rec.list) {
+    if (!r.task) continue;
+    const t = tasks.get(r.task);
+    if (!t || (t.done && !t.daily)) {
+      const first = since[r.id] ?? now;
+      if (now - first >= TASK_GRACE_MS) remove.push(r.id); else next[r.id] = first;
+      continue;
+    }
+    if (r.date && now - windowOn(r, r.date, deviceTz).end >= 86_400_000) remove.push(r.id);
+  }
+  return { remove, since: next };
+}
+/** Take several reminders away at once. */
+export function removeReminders(rec: RemindRec, ids: string[], now: number): RemindRec {
+  return ids.reduce((x, id) => removeReminder(x, id, now), rec);
+}
+/** The tasks as the plan and the sweep see them (core/model.ts Todo). A task a reset cleared counts as finished. */
+export function taskInfos(list: { id: string; data: { title?: unknown; done?: unknown; type?: unknown; doneAt?: unknown; clearedAt?: unknown } }[]): Map<string, TaskInfo> {
+  const m = new Map<string, TaskInfo>();
+  for (const d of list) {
+    const t = d.data;
+    m.set(d.id, { title: typeof t.title === "string" ? t.title : "", done: !!t.done || !!t.clearedAt, daily: t.type === "daily",
+      doneAt: typeof t.doneAt === "string" ? t.doneAt : null });
+  }
+  return m;
+}

@@ -1,0 +1,8 @@
+/* Rain over the Tab list (views/Rain.tsx, V1.40): in front of the background, behind the list and its panels.
+   It never fades with the glass slider: rain is not a background, it shows over your apps too. */
+.tm-rain { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; contain: strict; animation: tm-rain-in .9s ease-out both; }
+.tm-rain-c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tm-rain-flash { position: absolute; inset: 0; opacity: 0; will-change: opacity;
+  background: radial-gradient(120% 80% at 50% 0%, rgba(230, 238, 255, .9), rgba(190, 205, 240, .35) 45%, transparent 85%); /* k-keep */ }
+@keyframes tm-rain-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tm-rain { display: none; } }

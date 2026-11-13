@@ -1,0 +1,205 @@
+/* Minecraft mode, the torch (Torch.tsx). Our own blocky look, never Mojang's art: square pixels, notched
+   corners, chunky bevelled edges, a pressed state that sinks one pixel. Tokens come from the scene chat's
+   mc-theme.css (--mcm-*, live inside .mcm-theme); the fallbacks are its night values, so the torch looks
+   the same before that file is loaded. Only transform and opacity animate. */
+.mct {
+  --mct-px: var(--mcm-px, 3px);
+  --mct-ink: var(--mcm-ink, #f4efe2);
+  --mct-dim: var(--mcm-ink-soft, #c9c0ad);
+  --mct-bg: var(--mcm-panel, #2a2733);
+  --mct-bg-hi: var(--mcm-panel-hi, #3d3948);
+  --mct-bg-lo: var(--mcm-panel-lo, #15131b);
+  --mct-edge: var(--mcm-edge, #121014);
+  --mct-btn: var(--mcm-btn, #4a4d55);
+  --mct-btn-hi: var(--mcm-btn-hi, #6c707a);
+  --mct-btn-lo: var(--mcm-btn-lo, #24262b);
+  --mct-btn-ink: var(--mcm-btn-ink, #f4efe2);
+  --mct-gold: var(--mcm-gold, #f2c230);
+  --mct-focus: var(--mcm-focus, #ffd23a);
+  --mct-warn: var(--mcm-ruby, #d8413a);
+  --mct-font: var(--mcm-font, "PS Pixelify", "PS Silkscreen", ui-monospace, Menlo, monospace);
+  --mct-font-head: var(--mcm-font-head, "PS Silkscreen", "PS Pixelify", ui-monospace, Menlo, monospace);
+  --mct-notch: polygon(
+    var(--mct-px) 0, calc(100% - var(--mct-px)) 0, calc(100% - var(--mct-px)) var(--mct-px), 100% var(--mct-px),
+    100% calc(100% - var(--mct-px)), calc(100% - var(--mct-px)) calc(100% - var(--mct-px)), calc(100% - var(--mct-px)) 100%,
+    var(--mct-px) 100%, var(--mct-px) calc(100% - var(--mct-px)), 0 calc(100% - var(--mct-px)), 0 var(--mct-px), var(--mct-px) var(--mct-px));
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mct-px) * 4);
+  padding: calc(var(--mct-px) * 4) calc(var(--mct-px) * 5) calc(var(--mct-px) * 5);
+  color: var(--mct-ink);
+  background: var(--mct-bg);
+  border: var(--mct-px) solid var(--mct-edge);
+  border-radius: 0;
+  box-shadow: inset var(--mct-px) var(--mct-px) 0 var(--mct-bg-hi), inset calc(var(--mct-px) * -1) calc(var(--mct-px) * -1) 0 var(--mct-bg-lo);
+  clip-path: var(--mct-notch);
+  font-family: var(--mct-font);
+  -webkit-font-smoothing: none;
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mct button, .mct input { font-family: inherit; }
+.mct svg { image-rendering: pixelated; }
+
+.mct-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mct-title { font-family: var(--mct-font-head); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--mct-gold); text-shadow: var(--mct-px) var(--mct-px) 0 var(--mct-edge); }
+.mct-hint { font-size: 10px; letter-spacing: .04em; color: var(--mct-dim); text-align: right; }
+
+/* ---------- the torch button: a stone block with the torch on it ---------- */
+.mct-torch {
+  --mct-light: #ffffff;
+  appearance: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--mct-px) * 4);
+  padding: calc(var(--mct-px) * 2) calc(var(--mct-px) * 5) calc(var(--mct-px) * 2) calc(var(--mct-px) * 3);
+  border: var(--mct-px) solid var(--mct-edge);
+  border-radius: 0;
+  color: var(--mct-btn-ink);
+  background: var(--mct-btn);
+  box-shadow: inset var(--mct-px) var(--mct-px) 0 var(--mct-btn-hi), inset calc(var(--mct-px) * -1) calc(var(--mct-px) * -1) 0 var(--mct-btn-lo);
+  clip-path: var(--mct-notch);
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  transition: transform .06s steps(1);
+}
+/* the light it gives, as a soft pixel halo inside the block (shown on hover and while lit) */
+.mct-torch::before {
+  content: "";
+  position: absolute;
+  inset: var(--mct-px);
+  background: radial-gradient(circle at calc(var(--mct-px) * 9) 40%, var(--mct-light), transparent 60%);
+  opacity: 0;
+  transition: opacity .18s steps(3);
+  pointer-events: none;
+}
+.mct-torch:hover::before { opacity: .16; }
+.mct-torch.lit::before { opacity: .28; }
+.mct-torch > * { position: relative; }
+/* pressed: the bevel turns over and the block sinks one pixel */
+.mct-torch:active, .mct-torch.lit {
+  box-shadow: inset var(--mct-px) var(--mct-px) 0 var(--mct-btn-lo), inset calc(var(--mct-px) * -1) calc(var(--mct-px) * -1) 0 var(--mct-btn-hi);
+}
+.mct-torch:active { transform: translateY(var(--mct-px)); }
+.mct-torch:focus-visible { outline: var(--mct-px) solid var(--mct-focus); outline-offset: var(--mct-px); }
+.mct-torch-label { flex: 1; text-align: left; text-shadow: 1px 1px 0 var(--mct-btn-lo); }
+
+.mct-icon { flex: none; display: block; overflow: visible; }
+.mct-icon .mct-glow, .mct-icon .mct-sparks { opacity: 0; transition: opacity .15s steps(2); }
+.mct-torch:hover .mct-icon .mct-glow, .mct-icon.lit .mct-glow { opacity: 1; }
+.mct-torch:hover .mct-icon .mct-sparks, .mct-icon.lit .mct-sparks { opacity: 1; }
+/* the flicker: the flame hops a pixel and the sparks blink, in hard steps like a game */
+.mct-torch:hover .mct-flame, .mct-icon.lit .mct-flame { animation: mct-flame .9s steps(1) infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+.mct-torch:hover .mct-sparks rect, .mct-icon.lit .mct-sparks rect { animation: mct-spark 1.2s steps(1) infinite; }
+.mct-sparks rect:nth-child(2) { animation-delay: .4s; }
+.mct-sparks rect:nth-child(3) { animation-delay: .8s; }
+@keyframes mct-flame {
+  0% { transform: none; }
+  25% { transform: translateY(-1px); }
+  50% { transform: scaleX(.86); }
+  75% { transform: translateY(-1px) scaleX(1.08); }
+}
+@keyframes mct-spark { 0% { opacity: 1; transform: none; } 50% { opacity: .2; transform: translateY(-1px); } }
+
+/* ---------- the colour row: a glowing pixel gem in a sunken slot per colour ---------- */
+.mct-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: calc(var(--mct-px) * 2); }
+.mct-swatch {
+  --mct-sw: #ffffff;
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--mct-px) * 2);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--mct-dim);
+  cursor: pointer;
+  font-size: 9px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.mct-slot {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: 46px;
+  aspect-ratio: 1;
+  background: var(--mct-bg-lo);
+  border: var(--mct-px) solid var(--mct-edge);
+  /* sunken: dark top left, light bottom right */
+  box-shadow: inset var(--mct-px) var(--mct-px) 0 rgba(0, 0, 0, .45), inset calc(var(--mct-px) * -1) calc(var(--mct-px) * -1) 0 var(--mct-bg-hi);
+  clip-path: var(--mct-notch);
+}
+.mct-gem { display: block; width: 72%; height: auto; transition: transform .06s steps(1); }
+.mct-swatch:hover .mct-gem { transform: translateY(calc(var(--mct-px) * -1)); filter: drop-shadow(0 0 3px var(--mct-sw)); }
+/* pressed: the gem sinks into its slot */
+.mct-swatch:active .mct-gem { transform: translateY(1px) scale(.94); }
+.mct-swatch:active .mct-slot { box-shadow: inset calc(var(--mct-px) * 2) calc(var(--mct-px) * 2) 0 rgba(0, 0, 0, .55); }
+/* picked: a gold frame and the gem glows */
+.mct-swatch.on { color: var(--mct-ink); }
+.mct-swatch.on .mct-slot { border-color: var(--mct-gold); background: color-mix(in srgb, var(--mct-sw) 18%, var(--mct-bg-lo)); }
+.mct-swatch.on .mct-gem { filter: drop-shadow(0 0 4px var(--mct-sw)); }
+.mct-swatch:focus-visible { outline: none; }
+.mct-swatch:focus-visible .mct-slot { outline: 2px dashed var(--mct-focus); outline-offset: 2px; }
+.mct-name { white-space: nowrap; }
+
+/* ---------- custom colour: a hue bar and a pale bar ---------- */
+.mct-custom { display: grid; grid-template-columns: 1fr auto; gap: calc(var(--mct-px) * 3) calc(var(--mct-px) * 4); align-items: center; }
+.mct-slider { display: contents; font-size: 9px; letter-spacing: .04em; text-transform: uppercase; color: var(--mct-dim); }
+.mct-slider > span { grid-column: 2; }
+.mct-slider input { grid-column: 1; }
+.mct-hex { grid-column: 1 / -1; font-size: 10px; color: var(--mct-dim); letter-spacing: .08em; }
+.mct input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: calc(var(--mct-px) * 5);
+  margin: 0;
+  border: var(--mct-px) solid var(--mct-edge);
+  border-radius: 0;
+  cursor: pointer;
+}
+.mct-hue { background: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000); }
+.mct-pale { --mct-pure: #ff0000; background: linear-gradient(90deg, var(--mct-pure), #ffffff); }
+.mct input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: calc(var(--mct-px) * 4);
+  height: calc(var(--mct-px) * 8);
+  border-radius: 0;
+  background: var(--mct-btn);
+  border: var(--mct-px) solid var(--mct-edge);
+  box-shadow: inset 2px 2px 0 var(--mct-btn-hi), inset -2px -2px 0 var(--mct-btn-lo);
+}
+.mct input[type="range"]::-moz-range-thumb { width: 12px; height: 24px; border: var(--mct-px) solid var(--mct-edge); border-radius: 0; background: var(--mct-btn); }
+.mct input[type="range"]:focus-visible { outline: 2px dashed var(--mct-focus); outline-offset: 4px; }
+
+/* ---------- the brightness setting: a pixel tick box ---------- */
+.mct-bright { display: flex; align-items: center; gap: calc(var(--mct-px) * 3); font-size: 10px; letter-spacing: .03em; color: var(--mct-ink); cursor: pointer; }
+.mct-bright input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.mct-check {
+  flex: none;
+  position: relative;
+  width: calc(var(--mct-px) * 5);
+  height: calc(var(--mct-px) * 5);
+  background: var(--mct-bg-lo);
+  border: var(--mct-px) solid var(--mct-edge);
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, .45);
+}
+.mct-bright input:checked + .mct-check::after { content: ""; position: absolute; inset: 2px; background: var(--mct-gold); box-shadow: inset -2px -2px 0 rgba(0, 0, 0, .3); }
+.mct-bright:active .mct-check { transform: translateY(1px); }
+.mct-bright input:focus-visible + .mct-check { outline: 2px dashed var(--mct-focus); outline-offset: 3px; }
+
+.mct-note { font-size: 9px; line-height: 1.6; letter-spacing: .02em; color: var(--mct-dim); }
+.mct-note.warn { color: var(--mct-warn); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mct-flame, .mct-sparks rect { animation: none !important; }
+  .mct-torch, .mct-gem { transition: none; }
+}

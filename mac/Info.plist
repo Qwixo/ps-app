@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>PS</string>
+  <key>CFBundleDisplayName</key><string>PS</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleIdentifier</key><string>com.cincee.ps</string>
+  <key>CFBundleExecutable</key><string>PS</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleShortVersionString</key><string>1.07</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>NSAppleEventsUsageDescription</key><string>Lets the AirPods button hand play, pause and volume back to Spotify or Music. It only talks to those two apps, and only when you click it.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Shows your meetings from the Calendar app in the Meetings panel and meeting alerts. It only reads: it never adds, changes or deletes an event. Your meetings are kept encrypted in your own vault, so your other devices see them too.</string>
+  <key>NSCalendarsUsageDescription</key><string>Shows your meetings from the Calendar app in the Meetings panel and meeting alerts. It only reads: it never adds, changes or deletes an event. Your meetings are kept encrypted in your own vault, so your other devices see them too.</string>
+  <key>NSAudioCaptureUsageDescription</key><string>Lets the volume mixer turn each app up, down or off on its own. The sound goes straight to your speakers or headphones: nothing is recorded, saved or sent anywhere.</string>
+  <key>NSHumanReadableCopyright</key><string>Cincee. Your to-do list, end-to-end encrypted.</string>
+</dict>
+</plist>

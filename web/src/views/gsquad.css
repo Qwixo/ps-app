@@ -1,0 +1,161 @@
+/* G Squad (V1.40): the live icon in the Tab list's top right and its pop-up. Views/GSquad.tsx. Same look as the
+   Do Not Disturb moon and its pop-up (dnd.css): the theme's own colours (--k-*), dim off, glowing when people work. */
+.gs-wrap { position: relative; flex: none; display: inline-flex; }
+.gs-btn { position: relative; flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; padding: 0;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: color .35s ease, background .35s ease, border-color .35s ease, box-shadow .6s cubic-bezier(.22, 1, .36, 1), transform .15s ease; }
+.gs-btn:hover, .gs-btn.open { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(90% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(32% * var(--k-ia, 1))), transparent); }
+.gs-btn:active { transform: scale(.92); }
+.gs-btn.live { color: var(--k-fg, #FFFFFF); border-color: color-mix(in srgb, var(--k-ok, #3DDC84) 60%, transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--k-ok, #3DDC84) 30%, transparent); }
+/* The count: a small green pill on the icon's corner that breathes slowly while people are working. */
+.gs-n { position: absolute; right: -5px; bottom: -4px; min-width: 16px; height: 16px; padding: 0 calc(4px * var(--k-dn, 1)); box-sizing: border-box; border-radius: calc(99px * var(--k-rd, 1)); display: grid; place-items: center;
+  font: 800 calc(10px * var(--k-fs, 1))/1 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif); color: var(--k-on-ok, #062A16); background: var(--k-ok, #3DDC84); box-shadow: 0 0 0 2px var(--k-surface, #161016);
+  animation: gsBreathe 2.6s ease-in-out infinite; }
+@keyframes gsBreathe { 50% { box-shadow: 0 0 0 2px var(--k-surface, #161016), 0 0 10px color-mix(in srgb, var(--k-ok, #3DDC84) 75%, transparent); } }
+/* No squad yet (V1.42): a small plus on the icon's corner says "start or join one". */
+.gs-plus { position: absolute; right: -3px; bottom: -3px; width: 14px; height: 14px; border-radius: 50%; background: var(--k-acc, #EC4E86); box-shadow: 0 0 0 2px var(--k-surface, #161016); }
+.gs-plus::before, .gs-plus::after { content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 2px; border-radius: calc(1px * var(--k-rd, 1)); background: var(--k-on-acc, #FFFFFF); translate: -50% -50%; }
+.gs-plus::after { width: 2px; height: 8px; }
+.gs-wait { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--k-acc, #EC4E86); box-shadow: 0 0 0 2px var(--k-surface, #161016); }
+.gs-tip { position: absolute; top: calc(100% + 8px); right: -6px; z-index: 5; white-space: nowrap; pointer-events: none; padding: calc(7px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)); border-radius: calc(11px * var(--k-rd, 1));
+  background: var(--k-surface, #161016); color: var(--k-fg, #FFFFFF); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, transparent);
+  font: 650 calc(12px * var(--k-fs, 1))/1.2 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif); box-shadow: 0 8px 24px rgba(0, 0, 0, .4); animation: gsTip .18s ease-out; }
+@keyframes gsTip { from { opacity: 0; transform: translateY(-3px); } }
+/* The floating Tab list: in the row under the top bar, just left of the moon (taskmap.css .tm-tr2). V1.40 placed it
+   by hand at right 44px, on top of Second Computer (right 42px), so on the developer's Mac it could not be seen. */
+.tm-light-on .gs-btn { color: rgba(0, 0, 0, .55); background: rgba(0, 0, 0, .04); border-color: rgba(0, 0, 0, .14); }
+.tm-light-on .gs-btn.live { color: #1B1A1D; border-color: rgba(20, 140, 70, .6); }
+@media (prefers-reduced-motion: reduce) { .gs-n, .gs-tip { animation: none; } }
+
+/* ---------- the pop-up ---------- */
+.gs-pop { position: fixed; z-index: 2147483000; width: 440px; max-width: calc(100vw - 16px); max-height: calc(100vh - 90px); display: flex; flex-direction: column; box-sizing: border-box;
+  padding: calc(12px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); background: var(--k-surface, #161016); color: var(--k-fg, #FFFFFF);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .5), 0 2px 10px rgba(0, 0, 0, .3); font: calc(13px * var(--k-fs, 1))/1.35 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif);
+  transform-origin: 90% 0; animation: gsIn .34s cubic-bezier(.22, 1.2, .36, 1); }
+@keyframes gsIn { from { opacity: 0; transform: translateY(-6px) scale(.95); } }
+@media (prefers-reduced-motion: reduce) { .gs-pop { animation: none; } }
+.gs-head { display: flex; align-items: center; gap: calc(11px * var(--k-dn, 1)); padding: calc(2px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.gs-orb { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--k-ok, #3DDC84) 30%, transparent), color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent)); border: 1px solid color-mix(in srgb, var(--k-ok, #3DDC84) 45%, transparent); }
+.gs-title { flex: 1; min-width: 0; font-size: calc(15px * var(--k-fs, 1)); font-weight: 800; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gs-title em { display: block; margin-top: 2px; font-style: normal; font-size: calc(12px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 55%, transparent); }
+.gs-x { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 0; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 7%, transparent); color: inherit; font-size: calc(18px * var(--k-fs, 1)); line-height: 1; cursor: pointer; }
+.gs-x:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, transparent); }
+
+.gs-tabs { display: flex; gap: calc(4px * var(--k-dn, 1)); padding: calc(3px * var(--k-dn, 1)); margin: 0 2px 10px; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); }
+.gs-tab { position: relative; flex: 1 1 auto; padding: calc(7px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border: 0; border-radius: calc(99px * var(--k-rd, 1)); background: none; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 65%, transparent);
+  font: 700 calc(12px * var(--k-fs, 1))/1 inherit; font-family: inherit; white-space: nowrap; cursor: pointer; transition: background .2s ease, color .2s ease; }
+.gs-tab:hover { color: var(--k-fg, #FFFFFF); }
+.gs-tab.on { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); color: var(--k-fg, #FFFFFF); }
+.gs-tab.soon { color: color-mix(in srgb, var(--k-fg, #FFFFFF) 42%, transparent); }
+.gs-badge { display: inline-grid; place-items: center; min-width: 15px; height: 15px; margin-left: 5px; padding: 0 calc(4px * var(--k-dn, 1)); box-sizing: border-box; border-radius: calc(99px * var(--k-rd, 1)); background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); font-size: calc(10px * var(--k-fs, 1)); }
+.gs-body { flex: 1; min-height: 120px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 0 calc(2px * var(--k-dn, 1)); }
+.gs-h { display: flex; align-items: center; gap: calc(7px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(5px * var(--k-dn, 1)); font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 55%, transparent); }
+.gs-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(1px * var(--k-dn, 1)); }
+.gs-task, .gs-member { display: flex; align-items: center; gap: calc(9px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); }
+.gs-task:hover, .gs-member:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); }
+.gs-tt { flex: 1; min-width: 0; font-weight: 650; overflow-wrap: anywhere; }
+.gs-tt em { display: block; font-style: normal; font-weight: 550; font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 50%, transparent); margin-top: 1px; }
+.gs-tt small { margin-left: 7px; padding: calc(2px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(10px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent); }
+.gs-p { flex: none; min-width: 30px; font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 50%, transparent); }
+.gs-p.p1 { color: var(--k-acc, #EC4E86); }
+.gs-due { flex: none; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 55%, transparent); }
+.gs-st { flex: none; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); }
+.gs-task.done .gs-tt { text-decoration: line-through; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 45%, transparent); }
+.gs-task.anon .gs-tt { font-style: italic; }
+.gs-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent); }
+.gs-member.working .gs-dot, .gs-h .gs-dot { background: var(--k-ok, #3DDC84); box-shadow: 0 0 8px color-mix(in srgb, var(--k-ok, #3DDC84) 70%, transparent); }
+.gs-mini { flex: none; padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent);
+  color: inherit; font: 700 calc(11.5px * var(--k-fs, 1))/1 inherit; font-family: inherit; cursor: pointer; transition: background .2s ease, transform .15s ease; }
+.gs-mini:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); }
+.gs-mini:active { transform: scale(.95); }
+.gs-mini.go { background: var(--k-ok, #3DDC84); border-color: var(--k-ok, #3DDC84); color: var(--k-on-ok, #062A16); }
+.gs-mini.bad { border-color: var(--k-bad-t, #FF6B6B); color: var(--k-bad-t, #FF8A8A); }
+.gs-go, .gs-ghost { padding: calc(10px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 0; font: 750 calc(13px * var(--k-fs, 1))/1 inherit; font-family: inherit; cursor: pointer; transition: transform .15s ease, opacity .2s ease; }
+.gs-go { background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.gs-go:disabled { opacity: .45; cursor: default; }
+.gs-ghost { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent); color: inherit; }
+.gs-go:active:not(:disabled), .gs-ghost:active { transform: scale(.96); }
+.gs-row { display: flex; gap: calc(8px * var(--k-dn, 1)); justify-content: flex-end; padding-top: calc(8px * var(--k-dn, 1)); }
+.gs-note, .gs-foot, .gs-lead { margin: 6px 8px; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); font-size: calc(12px * var(--k-fs, 1)); }
+.gs-lead { font-size: calc(13px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 78%, transparent); }
+.gs-err { margin: 8px 6px 0; padding: calc(8px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-bad-t, #FF6B6B) 16%, transparent); color: var(--k-bad-t, #FFB3B3); font-weight: 650; font-size: calc(12px * var(--k-fs, 1)); }
+.gs-two { display: grid; grid-template-columns: 1fr 1fr; gap: calc(8px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); }
+.gs-big { padding: calc(14px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent);
+  color: inherit; text-align: left; font: 800 calc(14px * var(--k-fs, 1))/1.2 inherit; font-family: inherit; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
+.gs-big:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) 30%, transparent); }
+.gs-big em { display: block; margin-top: 4px; font-style: normal; font-weight: 550; font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 55%, transparent); }
+.gs-form { display: grid; gap: calc(8px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); }
+.gs-field { display: grid; gap: calc(5px * var(--k-dn, 1)); font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); }
+.gs-field input, .gs-link { width: 100%; box-sizing: border-box; padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); color: var(--k-fg, #FFFFFF); font: 600 calc(13px * var(--k-fs, 1))/1.2 inherit; font-family: inherit; outline: none; }
+.gs-field input:focus, .gs-link:focus { border-color: var(--k-acc, #EC4E86); }
+.gs-invite { padding: calc(10px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.gs-invite > .gs-go { justify-self: start; }
+.gs-leave { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); flex-wrap: wrap; padding: calc(12px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 70%, transparent); }
+.gs-share { padding-top: calc(6px * var(--k-dn, 1)); }
+.gs-sw { display: flex; align-items: center; gap: calc(11px * var(--k-dn, 1)); width: 100%; padding: calc(7px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border: 0; border-radius: calc(13px * var(--k-rd, 1)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .18s ease; }
+.gs-sw:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 7%, transparent); }
+.gs-tog { flex: none; position: relative; width: 38px; height: 22px; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); transition: background .25s ease; }
+.gs-tog b { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--k-fg, #FFFFFF); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.gs-sw.on .gs-tog { background: var(--k-ok, #3DDC84); }
+.gs-sw.on .gs-tog b { transform: translateX(16px); }
+.gs-soon { padding: calc(6px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)); }
+
+/* ---------- the Add task box: Shared with G Squad, and "Anonymise this task?" ---------- */
+.tm-sq { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); flex-wrap: wrap; margin-top: 8px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 70%, transparent); }
+.tm-sq-sw { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(5px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(5px * var(--k-dn, 1)) calc(5px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, transparent); background: none; color: inherit; font: inherit; cursor: pointer; }
+.tm-sq-sw .gs-tog { width: 30px; height: 18px; }
+.tm-sq-sw .gs-tog b { width: 14px; height: 14px; }
+.tm-sq-sw.on .gs-tog { background: var(--k-ok, #3DDC84); }
+.tm-sq-sw.on .gs-tog b { transform: translateX(12px); }
+.tm-sq-ask { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); }
+.tm-sq-ask button { padding: calc(5px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); background: none; color: inherit; font: 700 calc(11.5px * var(--k-fs, 1))/1 inherit; font-family: inherit; cursor: pointer; }
+.tm-sq-ask button.on { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) 70%, transparent); color: var(--k-fg, #FFFFFF); }
+
+/* ---------- a G Squad invite opened in a browser (views/GSquadLink.tsx) ---------- */
+.gsl { min-height: 100vh; display: grid; place-items: center; padding: calc(24px * var(--k-dn, 1)); box-sizing: border-box; background: var(--k-surface, #161016); color: var(--k-fg, #FFFFFF); font-family: var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif); }
+.gsl-card { max-width: 440px; display: grid; gap: calc(14px * var(--k-dn, 1)); padding: calc(28px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); background: var(--k-surface, #1F171F); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.gsl-card h1 { margin: 0; font-size: calc(22px * var(--k-fs, 1)); letter-spacing: -.01em; }
+.gsl-card p { margin: 0; line-height: 1.5; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); }
+.gsl-card .gs-go { justify-self: start; }
+.gsl-small { font-size: calc(12.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent) !important; }
+
+/* V1.42 squad directory: See available squads, Ask to join, Waiting for approval, the admin's requests */
+.gs-first { display: grid; gap: calc(8px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) 0; }
+.gs-first .gs-two { padding: 0; }
+.gs-main { background: color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); text-align: left; }
+.gs-main:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 32%, transparent); border-color: var(--k-acc, #EC4E86); }
+.gs-dir { display: grid; gap: calc(6px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) 0; }
+.gs-dir-row .gs-tt { flex: 1; }
+.gs-orb.sm { width: 28px; height: 28px; flex: none; }
+.gs-claim { margin-top: calc(6px * var(--k-dn, 1)); text-align: left; border-style: dashed; }
+/* V1.44: the list's empty and error states, and the developer's Create The G Squad card while he is in a squad */
+.gs-dir-msg { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); border: 1px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); animation: gs-ask-in .28s cubic-bezier(.2, .8, .2, 1); }
+.gs-dir-msg .gs-row { flex-basis: 100%; padding: 0; }
+.gs-dir-msg.bad { background: color-mix(in srgb, var(--k-bad-t, #FF6B6B) 12%, transparent); border-color: color-mix(in srgb, var(--k-bad-t, #FF6B6B) 40%, transparent); }
+.gs-dir-msg.bad .gs-tt em { color: var(--k-bad-t, #FFB3B3); }
+.gs-claim-card { margin: calc(8px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) 0; animation: gs-ask-in .28s cubic-bezier(.2, .8, .2, 1); }
+.gs-ask { display: grid; justify-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); text-align: center; animation: gs-ask-in .28s cubic-bezier(.2, .8, .2, 1); }
+.gs-ask .gs-row { justify-content: center; flex-wrap: wrap; align-items: center; }
+.gs-ask-t { font-weight: 800; font-size: calc(16px * var(--k-fs, 1)); }
+.gs-code { margin: 4px 8px; display: grid; gap: calc(2px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); }
+.gs-code b { font-size: calc(18px * var(--k-fs, 1)); letter-spacing: .08em; }
+.gs-code em { font-style: normal; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 55%, transparent); font-size: calc(11.5px * var(--k-fs, 1)); }
+.gs-asks { padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); margin-bottom: calc(4px * var(--k-dn, 1)); border-bottom: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); }
+.gs-pop > .gs-asks { margin: 0 calc(8px * var(--k-dn, 1)); }
+@keyframes gs-ask-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .gs-ask { animation: none; } }
+/* V1.43: task sharing off in the Add task box: say so, and a button to switch it on */
+.tm-sq-off { color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); }
+.tm-sq-turn { padding: calc(5px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); background: none; color: inherit; font: 700 calc(11.5px * var(--k-fs, 1))/1 inherit; font-family: inherit; cursor: pointer; }
+.tm-sq-turn:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); }
+/* V1.43: rename the squad (admin) and your own name */
+.gs-name { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); }
+.gs-name .gs-tt { flex: 1; }
+.gs-name-edit { flex: 1; align-items: flex-end; }
+.gs-name-edit .gs-field { flex: 1; }
+/* V1.43: a quiet dot on a tab (the Leaderboard while last month's amount is not added) */
+.gs-tabdot { display: inline-block; width: 6px; height: 6px; margin-left: 5px; vertical-align: middle; border-radius: 50%; background: var(--k-acc, #EC4E86); }

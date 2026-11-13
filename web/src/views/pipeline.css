@@ -1,0 +1,65 @@
+/* Pipeline page: the money summary tiles and the per client proposal accordion.
+   Tokens only, light and dark. */
+
+.pl-tiles { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 900px) { .pl-tiles { grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 14px; } }
+.pl-tile {
+  position: relative; overflow: hidden; display: grid; gap: 4px; align-content: start; min-width: 0;
+  padding: 14px 14px 15px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line);
+}
+@media (min-width: 700px) { .pl-tile { padding: 18px 20px 20px; } }
+.pl-k { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pl-tile b { font-size: clamp(19px, 5.4vw, 30px); font-weight: 850; letter-spacing: -.03em; line-height: 1.12; overflow-wrap: anywhere; }
+.pl-s { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.pl-tile.good b { color: var(--good); }
+.pl-tile.bad b { color: var(--bad); }
+.pl-tile.bad { border-color: color-mix(in srgb, var(--bad) 30%, var(--line)); }
+.pl-tile.hero {
+  border-color: color-mix(in srgb, var(--pink) 30%, var(--line));
+  background:
+    radial-gradient(80% 120% at 100% 0%, color-mix(in srgb, var(--pink) 22%, transparent) 0%, transparent 60%),
+    linear-gradient(160deg, var(--surface), var(--blush));
+  box-shadow: var(--shadow);
+}
+.pl-tile.hero .pl-k { color: var(--pink-d); }
+.pl-tile.hero b { font-size: clamp(22px, 6.4vw, 44px); background: linear-gradient(135deg, var(--pink), var(--pink-dd)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@media (min-width: 900px) { .pl-tile.hero b { font-size: clamp(28px, 3vw, 40px); } }
+
+/* client rows */
+.pl-total { font-size: 15px; font-weight: 800; letter-spacing: -.01em; text-align: right; max-width: 9.5em; line-height: 1.25; }
+.pl-projs { list-style: none; margin: 0; padding: 0 10px 10px; display: grid; gap: 6px; }
+
+/* a project inside a client: a header button, and the embedded proposal below it */
+.pl-proj { border-radius: 14px; background: var(--blush); border: 1px solid transparent; min-width: 0; transition: background .3s ease, border-color .3s ease; }
+.pl-proj.open { background: var(--surface); border-color: var(--line); }
+.pl-proj-h {
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start;
+  padding: 12px; border: 0; background: none; text-align: left; color: var(--ink); border-radius: 13px;
+}
+.pl-proj-h:focus-visible { outline-offset: -2px; }
+.pl-proj-h:hover .pl-proj-t { color: var(--pink-d); }
+.pl-proj-main { display: grid; gap: 6px; min-width: 0; }
+.pl-proj-t { font-weight: 750; font-size: 14.5px; overflow-wrap: anywhere; transition: color .2s; }
+.pl-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pl-proj-meta { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12.5px; color: var(--muted); }
+.pl-proj-meta .late { color: var(--bad); font-weight: 650; }
+.pl-proj-side { display: grid; justify-items: end; gap: 6px; }
+.pl-price { font-size: 17px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
+.pl-open { display: inline-flex; align-items: center; gap: 3px; font-size: 12.5px; font-weight: 700; color: var(--pink-d); min-height: 28px; }
+.pl-open .acc-chev { color: currentColor; }
+.pl-embed { display: grid; gap: 14px; padding: 2px 12px 14px; min-width: 0; }
+.pl-embed > * { min-width: 0; }
+
+/* this month: "$750 to come, of $1,500" */
+.pl-total-w, .pl-price-w { display: grid; justify-items: end; gap: 1px; }
+.pl-total-s, .pl-price-of { font-size: 11.5px; color: var(--muted); white-space: nowrap; text-align: right; }
+
+/* History: paid money month by month */
+.pl-months { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 10px; }
+.pl-month { display: grid; gap: 10px; }
+.pl-month-sum { color: var(--good); font-size: 17px; }
+.pl-month-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pl-month-rows li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--blush); }
+.pl-month-who { font-weight: 650; font-size: 14px; }
+.pl-month-what { grid-column: 1; overflow-wrap: anywhere; }
+.pl-month-rows li > b { grid-column: 2; grid-row: 1 / span 2; }

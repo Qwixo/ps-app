@@ -1,0 +1,272 @@
+/* PS GOS touch polish for the List pane: tasks, Priority 1 group, Every day, mini tasks, Urgent, New tasks, the Add task window.
+   Owned by one polish session (Urgent is styled in inbox.css, where its pane is); every rule is scoped to html.gos so the website and the Mac never see it.
+   Sized for a Pixel 10a (412 x 915 CSS px): every control is a 44 px target (small looks get an invisible
+   ring that reaches 44), titles read at 17 px, and only transform and opacity animate. */
+
+html.gos .gos-home {
+  --gl-row: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6.5% * var(--k-ia, 1))), transparent);
+  --gl-row-line: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(11% * var(--k-ia, 1))), transparent);
+  --gl-row-shadow: 0 1px 0 color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent) inset, 0 10px 24px -18px rgba(0, 0, 0, .9);
+  --gl-press: cubic-bezier(.2, .9, .3, 1);
+}
+
+/* ---------- the pane: fades under the top buttons and above the dock, never scrolls sideways ---------- */
+html.gos .gos-home .tm-scroll {
+  overflow-x: hidden;
+  -webkit-mask-image: linear-gradient(180deg, transparent calc(var(--gos-top) + 34px), var(--k-base, #000000) calc(var(--gos-top) + 62px), var(--k-base, #000000) calc(100% - 22px), transparent);
+  mask-image: linear-gradient(180deg, transparent calc(var(--gos-top) + 34px), var(--k-base, #000000) calc(var(--gos-top) + 62px), var(--k-base, #000000) calc(100% - 22px), transparent);
+}
+html.gos .gos-home .tm-inner { gap: calc(16px * var(--k-dn, 1)); padding-bottom: calc(40px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-head { margin: 4px 0 0; padding: 0; column-gap: calc(12px * var(--k-dn, 1)); row-gap: calc(4px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-clear .tm-head { margin: -6px -6px; padding: calc(10px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1)); }
+/* V1.34: the headline has no box on the phone either (views/taskmap.css), centred over the list. */
+html.gos .gos-home .tm-clear .tm-head { background: none; box-shadow: none; }
+html.gos .gos-home .tm-title { font-size: calc(32px * var(--k-fs, 1)); letter-spacing: -.035em; }
+html.gos .gos-home .tm-hint { font-size: calc(13px * var(--k-fs, 1)); line-height: 1.4; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(52% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .tm-add .tm-pill-btn { width: 52px; height: 52px; box-shadow: 0 10px 26px -8px color-mix(in srgb, var(--k-acc, #EC4E86) 85%, transparent); }
+html.gos .gos-home .tm-add .tm-pill-btn:hover { transform: none; }
+html.gos .gos-home .tm-add .tm-pill-btn:active { transform: scale(.9); transition: transform .12s var(--gl-press); }
+html.gos .gos-home .tm-add .tm-pill-btn svg { width: 22px; height: 22px; }
+html.gos .gos-home .tm-sec { gap: calc(8px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-sec-h { font-size: calc(12px * var(--k-fs, 1)); letter-spacing: .16em; margin: 0; padding: calc(6px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .tm-sec-note { display: none; }   /* "drag to reorder": the hint already says hold and drag */
+html.gos .gos-home .tm-list { gap: calc(8px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-empty { font-size: calc(16px * var(--k-fs, 1)); text-align: center; padding: calc(28px * var(--k-dn, 1)) 0; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+
+/* ---------- task rows: tick | title with a small line of P number, streak and mini tasks under it | edit ---------- */
+html.gos .gos-home .tm-row:not(.tm-editor) {
+  --z: 1;
+  display: grid; grid-template-columns: 44px 10px auto auto auto minmax(0, 1fr) 6px 44px; grid-template-rows: auto auto auto;
+  align-items: center; column-gap: 0; row-gap: 0; min-height: 68px; padding: calc(10px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1));
+  background: var(--gl-row); border-color: var(--gl-row-line); box-shadow: var(--gl-row-shadow);
+  transition: background .22s ease, color .22s ease, border-color .22s ease, box-shadow .3s ease, transform .32s var(--gos-spring), scale .14s var(--gl-press), opacity .22s ease;
+}
+html.gos .gos-home .tm-row:not(.tm-editor) > .tm-tick { grid-column: 1; grid-row: 1 / 3; justify-self: center; }
+html.gos .gos-home .tm-row:not(.tm-editor) > .tm-text { grid-column: 3 / 7; grid-row: 1; align-self: center; padding: calc(4px * var(--k-dn, 1)) 0; gap: calc(2px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-row:not(.tm-editor) > .tm-prio { grid-column: 3; grid-row: 2; margin: 2px 6px 4px 0; }
+html.gos .gos-home .tm-row:not(.tm-editor) > .tm-streak { grid-column: 4; grid-row: 2; margin: 2px 6px 4px 0; }
+html.gos .gos-home .tm-row:not(.tm-editor) > .mt-toggle { grid-column: 5; grid-row: 2; margin: 2px 6px 4px 0; justify-self: start; }
+html.gos .gos-home .tm-row:not(.tm-editor) > .tm-edit { grid-column: 8; grid-row: 1 / 3; justify-self: center; }
+html.gos .gos-home .tm-row:not(.tm-editor) > .mt-panel { grid-column: 1 / -1; grid-row: 3; }
+html.gos .gos-home .tm-t { font-size: calc(17px * var(--k-fs, 1)); font-weight: 700; line-height: 1.3; letter-spacing: -.01em; }
+html.gos .gos-home .tm-due { font-size: calc(13px * var(--k-fs, 1)); font-weight: 600; opacity: .6; }
+html.gos .gos-home .tm-due.late { opacity: 1; font-weight: 750; }
+html.gos .gos-home .tm-working { font-size: calc(10.5px * var(--k-fs, 1)); letter-spacing: .16em; margin-bottom: 2px; }
+html.gos .gos-home .tm-prio { padding: calc(3px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); font-size: calc(11.5px * var(--k-fs, 1)); letter-spacing: .05em; line-height: 1.3; }
+html.gos .gos-home .tm-streak { padding: calc(2px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); line-height: 1.35; }
+/* The tick: a 40 px circle (gos.css floor) with a 44 px reach. */
+html.gos .gos-home .tm-tick { width: 40px; height: 40px; border-width: 2px; }
+html.gos .gos-home .tm-tick svg { width: 18px; height: 18px; }
+html.gos .gos-home .tm-tick::after, html.gos .gos-home .tm-edit::after, html.gos .gos-home .mt-toggle::after, html.gos .gos-home .mt-tick::after,
+html.gos .gos-home .nt-dest::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); border-radius: 999px;
+}
+html.gos .gos-home .tm-tick:active { transform: scale(.86); transition: transform .1s var(--gl-press); }
+html.gos .gos-home .tm-row.done .tm-tick { box-shadow: 0 0 14px color-mix(in srgb, var(--k-acc, #EC4E86) 50%, transparent); }
+html.gos .gos-home .tm-edit { width: 34px; height: 34px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .tm-edit svg { width: 16px; height: 16px; }
+html.gos .gos-home .tm-edit:active { transform: scale(.88); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+
+/* A press sinks the row a touch; nothing waits for a hover that a finger never makes. */
+html.gos .gos-home .tm-row:active:not(:has(button:active, .mt-panel :active)) { scale: .975; }
+/* Taps leave :hover stuck on a phone, and gos.css then clears the row's background (a white Working on
+   row went dark with dark text). Every look is restated with :hover, so a tapped row looks exactly right. */
+html.gos .gos-home .tm-row::before, html.gos .gos-home .tm-row:hover::before { display: none; }
+html.gos .gos-home .tm-row .tm-fx::before { display: none; }
+html.gos .gos-home .tm-row:hover .tm-fx::after { animation: none; }
+html.gos .gos-home .tm-row:not(.tm-editor):hover {
+  background: var(--gl-row); border-color: var(--gl-row-line); box-shadow: var(--gl-row-shadow);
+}
+html.gos .gos-home .tm-row:hover:not(.working):not(.tm-room) { transform: none; }
+/* While a drag sorts the list the other rows slide quickly, as on the Mac (dragOrder.ts moves them). */
+html.gos .gos-home .tm-sec.is-sorting .tm-row:not(.tm-editor) { transition: transform .16s var(--gl-press), scale .14s var(--gl-press); }
+html.gos .gos-home .tm-clear .tm-row:not(.tm-editor):not(.working), html.gos .gos-home .tm-clear .tm-row:not(.tm-editor):not(.working):hover {
+  background: color-mix(in srgb, var(--k-surface, #1C1219) 96%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+}
+html.gos .gos-home .tm-list > .tm-row.p1:not(.working), html.gos .gos-home .tm-list > .tm-row.p1:not(.working):hover {
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8.5% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 28%, transparent);
+}
+html.gos .gos-home .tm-row.mini-all:not(.working), html.gos .gos-home .tm-row.mini-all:not(.working):hover {
+  border-color: color-mix(in srgb, var(--k-ok, #5CCB98) 55%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-ok, #5CCB98) 22%, transparent), 0 0 28px color-mix(in srgb, var(--k-ok, #5CCB98) 16%, transparent);
+}
+/* Working on (the default White glow): white, lifted a hair, a soft halo. Shows the instant the row is tapped. */
+html.gos .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working, html.gos .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working:hover {
+  background: var(--k-fg, #FFFFFF); color: var(--k-surface, #17121A); border-color: var(--k-fg, #FFFFFF); transform: scale(1.015);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(28% * var(--k-ia, 1))), transparent), 0 14px 44px -6px color-mix(in srgb, var(--k-glow, #FFFFFF) 38%, transparent);
+}
+html.gos .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .tm-working { color: var(--k-acc, #C2185B); }
+html.gos .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .tm-edit { color: var(--k-surface, #17121A); border-color: color-mix(in srgb, var(--k-base, #000000) 14%, transparent); background: color-mix(in srgb, var(--k-base, #000000) 4%, transparent); }
+/* Red lightning look: its own dark storm, also with :hover restated. */
+html.gos .gos-home .ws-lightning .tm-row.working, html.gos .gos-home .ws-lightning .tm-row.working:hover {
+  background: radial-gradient(120% 140% at 50% 0%, var(--k-acc-bg, #4A0710) 0%, var(--k-surface, #24050A) 60%, var(--k-base, #16030A) 100%); color: var(--k-fg, #FFFFFF); border-color: var(--k-bad, #FF2E43); transform: scale(1.015);
+}
+html.gos .gos-home .tm-row.done:not(.working) { opacity: .5; }
+/* The lifted row (touch.ts) keeps its solid fill from gos.css and rides a little higher. */
+html.gos .gos-home .tm-row.gos-lifted { scale: 1.03; }
+
+/* ---------- Priority 1 group: the outline sits inside the side gutters ---------- */
+html.gos .gos-home .tm-p1-frame:not(.mini) { left: -6px; right: -6px; border-radius: calc(26px * var(--k-rd, 1)); }
+html.gos .gos-home .tm-p1-hint { font-size: calc(11px * var(--k-fs, 1)); padding: calc(3px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+
+/* ---------- mini tasks ---------- */
+/* With none yet, the chevron hides; it shows as "Mini tasks" on the row you are working on, or once opened. */
+html.gos .gos-home .tm-row > .mt-toggle.empty { display: none; }
+html.gos .gos-home .tm-row.working > .mt-toggle.empty, html.gos .gos-home .tm-row.mini-open > .mt-toggle.empty { display: inline-flex; opacity: 1; width: auto; padding: 0 calc(10px * var(--k-dn, 1)) 0 calc(12px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-row > .mt-toggle.empty::before { content: "Mini tasks"; font-size: calc(12px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .02em; }
+html.gos .gos-home .mt-toggle { height: 28px; padding: 0 calc(10px * var(--k-dn, 1)); gap: calc(4px * var(--k-dn, 1)); }
+html.gos .gos-home .mt-toggle:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(72% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .mt-toggle.open, html.gos .gos-home .mt-toggle.open:hover { color: var(--k-acc2-t, #F5C2FD); border-color: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 45%, transparent); }
+html.gos .gos-home .mt-toggle:active { transform: scale(.92); }
+html.gos .gos-home .mt-count { font-size: calc(12.5px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-row:not(.tm-editor) .mt-box { padding: calc(10px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(54px * var(--k-dn, 1)); gap: calc(6px * var(--k-dn, 1)); }
+html.gos .gos-home .mt-list { gap: calc(6px * var(--k-dn, 1)); }
+html.gos .gos-home .mt-item { min-height: 44px; gap: calc(10px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); }
+html.gos .gos-home .mt-item:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .mt-tick { position: relative; width: 26px; height: 26px; }
+html.gos .gos-home .mt-tick svg { width: 14px; height: 14px; }
+html.gos .gos-home .mt-tick:active { transform: scale(.86); }
+html.gos .gos-home .mt-t { font-size: calc(15px * var(--k-fs, 1)); font-weight: 600; }
+html.gos .gos-home .mt-edit, html.gos .gos-home .mt-input { font-size: calc(16px * var(--k-fs, 1)); min-height: 40px; padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(11px * var(--k-rd, 1)); }
+html.gos .gos-home .mt-add { min-height: 40px; padding: 0 calc(16px * var(--k-dn, 1)); font-size: calc(14px * var(--k-fs, 1)); }
+html.gos .gos-home .mt-add:active { transform: scale(.95); }
+html.gos .gos-home .mt-addrow { padding-left: calc(4px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-item:hover { background: color-mix(in srgb, var(--k-base, #000000) 4%, transparent); }
+
+/* ---------- the task editor (pencil) ---------- */
+html.gos .gos-home .tm-editor { padding: calc(14px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); }
+html.gos .gos-home .tm-editor .tm-ed-title { font-size: calc(18px * var(--k-fs, 1)) !important; min-height: 46px; }
+html.gos .gos-home .tm-editor input, html.gos .gos-home .tm-editor select, html.gos .gos-home .tm-editor textarea { font-size: calc(16px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-editor .tm-ed-row { flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-editor .tm-ed-seg button { min-height: 38px; padding: 0 calc(14px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-editor :is(.tm-ed-chip, .tm-ed-save, .tm-ed-del, .tm-p1-switch, .tm-ed-date, .tm-ed-client) { min-height: 44px; }
+html.gos .gos-home .tm-editor .tm-ed-save { padding: 0 calc(22px * var(--k-dn, 1)); }
+
+/* Urgent sits in the Inbox pane; inbox.css styles it. */
+
+/* ---------- Undo ---------- */
+html.gos .gos-home .tm-undo { min-height: 46px; padding: 0 calc(18px * var(--k-dn, 1)) 0 calc(14px * var(--k-dn, 1)); gap: calc(10px * var(--k-dn, 1)); font-size: calc(14px * var(--k-fs, 1)); background: color-mix(in srgb, var(--k-surface, #281A22) 92%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); box-shadow: 0 14px 30px -14px rgba(0, 0, 0, .8); }
+html.gos .gos-home .tm-undo:hover { background: color-mix(in srgb, var(--k-surface, #281A22) 92%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .tm-undo:hover svg { animation: none; }
+html.gos .gos-home .tm-undo:hover .tm-undo-t { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .tm-undo:active { transform: scale(.95); background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); }
+html.gos .gos-home .tm-undo-t { max-width: min(210px, 52vw); }
+
+/* ---------- New tasks: the big pop-up sits just above the dock, its buttons where the thumb is ---------- */
+html.gos .gos-home .nt-layer { place-items: end center; padding: calc(var(--gos-top) + 12px) calc(10px * var(--k-dn, 1)) calc(var(--gos-dock-h) + var(--gos-bottom) + 16px); }
+html.gos .gos-home .nt-pop { width: 100%; max-height: 100%; border-radius: calc(26px * var(--k-rd, 1)); }
+/* The notes window shares the nt- names (notes.css): keep its grey header and two columns out of the pop-up. */
+html.gos .gos-home .nt-pop .nt-head { display: grid; grid-template-columns: minmax(0, 1fr); background: transparent; gap: calc(6px * var(--k-dn, 1)); padding: calc(20px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)); }
+html.gos .gos-home .nt-pop .nt-body { display: flex; }
+html.gos .gos-home .nt-pop .nt-title { width: auto; padding: 0; font-size: calc(24px * var(--k-fs, 1)); color: var(--k-fg, #FFFFFF); }
+html.gos .gos-home .nt-count { min-width: 32px; height: 32px; font-size: calc(16px * var(--k-fs, 1)); }
+html.gos .gos-home .nt-sub { font-size: calc(14px * var(--k-fs, 1)); }
+html.gos .gos-home .nt-head-act { grid-column: 1; grid-row: auto; margin-top: 6px; align-items: center; }
+html.gos .gos-home .nt-all { min-height: 44px; padding: 0 calc(20px * var(--k-dn, 1)); font-size: calc(14.5px * var(--k-fs, 1)); }
+html.gos .gos-home .nt-all:hover { transform: none; background: color-mix(in srgb, var(--k-acc2, #8B5CF6) 22%, transparent); }
+html.gos .gos-home .nt-min { width: 44px; height: 44px; margin-left: auto; }
+html.gos .gos-home .nt-min:hover { transform: none; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .nt-all:active, html.gos .gos-home .nt-min:active { transform: scale(.92); }
+html.gos .gos-home .nt-pop .nt-list { padding: calc(12px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); scrollbar-width: none; }
+html.gos .gos-home .nt-pop .nt-item { padding-bottom: calc(10px * var(--k-dn, 1)); }
+/* pan-y: a swipe on a card scrolls the cards; touch.ts still lifts it after a hold. */
+html.gos .gos-home .nt-card { grid-template-columns: minmax(0, 1fr); gap: calc(14px * var(--k-dn, 1)); padding: calc(16px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); touch-action: pan-y; }
+html.gos .gos-home .nt-card:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); box-shadow: none; }
+html.gos .gos-home .nt-card.asap:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--k-bad, #E11D2E) 24%, transparent), color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent) 70%); border-color: color-mix(in srgb, var(--k-bad, #FF5A5A) 60%, transparent); box-shadow: inset 4px 0 0 var(--k-bad, #FF4D4D); }
+html.gos .gos-home .nt-pop .nt-t { font-size: calc(18px * var(--k-fs, 1)); line-height: 1.3; }
+html.gos .gos-home .nt-chips { margin-top: 8px; gap: calc(6px * var(--k-dn, 1)); }
+html.gos .gos-home .nt-chip { font-size: calc(12px * var(--k-fs, 1)); padding: calc(3px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); }
+html.gos .gos-home .nt-pop .nt-note { font-size: calc(14px * var(--k-fs, 1)); margin-top: 8px; }
+html.gos .gos-home .nt-dests { gap: calc(8px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); margin-top: 12px; }
+html.gos .gos-home .nt-dests-l { flex-basis: 100%; margin: 0 0 -2px 2px; }
+html.gos .gos-home .nt-dest { position: relative; min-height: 36px; padding: 0 calc(12px * var(--k-dn, 1)) 0 calc(10px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); }
+html.gos .gos-home .nt-dest:hover { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(86% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .nt-dest:active { transform: scale(.94); background: color-mix(in srgb, var(--dc, var(--k-fg, #FFFFFF)) 22%, transparent); border-color: var(--dc, var(--k-fg, #FFFFFF)); }
+html.gos .gos-home .nt-act { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: calc(8px * var(--k-dn, 1)); width: auto; }
+html.gos .gos-home .nt-yes { min-height: 54px; border-radius: calc(16px * var(--k-rd, 1)); align-content: center; }
+html.gos .gos-home .nt-yes:hover { transform: none; filter: none; }
+html.gos .gos-home .nt-no { min-height: 54px; border-radius: calc(16px * var(--k-rd, 1)); font-size: calc(15px * var(--k-fs, 1)); }
+html.gos .gos-home .nt-no:hover { border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); background: transparent; }
+html.gos .gos-home .nt-no:active { border-color: color-mix(in srgb, var(--k-bad, #FF5A5A) 65%, transparent); color: var(--k-bad-t, #FFB0B0); background: color-mix(in srgb, var(--k-bad, #FF2828) 14%, transparent); }
+html.gos .gos-home .nt-yes:active, html.gos .gos-home .nt-no:active { transform: scale(.96); }
+/* The minimised bubble: a full size target that glows. */
+html.gos .gos-home .nt-bubble { min-height: 56px; padding: calc(6px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); }
+html.gos .gos-home .nt-bubble:hover { transform: none; }
+html.gos .gos-home .nt-bubble:active { transform: scale(.95); }
+html.gos .gos-home .nt-b-n { min-width: 44px; height: 44px; font-size: calc(22px * var(--k-fs, 1)); }
+
+/* ---------- the big Add task window: a sheet that rises from the bottom, Add task under the thumb ---------- */
+html.gos .tm-add-layer { place-items: end stretch; padding: calc(var(--gos-top) + 10px) 0 0 !important; }
+html.gos .tm-add-layer .tm-add-dim { background: color-mix(in srgb, var(--k-base, #060305) 62%, transparent); }
+html.gos .tm-add-layer .tm-add-win {
+  width: 100% !important; max-height: 100%; gap: calc(14px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(var(--gos-bottom) + 16px); border-radius: calc(28px * var(--k-rd, 1)) calc(28px * var(--k-rd, 1)) 0 0;
+  border-width: 1px 0 0; overscroll-behavior: contain; scrollbar-width: none;
+  box-shadow: 0 -24px 70px rgba(0, 0, 0, .6), 0 0 50px color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent);
+  animation: gosl-sheet-up .44s var(--gos-ease) both;
+}
+html.gos .tm-add-layer .tm-add-win::-webkit-scrollbar { display: none; }
+html.gos .tm-add-layer .tm-add-win::before { content: ""; justify-self: center; width: 40px; height: 5px; border-radius: calc(9px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); margin-bottom: -4px; }
+html.gos .tm-add-layer .tm-add-h { font-size: calc(22px * var(--k-fs, 1)); }
+html.gos .tm-add-layer .tm-add-x { width: 44px; height: 44px; }
+html.gos .tm-add-layer .tm-add-x:active { transform: scale(.9); }
+html.gos .tm-add-layer .tm-add-title { font-size: calc(19px * var(--k-fs, 1)); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); }
+html.gos .tm-add-layer .tm-add-notes { font-size: calc(16px * var(--k-fs, 1)); padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); }
+html.gos .tm-add-layer .tm-add-grid { grid-template-columns: 1fr; gap: calc(6px * var(--k-dn, 1)); }
+html.gos .tm-add-layer .tm-add-l { margin-top: 8px; font-size: calc(11.5px * var(--k-fs, 1)); }
+html.gos .tm-add-layer .tm-add-row { gap: calc(8px * var(--k-dn, 1)); }
+html.gos .tm-add-layer :is(.tm-add-chip, .tm-ed-chip, .tm-p1-switch, .tm-ed-date, .tm-ed-client, .tm-ed-num) { min-height: 44px; font-size: calc(15px * var(--k-fs, 1)); }
+html.gos .tm-add-layer .tm-add-chip { padding: 0 calc(18px * var(--k-dn, 1)); }
+html.gos .tm-add-layer .tm-add-chip:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); }
+html.gos .tm-add-layer .tm-add-chip.on, html.gos .tm-add-layer .tm-add-chip.on:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 24%, transparent); }
+html.gos .tm-add-layer .tm-add-chip:active, html.gos .tm-add-layer .tm-p1-switch:active { transform: scale(.95); }
+html.gos .tm-add-layer .tm-p1-switch { padding-right: calc(16px * var(--k-dn, 1)); }
+html.gos .tm-add-layer .tm-ed-client { width: 100%; }
+html.gos .tm-add-layer .tm-add-foot { padding-top: calc(10px * var(--k-dn, 1)); gap: calc(10px * var(--k-dn, 1)); }
+html.gos .tm-add-layer .tm-add-foot .tm-pop-note { display: none; }   /* Enter and Esc are keyboard words */
+html.gos .tm-add-layer .tm-add-foot .tm-ed-chip { min-height: 52px; padding: 0 calc(22px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); }
+html.gos .tm-add-layer .tm-add-go { flex: 1; min-height: 52px; border-radius: calc(16px * var(--k-rd, 1)); font-size: calc(16px * var(--k-fs, 1)); box-shadow: 0 12px 28px -12px color-mix(in srgb, var(--k-acc, #EC4E86) 90%, transparent); }
+html.gos .tm-add-layer .tm-add-go:active, html.gos .tm-add-layer .tm-add-foot .tm-ed-chip:active { transform: scale(.97); }
+/* Quick add (V1.33): a short sheet (header, the name, Advanced and Add) right above the keyboard; the list shows
+   above it, so the new task is seen landing. Advanced opens the rest in the same sheet. */
+html.gos .tm-add-layer.quick .tm-add-dim { background: color-mix(in srgb, var(--k-base, #060305) 40%, transparent); }
+html.gos .tm-add-layer.quick .tm-add-win { width: 100% !important; gap: calc(12px * var(--k-dn, 1)); }
+html.gos .tm-add-layer .tm-add-top { min-height: 44px; }
+html.gos .tm-add-layer .tm-add-h { flex: none; white-space: nowrap; }
+/* Room under the list while the sheet is open, so the task just added can scroll up into view above it. The settled
+   keyboard height only (never the per frame one), so the list is not relaid out while the keyboard slides. */
+html.gos .gos-home .tm-overlay:has(> .tm-add-layer) .tm-scroll > .tm-inner { margin-bottom: calc(var(--gos-kb-end, 0px) + 250px); }
+html.gos .tm-add-layer .tm-add-done { max-width: calc(100% - 170px); font-size: calc(13.5px * var(--k-fs, 1)); }
+html.gos .tm-add-layer .tm-add-foot .tm-add-advbtn { gap: calc(6px * var(--k-dn, 1)); }
+html.gos .tm-add-layer .tm-add-foot .tm-add-advbtn.on { background: color-mix(in srgb, var(--k-acc, #EC4E86) 24%, transparent); }
+/* The Place picker (minus, number, plus) and the client menu, sized for a thumb. */
+html.gos :is(.tm-add-layer, .gos-home .tm-editor) .tm-prio-pick { min-height: 44px; padding: calc(3px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(3px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); gap: calc(4px * var(--k-dn, 1)); }
+html.gos :is(.tm-add-layer, .gos-home .tm-editor) .tm-prio-pick button { position: relative; width: 36px; height: 36px; font-size: calc(18px * var(--k-fs, 1)); }
+html.gos :is(.tm-add-layer, .gos-home .tm-editor) .tm-prio-pick button::after { content: ""; position: absolute; inset: -4px; border-radius: 999px; }
+html.gos :is(.tm-add-layer, .gos-home .tm-editor) .tm-prio-pick button:active:not(:disabled) { transform: scale(.88); background: var(--k-acc, #EC4E86); }
+html.gos :is(.tm-add-layer, .gos-home .tm-editor) .tm-prio-pick-v input { font-size: calc(17px * var(--k-fs, 1)); }
+html.gos :is(.tm-add-layer, .gos-home .tm-editor) select.tm-ed-client {
+  -webkit-appearance: none; appearance: none; min-height: 46px; padding: 0 calc(42px * var(--k-dn, 1)) 0 calc(16px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); font: inherit; font-size: calc(16px * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F7A8C8' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 16px center;
+}
+html.gos :is(.tm-add-layer, .gos-home .tm-editor) select.tm-ed-client:focus { outline: none; border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); }
+html.gos :is(.tm-add-layer, .gos-home .tm-editor) select.tm-ed-client option { background: var(--k-surface, #1A1016); color: var(--k-fg, #FFFFFF); }
+html.gos :is(.tm-add-layer, .gos-home .tm-editor) input.tm-ed-date { min-height: 44px; padding: 0 calc(14px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); font-size: calc(16px * var(--k-fs, 1)); color-scheme: dark; }
+@keyframes gosl-sheet-up { from { transform: translate3d(0, 104%, 0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  html.gos .tm-add-layer .tm-add-win { animation: none; }
+  html.gos .gos-home .tm-row:not(.tm-editor) { transition-duration: .01s; }
+}
+
+/* ---------- Priority 1 colour (TaskMap P1ColourPick): the phone's P1 rows follow it too ---------- */
+html.gos .gos-home .tm-overlay.p1c .tm-list > .tm-row.p1:not(.working), html.gos .gos-home .tm-overlay.p1c .tm-list > .tm-row.p1:not(.working):hover,
+html.gos[data-gos-layout] .gos-home .tm-overlay.p1c .tm-list > .tm-row.p1:not(.working), html.gos[data-gos-layout] .gos-home .tm-overlay.p1c .tm-list > .tm-row.p1:not(.working):hover {
+  border-color: rgba(var(--p1glow), .42);
+}
+html.gos[data-gos-layout="cards"] .gos-home .tm-overlay.p1c .tm-row.p1:not(.tm-editor):not(:has(.tm-due.late))::after { background: var(--p1acc); }
+/* the dot is small on a finger: a bigger invisible hit area round it */
+html.gos .p1c-dot::after { content: ""; position: absolute; inset: -14px; }
+html.gos .p1c-menu { width: min(300px, calc(100vw - 24px)); }
+html.gos .p1c-sw button { width: 42px; height: 42px; }
+html.gos .p1c-hue { height: 22px; }
+html.gos .p1c-hue::-webkit-slider-thumb { width: 28px; height: 28px; }
+html.gos .p1c-hex { min-height: 40px; font-size: calc(15px * var(--k-fs, 1)); }

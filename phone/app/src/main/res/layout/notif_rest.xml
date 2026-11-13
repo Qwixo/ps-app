@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The rest countdown in the notification and on the lock screen (Fitness.kt). The chronometer
+     counts down by itself in the system UI, so PS never wakes up to tick it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="2dp"
+    android:paddingBottom="4dp">
+
+    <Chronometer
+        android:id="@+id/rest_clock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+        android:textSize="44sp"
+        android:textStyle="bold"
+        android:fontFeatureSettings="tnum"
+        android:includeFontPadding="false"
+        android:countDown="true" />
+
+    <TextView
+        android:id="@+id/rest_line"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textAppearance="@android:style/TextAppearance.Material.Notification"
+        android:maxLines="1"
+        android:ellipsize="end" />
+</LinearLayout>

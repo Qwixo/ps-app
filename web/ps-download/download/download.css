@@ -1,0 +1,47 @@
+:root { --pink: #EC4E86; --deep: #C8366B; --blush: #FFF4F8; --soft: #FDEEF4; --ink: #1B1A1D; --mute: #5d5a63; --card: #ffffff; --line: #f3d3e0; --win: #f6f5f7; --winline: #dedbe2; --bar: #e6e3ea; }
+@media (prefers-color-scheme: dark) { :root { --blush: #141116; --soft: #231b22; --ink: #f5f1f4; --mute: #b7b0ba; --card: #1c181d; --line: #3a2a33; --win: #2a262c; --winline: #3d3840; --bar: #3a353d; } }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--blush); color: var(--ink); font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 40px 16px 56px; }
+.hero { text-align: center; margin-bottom: 24px; }
+.logo { width: 72px; height: 72px; margin: 0 auto 14px; border-radius: 18px; background: linear-gradient(145deg, var(--pink), var(--deep)); color: #fff; font-weight: 800; font-size: 28px; line-height: 72px; box-shadow: 0 10px 30px rgba(236, 78, 134, .35); }
+h1 { margin: 0; font-size: 34px; letter-spacing: -0.02em; }
+h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: -0.01em; }
+h3 { margin: 28px 0 4px; font-size: 18px; }
+.ver { margin: 6px 0 0; color: var(--mute); }
+.card { margin: 0 0 18px; padding: 22px 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); }
+.card.easy { border-color: var(--pink); box-shadow: 0 8px 30px rgba(236, 78, 134, .12); }
+.hidden { display: none; }
+.tag { display: inline-block; margin: 0 0 10px; padding: 2px 10px; border-radius: 99px; background: var(--soft); color: var(--deep); font-size: 13px; font-weight: 600; }
+.mini { margin: 10px 0; padding-left: 22px; } .mini li { margin: 0 0 4px; }
+kbd { padding: 1px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--blush); font: 13px ui-monospace, Menlo, monospace; }
+.cmd { display: flex; gap: 10px; align-items: stretch; margin: 12px 0 8px; padding: 12px; border-radius: 12px; background: #1b1a1d; color: #f5f1f4; }
+.cmd code { flex: 1; min-width: 0; align-self: center; overflow-wrap: anywhere; font: 14px/1.5 ui-monospace, Menlo, monospace; }
+button, .big { border: 0; border-radius: 11px; background: var(--pink); color: #fff; font-family: inherit; font-weight: 600; cursor: pointer; text-decoration: none; transition: background .15s, transform .15s; }
+button { flex: none; padding: 0 16px; font-size: 14px; }
+button:hover, .big:hover { background: var(--deep); }
+.big { display: block; margin: 14px auto 6px; max-width: 340px; padding: 16px 20px; text-align: center; font-size: 19px; }
+.big:active { transform: scale(.98); }
+.big.alt { background: var(--ink); color: var(--blush); }
+.small { color: var(--mute); font-size: 14px; } .center { text-align: center; }
+a { color: var(--deep); }
+.step { display: grid; grid-template-columns: 34px 1fr; gap: 4px 12px; margin: 18px 0 0; }
+.step .n { width: 30px; height: 30px; border-radius: 50%; background: var(--soft); color: var(--deep); font-weight: 700; text-align: center; line-height: 30px; }
+.step .txt p { margin: 3px 0 6px; }
+.step .pic { grid-column: 2; width: 100%; max-width: 380px; height: auto; }
+.pic .win { fill: var(--win); stroke: var(--winline); }
+.pic .side { fill: var(--bar); opacity: .45; }
+.pic .bar { fill: var(--bar); }
+.pic .sel { fill: #2f7cf6; } .pic .selT { fill: #fff; font-size: 7.5px; text-anchor: middle; font-weight: 600; }
+.pic .icon { fill: var(--pink); } .pic .iconT { fill: #fff; font-size: 15px; font-weight: 800; text-anchor: middle; }
+.pic .h { fill: var(--ink); font-size: 13px; font-weight: 700; text-anchor: middle; }
+.pic .hl { fill: var(--ink); font-size: 12px; font-weight: 700; }
+.pic .sec { fill: var(--ink); font-size: 10px; font-weight: 700; }
+.pic .t { fill: var(--mute); font-size: 9px; text-anchor: middle; }
+.pic .tl { fill: var(--ink); font-size: 9px; }
+.pic .row { fill: var(--card); stroke: var(--winline); }
+.pic .btn { fill: var(--card); stroke: var(--winline); } .pic .bt { fill: var(--ink); font-size: 9.5px; text-anchor: middle; font-weight: 600; }
+.pic .mark { fill: none; stroke: var(--pink); stroke-width: 3; }
+.foot { margin-top: 26px; text-align: center; color: var(--mute); font-size: 13px; }
+@media (max-width: 480px) { h1 { font-size: 28px; } .cmd { flex-direction: column; } .cmd button { padding: 10px; } }

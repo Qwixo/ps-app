@@ -1,0 +1,113 @@
+/* The Working on looks (V1.31, the developer 4 Nov 2026: "add a few more of them so I can decide between them"): how the task
+   you are working on stands out. White glow (taskmap.css .tm-row.working) and Red lightning (.ws-lightning) are the
+   originals; the styles here keep the page colours on the task (the overlay also has .ws-own) and draw in the look's
+   accent: --k-acc, the tint --k-work-bg, the raised card --k-work-card and the highlighter --k-hl, all from
+   core/looks.ts workTokens with the ink checked at 7:1 (4.5:1 on the highlighter). Fallbacks are the dark glass.
+   Motion is transform and opacity on one small layer (.tm-bolts, only in the working row), and every animation pauses
+   while the list is hidden (taskmap.css .tm-paused). :root:root lifts these over the phone layouts (gos/layouts.css). */
+
+/* ---------- shared: the task keeps the page colours, its parts go back to their normal look ---------- */
+:root:root .tm-overlay.ws-own .tm-row.working { color: var(--k-fg, #FFFFFF); transform: scale(1.01); box-shadow: 0 12px 30px -18px rgba(0, 0, 0, .55); }  /* not the white glow's ring */
+:root:root .tm-overlay.ws-own .tm-row.working .tm-working { color: var(--k-acc-t, #F49BBE); }
+:root:root .tm-overlay.ws-own .tm-row.working .tm-tick { border-color: var(--k-work-edge, #EC4E86); }
+:root:root .tm-overlay.ws-own .tm-row.working .tm-tick:hover { color: var(--k-fg, #FFFFFF); border-color: var(--k-fg, #FFFFFF); }
+:root:root .tm-overlay.ws-own .tm-row.working .tm-prio { background: color-mix(in srgb, var(--k-work-edge, #EC4E86) 18%, transparent); color: var(--k-acc-t, #F7A8C8);
+  border-color: color-mix(in srgb, var(--k-work-edge, #EC4E86) 45%, transparent); box-shadow: none; }
+:root:root .tm-overlay.ws-own .tm-row.working .tm-edit { color: color-mix(in srgb, var(--k-fg, #FFFFFF) 75%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); }
+:root:root .tm-overlay.ws-own .tm-row.working .tm-due.late { color: var(--k-bad-t, #FF8F8A); }
+:root:root .tm-overlay.ws-own .tm-row.working .tm-streak { color: var(--k-warn-t, #FFD34D); background: color-mix(in srgb, var(--k-warn, #FFC400) 14%, transparent); }
+:root:root .tm-overlay.ws-own .tm-row.working .mt-t { color: var(--k-fg, #FFFFFF); }
+:root:root .tm-overlay.ws-own .tm-row.working .tm-bolts i { display: none; }
+:root:root .tm-overlay.ws-own .tm-row.working > *:not(.tm-fx):not(.tm-bolts) { position: relative; z-index: 1; }
+:root:root .tm-overlay.ws-own .tm-row.working .tm-bolts { display: block; position: absolute; pointer-events: none; }
+:root:root .tm-overlay.ws-own .tm-row.working, :root:root .tm-overlay.ws-own .tm-row.working .tm-bolts { transition: background-color .3s ease, border-color .3s ease, box-shadow .35s ease, transform .3s cubic-bezier(.2, .9, .3, 1); }
+
+/* ---------- Accent glow: a soft wash and halo ---------- */
+:root:root .tm-overlay.ws-glow .tm-row.working {
+  background: var(--k-work-bg, #3A1A2A); border-color: color-mix(in srgb, var(--k-work-edge, #EC4E86) 75%, transparent); transform: scale(1.015);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-work-edge, #EC4E86) 45%, transparent), 0 0 38px 2px color-mix(in srgb, var(--k-work-edge, #EC4E86) 40%, transparent);
+}
+
+/* ---------- Pulse: the accent border breathes (only the ring's opacity moves) ---------- */
+:root:root .tm-overlay.ws-pulse .tm-row.working { background: var(--k-work-bg, #3A1A2A); border-color: var(--k-work-edge, #EC4E86); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-work-edge, #EC4E86) 40%, transparent); }
+:root:root .tm-overlay.ws-pulse .tm-row.working .tm-bolts {
+  inset: -1px; border-radius: inherit;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-work-edge, #EC4E86) 60%, transparent), 0 0 30px 6px color-mix(in srgb, var(--k-work-edge, #EC4E86) 50%, transparent);
+  animation: ws-breathe 3s ease-in-out infinite;
+}
+@keyframes ws-breathe { 0%, 100% { opacity: .18; } 50% { opacity: 1; } }
+
+/* ---------- Orbit: a gradient edge travels slowly round (a turning layer under a ring shaped mask) ---------- */
+:root:root .tm-overlay.ws-orbit .tm-row.working {
+  background: var(--k-work-bg, #3A1A2A); border-color: transparent;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-work-edge, #EC4E86) 28%, transparent), 0 14px 40px -18px color-mix(in srgb, var(--k-work-edge, #EC4E86) 60%, transparent);
+}
+:root:root .tm-overlay.ws-orbit .tm-row.working .tm-bolts {
+  inset: -1px; border-radius: inherit; padding: 2px; overflow: hidden;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+:root:root .tm-overlay.ws-orbit .tm-row.working .tm-bolts::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 130%; aspect-ratio: 1; translate: -50% -50%;
+  background: conic-gradient(from 0deg, transparent 0 50%, color-mix(in srgb, var(--k-acc2, #8B5CF6) 70%, transparent) 68%, var(--k-work-edge, #EC4E86) 86%, var(--k-acc-t, #F9A8C9) 94%, transparent 100%);
+  animation: ws-orbit 5.5s linear infinite;
+}
+@keyframes ws-orbit { to { rotate: 1turn; } }
+
+/* ---------- Accent bar: a thick bar on the left with a shimmer running down it ---------- */
+:root:root .tm-overlay.ws-bar .tm-row.working { background: var(--k-work-bg, #3A1A2A); border-color: color-mix(in srgb, var(--k-work-edge, #EC4E86) 35%, transparent); }
+:root:root .tm-overlay.ws-bar .tm-row.working .tm-bolts {
+  left: -1px; top: -1px; bottom: -1px; width: 7px; overflow: hidden; background: var(--k-work-edge, #EC4E86);
+  border-radius: calc(20px * var(--z, .85)) 0 0 calc(20px * var(--z, .85));
+}
+:root:root .tm-overlay.ws-bar .tm-row.working .tm-bolts::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 45%;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, .75), transparent); /* k-keep */
+  animation: ws-shimmer 2.8s cubic-bezier(.45, 0, .55, 1) infinite;
+}
+@keyframes ws-shimmer { from { transform: translateY(-110%); } to { transform: translateY(240%); } }
+
+/* ---------- Raised card: the task lifts off the page ---------- */
+:root:root .tm-overlay.ws-lift .tm-row.working {
+  background: var(--k-work-card, #241C29); border-color: color-mix(in srgb, var(--k-work-edge, #EC4E86) 50%, transparent); transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 26px 50px -20px rgba(0, 0, 0, .65), 0 10px 20px -12px rgba(0, 0, 0, .45), 0 0 0 1px color-mix(in srgb, var(--k-work-edge, #EC4E86) 35%, transparent);
+}
+
+/* ---------- Highlighter: a swipe under the words, line by line ---------- */
+:root:root .tm-overlay.ws-marker .tm-row.working { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); }
+:root:root .tm-overlay.ws-marker .tm-row.working .tm-t {
+  background-image: linear-gradient(transparent 0 26%, var(--k-hl, #7A2E4C) 26% 94%, transparent 94%);
+  background-repeat: repeat-y; background-size: 100% 1.2em; text-shadow: none;
+  animation: ws-swipe .55s cubic-bezier(.3, .8, .3, 1) both;
+}
+@keyframes ws-swipe { from { background-size: 0% 1.2em; } }
+html[data-nb] .tm-overlay.ws-marker .tm-row.working { background: transparent; border-color: transparent; }
+
+/* ---------- the samples in Appearance (a working row drawn in the look's colours) ---------- */
+.ap-work-sample { position: relative; height: 34px; border-radius: 9px; overflow: hidden; display: flex; align-items: center; gap: 6px; padding: 0 9px;
+  background: var(--s-base); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--s-fg) 12%, transparent); }
+.ap-work-sample > b { position: relative; flex: 1; height: 18px; border-radius: 6px; display: flex; align-items: center; gap: 5px; padding: 0 6px;
+  background: color-mix(in srgb, var(--s-fg) 8%, transparent); border: 1px solid color-mix(in srgb, var(--s-fg) 14%, transparent); }
+.ap-work-sample > b > i { width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; flex: none; }
+.ap-work-sample > b > em { height: 3px; flex: 1; border-radius: 2px; background: currentColor; opacity: .9; }
+.ap-work-sample > b { color: var(--s-fg); }
+.ap-work-sample.w-white > b { background: var(--s-fg); color: var(--s-surf); box-shadow: 0 0 10px color-mix(in srgb, var(--s-fg) 45%, transparent); }
+.ap-work-sample.w-glow > b { background: var(--s-tint); border-color: var(--s-acc); box-shadow: 0 0 12px color-mix(in srgb, var(--s-acc) 55%, transparent); }
+.ap-work-sample.w-pulse > b { background: var(--s-tint); border-color: var(--s-acc); }
+.ap-work-sample.w-pulse > b::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 0 2px var(--s-acc), 0 0 10px var(--s-acc); animation: ws-breathe 3s ease-in-out infinite; }
+.ap-work-sample.w-orbit > b { background: var(--s-tint); border-color: transparent; overflow: hidden; padding: 0 6px; }
+.ap-work-sample.w-orbit > b::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1.5px;
+  background: conic-gradient(from var(--ws-a, 0deg), transparent 0 50%, var(--s-acc) 85%, transparent);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.ap-work-sample.w-bar > b { background: var(--s-tint); box-shadow: inset 4px 0 0 var(--s-acc); }
+.ap-work-sample.w-lift > b { background: var(--s-card); border-color: var(--s-acc); transform: translateY(-2px); box-shadow: 0 6px 10px -4px rgba(0, 0, 0, .55); }
+.ap-work-sample.w-marker > b { background: transparent; }
+.ap-work-sample.w-marker > b > em { background: var(--s-fg); box-shadow: 0 0 0 3px var(--s-hl); }
+.ap-work-sample.w-lightning > b { background: color-mix(in srgb, #FF2E43 22%, var(--s-surf)); border-color: #FF2E43; box-shadow: 0 0 10px rgba(255, 46, 67, .6); }
+
+@media (prefers-reduced-motion: reduce) {
+  :root:root .tm-overlay.ws-own .tm-row.working .tm-bolts, :root:root .tm-overlay.ws-own .tm-row.working .tm-bolts::before, :root:root .tm-overlay.ws-marker .tm-row.working .tm-t,
+  .ap-work-sample.w-pulse > b::after { animation: none; }
+  :root:root .tm-overlay.ws-pulse .tm-row.working .tm-bolts { opacity: .8; }
+}

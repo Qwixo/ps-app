@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="16dp" android:background="@drawable/widget_bg">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:text="PS" android:textColor="#FF7BAA" android:textStyle="bold" android:textSize="13sp" android:letterSpacing="0.14" />
+        <TextView android:id="@+id/w_count" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textColor="#99FFFFFF" android:textSize="12sp" android:text="" />
+        <TextView android:id="@+id/w_add" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="10dp"
+            android:background="@drawable/pill_bg" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="5dp" android:paddingBottom="5dp"
+            android:text="+ Add" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="12sp" />
+    </LinearLayout>
+    <TextView android:id="@+id/w_t1" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp"
+        android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="2" android:ellipsize="end" android:text="Open PS app to see your list" />
+    <TextView android:id="@+id/w_t2" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp"
+        android:textColor="#CCFFFFFF" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:text="" />
+    <TextView android:id="@+id/w_t3" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp"
+        android:textColor="#99FFFFFF" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" android:text="" />
+</LinearLayout>

@@ -1,0 +1,1441 @@
+/* Tab map: the to-do list floating over a blurred page, like a map screen in a game. */
+.tm-overlay {
+  position: fixed; inset: 0; z-index: 90; overflow: hidden;
+  background: color-mix(in srgb, var(--k-base, #0B0709) calc(var(--tm-tint, .58) * 100%), transparent);
+  backdrop-filter: blur(var(--tm-blur, 16px)) saturate(1.2); -webkit-backdrop-filter: blur(var(--tm-blur, 16px)) saturate(1.2);
+  animation: tm-fade .07s ease-out both;
+}
+@keyframes tm-fade { from { opacity: 0; } }
+.tm-scroll { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }   /* never sideways (V1.44 #9, ui/relayout.ts) */
+.tm-inner { animation: tm-pop .09s cubic-bezier(.2, .9, .3, 1) both; min-height: 100%; display: grid; align-content: start; gap: calc(26px * var(--k-dn, 1)); width: min(900px, 100%); margin: 0 auto; padding: calc(max(48px, 8vh) + var(--safe-top, 0px)) calc(24px * var(--k-dn, 1)) calc(80px * var(--k-dn, 1)); }
+.tm-head { display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.tm-eyebrow { font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--k-acc-t, #F49BBE); }
+.tm-title { margin: 0; font-size: calc(clamp(34px, 6vw, 58px) * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.03em; line-height: 1.02; overflow-wrap: anywhere; color: var(--k-fg, #FFFFFF); text-shadow: 0 4px 30px color-mix(in srgb, var(--k-tsh, #000000) 40%, transparent); }
+.tm-hint { font-size: calc(13px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.tm-sec { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.tm-sec-h {
+  margin: 0; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent);
+}
+.tm-sec.bad .tm-sec-h { color: var(--k-bad-t, #FF8F8A); }
+.tm-list { position: relative; list-style: none; margin: 0; padding: 0; display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.tm-row {
+  --z: var(--tm-z, .85);
+  position: relative; display: flex; align-items: center; gap: calc(14px * var(--z)); padding: calc(14px * var(--z)) calc(18px * var(--z));
+  border-radius: calc(20px * var(--z)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  transition: background .2s ease, transform .2s cubic-bezier(.2,.9,.3,1), box-shadow .25s ease, color .2s ease, border-color .2s ease, scale .15s ease;
+  cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none;
+}
+.tm-row:hover {
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); transform: translateX(6px); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent), 0 12px 40px -12px color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent);
+}
+.tm-row:active { scale: .985; }
+/* game menu selector: a pink arrow slides in next to the task you are pointing at */
+.tm-row::before {
+  content: ""; position: absolute; left: -24px; top: 50%; width: 0; height: 0; pointer-events: none;
+  border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 12px solid var(--k-acc, #EC4E86);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--k-acc, #EC4E86) 90%, transparent)); opacity: 0; transform: translate(-8px, -50%); transition: opacity .12s ease, transform .12s ease;
+}
+.tm-row:hover::before { opacity: 1; transform: translate(0, -50%); animation: tm-nudge .6s ease-in-out .15s infinite alternate; }
+@keyframes tm-nudge { to { transform: translate(-5px, -50%); } }
+/* spotlight that follows the mouse, a shine that sweeps across once, and press ripples */
+.tm-fx { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.tm-fx::before {
+  content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity .15s ease;
+  background: radial-gradient(var(--trail-glow-r, 260px) circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--trail-glow-c, var(--k-fg, #FFFFFF)) min(100%, calc(var(--trail-glow-a, 16%) * var(--k-ia, 1))), transparent), transparent 60%);
+}
+/* Mouse trail (V1.43, views/Trail.tsx): the spotlight above is its Glow; another effect or Off hides it */
+.tm-overlay[data-trail="fx"] .tm-fx::before, .tm-overlay[data-trail="off"] .tm-fx::before { display: none; }
+.tm-row:hover .tm-fx::before { opacity: 1; }
+.tm-fx::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; transform: translateX(-160%) skewX(-18deg);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent), transparent);
+}
+.tm-row:hover .tm-fx::after { animation: tm-shine .55s ease-out; }
+@keyframes tm-shine { to { transform: translateX(320%) skewX(-18deg); } }
+.tm-ripple {
+  position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); animation: tm-ripple .5s ease-out forwards;
+}
+@keyframes tm-ripple { to { transform: scale(34); opacity: 0; } }
+.tm-row.working .tm-ripple { background: color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent); }
+/* dragging: the grabbed task lifts, the others slide out of the way */
+.tm-sec.is-sorting .tm-row { transition: transform .16s cubic-bezier(.2,.9,.3,1); }
+.tm-row[data-dragging] {
+  cursor: grabbing; scale: 1.03; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); border-color: var(--k-acc, #EC4E86);
+  box-shadow: 0 24px 60px -16px rgba(0, 0, 0, .7), 0 0 0 2px color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent);
+}
+.tm-row[data-dragging]::before { opacity: 1; transform: translate(0, -50%); }
+body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select: none; }
+.tm-sec.bad .tm-row { border-color: color-mix(in srgb, var(--k-bad-t, #FF7873) 35%, transparent); }
+.tm-sec.muted .tm-row { opacity: .8; }
+.tm-row.done { opacity: .45; }
+.tm-row.done .tm-t { text-decoration: line-through; }
+.tm-tick {
+  flex: none; width: calc(40px * var(--z)); height: calc(40px * var(--z)); border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  border: 2.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); background: transparent; color: transparent; transition: all .2s ease; position: relative;
+}
+.tm-tick svg { width: calc(22px * var(--z)); height: calc(22px * var(--z)); }
+.tm-tick:hover { border-color: var(--k-fg, #FFFFFF); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); box-shadow: 0 0 18px color-mix(in srgb, var(--k-glow, #FFFFFF) 35%, transparent); }
+.tm-row.done .tm-tick { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.tm-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); text-align: left; border: 0; background: transparent; color: inherit; font: inherit; cursor: inherit; padding: 0; position: relative; }
+.tm-t { font-size: calc(calc(clamp(20px, 3.2vw, 30px) * var(--z)) * var(--k-fs, 1)); font-weight: 750; letter-spacing: -.015em; line-height: 1.2; overflow-wrap: anywhere; }
+.tm-due { font-size: calc(calc(14px * var(--z)) * var(--k-fs, 1)); opacity: .65; }
+.tm-due.late { opacity: 1; color: var(--k-bad-t, #FF8F8A); font-weight: 750; }
+.tm-row.working .tm-due.late { color: var(--k-bad, #C2262E); }
+.tm-prio {
+  flex: none; position: relative; font-size: calc(calc(13px * var(--z)) * var(--k-fs, 1)); font-weight: 850; letter-spacing: .04em;
+  padding: calc(5px * var(--z)) calc(11px * var(--z)); border-radius: 999px;
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); color: var(--k-acc-t, #F7A8C8); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent);
+}
+.tm-list > .tm-row.p1 .tm-prio { background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); border-color: var(--k-acc, #EC4E86); box-shadow: 0 0 16px color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); }
+.tm-row.working .tm-prio { background: var(--k-surface, #17121A); color: var(--k-fg, #FFFFFF); border-color: var(--k-surface, #17121A); box-shadow: none; }
+.tm-sec-note { margin-left: 12px; font-size: calc(11px * var(--k-fs, 1)); letter-spacing: .04em; text-transform: none; font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(40% * var(--k-ia, 1))), transparent); }
+/* size sliders (task size top right, clock size in the clocks panel) */
+.tm-size {
+  display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1));
+  padding: calc(7px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+}
+.tm-size-l { font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); white-space: nowrap; }
+.tm-size input { width: 96px; accent-color: var(--k-acc, #EC4E86); cursor: pointer; }
+.tm-ck-head .tm-size { padding: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); gap: calc(6px * var(--k-dn, 1)); background: transparent; border: 0; }
+.tm-ck-head .tm-size-l { display: none; }
+.tm-ck-head .tm-size input { width: 70px; }
+.tm-size-v { min-width: 38px; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; text-align: right; }
+.tm-working { flex-basis: 100%; font-size: calc(calc(11px * var(--z)) * var(--k-fs, 1)); font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.tm-row.working {
+  background: var(--k-fg, #FFFFFF); color: var(--k-surface, #17121A); border-color: var(--k-fg, #FFFFFF); transform: scale(1.02);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent), 0 0 60px 8px color-mix(in srgb, var(--k-glow, #FFFFFF) 35%, transparent);
+}
+/* pressed (core/press.ts): the white lands on the mouse down itself, no fade */
+.tm-row.pressing, .tm-row.pressing > * { transition: none; }
+.tm-row.working .tm-tick { border-color: var(--k-surface, #17121A); }
+.tm-row.working .tm-tick:hover { color: var(--k-surface, #17121A); }
+.tm-empty { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); font-size: calc(18px * var(--k-fs, 1)); }
+/* Everything arrives together: a quick fade and a tiny zoom, like a game map screen. */
+@keyframes tm-pop { from { opacity: 0; transform: scale(.985); } }
+@media (prefers-reduced-motion: reduce) { .tm-overlay, .tm-inner { animation: none; } }
+
+/* Upcoming meetings, pinned bottom left; the list scrolls for the days ahead */
+.tm-meet {
+  width: 100%; min-height: 0; flex: 0 1 auto; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: calc(8px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1));
+  border-radius: calc(18px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, .6);
+}
+.tm-meet-h { font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.tm-meet-h em { font-style: normal; letter-spacing: .04em; text-transform: none; font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+.tm-meet ul { list-style: none; margin: 0 -8px 0 0; padding: 0 calc(8px * var(--k-dn, 1)) 0 0; display: grid; gap: calc(8px * var(--k-dn, 1)); align-content: start;
+  max-height: min(46vh, 420px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(25% * var(--k-ia, 1))), transparent) transparent; }
+.tm-meet-d { grid-column: 1 / -1; margin-top: 6px; padding-top: calc(8px * var(--k-dn, 1)); border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tm-meet li:first-child .tm-meet-d { margin-top: 0; padding-top: 0; border-top: 0; }
+.tm-meet li { display: grid; grid-template-columns: 1fr auto; gap: calc(1px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); align-items: center; }
+.tm-meet-t { grid-column: 1; font-size: calc(12px * var(--k-fs, 1)); font-weight: 750; color: var(--k-acc-t, #F49BBE); }
+.tm-meet li.live .tm-meet-t { color: var(--k-bad-t, #FF8F8A); }
+.tm-meet-n { grid-column: 1; font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.tm-meet-n em { font-style: normal; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); font-weight: 550; }
+.tm-meet-j { grid-column: 2; grid-row: 1 / span 2; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; color: var(--k-surface, #17121A); background: var(--k-fg, #FFFFFF); border-radius: calc(99px * var(--k-rd, 1)); padding: calc(5px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); text-decoration: none; }
+.tm-meet li.live .tm-meet-j { background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+/* side columns: clocks and meetings on the left, Urgent on the right; the list keeps clear of both */
+.tm-side { position: absolute; top: calc(20px + var(--safe-top, 0px)); bottom: 24px; z-index: 2; display: flex; flex-direction: column; gap: calc(14px * var(--k-dn, 1)); pointer-events: none; }
+.tm-side > * { pointer-events: auto; }
+/* Screen fit (V1.40): while one of its pop-ups is open (Timelines, the time zones) a side column comes over the
+   glass bar and the top right buttons, which on a smaller screen can sit where the pop-up opens. */
+.tm-overlay:not(.tm-docked) .tm-side:has(.tm-tl.open, .tm-clocks) { z-index: 6; }
+/* Screen fit (V1.40): the side columns are 300 px wide as always, and narrow (down to 240 px) only when the
+   page is narrower than about 1430 px, so the list in the middle keeps its room. PS zooms the whole page
+   on a small screen first (core/screenfit.ts); this is what is left. */
+.tm-overlay:not(.tm-docked) { --tm-colw: clamp(240px, 21vw, 300px); }
+.tm-left { left: 24px; width: max(min(290px, var(--tm-colw, 300px)), calc(var(--tm-colw, 300px) * var(--ck, 1))); }
+.tm-left .tm-ckdock { flex: 0 0 auto; }
+/* The clocks float over the column when open, so Timelines and the meetings never jump down
+   (that jump moved things out from under the mouse and made the hover pop-ups flicker). */
+.tm-left .tm-ckdock { position: relative; z-index: 6; }
+.tm-left .tm-clocks { position: absolute; top: calc(100% + 8px); left: 0; width: 100%; max-height: calc(100vh - 120px - var(--safe-top, 0px)); }
+.tm-left .tm-meet { flex: 0 1 auto; min-height: 0; overflow: hidden; }
+/* The floating list's left column (V1.49.1, the developer): Time zones at the top left, everything else (the AI button, Timelines,
+   the Meetings panel and the buttons row) together at the bottom left, the buttons row last. The column itself does it:
+   its items pack at the bottom and the Time zones pill takes the free space under itself. Before, one element carried
+   an auto top margin (the Timelines row, from V1.48 the Sentry button's Edit mode slot), but a slot is display: contents,
+   so its margin did nothing, and the rule that took the Timelines row's margin away left nothing pushing down: on
+   The developer's Mac all of it stacked at the top. This holds whatever comes first, with or without a calendar, the AI button
+   or Edit mode; a slot that is hidden or moved off the column drops out, and with the clocks gone the rest still sits
+   at the bottom. Docked, the website and the phone (GOS) keep their own layouts. */
+html:not(.gos) .tm-overlay:not(.tm-docked) .tm-left { justify-content: flex-end; }
+html:not(.gos) .tm-overlay:not(.tm-docked) .tm-left .tm-ckdock { margin-bottom: auto; }
+html:not(.gos) .tm-overlay:not(.tm-docked) .tm-left > .nu-tlrow { margin-top: 0; }
+/* The buttons row (V1.49.1, the developer): every button keeps its whole pill, its word inside it, and what does not fit the
+   column goes onto a second line at the bottom left. Since V1.47 the row (mail, X, PS app, Fitness, Soundboard) is
+   wider than the column; the old "nothing shrinks" rule (.tm-xrow > *, fitness.css) misses a button in its Edit
+   mode slot, so the last one, Soundboard, was squeezed to a 26 px circle with its word spilling out to the right. */
+html:not(.gos) .tm-overlay:not(.tm-docked) .tm-left > .tm-xrow { flex-wrap: wrap; justify-content: flex-start; row-gap: calc(8px * var(--k-dn, 1)); max-width: 100%; }
+html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > *, html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > .ed-slot > * { flex-shrink: 0; }
+.tm-left .tm-tl { flex: none; }
+.tm-right { right: 24px; top: calc(76px + var(--safe-top, 0px)); width: var(--tm-colw, 300px); justify-content: flex-end; }
+/* the list sits between the two side columns */
+.tm-scroll { padding-left: calc(max(min(290px, var(--tm-colw, 300px)), var(--tm-colw, 300px) * var(--ck, 1)) + 36px); padding-right: calc(var(--tm-colw, 300px) + 36px); }
+@media (max-width: 760px) { .tm-side { display: none; } .tm-scroll { padding-left: 0; padding-right: 0; } }
+
+/* top right: task size, clear clipboard (and PS's Tab and Lock) */
+/* z-index 5: over the glass bar (4), so a pop-up from these buttons (End your day, screen time...) is never under it. */
+.tm-tr { position: absolute; top: calc(20px + var(--safe-top, 0px)); right: 24px; z-index: 5; display: flex; align-items: center; gap: 8px; /* k-keep: the row under the bar (.tm-tr2) uses the same gap */ justify-content: flex-end; }
+/* The row under the top bar (V1.42, TaskMap.tsx tm-tr2): the padlock, Second Computer, G Squad and the moon. On the
+   website and in a narrow window it is not a box at all (the buttons stay in the bar). On the floating list the bar
+   is full, so they sit in one row just under its right end and the right column moves down to make room. One flex
+   row, never a hand-placed right offset per button: two offsets 2px apart once hid G Squad under Second Computer. */
+.tm-tr2 { display: contents; }
+@media (min-width: 1101px) {
+  .tm-overlay:not(.tm-docked) .tm-tr > .tm-tr2 { position: absolute; top: calc(100% + 8px); right: 0; display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 8px; /* k-keep */ }
+  .tm-overlay:not(.tm-docked):has(.tm-tr2 button) .tm-right { top: calc(124px + var(--safe-top, 0px)); }
+}
+.tm-pill-btn {
+  display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 700;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); transition: background .15s ease, transform .1s ease;
+}
+.tm-pill-btn:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); }
+.tm-pill-btn:active { transform: scale(.96); }
+.tm-pill-btn.ok { background: var(--k-ok, #1F7A48); border-color: var(--k-ok, #2EA866); }
+
+/* Overdue (was Urgent), in a clear red. The card is solid (the look's own red tint, which every
+   look keeps readable, not see through), so a warm background (a colour background, a video,
+   the sunrise gradient) can never tint it orange (the developer, V1.40). */
+.tm-aware {
+  display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1)); min-height: 0; overflow-y: auto; scrollbar-width: none;
+  background: linear-gradient(160deg, var(--k-bad-bg, #4C0E15), color-mix(in srgb, var(--k-bad-bg, #4C0E15) 70%, var(--k-base, #12060A))); border: 1px solid color-mix(in srgb, var(--k-bad, #FF3B3B) 60%, transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-bad, #FF3C3C) 15%, transparent), 0 20px 50px -18px color-mix(in srgb, var(--k-bad, #B91423) 65%, transparent);
+}
+.tm-aware-h { font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 850; letter-spacing: .16em; text-transform: uppercase; color: var(--k-bad-t, #FF7A7A); display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+.tm-aware-h::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--k-bad, #FF3B3B); box-shadow: 0 0 10px var(--k-bad, #FF3B3B); animation: tm-pulse 1.4s ease-in-out infinite; }
+@keyframes tm-pulse { 50% { opacity: .35; } }
+.tm-aware ul { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(8px * var(--k-dn, 1)); }
+.tm-aware li { display: grid; grid-template-columns: auto 1fr auto; gap: calc(10px * var(--k-dn, 1)); align-items: start; padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-bad, #FF2828) 10%, transparent); border: 1px solid color-mix(in srgb, var(--k-bad, #FF5A5A) 35%, transparent); }
+.tm-aware li:hover { background: color-mix(in srgb, var(--k-bad, #FF2828) 18%, transparent); }
+.tm-aware li { cursor: grab; touch-action: none; user-select: none; align-items: center; grid-template-columns: auto 1fr auto auto; gap: calc(8px * var(--k-dn, 1)); }
+.tm-aware li.editing { cursor: default; background: color-mix(in srgb, var(--k-bad, #FF2828) 30%, transparent); }
+.tm-aware-ed { border: 0; background: transparent; color: color-mix(in srgb, var(--k-bad-t, #FFC8C8) 70%, transparent); cursor: pointer; padding: calc(2px * var(--k-dn, 1)); display: grid; place-items: center; opacity: 0; transition: opacity .15s ease, color .15s ease; }
+.tm-aware li:hover .tm-aware-ed, .tm-aware-ed:focus-visible { opacity: 1; }
+.tm-aware-ed:hover { color: var(--k-fg, #FFFFFF); }
+.tm-aware-edit {
+  width: 100%; min-width: 0; padding: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(8px * var(--k-rd, 1)); border: 1px solid var(--k-bad-t, #FF6B6B); outline: none;
+  background: color-mix(in srgb, var(--k-base, #140406) 85%, transparent); color: var(--k-fg, #FFFFFF); font: inherit; font-size: calc(15px * var(--k-fs, 1)); font-weight: 700; user-select: text;
+}
+/* The tick: a circle like a task's; done = it fills green with a check, then the item slides away. */
+.tm-aware-tick {
+  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; padding: 0; cursor: pointer; color: transparent;
+  border: 2px solid color-mix(in srgb, var(--k-bad-t, #FFAAAA) 75%, transparent); background: color-mix(in srgb, var(--k-base, #000000) 18%, transparent); transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+.tm-aware-tick:hover { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); border-color: var(--k-fg, #FFFFFF); transform: scale(1.08); }
+.tm-aware li.ticked { background: color-mix(in srgb, var(--k-ok, #22C55E) 22%, transparent); border-color: color-mix(in srgb, var(--k-ok, #4ADE80) 70%, transparent); }
+.tm-aware li.ticked .tm-aware-tick { color: var(--k-on-ok, #FFFFFF); background: var(--k-ok, #22C55E); border-color: var(--k-ok, #22C55E); transform: scale(1.12); box-shadow: 0 0 14px color-mix(in srgb, var(--k-ok, #22C55E) 70%, transparent); }
+.tm-aware li.ticked .tm-aware-t { color: var(--k-fg, #DCFCE7); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--k-fg, #DCFCE7) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.tm-aware-t { font-size: calc(15px * var(--k-fs, 1)); font-weight: 750; line-height: 1.35; color: var(--k-fg, #FFD5D5); overflow-wrap: anywhere; }
+.tm-aware-x { border: 0; background: transparent; color: color-mix(in srgb, var(--k-bad-t, #FFC8C8) 70%, transparent); font-size: calc(18px * var(--k-fs, 1)); line-height: 1; cursor: pointer; padding: 0 calc(2px * var(--k-dn, 1)); }
+.tm-aware-x:hover { color: var(--k-fg, #FFFFFF); }
+.tm-aware-in {
+  font: inherit; font-size: calc(13.5px * var(--k-fs, 1)); color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-base, #000000) 25%, transparent); border: 1px solid color-mix(in srgb, var(--k-bad, #FF5A5A) 40%, transparent); border-radius: calc(10px * var(--k-rd, 1)); padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1));
+}
+.tm-aware-in::placeholder { color: color-mix(in srgb, var(--k-bad-t, #FFC8C8) 55%, transparent); }
+.tm-aware-in:focus { outline: none; border-color: var(--k-bad-t, #FF6B6B); }
+/* Overdue (it replaced Urgent, same look): eases in when the first task turns overdue. */
+.tm-overdue { animation: tm-overdue-in .42s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes tm-overdue-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .tm-overdue { animation: none; } }
+.tm-aware input[type="date"].tm-aware-edit { color-scheme: dark; }
+
+/* edit button on each task, and the editor */
+.tm-edit {
+  flex: none; position: relative; display: grid; place-items: center; width: calc(36px * var(--z)); height: calc(36px * var(--z)); border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); cursor: pointer; transition: background .15s ease, color .15s ease;
+}
+.tm-edit svg { width: calc(18px * var(--z)); height: calc(18px * var(--z)); }
+.tm-edit:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); }
+.tm-row.working .tm-edit { color: var(--k-surface, #17121A); border-color: color-mix(in srgb, var(--k-base, #000000) 20%, transparent); background: color-mix(in srgb, var(--k-base, #000000) 5%, transparent); }
+.tm-editor, .tm-editor:hover { cursor: default; transform: none; scale: 1; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); border-color: var(--k-acc, #EC4E86); }
+.tm-editor::before { display: none; }
+.tm-ed { flex: 1; display: grid; gap: calc(10px * var(--k-dn, 1)); min-width: 0; }
+.tm-ed input, .tm-ed textarea, .tm-ed select {
+  font: inherit; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-base, #000000) 25%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); border-radius: calc(12px * var(--k-rd, 1)); padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); color-scheme: dark; min-width: 0;
+}
+.tm-ed input:focus, .tm-ed textarea:focus, .tm-ed select:focus { outline: none; border-color: var(--k-acc, #EC4E86); }
+.tm-ed-title { font-size: calc(calc(22px * var(--z)) * var(--k-fs, 1)) !important; font-weight: 750; }
+.tm-ed-notes { font-size: calc(14px * var(--k-fs, 1)); resize: vertical; }
+.tm-ed-row { display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); align-items: center; }
+.tm-ed-seg { display: inline-flex; padding: calc(3px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); }
+.tm-ed-seg button { border: 0; background: transparent; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 700; padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; }
+.tm-ed-seg button.on { background: var(--k-fg, #FFFFFF); color: var(--k-surface, #17121A); }
+.tm-ed-chip, .tm-ed-save, .tm-ed-del {
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 700;
+  padding: calc(7px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+}
+.tm-ed-chip:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+.tm-ed-save { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); padding: calc(7px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); }
+.tm-ed-save:hover { background: var(--k-acc, #F0659A); }
+.tm-ed-del { color: var(--k-bad-t, #FF9A9A); border-color: color-mix(in srgb, var(--k-bad, #FF5A5A) 45%, transparent); background: transparent; }
+.tm-ed-del.sure { background: var(--k-bad, #B91423); color: var(--k-on-bad, #FFFFFF); border-color: var(--k-bad, #B91423); }
+
+/* No pink focus ring on the tasks: Tab opens this map, so the browser treats every click
+   here as keyboard focus. The white "working on" glow is the only highlight. */
+.tm-overlay .tm-text:focus, .tm-overlay .tm-text:focus-visible,
+.tm-overlay .tm-tick:focus, .tm-overlay .tm-tick:focus-visible { outline: none; }
+.tm-meet li:has(.tm-meet-d) .tm-meet-j { grid-row: 2 / span 2; }
+/* the headline: click it to change it */
+.tm-title-edit { cursor: text; outline: none; border-radius: calc(12px * var(--k-rd, 1)); padding: calc(2px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); margin: 0 -8px; transition: background .15s ease, box-shadow .15s ease; }
+.tm-title-edit:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); }
+.tm-title-edit:focus { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); }
+/* top right icon buttons and their small panels */
+.tm-pill-btn.icon { padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.tm-pill-btn.on { background: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); border-color: var(--k-acc, #EC4E86); }
+.tm-pill-btn.off { color: var(--k-bad-t, #FF9A9A); border-color: color-mix(in srgb, var(--k-bad, #FF5A5A) 45%, transparent); }
+.tm-pop-wrap { position: relative; }
+.tm-pop {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 4; width: 300px; display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1));
+  border-radius: calc(16px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-surface, #1C141A) 96%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .7); transform-origin: top right; animation: tm-pop-in .16s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes tm-pop-in { from { opacity: 0; transform: scale(.94) translateY(-4px); } }
+.tm-pop-in { font: inherit; font-size: calc(16px * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); border-radius: calc(12px * var(--k-rd, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.tm-pop-in:focus { outline: none; border-color: var(--k-acc, #EC4E86); }
+.tm-pop .tm-ed-seg { justify-self: start; flex-wrap: wrap; }
+.tm-pop-row { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); justify-content: space-between; }
+.tm-pop-note { font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tm-pop-range { flex: 1; accent-color: var(--k-acc, #EC4E86); }
+.tm-pop-v { min-width: 40px; text-align: right; font-size: calc(13px * var(--k-fs, 1)); }
+
+/* headline row: the headline, and the + to add a task on its right */
+.tm-head { grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: calc(16px * var(--k-dn, 1)); }
+.tm-head .tm-title { grid-column: 1; }
+.tm-head .tm-hint { grid-column: 1 / -1; }
+.tm-head .tm-add { grid-column: 2; grid-row: 1; align-self: center; }
+.tm-add .tm-pill-btn { width: 44px; height: 44px; justify-content: center; padding: 0; border-radius: 50%; background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86);
+  box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); transition: transform .2s cubic-bezier(.2,.9,.3,1), box-shadow .2s ease, background .15s ease; }
+.tm-add .tm-pill-btn:hover { transform: scale(1.08) rotate(90deg); box-shadow: 0 10px 30px -6px color-mix(in srgb, var(--k-acc, #EC4E86) 95%, transparent); }
+.tm-add .tm-pill-btn.on { transform: rotate(45deg); }
+.tm-add .tm-pill-btn svg { width: 20px; height: 20px; }
+/* hover panels open and close smoothly */
+.tm-pop-wrap.hover-pop .tm-pop { animation: none; opacity: 0; transform: scale(.94) translateY(-6px); pointer-events: none;
+  transition: opacity .18s ease, transform .22s cubic-bezier(.2,.9,.3,1); display: grid; }
+.tm-pop-wrap.hover-pop.open .tm-pop { opacity: 1; transform: none; pointer-events: auto; }
+.tm-pop-wrap.hover-pop .tm-pill-btn svg { transition: transform .4s cubic-bezier(.2,.9,.3,1); }
+.tm-pop-wrap.hover-pop.open .tm-pill-btn svg { transform: rotate(60deg); }
+.tm-pop-row.col { display: grid; gap: calc(6px * var(--k-dn, 1)); justify-content: stretch; }
+.tm-pop .tm-size { background: transparent; border: 0; padding: 0; display: flex; width: 100%; }
+.tm-pop .tm-size-l { display: none; }
+.tm-pop .tm-size input { flex: 1; width: auto; }
+.tm-add .tm-pop { right: 0; }
+.tm-pop-sel { font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); border-radius: calc(10px * var(--k-rd, 1)); padding: calc(7px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); color-scheme: dark; }
+.tm-pop-sel:focus { outline: none; border-color: var(--k-acc, #EC4E86); }
+/* microphone picker (PS) */
+.tm-mics { display: grid; gap: calc(5px * var(--k-dn, 1)); }
+.tm-mics button {
+  display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); text-align: left; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); border-radius: calc(10px * var(--k-rd, 1)); padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.tm-mics button:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.tm-mics button .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); transition: all .15s ease; }
+.tm-mics button.on { border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent); }
+.tm-mics button.on .dot { border-color: var(--k-acc, #EC4E86); background: var(--k-acc, #EC4E86); box-shadow: 0 0 8px color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); }
+.tm-pop { max-height: calc(100vh - 120px); overflow-y: auto; scrollbar-width: thin; }
+/* hover to choose: the fill along the bottom while you rest on an option */
+.dwell { position: relative; overflow: hidden; }
+.dwell::after {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--k-acc, #EC4E86);
+  transform: scaleX(0); transform-origin: left center; pointer-events: none;
+}
+.dwell.arming::after { animation: dwell-fill var(--dwell, 420ms) linear forwards; }
+@keyframes dwell-fill { to { transform: scaleX(1); } }
+.tm-hover-hint { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(40% * var(--k-ia, 1))), transparent); margin-left: 6px; }
+/* priority picker: − P3 + */
+.tm-prio-pick { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); }
+.tm-prio-pick-l { font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--k-acc-t, #F7A8C8); margin-right: 4px; }
+.tm-prio-pick button {
+  width: 26px; height: 26px; border-radius: 50%; border: 0; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); font: inherit; font-size: calc(16px * var(--k-fs, 1)); font-weight: 800; line-height: 1; cursor: pointer;
+}
+.tm-prio-pick button:hover:not(:disabled) { background: var(--k-acc, #EC4E86); }
+.tm-prio-pick button:disabled { opacity: .3; cursor: default; }
+.tm-prio-pick-v { display: inline-flex; align-items: center; font-size: calc(16px * var(--k-fs, 1)); font-weight: 850; color: var(--k-fg, #FFFFFF); }
+.tm-prio-pick-v input {
+  width: 2.4em; font: inherit; color: var(--k-fg, #FFFFFF); background: transparent; border: 0; padding: 0 0 0 calc(1px * var(--k-dn, 1)); text-align: left; -moz-appearance: textfield; appearance: textfield;
+}
+.tm-prio-pick-v input::-webkit-outer-spin-button, .tm-prio-pick-v input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tm-prio-pick-v input:focus { outline: none; }
+.tm-prio-pick-of { font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); padding-right: calc(6px * var(--k-dn, 1)); }
+.tm-pop .tm-prio-pick { justify-self: start; }
+
+/* ---------- meeting reminders ---------- */
+.tm-meet li { cursor: pointer; border-radius: calc(10px * var(--k-rd, 1)); margin: 0 -6px; padding: calc(3px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); transition: background .15s ease; }
+.tm-meet li:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); }
+.tm-meet li.open { background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); }
+.tm-meet-pad { display: inline-flex; align-items: center; gap: calc(3px * var(--k-dn, 1)); margin-right: 6px; padding: calc(1px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: 999px; font-size: calc(11px * var(--k-fs, 1)); font-weight: 800;
+  color: var(--k-bad-t, #FFD5D5); background: color-mix(in srgb, var(--k-bad, #DC2626) 30%, transparent); border: 1px solid color-mix(in srgb, var(--k-bad, #FF5A5A) 50%, transparent); vertical-align: 1px; }
+
+/* the card to the right of Coming up where you type reminders for one call */
+.tm-mn-edit {
+  position: absolute; left: calc(100% + 14px); bottom: 0; width: 320px; z-index: 6; display: grid; gap: calc(8px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1));
+  background: var(--k-surface, #1B1219); border: 1px solid color-mix(in srgb, var(--k-bad, #FF5A5A) 45%, transparent); color: var(--k-fg, #FFFFFF); box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .75);
+  transform-origin: 0 100%; animation: tm-sub-in .24s cubic-bezier(.18,1.25,.4,1) backwards;
+}
+.tm-mn-edit-h { display: flex; justify-content: space-between; align-items: center; }
+.tm-mn-edit-t { font-size: calc(15px * var(--k-fs, 1)); font-weight: 800; line-height: 1.3; }
+.tm-mn-edit-when { font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); margin-top: -4px; }
+.tm-mn-edit ul { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(6px * var(--k-dn, 1)); max-height: 240px; overflow-y: auto; }
+.tm-mn-edit li { display: grid; grid-template-columns: auto 1fr auto; gap: calc(10px * var(--k-dn, 1)); align-items: center; padding: calc(7px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); }
+.tm-mn-edit li .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--k-bad, #FF4D4D); }
+.tm-mn-edit li .txt { font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 650; overflow-wrap: anywhere; }
+
+/* the live checklist to the right of your tasks while the call is on: red hover so it catches your eye */
+.tm-right .tm-mn { margin-bottom: auto; }
+.tm-mn {
+  display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(16px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); min-height: 0; overflow-y: auto; scrollbar-width: none;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-bad, #FF5A5A) 50%, transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-bad, #FF3C3C) 12%, transparent), 0 20px 50px -18px color-mix(in srgb, var(--k-bad, #B91423) 55%, transparent); animation: tm-sub-in .3s cubic-bezier(.18,1.25,.4,1) backwards;
+}
+.tm-mn-h { margin: 0; font-size: calc(26px * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.02em; line-height: 1.05; display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); }
+.tm-mn-h::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--k-bad, #FF3B3B); box-shadow: 0 0 12px var(--k-bad, #FF3B3B); animation: tm-pulse 1.4s ease-in-out infinite; }
+.tm-mn-sub { font-size: calc(12.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); margin-top: -4px; }
+.tm-mn ul { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(8px * var(--k-dn, 1)); }
+.tm-mn li {
+  display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); cursor: pointer;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+  transition: background .18s ease, border-color .18s ease, transform .18s cubic-bezier(.2,.9,.3,1), box-shadow .2s ease;
+}
+.tm-mn li:hover { background: color-mix(in srgb, var(--k-bad, #DC2626) 38%, transparent); border-color: color-mix(in srgb, var(--k-bad, #FF5A5A) 80%, transparent); transform: translateX(-4px); box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--k-bad, #DC2626) 70%, transparent); }
+.tm-mn li .tick {
+  flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); color: transparent; transition: all .18s ease;
+}
+.tm-mn li:hover .tick { border-color: var(--k-fg, #FFFFFF); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+.tm-mn li .txt { font-size: calc(17px * var(--k-fs, 1)); font-weight: 750; line-height: 1.3; overflow-wrap: anywhere; }
+.tm-mn li.done { opacity: .5; }
+.tm-mn li.done .txt { text-decoration: line-through; }
+.tm-mn li.done .tick { background: var(--k-bad, #DC2626); border-color: var(--k-bad, #DC2626); color: var(--k-on-bad, #FFFFFF); }
+/* every-call reminders */
+.tm-mn-edit li { grid-template-columns: auto 1fr auto auto; }
+.tm-mn-edit li.every { background: color-mix(in srgb, var(--k-bad, #DC2626) 14%, transparent); border: 1px solid color-mix(in srgb, var(--k-bad, #FF5A5A) 35%, transparent); }
+.tm-mn-edit li .txt { border: 0; background: transparent; color: var(--k-fg, #FFFFFF); font: inherit; font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 650; text-align: left; padding: 0; cursor: text; overflow-wrap: anywhere; }
+.tm-mn-edit li .txt:hover { color: var(--k-bad-t, #FFD5D5); }
+.tm-mn-edit-in { font: inherit; font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-base, #000000) 35%, transparent); border: 1px solid var(--k-acc, #EC4E86); border-radius: calc(8px * var(--k-rd, 1)); padding: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); min-width: 0; }
+.tm-mn-edit-in:focus { outline: none; }
+.tm-mn-every {
+  display: inline-flex; align-items: center; gap: calc(4px * var(--k-dn, 1)); padding: calc(3px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; white-space: nowrap;
+  font: inherit; font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); background: transparent; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent);
+  transition: all .15s ease;
+}
+.tm-mn-every:hover { color: var(--k-fg, #FFFFFF); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(40% * var(--k-ia, 1))), transparent); }
+.tm-mn-every.on { color: var(--k-on-bad, #FFFFFF); background: var(--k-bad, #DC2626); border-color: var(--k-bad, #DC2626); }
+.tm-mn-every-new { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); cursor: pointer; }
+.tm-mn-every-new input { accent-color: var(--k-bad, #DC2626); width: 15px; height: 15px; }
+.tm-mn-rep { margin-left: auto; flex: none; font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--k-bad-t, #FFB4B4); padding: calc(2px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border-radius: 999px; border: 1px solid color-mix(in srgb, var(--k-bad, #FF5A5A) 45%, transparent); }
+/* undo: bottom right, above Urgent */
+.tm-undo {
+  align-self: flex-end; display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); max-width: 100%; padding: calc(9px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: calc(13px * var(--k-fs, 1)); color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, .6); animation: tm-sub-in .24s cubic-bezier(.18,1.25,.4,1) backwards;
+  transition: background .15s ease, transform .12s ease;
+}
+.tm-undo:hover { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); }
+.tm-undo:active { transform: scale(.96); }
+.tm-undo:hover svg { animation: tm-undo-spin .4s cubic-bezier(.2,.9,.3,1); }
+@keyframes tm-undo-spin { from { transform: rotate(40deg); } }
+.tm-undo-l { font-weight: 800; }
+.tm-undo-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); max-width: 170px; }
+.tm-undo:hover .tm-undo-t { color: var(--k-fg, #FFFFFF); }
+.tm-undo-n { font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; padding: calc(1px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); }
+
+/* ---------- repeats and streaks ---------- */
+.tm-rep { opacity: .55; font-weight: 650; }
+.tm-streak {
+  display: inline-flex; align-items: center; gap: calc(3px * var(--k-dn, 1)); flex-shrink: 0; padding: calc(2px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: 999px;
+  font-size: calc(calc(13px * var(--z)) * var(--k-fs, 1)); font-weight: 850; color: var(--k-warn, #FFD34D); background: color-mix(in srgb, var(--k-warn, #FFC400) 12%, transparent); border: 1px solid color-mix(in srgb, var(--k-warn, #FFCE40) 35%, transparent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--k-warn, #FFC828) 55%, transparent);
+}
+.tm-row.working .tm-streak { color: var(--k-warn, #9A6B00); background: color-mix(in srgb, var(--k-warn, #FFC400) 18%, transparent); text-shadow: none; }
+.tm-repeat { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.tm-ed-num { width: 64px; padding: calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); color: inherit; font: inherit; }
+
+/* ---------- the list's scroll line (replaces the white scroll bar) ---------- */
+.tm-scroll { scrollbar-width: none; }
+.tm-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.tm-rail { position: absolute; right: 7px; top: calc(96px + var(--safe-top, 0px)); bottom: 96px; width: 4px; z-index: 3; pointer-events: none; opacity: 0; transition: opacity .2s ease; }
+.tm-rail.on { opacity: 1; }
+.tm-rail::before { content: ""; position: absolute; inset: 0; border-radius: calc(4px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-acc, #EC4E86) 10%, transparent); }
+.tm-rail-thumb {
+  position: absolute; left: 0; top: 0; width: 4px; border-radius: calc(4px * var(--k-rd, 1));
+  background: linear-gradient(180deg, var(--k-acc, #EC4E86), var(--k-acc2, #A855F7)); box-shadow: 0 0 10px color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent), 0 0 18px color-mix(in srgb, var(--k-acc2, #A855F7) 35%, transparent);
+  transition: transform .42s cubic-bezier(.34, 1.56, .64, 1), height .3s cubic-bezier(.34, 1.56, .64, 1), width .2s ease, left .2s ease;
+  will-change: transform;
+}
+.tm-rail-thumb.moving { width: 6px; left: -1px; }
+
+/* ---------- "Working on" look: Red lightning (gear > Working on look; White glow is the default) ---------- */
+.tm-bolts { display: none; }
+.ws-lightning .tm-row.working {
+  background: radial-gradient(120% 140% at 50% 0%, var(--k-acc-bg, #4A0710) 0%, var(--k-surface, #24050A) 60%, var(--k-base, #16030A) 100%); color: var(--k-fg, #FFFFFF); border-color: var(--k-bad, #FF2E43);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-bad, #FF2E43) 55%, transparent), 0 0 40px 6px color-mix(in srgb, var(--k-bad, #FF1E32) 45%, transparent); animation: tm-storm 2.6s steps(1, end) infinite;
+}
+.ws-lightning .tm-row.working .tm-tick { border-color: var(--k-bad-t, #FF6B7A); }
+.ws-lightning .tm-row.working .tm-tick:hover { color: var(--k-fg, #FFFFFF); }
+.ws-lightning .tm-row.working .tm-working { color: var(--k-bad-t, #FF6B7A); text-shadow: 0 0 10px color-mix(in srgb, var(--k-bad, #FF2E43) 90%, transparent); }
+.ws-lightning .tm-row.working .tm-prio { background: var(--k-bad, #FF2E43); color: var(--k-on-bad, #FFFFFF); border-color: var(--k-bad, #FF2E43); box-shadow: 0 0 14px color-mix(in srgb, var(--k-bad, #FF2E43) 80%, transparent); }
+.ws-lightning .tm-row.working .tm-edit { color: var(--k-bad-t, #FFD1D6); border-color: color-mix(in srgb, var(--k-bad-t, #FF7887) 40%, transparent); background: color-mix(in srgb, var(--k-bad, #FF2E43) 12%, transparent); }
+.ws-lightning .tm-row.working .tm-streak { color: var(--k-warn, #FFD34D); background: color-mix(in srgb, var(--k-warn, #FFC400) 12%, transparent); text-shadow: 0 0 8px color-mix(in srgb, var(--k-warn, #FFC828) 55%, transparent); }
+.ws-lightning .tm-row.working .tm-due.late { color: var(--k-bad-t, #FFB3BB); }
+.ws-lightning .tm-bolts { display: block; position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.ws-lightning .tm-bolts i {
+  position: absolute; top: -6%; width: 34px; height: 112%; opacity: 0;
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 120'%3E%3Cpath d='M24 0 L10 46 L22 46 L6 120 L34 38 L21 38 L32 0Z' fill='%23FFE3E6'/%3E%3C/svg%3E");
+  filter: drop-shadow(0 0 4px var(--k-bad, #FF2E43)) drop-shadow(0 0 12px var(--k-bad, #FF2E43));
+  animation: tm-bolt 2.6s linear infinite;
+}
+.ws-lightning .tm-bolts i:nth-child(1) { left: 8%; animation-delay: .1s; }
+.ws-lightning .tm-bolts i:nth-child(2) { left: 46%; width: 26px; animation-delay: 1.15s; animation-duration: 3.1s; transform: scaleX(-1); }
+.ws-lightning .tm-bolts i:nth-child(3) { left: 72%; animation-delay: .55s; animation-duration: 2.2s; }
+.ws-lightning .tm-bolts i:nth-child(4) { left: 28%; width: 22px; animation-delay: 1.9s; animation-duration: 3.6s; transform: scaleX(-1); }
+@keyframes tm-bolt { 0%, 30%, 36%, 86%, 100% { opacity: 0; } 31% { opacity: .8; } 33% { opacity: .15; } 34% { opacity: .6; } 87% { opacity: .95; } 88% { opacity: .2; } 90% { opacity: .85; } 94% { opacity: 0; } }
+/* The row flashes brighter when a bolt strikes. */
+@keyframes tm-storm {
+  0% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-bad, #FF2E43) 55%, transparent), 0 0 40px 6px color-mix(in srgb, var(--k-bad, #FF1E32) 45%, transparent); }
+  33% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-bad, #FF5A69) 90%, transparent), 0 0 70px 14px color-mix(in srgb, var(--k-bad, #FF2E43) 70%, transparent); }
+  35% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-bad, #FF2E43) 55%, transparent), 0 0 40px 6px color-mix(in srgb, var(--k-bad, #FF1E32) 45%, transparent); }
+}
+.ws-lightning .tm-row.working > *:not(.tm-fx):not(.tm-bolts) { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .ws-lightning .tm-bolts i, .ws-lightning .tm-row.working { animation: none; } }
+.ws-lightning .tm-row.working .tm-bolts::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--k-bad, #FF3C50) 18%, transparent) 45%, color-mix(in srgb, var(--k-bad-t, #FFC8CD) 22%, transparent) 50%, color-mix(in srgb, var(--k-bad, #FF3C50) 18%, transparent) 55%, transparent 70%);
+  background-size: 250% 100%; animation: tm-crackle 2.2s linear infinite;
+}
+@keyframes tm-crackle { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+.tm-endday { width: 300px; display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.tm-endday-h { font-size: calc(15px * var(--k-fs, 1)); font-weight: 800; color: var(--k-fg, #FFFFFF); line-height: 1.3; }
+.tm-notify-row { justify-content: flex-start; }
+.tm-hist-btn { position: relative; }
+.tm-hist-n { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 calc(4px * var(--k-dn, 1)); border-radius: 999px; display: grid; place-items: center; background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 850; }
+.tm-hist { display: grid; gap: calc(6px * var(--k-dn, 1)); max-height: 240px; overflow: auto; padding: calc(8px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.tm-hist-i { display: grid; grid-template-columns: auto 1fr; gap: calc(10px * var(--k-dn, 1)); align-items: baseline; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.35; }
+.tm-hist-t { color: var(--k-acc-t, #F8A5C2); font-weight: 750; font-size: calc(12px * var(--k-fs, 1)); white-space: nowrap; }
+.tm-hist-x { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); overflow-wrap: anywhere; }
+
+/* ---------- dragging a new task (NewTasks.tsx) onto the list ---------- */
+.tm-dragging, .tm-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
+.tm-ghost {
+  position: fixed; left: 0; top: 0; z-index: 400; pointer-events: none; will-change: transform;
+  padding: calc(16px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1)); font-size: calc(19px * var(--k-fs, 1)); font-weight: 800; line-height: 1.25; color: var(--k-fg, #FFFFFF);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--k-acc2, #7C3AED) 92%, transparent), color-mix(in srgb, var(--k-acc, #EC4E86) 92%, transparent)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, .45), 0 0 28px color-mix(in srgb, var(--k-acc2, #A855F7) 45%, transparent);
+  transition: opacity .15s ease, filter .15s ease;
+}
+.tm-ghost.lost { opacity: .7; filter: saturate(.6); }
+.tm-ghost.landing { transition: transform .24s cubic-bezier(.2, 1.25, .35, 1), width .24s ease, opacity .2s ease; }
+.tm-ghost.gone { opacity: 0; transition: opacity .15s ease; }
+/* The grid gap would add 10px under every list, so the spacer pulls itself back up by that much. */
+.tm-list::after { content: ""; display: block; height: 0; margin-top: -10px; transition: height .2s cubic-bezier(.2,.9,.3,1); }
+.tm-list.room::after { height: var(--room, 0); }
+.tm-row.tm-room { transform: translateY(var(--room, 0)); }
+.tm-sec.drop-target .tm-sec-h, .tm-drop-empty.drop-target { color: var(--k-acc2-t, #F0ABFC); }
+.tm-drop-empty { min-height: 40px; list-style: none; margin: 0; padding: 0; }
+@keyframes tm-plop-in {
+  0% { transform: scale(.92); opacity: 0; box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 60%, transparent), 0 0 30px color-mix(in srgb, var(--k-acc2, #A855F7) 45%, transparent); }
+  55% { transform: scale(1.025); opacity: 1; }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(240,171,252,0), 0 0 0 rgba(168,85,247,0); }
+}
+.tm-row.plop-in { animation: tm-plop-in .5s cubic-bezier(.2, 1.3, .4, 1); }
+@media (prefers-reduced-motion: reduce) { .tm-row.plop-in { animation: none; } .tm-ghost.landing { transition: opacity .15s ease; } }
+
+/* ---------- screen time (top right) ---------- */
+.tm-st-btn { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: 0 calc(12px * var(--k-dn, 1)) 0 calc(10px * var(--k-dn, 1)); }
+.tm-st-v { font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 800; }
+.tm-st-pop { width: min(760px, calc(100vw - 60px)); gap: calc(16px * var(--k-dn, 1)); padding: calc(20px * var(--k-dn, 1)); max-height: calc(100vh - 110px); }
+.tm-st-head { display: grid; gap: calc(2px * var(--k-dn, 1)); }
+.tm-st-total { font-size: calc(42px * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.02em; line-height: 1.05; background: linear-gradient(90deg, var(--k-fg, #FFFFFF), var(--k-acc-t, #F9A8D4)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tm-st-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: calc(10px * var(--k-dn, 1)); height: 130px; align-items: end; }
+.tm-st-day { display: grid; grid-template-rows: 1fr auto; gap: calc(4px * var(--k-dn, 1)); height: 100%; justify-items: center; }
+.tm-st-bar { width: 100%; max-width: 34px; height: 100%; display: flex; align-items: flex-end; border-radius: calc(8px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); overflow: hidden; }
+.tm-st-bar i { display: block; width: 100%; border-radius: calc(8px * var(--k-rd, 1)); background: linear-gradient(180deg, var(--k-acc2, #A855F7), var(--k-acc, #EC4E86)); transform-origin: bottom; animation: tm-st-grow .45s cubic-bezier(.2, 1.2, .4, 1) both; }
+.tm-st-day.today .tm-st-bar i { background: linear-gradient(180deg, var(--k-acc-t, #F9A8D4), var(--k-acc, #EC4E86)); box-shadow: 0 0 14px color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); }
+.tm-st-dl { font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tm-st-day.today .tm-st-dl { color: var(--k-acc-t, #F9A8D4); }
+@keyframes tm-st-grow { from { transform: scaleY(0); } }
+.tm-st-pop .st-name { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(82% * var(--k-ia, 1))), transparent); }
+.tm-st-pop .st-track { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.tm-st-pop .st-fill { background: linear-gradient(90deg, var(--k-acc2, #A855F7), var(--k-acc, #EC4E86)); }
+.tm-st-pop .st-time { color: var(--k-fg, #FFFFFF); font-weight: 700; }
+.tm-st-pop .st-more { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+
+/* ---------- docked: the same board inside the web To-do page ----------
+   On the page it is a normal section that grows with its content (the page scrolls, never the
+   board), laid out as three columns: clocks, timelines and meetings | the list | controls,
+   suggestions and Urgent. Narrower windows put the left column under the list. */
+.tm-overlay.tm-docked {
+  position: relative; inset: auto; z-index: 1; animation: none; overflow: visible;
+  width: min(1680px, calc(100vw - 32px)); margin-left: calc(50% - min(840px, 50vw - 16px));
+  display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(250px, 300px); grid-template-rows: auto 1fr;
+  column-gap: calc(28px * var(--k-dn, 1)); row-gap: calc(14px * var(--k-dn, 1)); padding: calc(22px * var(--k-dn, 1)) calc(24px * var(--k-dn, 1)) calc(30px * var(--k-dn, 1)); min-height: 560px; border-radius: calc(26px * var(--k-rd, 1));
+  background: radial-gradient(120% 90% at 50% 0%, var(--k-surface, #2A1420) 0%, var(--k-base, #150B11) 55%, var(--k-base, #0E080B) 100%);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: 0 30px 80px -30px color-mix(in srgb, var(--k-acc-bg, #501432) 55%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent);
+}
+.tm-docked .tm-side, .tm-docked .tm-tr, .tm-docked .tm-scroll { position: static; inset: auto; }
+.tm-docked .tm-left { grid-column: 1; grid-row: 1 / span 2; width: auto; align-self: start; }
+.tm-docked .tm-left .tm-tl { margin-top: 0; }
+.tm-docked .tm-left .tm-clocks { max-height: none; }
+.tm-docked .tm-tr { grid-column: 3; grid-row: 1; align-self: start; }
+.tm-docked .tm-right { grid-column: 3; grid-row: 2; width: auto; justify-content: flex-start; align-self: start; max-height: none; }
+.tm-docked .tm-right .tm-mn { margin-bottom: 0; }
+.tm-docked .tm-scroll { grid-column: 2; grid-row: 1 / span 2; overflow: visible; padding: 0; }
+.tm-docked .tm-inner { width: 100%; min-height: 0; padding: calc(4px * var(--k-dn, 1)) 0 calc(10px * var(--k-dn, 1)); animation: none; }
+.tm-docked .tm-rail { display: none; }
+@media (max-width: 1100px) {
+  .tm-overlay.tm-docked { grid-template-columns: minmax(0, 1fr) minmax(240px, 280px); grid-template-rows: auto 1fr auto; }
+  .tm-docked .tm-scroll { grid-column: 1; grid-row: 1 / span 2; }
+  .tm-docked .tm-tr { grid-column: 2; }
+  .tm-docked .tm-right { grid-column: 2; }
+  .tm-docked .tm-left { grid-column: 1 / -1; grid-row: 3; flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+  .tm-docked .tm-left > * { flex: 0 0 auto; }
+  .tm-docked .tm-left > .tm-meet { flex: 1 1 320px; }
+}
+@media (max-width: 760px) {
+  .tm-overlay.tm-docked { grid-template-columns: minmax(0, 1fr); padding: calc(16px * var(--k-dn, 1)); width: auto; margin-left: 0; }
+  .tm-docked .tm-scroll, .tm-docked .tm-tr { grid-column: 1; grid-row: auto; }
+  .tm-docked .tm-tr { justify-content: flex-start; flex-wrap: wrap; }
+}
+.st-bars.with-icons li { grid-template-columns: 22px minmax(0, 9em) minmax(0, 1fr) auto; }
+.st-icon { width: 22px; height: 22px; border-radius: calc(6px * var(--k-rd, 1)); object-fit: contain; }
+.st-letter { display: grid; place-items: center; font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; background: linear-gradient(135deg, var(--k-acc2, #A855F7), var(--k-acc, #EC4E86)); color: var(--k-on-acc2, #FFFFFF); }
+.tm-st-pop .st-bars { gap: calc(10px * var(--k-dn, 1)); }
+.tm-st-pop .st-bars li { font-size: calc(14px * var(--k-fs, 1)); }
+.tm-st-pop .st-track { height: 12px; }
+.tm-st-away { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-acc2, #A855F7) 12%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc2, #A855F7) 28%, transparent); font-size: calc(13.5px * var(--k-fs, 1)); }
+.tm-st-away b { color: var(--k-fg, #FFFFFF); font-weight: 800; }
+.tm-st-away-i { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--k-acc2, #A855F7) 25%, transparent); color: var(--k-acc2-t, #E9D5FF); }
+
+/* ---------- screen time timeline ---------- */
+.stl { display: grid; gap: calc(8px * var(--k-dn, 1)); }
+.stl-head { display: flex; align-items: center; justify-content: space-between; min-height: 26px; }
+.stl-chart { position: relative; width: 100%; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.stl-chart:active { cursor: grabbing; }
+.stl-chart svg { display: block; overflow: visible; }
+.stl-grid { stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); stroke-width: 1; }
+.stl-floor { stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); stroke-width: 2; }
+.stl-away { stroke: color-mix(in srgb, var(--k-acc2-t, #C4B5FD) 55%, transparent); stroke-width: 3; stroke-dasharray: 2 6; stroke-linecap: round; }
+.stl-away-t { fill: var(--k-acc2-t, #DDD6FE); font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 750; text-anchor: middle; }
+/* The other device's line ends where it was last sent (V1.31): the rest is shaded, never drawn as away. */
+.stl-later-bg { fill: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); stroke-dasharray: 3 5; }
+.stl-seg { transition: x .12s linear, width .12s linear; }
+.stl-shine { fill: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); pointer-events: none; }
+.stl-label { pointer-events: none; }
+.stl-name { fill: var(--k-fg, #FFFFFF); font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: color-mix(in srgb, var(--k-base, #000000) 25%, transparent); stroke-width: 3px; }
+.stl-dur { fill: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(92% * var(--k-ia, 1))), transparent); font-size: calc(12px * var(--k-fs, 1)); font-weight: 750; text-anchor: middle; paint-order: stroke; stroke: color-mix(in srgb, var(--k-base, #000000) 25%, transparent); stroke-width: 3px; }
+.stl-tick { fill: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); font-size: calc(11px * var(--k-fs, 1)); font-weight: 650; text-anchor: middle; }
+.stl-now { stroke: var(--k-acc-t, #F9A8D4); stroke-width: 2; stroke-dasharray: 3 3; }
+.stl-tip {
+  position: absolute; top: 0; transform: translate(-50%, -100%); pointer-events: none; z-index: 2; white-space: nowrap;
+  display: grid; gap: calc(2px * var(--k-dn, 1)); padding: calc(7px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-base, #0C080E) 95%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); font-size: calc(12.5px * var(--k-fs, 1));
+}
+.stl-tip span { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); font-size: calc(11.5px * var(--k-fs, 1)); }
+.stl-zoom { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); }
+.stl-zoom .tm-pop-range { flex: 0 1 220px; }
+.stl-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); }
+.stl-legend li { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); }
+.stl-legend i { width: 10px; height: 10px; border-radius: calc(3px * var(--k-rd, 1)); }
+.stl-legend .num { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); font-weight: 700; }
+
+/* why was the developer away */
+.tm-st-away { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.tm-st-away-top { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); }
+.tm-st-away-top > span:nth-child(2) { flex: 1; }
+.tm-why { display: grid; gap: calc(8px * var(--k-dn, 1)); }
+.tm-why-cur { color: var(--k-acc2-t, #F0ABFC); }
+.tm-why-list { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); }
+.tm-why-chip { display: inline-flex; align-items: center; gap: calc(2px * var(--k-dn, 1)); }
+.tm-why-x { border: 0; background: transparent; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(40% * var(--k-ia, 1))), transparent); font-size: calc(15px * var(--k-fs, 1)); cursor: pointer; padding: 0 calc(4px * var(--k-dn, 1)); }
+.tm-why-x:hover { color: var(--k-bad-t, #FF9A9A); }
+.tm-why-in { flex: 1; font-size: calc(14px * var(--k-fs, 1)); padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.tm-st-why { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); }
+.tm-st-why-i b { color: var(--k-acc2-t, #E9D5FF); }
+
+/* ---------- the liquid glass bar (top middle) ---------- */
+/* Screen fit (V1.40): --tm-gx and --tm-gy are set by the page (TaskMap.tsx useGlassPlace, core/screenfit.ts glassPlace)
+   only when the middle of the screen would put it over the clock pill or the top right buttons. */
+.tm-glass-wrap { position: absolute; top: var(--tm-gy, calc(12px + var(--safe-top, 0px))); left: var(--tm-gx, 50%); transform: translateX(-50%); z-index: 4; display: grid; justify-items: center; gap: calc(8px * var(--k-dn, 1)); }
+.tm-glass, .tm-keep {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent), color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent));
+  -webkit-backdrop-filter: blur(22px) saturate(1.8); backdrop-filter: blur(22px) saturate(1.8);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(28% * var(--k-ia, 1))), transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent), inset 0 -1px 0 color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent), 0 10px 30px -10px rgba(0, 0, 0, .55);
+}
+.tm-glass { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(7px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border-radius: 999px; }
+.tm-glass-ic { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); flex: none; }
+.tm-glass-reset { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--k-fg, #FFFFFF);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); transition: transform .2s cubic-bezier(.2,1.3,.4,1), background .15s ease; }
+.tm-glass-reset:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(24% * var(--k-ia, 1))), transparent); transform: rotate(-40deg); }
+.tm-glass-range { -webkit-appearance: none; appearance: none; width: 220px; height: 26px; background: transparent; cursor: pointer; }
+.tm-glass-range::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent) 0 var(--p), color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent) var(--p) 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .35);
+}
+.tm-glass-range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 34px; height: 22px; margin-top: -8px; border-radius: 999px;
+  background: radial-gradient(120% 140% at 30% 20%, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(95% * var(--k-ia, 1))), transparent), color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent) 45%, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(25% * var(--k-ia, 1))), transparent));
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent);
+  box-shadow: inset 0 1px 1px color-mix(in srgb, var(--k-glow, #FFFFFF) 90%, transparent), inset 0 -2px 4px rgba(0, 0, 0, .12), 0 4px 12px rgba(0, 0, 0, .35);
+  transition: transform .18s cubic-bezier(.2,1.4,.4,1), width .18s ease;
+}
+.tm-glass-range:hover::-webkit-slider-thumb { transform: scale(1.08); }
+.tm-glass-range:active::-webkit-slider-thumb { transform: scale(1.18, .92); width: 40px; }
+.tm-glass-range:focus { outline: none; }
+.tm-keep { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: 999px; color: var(--k-fg, #FFFFFF); font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; cursor: pointer; transition: background .15s ease, transform .15s ease; }
+.tm-keep:hover { transform: translateY(-1px); }
+.tm-keep.on { background: linear-gradient(180deg, color-mix(in srgb, var(--k-acc, #EC4E86) 75%, transparent), color-mix(in srgb, var(--k-acc, #C8366B) 60%, transparent)); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.tm-keep-box { width: 18px; height: 18px; border-radius: calc(6px * var(--k-rd, 1)); display: grid; place-items: center; border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.tm-keep.on .tm-keep-box { background: var(--k-fg, #FFFFFF); color: var(--k-acc, #C8366B); border-color: var(--k-fg, #FFFFFF); }
+.tm-overlay:not(.tm-docked) .tm-inner { padding-top: max(calc(max(48px, 8vh) + 64px + var(--safe-top, 0px)), var(--tm-glass-low, 0px), calc(var(--tm-top-band, 0px) + 18px)); }
+/* V1.44 #9: the list fades out under the top bar (Keep overlay, Hover mode and the top right buttons, where they reach
+   over the list), so a task scrolled up never shows under them. The band is measured with the bar (TaskMap.tsx
+   useGlassPlace, ui/relayout.ts topBand); the list's own top padding starts below it. */
+.tm-overlay[data-band]:not(.tm-docked) .tm-scroll {
+  -webkit-mask-image: linear-gradient(to bottom, transparent var(--tm-top-band, 0px), #000 calc(var(--tm-top-band, 0px) + 18px)); /* k-keep: a mask, only its alpha counts */
+  mask-image: linear-gradient(to bottom, transparent var(--tm-top-band, 0px), #000 calc(var(--tm-top-band, 0px) + 18px)); /* k-keep */
+  clip-path: inset(var(--tm-top-band, 0px) 0 0 0);   /* and what is hidden there takes no clicks (a mask alone still would) */
+}
+.tm-glass-row { display: flex; gap: calc(8px * var(--k-dn, 1)); }
+/* Island clearance (V1.53, TaskMap.tsx useIslandClear, core/islandclear.ts): Keep overlay and Hover mode glide out of
+   the Dynamic Island's way and back, on a spring close to the island's own (Island.swift: response .38, damping .74),
+   so they move with it. Only translate and opacity: nothing else on the list lays out again. `translate` is its own
+   property, so the buttons' hover lift (transform) still works on top of it. The slider fades while the island's open
+   view is over it. .isl-now: the list is opening, everything is already in place. */
+.tm-glass-wrap .tm-keep { translate: var(--isl-dx, 0px) 0; /* k-keep: a measured distance */
+  transition: translate .52s var(--isl-wait, 0ms) cubic-bezier(.22, 1.18, .36, 1), opacity .24s ease, scale .24s ease, background .15s ease, transform .15s ease; }
+.tm-glass-wrap .tm-glass { transition: opacity .22s ease, translate .26s cubic-bezier(.22, 1, .36, 1); }
+.tm-glass-wrap .tm-keep.isl-hide, .tm-glass-wrap .tm-glass.isl-hide { opacity: 0; pointer-events: none; }
+.tm-glass-wrap .tm-keep.isl-hide { scale: .92; }
+.tm-glass-wrap .tm-glass.isl-hide { translate: 0 -4px; /* k-keep: a small drift */ }
+.tm-glass-wrap.isl-now .tm-keep, .tm-glass-wrap.isl-now .tm-glass { transition: none; }
+/* A top right button the island's open view reaches over fades out while it is open, and back after. Animations, so
+   they never fight the buttons' own transitions or Hover mode's opacity. */
+.tm-overlay .isl-under { animation: isl-under .2s ease forwards; pointer-events: none; }
+.tm-overlay .isl-back { animation: isl-back .32s ease; }
+@keyframes isl-under { to { opacity: 0; } }
+@keyframes isl-back { from { opacity: 0; } }
+/* V1.53 sweep: the pop-ups in the middle of the floating list (New tasks, Add task) open below the top bar, the
+   Dynamic Island and the update card while it is up (UpdateFace.tsx --uf-bottom), so a tall one never reaches up over
+   the slider, the buttons, the island or that card. */
+/* V1.55 small screens: never so low that a pop-up has no room left under it (at least 320 px stay free at the bottom). */
+.tm-overlay:not(.tm-docked) { --tm-pop-top: min(max(calc(24px * var(--k-dn, 1) + var(--safe-top, 0px)), calc(var(--tm-top-band, 0px) + 12px), calc(var(--isl-bottom, 0px) + 12px), var(--uf-bottom, 0px)), max(calc(24px + var(--safe-top, 0px)), calc(100vh - 320px))); }
+.tm-overlay:not(.tm-docked) :is(.nt-layer:not(.docked), .tm-add-layer) { padding-top: var(--tm-pop-top); }
+.tm-overlay:not(.tm-docked) .nt-layer:not(.docked) .nt-pop { max-height: min(80vh, 860px, calc(100vh - var(--tm-pop-top) - 24px)); /* k-keep: the room left under the top bar */ }
+@media (prefers-reduced-motion: reduce) {
+  .tm-glass-wrap .tm-keep { transition: translate .16s ease, opacity .16s ease, background .15s ease; }
+  .tm-overlay .isl-back { animation: none; }
+  .tm-glass-wrap .tm-keep.isl-hide { scale: none; }
+}
+/* Hover mode: everything nearly invisible; the part under the mouse ([data-hm], set by the page from
+   the mouse moves PS passes on) fades in. PS sets [data-mouse-out] while the pointer is over the app behind. */
+.tm-hovermode .tm-side > *, .tm-hovermode .tm-tr, .tm-hovermode .tm-head, .tm-hovermode .tm-sec, .tm-hovermode .tm-empty {
+  opacity: .05; transition: opacity .28s ease;
+}
+.tm-hovermode [data-hm], .tm-hovermode .tm-side > *:focus-within, .tm-hovermode .tm-tr:focus-within,
+.tm-hovermode .tm-head:focus-within, .tm-hovermode .tm-sec:focus-within { opacity: 1; transition-duration: .12s; }
+.tm-hovermode[data-mouse-out] [data-hm]:not(:focus-within) { opacity: .05; }
+.tm-hovermode .tm-rail { opacity: 0; }
+
+/* ---------- clear background (glass slider below the default, or Hover mode) ----------
+   The slider is only for what is BEHIND the list. Every card, panel and pop-up then gets its own
+   solid backing, so your screen never shows through the text and everything stays easy to read. */
+.tm-clear .tm-clocks, .tm-clear .tm-ckpill, .tm-clear .tm-cmp, .tm-clear .tm-tl-pill, .tm-clear .tm-tl-panel,
+.tm-clear .tm-meet, .tm-clear .tm-mn, .tm-clear .tm-aware, .tm-clear .tm-editor, .tm-clear .tm-pill-btn,
+.tm-clear .tm-undo, .tm-clear .tm-pop, .tm-clear .tm-empty {
+  background: color-mix(in srgb, var(--k-surface, #160E13) 95%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-base, #000000) 35%, transparent);
+}
+.tm-clear .tm-ckdock.open .tm-ckpill, .tm-clear .tm-tl.open .tm-tl-pill, .tm-clear .tm-pill-btn.on { background: color-mix(in srgb, var(--k-acc-bg, #46182E) 96%, transparent); }
+.tm-clear .tm-aware { background: color-mix(in srgb, var(--k-bad-bg, #300A0E) 96%, transparent); }
+.tm-clear .tm-row:not(.working) { background: color-mix(in srgb, var(--k-surface, #1C1219) 96%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-base, #000000) 35%, transparent); }
+.tm-clear .tm-row.done:not(.working) { background: color-mix(in srgb, var(--k-surface, #181015) 96%, transparent); }
+/* Clear background: a ticked row stays solid (its words are dimmed instead of the whole card), and
+   PS's own Tab and Lock buttons get a backing too, so nothing on the list turns see-through. */
+.tm-clear .tm-row.done { opacity: 1; }
+.tm-clear .tm-row.done > *:not(.tm-tick) { opacity: .5; }
+.tm-clear .ps-ovl-btn { background: color-mix(in srgb, var(--k-surface, #160E13) 95%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); }
+.tm-clear .tm-head { background: color-mix(in srgb, var(--k-surface, #160E13) 95%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.tm-clear .tm-title { text-shadow: none; }
+.tm-clear .tm-sec-h { background: color-mix(in srgb, var(--k-surface, #160E13) 95%, transparent); }
+/* The headline box and the section labels keep the SAME size and place whatever the glass slider
+   says: only their backing appears (18 Oct 2026: the list jolted when the slider crossed 45). The
+   padding is cancelled by an equal negative margin, so the text sits where it always did. */
+.tm-head { padding: calc(14px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); margin: -14px -20px -16px; border-radius: calc(20px * var(--k-rd, 1)); }
+.tm-sec-h { justify-self: start; padding: calc(5px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); margin: -5px -12px; border-radius: 999px; }
+.tm-clear .tm-glass, .tm-clear .tm-keep:not(.on) { background: linear-gradient(180deg, color-mix(in srgb, var(--k-surface, #3C2E38) 92%, transparent), color-mix(in srgb, var(--k-surface, #1C141A) 92%, transparent)); }
+
+/* Smooth: the background tint fades, cards ease into their solid backing, and Hover mode parts
+   fade on their own GPU layer (opacity only, nothing repainted). */
+.tm-overlay { transition: background-color .22s ease; }
+.tm-clocks, .tm-ckpill, .tm-tl-pill, .tm-tl-panel, .tm-meet, .tm-mn, .tm-aware, .tm-pill-btn, .tm-undo, .tm-head, .tm-sec-h {
+  transition-property: background-color, border-color, box-shadow, opacity, transform; transition-duration: .2s; transition-timing-function: ease;
+}
+.tm-hovermode .tm-side > *, .tm-hovermode .tm-tr, .tm-hovermode .tm-head, .tm-hovermode .tm-sec, .tm-hovermode .tm-empty { will-change: opacity; }
+.tm-hovermode .tm-row::before, .tm-hovermode .tm-fx { display: none; }
+.tm-meet-t { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 calc(8px * var(--k-dn, 1)); }
+.tm-meet-bar { display: inline-block; width: 18px; height: 2px; border-radius: calc(2px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.tm-meet-tz { font-size: calc(12px * var(--k-fs, 1)); font-weight: 750; color: var(--k-info-t, #A5D8FF); }
+/* Panels that open over other parts of the list are always solid (nothing shows through them). */
+.tm-left .tm-clocks, .tm-tl-panel, .tm-cmp, .tm-cmp-sub { background: color-mix(in srgb, var(--k-surface, #160E13) 97%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+
+/* Client emails, top right: every client email not dealt with yet (newest first) */
+.tm-right .tm-mail { margin-bottom: auto; flex: 0 1 auto; min-height: 0; overflow: hidden; border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); }
+.tm-right .tm-mail:has(~ .tm-mn) { margin-bottom: 0; }
+.tm-mail ul { max-height: min(40vh, 380px); gap: 0; }
+.tm-mail li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: calc(2px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); cursor: default; margin: 0 -6px; padding: calc(9px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1));
+  border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); border-radius: 0; animation: tm-mail-in .5s cubic-bezier(.22,1,.36,1) both; }
+.tm-mail li:first-child { border-top: 0; padding-top: calc(2px * var(--k-dn, 1)); }
+.tm-mail li:hover { background: transparent; }
+.tm-mail-who { font-size: calc(14px * var(--k-fs, 1)); font-weight: 700; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-mail-who em { font-style: normal; font-weight: 550; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.tm-mail li.fresh .tm-mail-who::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; vertical-align: 1px;
+  border-radius: 50%; background: var(--k-acc, #EC4E86); box-shadow: 0 0 8px color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); }
+.tm-mail-t { align-self: center; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); white-space: nowrap; }
+.tm-mail-s { grid-column: 1 / -1; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 650; color: var(--k-acc-t, #F49BBE); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-mail-p { grid-column: 1 / -1; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.42; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(76% * var(--k-ia, 1))), transparent);
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.tm-mail-a { grid-column: 1 / -1; display: flex; gap: calc(6px * var(--k-dn, 1)); margin-top: 5px; }
+.tm-mail-a .tm-meet-j { padding: calc(4px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); transition: transform .2s cubic-bezier(.22,1,.36,1), background .2s ease; }
+.tm-mail-a .tm-meet-j:hover { transform: translateY(-1px); }
+.tm-mail-done { border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(24% * var(--k-ia, 1))), transparent); background: transparent; color: var(--k-fg, #FFFFFF); border-radius: calc(99px * var(--k-rd, 1)); padding: calc(4px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1));
+  font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; cursor: pointer; transition: background .2s ease, border-color .2s ease, transform .2s cubic-bezier(.22,1,.36,1); }
+.tm-mail-done:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 24%, transparent); border-color: var(--k-acc, #EC4E86); transform: translateY(-1px); }
+/* Reply (PS on the Mac, core/overlaymail.ts): the first and brightest button; Open then looks like Done. */
+.tm-mail-a .tm-mail-reply { border: 0; cursor: pointer; font-family: inherit; background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.tm-mail-a .tm-mail-reply:hover { filter: brightness(1.08); }
+.tm-mail-a a.tm-mail-done { text-decoration: none; display: inline-flex; align-items: center; }
+.tm-mail-who .tm-mail-via { color: var(--k-acc-t, #F49BBE); }
+@keyframes tm-mail-in { from { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .tm-mail li { animation: none; } }
+
+/* ---------- Priority 1: one outline around the whole group (core/prio.ts, Settings picks the look) ----------
+   Only transforms and opacity animate; the frame is measured by the page, never per frame. */
+.tm-list { isolation: isolate; }
+.tm-p1-frame { position: absolute; left: -12px; right: -12px; top: 0; height: 0; z-index: -1; pointer-events: none; border-radius: calc(24px * var(--k-rd, 1)); list-style: none;
+  transition: top .28s cubic-bezier(.22,1,.36,1), height .28s cubic-bezier(.22,1,.36,1); }
+.tm-p1-frame.mini { position: relative; left: auto; right: auto; display: block; width: 100%; height: 100%; border-radius: calc(10px * var(--k-rd, 1)); transition: none; z-index: 0; }
+.tm-p1-frame > * { position: absolute; pointer-events: none; }
+/* plain outlines */
+.p1d-red { border: 2px solid var(--k-bad, #FF3B3B); box-shadow: 0 0 18px color-mix(in srgb, var(--k-bad, #FF2828) 55%, transparent), inset 0 0 14px color-mix(in srgb, var(--k-bad, #FF2828) 20%, transparent); }
+.p1d-purple { border: 2px solid var(--k-acc2, #8B5CF6); box-shadow: 0 0 18px color-mix(in srgb, var(--k-acc2, #8B5CF6) 60%, transparent), inset 0 0 14px color-mix(in srgb, var(--k-acc2, #8B5CF6) 22%, transparent); }
+.p1d-gold { border: 2px solid var(--k-warn, #F5C542); box-shadow: 0 0 18px color-mix(in srgb, var(--k-warn, #F5C542) 55%, transparent), inset 0 0 14px color-mix(in srgb, var(--k-warn, #F5C542) 20%, transparent); }
+/* glisten: a ring with a bright sweep running round it */
+.p1-ring { inset: 0; border-radius: inherit; padding: calc(2.5px * var(--k-dn, 1)); overflow: hidden; background: var(--k-bad, #FF2E3E);
+  -webkit-mask: linear-gradient(var(--k-base, #000000) 0 0) content-box, linear-gradient(var(--k-base, #000000) 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.p1d-red-glisten { box-shadow: 0 0 22px color-mix(in srgb, var(--k-bad, #FF1E32) 50%, transparent); }
+.p1d-white-glisten .p1-ring { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); }
+.p1d-white-glisten { box-shadow: 0 0 22px color-mix(in srgb, var(--k-glow, #FFFFFF) 35%, transparent); }
+.p1-ring b { position: absolute; top: -60%; bottom: -60%; left: 0; width: 28%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(95% * var(--k-ia, 1))), transparent) 45%, var(--k-fg, #FFFFFF) 50%, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(95% * var(--k-ia, 1))), transparent) 55%, transparent);
+  transform: translateX(-120%) skewX(-18deg); animation: p1-sweep 2.6s cubic-bezier(.45,0,.2,1) infinite; }
+.p1d-white-glisten .p1-ring b { background: linear-gradient(90deg, transparent, var(--k-warn-t, #FFE7A3) 45%, var(--k-fg, #FFFFFF) 50%, var(--k-warn-t, #FFE7A3) 55%, transparent); }
+@keyframes p1-sweep { 0% { transform: translateX(-120%) skewX(-18deg); } 60%, 100% { transform: translateX(380%) skewX(-18deg); } }
+/* rainbow: the ring's colours turn */
+.p1d-rainbow .p1-ring { background: linear-gradient(90deg, var(--k-bad, #FF3B3B), var(--k-warn, #FFB13B), var(--k-warn, #F5F53B), var(--k-ok, #3BFF7A), var(--k-info, #3BC8FF), var(--k-acc2, #8B5CF6), var(--k-acc2, #FF3BD0), var(--k-bad, #FF3B3B)); animation: p1-hue 4s linear infinite; }
+.p1d-rainbow .p1-ring b { display: none; }
+.p1d-rainbow { box-shadow: 0 0 22px color-mix(in srgb, var(--k-acc2, #8B5CF6) 45%, transparent); }
+@keyframes p1-hue { to { filter: hue-rotate(360deg); } }
+/* red lightning: a storm behind the group */
+.p1d-lightning { border: 2px solid color-mix(in srgb, var(--k-bad, #FF3232) 90%, transparent); background: radial-gradient(120% 140% at 50% 0%, color-mix(in srgb, var(--k-bad-bg, #96000F) 55%, transparent), color-mix(in srgb, var(--k-surface, #280006) 55%, transparent)); box-shadow: 0 0 26px color-mix(in srgb, var(--k-bad, #FF141E) 45%, transparent); overflow: hidden; }
+.p1-bolts { inset: 0; width: 100%; height: 100%; fill: none; stroke: var(--k-bad-t, #FF6B6B); stroke-width: .8; filter: drop-shadow(0 0 2px var(--k-bad, #FF2020)); opacity: 0; animation: p1-flash 3.6s steps(1, end) infinite; }
+.p1-bolts path:nth-child(2) { animation: p1-flash 3.6s steps(1, end) .9s infinite; }
+@keyframes p1-flash { 0%, 100% { opacity: 0; } 8% { opacity: .9; } 10% { opacity: .1; } 12% { opacity: .75; } 16% { opacity: 0; } }
+/* hit the target: corner brackets, crosshair and a bullseye aimed at the group */
+.p1d-target { border: 1px solid color-mix(in srgb, var(--k-bad, #FF4646) 45%, transparent); }
+.p1-corner { width: 22px; height: 22px; border: 3px solid var(--k-bad, #FF3B3B); }
+.p1-corner.tl { left: -4px; top: -4px; border-right: 0; border-bottom: 0; border-radius: calc(10px * var(--k-rd, 1)) 0 0 0; }
+.p1-corner.tr { right: -4px; top: -4px; border-left: 0; border-bottom: 0; border-radius: 0 calc(10px * var(--k-rd, 1)) 0 0; }
+.p1-corner.bl { left: -4px; bottom: -4px; border-right: 0; border-top: 0; border-radius: 0 0 0 calc(10px * var(--k-rd, 1)); }
+.p1-corner.br { right: -4px; bottom: -4px; border-left: 0; border-top: 0; border-radius: 0 0 calc(10px * var(--k-rd, 1)) 0; }
+.p1-bull { right: -58px; top: 50%; width: 44px; height: 44px; margin-top: -22px; animation: p1-aim 2.2s ease-in-out infinite; }
+.p1-bull b { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--k-bad, #FF3B3B); }
+.p1-bull b:nth-child(2) { inset: 9px; } .p1-bull b:nth-child(3) { inset: 18px; background: var(--k-bad, #FF3B3B); }
+.p1-cross.h { left: -40px; right: -40px; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--k-bad, #FF4646) 70%, transparent) 12%, transparent 30%, transparent 70%, color-mix(in srgb, var(--k-bad, #FF4646) 70%, transparent) 88%, transparent); }
+.p1-cross.v { top: -26px; bottom: -26px; left: 50%; width: 1px; background: linear-gradient(180deg, color-mix(in srgb, var(--k-bad, #FF4646) 80%, transparent), transparent 30%, transparent 70%, color-mix(in srgb, var(--k-bad, #FF4646) 80%, transparent)); }
+@keyframes p1-aim { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.15); opacity: 1; } }
+/* radar lock: a sweep turning inside the frame */
+.p1d-radar { border: 2px solid color-mix(in srgb, var(--k-ok, #46FF8C) 80%, transparent); box-shadow: 0 0 20px color-mix(in srgb, var(--k-ok, #46FF8C) 35%, transparent); overflow: hidden; }
+.p1-radar { inset: 0; overflow: hidden; border-radius: inherit; }
+.p1-radar b { position: absolute; left: 50%; top: 50%; width: 220vmax; height: 220vmax; margin: -110vmax 0 0 -110vmax; max-width: 2400px; max-height: 2400px;
+  background: conic-gradient(from 0deg, color-mix(in srgb, var(--k-ok, #46FF8C) 32%, transparent), transparent 12%); animation: p1-spin 3.2s linear infinite; }
+@keyframes p1-spin { to { transform: rotate(360deg); } }
+/* neon sign: a pink tube that flickers, with its label */
+.p1d-neon { border: 3px solid var(--k-acc, #FF5BC8); box-shadow: 0 0 6px var(--k-acc, #FF5BC8), 0 0 22px color-mix(in srgb, var(--k-acc, #FF5BC8) 70%, transparent), inset 0 0 10px color-mix(in srgb, var(--k-acc, #FF5BC8) 45%, transparent); animation: p1-neon 4s steps(1, end) infinite; }
+.p1-neon-l { left: 18px; top: -11px; padding: 0 calc(8px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); font-weight: 900; letter-spacing: .18em; color: var(--k-acc-t, #FFD6F2); background: var(--k-base, #12060F); border-radius: calc(6px * var(--k-rd, 1));
+  text-shadow: 0 0 6px var(--k-acc, #FF5BC8), 0 0 14px var(--k-acc, #FF5BC8); }
+@keyframes p1-neon { 0%, 100% { opacity: 1; } 31% { opacity: .55; } 32% { opacity: 1; } 34% { opacity: .6; } 35% { opacity: 1; } 78% { opacity: .7; } 79% { opacity: 1; } }
+/* glitch: two shifted outlines that jitter */
+.p1-gl { inset: 0; border-radius: inherit; border: 2px solid; }
+.p1-gl.a { border-color: color-mix(in srgb, var(--k-info, #00F0FF) 85%, transparent); animation: p1-glitch 1.4s steps(2, end) infinite; }
+.p1-gl.b { border-color: color-mix(in srgb, var(--k-acc, #FF1E46) 90%, transparent); animation: p1-glitch 1.1s steps(2, end) infinite reverse; }
+@keyframes p1-glitch { 0% { transform: translate(0, 0); } 20% { transform: translate(-3px, 1px); } 40% { transform: translate(2px, -2px); } 60% { transform: translate(-1px, 2px); } 80% { transform: translate(3px, 0); } 100% { transform: translate(0, 0); } }
+/* crown: gold outline with a crown that bobs */
+.p1d-crown { border: 2px solid var(--k-warn, #F5C542); box-shadow: 0 0 20px color-mix(in srgb, var(--k-warn, #F5C542) 50%, transparent); }
+.p1-crown { left: -14px; top: -30px; width: 44px; height: 30px; fill: var(--k-warn, #F5C542); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--k-warn, #F5C542) 80%, transparent)); transform: rotate(-14deg); animation: p1-bob 2.4s ease-in-out infinite; }
+@keyframes p1-bob { 0%, 100% { transform: rotate(-14deg) translateY(0); } 50% { transform: rotate(-10deg) translateY(-4px); } }
+
+/* ---------- looks where the whole screen points at the P1 group (behind everything, no clicks) ---------- */
+.tm-p1-scene { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; opacity: var(--tm-bgfade, 1); }   /* fades with the glass slider (V1.34) */
+.tm-p1-scene > i { position: absolute; inset: 0; }
+.p1s-spotlight > i { background: radial-gradient(calc(var(--p1w, 600px) * .9) calc(var(--p1h, 200px) * 1.2) at var(--p1x, 50%) var(--p1y, 30%), transparent 55%, color-mix(in srgb, var(--k-base, #000000) 62%, transparent) 100%); }
+.p1s-converge > i { left: calc(var(--p1x, 50%) - 150vmax); top: calc(var(--p1y, 30%) - 150vmax); width: 300vmax; height: 300vmax; right: auto; bottom: auto;
+  background: repeating-conic-gradient(from 0deg, transparent 0 4.4deg, color-mix(in srgb, var(--k-bad, #FF3C3C) 18%, transparent) 4.4deg 5deg);
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 0 calc(var(--p1w, 600px) * .42), var(--k-base, #000000) calc(var(--p1w, 600px) * .9)); mask: radial-gradient(circle at 50% 50%, transparent 0 calc(var(--p1w, 600px) * .42), var(--k-base, #000000) calc(var(--p1w, 600px) * .9));
+  animation: p1-pull 3s ease-in-out infinite; }
+@keyframes p1-pull { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
+.p1s-tunnel > i { left: calc(var(--p1x, 50%) - 150vmax); top: calc(var(--p1y, 30%) - 150vmax); width: 300vmax; height: 300vmax; right: auto; bottom: auto;
+  background: repeating-radial-gradient(circle at 50% 50%, transparent 0 46px, color-mix(in srgb, var(--k-bad, #FF323C) 16%, transparent) 46px 49px);
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 0 calc(var(--p1w, 600px) * .4), var(--k-base, #000000) calc(var(--p1w, 600px) * .75)); mask: radial-gradient(circle at 50% 50%, transparent 0 calc(var(--p1w, 600px) * .4), var(--k-base, #000000) calc(var(--p1w, 600px) * .75));
+  animation: p1-tunnel 1.6s linear infinite; }
+@keyframes p1-tunnel { from { transform: scale(1.04); } to { transform: scale(1); } }
+.p1s-hypno > i { left: calc(var(--p1x, 50%) - 150vmax); top: calc(var(--p1y, 30%) - 150vmax); width: 300vmax; height: 300vmax; right: auto; bottom: auto;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--k-acc2, #8B5CF6) 16%, transparent) 0 15deg, color-mix(in srgb, var(--k-bad, #FF283C) 10%, transparent) 15deg 30deg);
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 0 calc(var(--p1w, 600px) * .38), var(--k-base, #000000) calc(var(--p1w, 600px) * 1.1)); mask: radial-gradient(circle at 50% 50%, transparent 0 calc(var(--p1w, 600px) * .38), var(--k-base, #000000) calc(var(--p1w, 600px) * 1.1));
+  animation: p1-spin 24s linear infinite; }
+/* the scene looks still get a clear outline round the group */
+.p1d-spotlight { border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); box-shadow: 0 0 30px color-mix(in srgb, var(--k-glow, #FFFFFF) 25%, transparent); }
+.p1d-converge, .p1d-tunnel { border: 2px solid var(--k-bad, #FF3B3B); box-shadow: 0 0 24px color-mix(in srgb, var(--k-bad, #FF2828) 50%, transparent); }
+.p1d-hypno { border: 2px solid var(--k-acc2, #8B5CF6); box-shadow: 0 0 24px color-mix(in srgb, var(--k-acc2, #8B5CF6) 55%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .tm-p1-frame, .tm-p1-frame *, .tm-p1-scene > i { animation: none !important; transition: none !important; }
+  .p1-ring b { display: none; } .p1-bolts { opacity: .6; }
+}
+/* the Priority 1 switch in the task editor */
+.tm-p1-switch { display: inline-flex; align-items: center; gap: calc(9px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 750;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); }
+.tm-p1-knob { width: 30px; height: 18px; border-radius: 999px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); position: relative; transition: background .2s ease; }
+.tm-p1-knob::after { content: ""; position: absolute; left: 2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--k-fg, #FFFFFF); transition: transform .2s cubic-bezier(.22,1,.36,1); }
+.tm-p1-switch.on { color: var(--k-fg, #FFFFFF); border-color: var(--k-bad, #FF3B3B); background: color-mix(in srgb, var(--k-bad, #FF283C) 16%, transparent); }
+.tm-p1-switch.on .tm-p1-knob { background: var(--k-bad, #FF3B3B); }
+.tm-p1-switch.on .tm-p1-knob::after { transform: translateX(12px); }
+/* the Priority 1 look picker (gear menu): click a tile, or slide through them */
+.tm-pop-wrap.hover-pop .tm-pop { width: 340px; }
+.tm-p1-range { width: 100%; }
+.tm-p1-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(8px * var(--k-dn, 1)); max-height: 300px; overflow-y: auto; padding: calc(4px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)); scrollbar-width: thin; }
+.tm-p1-tile { display: grid; gap: calc(6px * var(--k-dn, 1)); justify-items: center; padding: calc(8px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); cursor: pointer; font: inherit; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); transition: background .15s ease, border-color .15s ease; }
+.tm-p1-tile:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.tm-p1-tile.on { border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); box-shadow: 0 0 0 1px var(--k-acc, #EC4E86); }
+.tm-p1-sample { position: relative; width: 100%; height: 50px; border-radius: calc(8px * var(--k-rd, 1)); overflow: hidden; background: var(--k-base, #0D080B); display: grid; place-items: center; }
+.tm-p1-sample > .tm-p1-scene { position: absolute; inset: 0; }
+.tm-p1-sample > .tm-p1-frame.mini { position: relative; width: 70%; height: 26px; display: grid; align-content: center; gap: calc(4px * var(--k-dn, 1)); padding: 0 calc(8px * var(--k-dn, 1)); }
+.tm-p1-frame.mini > .tm-p1-bar { position: static; display: block; height: 4px; border-radius: calc(3px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tm-p1-frame.mini > .tm-p1-bar + .tm-p1-bar { width: 60%; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); }
+.tm-p1-frame.mini .p1-bull, .tm-p1-frame.mini .p1-cross, .tm-p1-frame.mini .p1-crown, .tm-p1-frame.mini .p1-neon-l { display: none; }
+.tm-p1-frame.mini .p1-corner { width: 8px; height: 8px; border-width: 2px; }
+.tm-p1-name { font-size: calc(11px * var(--k-fs, 1)); font-weight: 700; line-height: 1.2; text-align: center; }
+/* ---------- the Add task window (the + by the headline, or Tab + 1) ---------- */
+.tm-add-layer { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: calc(var(--safe-top, 0px) + 24px) calc(24px * var(--k-dn, 1)) calc(24px * var(--k-dn, 1)); }
+.tm-add-layer.docked { z-index: 96; }
+.tm-add-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--k-base, #060305) 55%, transparent); animation: tm-add-dim .2s ease both; }
+@keyframes tm-add-dim { from { opacity: 0; } }
+.tm-add-win {
+  position: relative; width: min(720px, 100%); max-height: 100%; overflow-y: auto; display: grid; gap: calc(14px * var(--k-dn, 1)); padding: calc(24px * var(--k-dn, 1)) calc(26px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)); border-radius: calc(26px * var(--k-rd, 1));
+  background: var(--k-surface, #1A1016); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, .7), 0 0 0 1px color-mix(in srgb, var(--k-base, #000000) 40%, transparent), 0 0 60px color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent);
+  animation: tm-add-in .32s cubic-bezier(.22, 1, .36, 1) both;
+}
+@keyframes tm-add-in { from { opacity: 0; transform: translateY(14px) scale(.95); } to { opacity: 1; transform: none; } }
+.tm-add-top { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); }
+.tm-add-h { flex: none; white-space: nowrap; margin: 0; font-size: calc(22px * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.01em; }
+.tm-add-done { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); min-width: 0; max-width: 60%; font-size: calc(13px * var(--k-fs, 1)); font-weight: 750; color: var(--k-ok-t, #86EFAC); padding: calc(4px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-ok, #22C55E) 16%, transparent); animation: tm-add-ok .45s cubic-bezier(.22, 1, .36, 1) both; }
+.tm-add-done svg { flex: none; width: 15px; height: 15px; stroke-width: 2.6; }
+.tm-add-done b { flex: none; min-width: 18px; padding: 0 calc(5px * var(--k-dn, 1)); border-radius: 999px; text-align: center; font-size: .88em; color: var(--k-base, #060305); background: var(--k-ok-t, #86EFAC); }
+.tm-add-done i { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-style: normal; font-weight: 600; opacity: .85; }
+@keyframes tm-add-ok { 0% { opacity: 0; transform: scale(.8); } 60% { opacity: 1; transform: scale(1.04); } 100% { transform: none; } }
+/* Quick add (V1.33): the window is small and the list shows through, so the new task can be seen arriving. */
+.tm-add-layer.quick .tm-add-dim { background: color-mix(in srgb, var(--k-base, #060305) 34%, transparent); }
+.tm-add-layer.quick .tm-add-win { width: min(560px, 100%); }
+.tm-add-adv { display: grid; gap: calc(14px * var(--k-dn, 1)); animation: tm-add-adv .26s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes tm-add-adv { from { opacity: 0; transform: translateY(6px); } }
+.tm-add-advbtn { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); }
+.tm-add-foot .tm-add-advbtn, .tm-add-foot .tm-add-go { flex: none; white-space: nowrap; }
+.tm-add-foot .tm-pop-note { min-width: 0; }
+.tm-add-advbtn svg { width: 15px; height: 15px; transition: transform .22s ease; }
+.tm-add-advbtn.on { color: var(--k-fg, #FFFFFF); border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent); }
+.tm-add-advbtn.on svg { transform: rotate(180deg); }
+.tm-add-x { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer; font-size: calc(22px * var(--k-fs, 1)); line-height: 1; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.tm-add-x:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+.tm-add-title { width: 100%; padding: calc(16px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-base, #000000) 35%, transparent); color: var(--k-fg, #FFFFFF);
+  font: inherit; font-size: calc(22px * var(--k-fs, 1)); font-weight: 700; outline: none; transition: border-color .15s ease, box-shadow .15s ease; }
+.tm-add-title:focus { border-color: var(--k-acc, #EC4E86); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); }
+.tm-add-notes { width: 100%; padding: calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-base, #000000) 25%, transparent); color: var(--k-fg, #FFFFFF); font: inherit; font-size: calc(15px * var(--k-fs, 1)); resize: vertical; outline: none; }
+.tm-add-notes:focus { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); }
+.tm-add-grid { display: grid; grid-template-columns: auto 1fr; gap: calc(10px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); align-items: center; }
+.tm-add-l { font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tm-add-row { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+.tm-add-chip { padding: calc(8px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(14px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); transition: background .15s ease, border-color .15s ease; }
+.tm-add-chip:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.tm-add-chip.on { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc, #EC4E86) 24%, transparent); border-color: var(--k-acc, #EC4E86); }
+.tm-add-foot { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding-top: calc(4px * var(--k-dn, 1)); }
+.tm-add-foot .tm-pop-note { margin-right: auto; }
+.tm-add-go { padding: calc(10px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)); font-size: calc(15px * var(--k-fs, 1)); }
+@media (max-width: 560px) { .tm-add-grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .tm-add-win, .tm-add-dim, .tm-add-done, .tm-add-adv { animation: none; } }
+
+/* ---------- Priority 1 looks: only the outline area ever moves (18 Oct 2026) ----------
+   The developer saw the rest of the list shimmer "like TV static" with some looks. Measured in PS: Tunnel
+   vision, Hypno spiral and Glitch changed pixels OUTSIDE the outline (their moving layers showed
+   through the see-through rows and panels, or nudged past the outline). Now:
+   - the outline is its own composited layer, and everything that moves sits inside its bounds;
+   - the whole-screen looks keep their pattern still; only a copy clipped to the P1 group's own
+     band moves, and rows and panels get solid backings while one of them is on (.tm-clear). */
+.tm-p1-frame:not(.mini) { will-change: transform; isolation: isolate; }
+.tm-p1-frame:not(.mini) .p1-ring b, .tm-p1-frame:not(.mini) .p1-radar b, .tm-p1-frame:not(.mini) .p1-gl,
+.tm-p1-frame:not(.mini) .p1-crown, .tm-p1-frame:not(.mini) .p1-bull { will-change: transform; }
+.tm-p1-frame:not(.mini) .p1-bolts { will-change: opacity; }
+/* glitch: the jitter stays inside the outline */
+.p1-gl { inset: 4px; }
+/* neon: the tube flickers inside the outline; its outer glow stays still */
+.p1d-neon { animation: none; box-shadow: 0 0 14px color-mix(in srgb, var(--k-acc, #FF5BC8) 45%, transparent); }
+.p1d-neon::before { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 3px solid var(--k-acc, #FF5BC8);
+  box-shadow: inset 0 0 10px color-mix(in srgb, var(--k-acc, #FF5BC8) 55%, transparent); animation: p1-neon 4s steps(1, end) infinite; will-change: opacity; }
+.p1d-neon { border-color: transparent; }
+/* rainbow: the colours slide round (a cheap move), no colour filter repainting every frame */
+.p1d-rainbow .p1-ring { background: transparent; animation: none; }
+.p1d-rainbow .p1-ring b { display: block; top: 0; bottom: 0; left: 0; width: 200%; transform: none;
+  background: linear-gradient(90deg, var(--k-bad, #FF3B3B), var(--k-warn, #FFB13B), var(--k-warn, #F5F53B), var(--k-ok, #3BFF7A), var(--k-info, #3BC8FF), var(--k-acc2, #8B5CF6), var(--k-acc2, #FF3BD0), var(--k-bad, #FF3B3B), var(--k-warn, #FFB13B), var(--k-warn, #F5F53B), var(--k-ok, #3BFF7A), var(--k-info, #3BC8FF), var(--k-acc2, #8B5CF6), var(--k-acc2, #FF3BD0), var(--k-bad, #FF3B3B));
+  animation: p1-slide 4s linear infinite; }
+@keyframes p1-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+/* the crown sits in the empty margin to the right of the group, never over other text */
+.p1-crown { left: auto; right: -58px; top: 50%; margin-top: -16px; width: 40px; height: 28px; }
+/* whole-screen looks: the still pattern... */
+.tm-p1-scene > i:not(.band) { animation: none !important; }
+/* ...and the moving copy, only inside the P1 group's band */
+.tm-p1-scene > i.band { left: 0; right: 0; top: var(--p1t, 0px); bottom: auto; width: auto; height: calc(var(--p1b, 0px) - var(--p1t, 0px));
+  overflow: hidden; background: none; -webkit-mask: none; mask: none; animation: none; transform: none; }
+.tm-p1-scene > i.band::before { content: ""; position: absolute; left: calc(var(--p1x, 50%) - 150vmax); top: calc(var(--p1y, 30%) - var(--p1t, 0px) - 150vmax);
+  width: 300vmax; height: 300vmax; will-change: transform, opacity; }
+.p1s-spotlight > i.band { display: none; }
+.p1s-converge > i.band::before { background: repeating-conic-gradient(from 0deg, transparent 0 4.4deg, color-mix(in srgb, var(--k-bad, #FF3C3C) 24%, transparent) 4.4deg 5deg); animation: p1-pull 3s ease-in-out infinite; }
+.p1s-tunnel > i.band::before { background: repeating-radial-gradient(circle at 50% 50%, transparent 0 46px, color-mix(in srgb, var(--k-bad, #FF323C) 20%, transparent) 46px 49px); animation: p1-tunnel 1.6s linear infinite; }
+.p1s-hypno > i.band::before { background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--k-acc2, #8B5CF6) 20%, transparent) 0 15deg, color-mix(in srgb, var(--k-bad, #FF283C) 12%, transparent) 15deg 30deg); animation: p1-spin 24s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .tm-p1-scene > i.band::before, .p1d-neon::before { animation: none !important; } }
+/* Settings > Background tiles (18 Oct 2026): a still frame behind each sample */
+.tm-p1-tiles.bg .tm-p1-sample > .tm-p1-frame.mini { opacity: .55; }
+.tm-storm-sample { position: absolute; inset: 0; }
+.tm-storm-sample > i { position: absolute; inset: 0; }
+.storm-forked > i, .storm-aimed > i { background: radial-gradient(60% 80% at 30% 0%, color-mix(in srgb, var(--k-bad, #FF3232) 45%, transparent), transparent 70%); }
+.storm-sheet > i { background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--k-bad, #FF4646) 35%, transparent), transparent 80%); }
+.storm-edges > i { background: radial-gradient(30% 90% at 0% 40%, color-mix(in srgb, var(--k-bad, #FF2828) 50%, transparent), transparent 80%), radial-gradient(30% 90% at 100% 40%, color-mix(in srgb, var(--k-bad, #FF2828) 50%, transparent), transparent 80%); }
+.storm-rumble > i { background: radial-gradient(90% 50% at 50% 100%, color-mix(in srgb, var(--k-bad, #C81E1E) 45%, transparent), transparent 80%); }
+.tm-storm-sample > i { animation: tm-storm-tile 3.2s ease-out infinite; }
+.tm-storm-sample.storm-forked > i::after, .tm-storm-sample.storm-aimed > i::after { content: ""; position: absolute; left: 28%; top: 0; width: 14px; height: 70%;
+  background: linear-gradient(var(--k-fg, #FFE1E1), var(--k-bad, #FF3030)); clip-path: polygon(40% 0, 70% 0, 50% 40%, 80% 40%, 20% 100%, 40% 55%, 15% 55%); filter: drop-shadow(0 0 3px var(--k-bad, #FF2222)); }
+.tm-storm-sample.storm-aimed > i::after { left: 10%; transform: rotate(-40deg); transform-origin: top; }
+/* V1.43: never below .45 between flashes, so each lightning tile always shows its own kind (a still picture showed them all alike). */
+@keyframes tm-storm-tile { 0%, 100% { opacity: .45; } 4% { opacity: 1; } 9% { opacity: .55; } 13% { opacity: .95; } 40% { opacity: .45; } }
+.tm-look-l { min-width: 76px; }
+/* Glisten sweeps come in bursts from P1Frame (no endless CSS loop on the real outline). */
+.tm-p1-frame.p1d-red-glisten:not(.mini) .p1-ring b, .tm-p1-frame.p1d-white-glisten:not(.mini) .p1-ring b { animation: none; }
+/* Hidden list (PS keeps its window alive): every animation stops. */
+.tm-overlay.tm-paused, .tm-overlay.tm-paused * { animation-play-state: paused !important; }
+/* A background is moving or flashing: every backing is fully solid, so not one pixel of a row,
+   panel or label changes while it plays (measured per background in PS's self test). */
+.tm-calm .tm-clocks, .tm-calm .tm-ckpill, .tm-calm .tm-cmp, .tm-calm .tm-tl-pill, .tm-calm .tm-tl-panel,
+.tm-calm .tm-meet, .tm-calm .tm-mn, .tm-calm .tm-editor, .tm-calm .tm-pill-btn,
+.tm-calm .tm-undo, .tm-calm .tm-pop, .tm-calm .tm-empty, .tm-calm .ps-ovl-btn, .tm-calm .tm-head, .tm-calm .tm-sec-h { background: var(--k-surface, #160E13); }
+.tm-calm .tm-ckdock.open .tm-ckpill, .tm-calm .tm-tl.open .tm-tl-pill, .tm-calm .tm-pill-btn.on { background: var(--k-acc-bg, #46182E); }
+.tm-calm .tm-aware { background: var(--k-bad-bg, #300A0E); }
+.tm-calm .tm-row:not(.working) { background: var(--k-surface, #1C1219); }
+.tm-calm .tm-row.done:not(.working) { background: var(--k-surface, #181015); }
+.tm-calm .tm-glass, .tm-calm .tm-keep:not(.on) { background: linear-gradient(180deg, var(--k-surface, #3C2E38), var(--k-surface, #1C141A)); }
+/* A drag over the Priority 1 outline (TaskMap p1Drop): the outline brightens and says "Priority 1",
+   so the developer knows letting go there makes the task P1. Only colour, glow and the label's opacity change:
+   nothing moves. Works with every look, including No outline. */
+.tm-p1-hint { left: 50%; top: -12px; transform: translateX(-50%); padding: calc(3px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; white-space: nowrap;
+  font-size: calc(11.5px * var(--k-fs, 1)); font-style: normal; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; color: var(--k-on-acc, #FFFFFF);
+  background: var(--k-acc, #EC4E86); box-shadow: 0 0 14px color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); opacity: 0; transition: opacity .12s ease; z-index: 3; }
+.tm-p1-frame.drop-p1 .tm-p1-hint { opacity: 1; }
+.tm-p1-frame.drop-p1 { box-shadow: 0 0 0 2px var(--k-acc-t, #FF6FA5), 0 0 34px color-mix(in srgb, var(--k-acc, #FF508C) 75%, transparent), inset 0 0 22px color-mix(in srgb, var(--k-acc, #FF508C) 28%, transparent); }
+.tm-p1-frame:not(.mini) { transition: top .28s cubic-bezier(.22,1,.36,1), height .28s cubic-bezier(.22,1,.36,1), box-shadow .12s ease; }
+.tm-p1-frame.mini .tm-p1-hint { display: none; }
+.tm-p1-frame:not(.mini) { height: calc(var(--p1fh, 0px) + var(--p1-grow, 0px)); }
+
+/* Moving a whole section (ui/sectionDrag.ts): grab "Every day" or "Priorities" by its header and
+   drag it above or below the other. A drop line shows in the gap it will land in. */
+.tm-sec { position: relative; }
+.tm-sec.movable > .tm-sec-h { cursor: grab; }
+.tm-sec[data-lifted] { z-index: 8; }
+/* a solid backing, so the tasks it passes over never show through */
+.tm-sec[data-lifted]::after { content: ""; position: absolute; inset: -12px -14px; z-index: -1; border-radius: calc(22px * var(--k-rd, 1)); pointer-events: none;
+  background: var(--k-surface, #181015); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 28%, transparent), 0 24px 60px rgba(0, 0, 0, .6); }
+.tm-sec[data-lifted] > .tm-sec-h { color: var(--k-acc2-t, #F0ABFC); background: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 14%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 35%, transparent); }
+.tm-sec-line { position: absolute; left: 6px; right: 6px; height: 4px; margin-top: -2px; border-radius: calc(4px * var(--k-rd, 1)); pointer-events: none; z-index: 3;
+  background: var(--k-acc2-t, #F5C2FD); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent), 0 0 18px 3px color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 85%, transparent);
+  animation: tm-secline .18s cubic-bezier(.22, .9, .25, 1) both; }
+.tm-sec-line::before, .tm-sec-line::after { content: ""; position: absolute; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%;
+  background: var(--k-acc2-t, #F5C2FD); box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-surface, #181015) 90%, transparent), 0 0 12px color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 90%, transparent); }
+.tm-sec-line::before { left: -6px; }
+.tm-sec-line::after { right: -6px; }
+@keyframes tm-secline { from { transform: scaleX(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Cmd-click picked tasks, and dragging them into a section or out into a new group (the developer, 29 Oct 2026). */
+.tm-list > .tm-row.sel, .tm-list > .tm-row.sel:hover { border-color: var(--k-acc2-t, #EBB4FF); background: color-mix(in srgb, var(--k-acc2, #A855F7) 22%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 80%, transparent), 0 0 28px color-mix(in srgb, var(--k-acc2, #A855F7) 50%, transparent); }
+.tm-sel-mark { position: absolute; top: -7px; left: -7px; z-index: 2; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--k-on-acc2, #FFFFFF); background: linear-gradient(135deg, var(--k-acc2, #A855F7), var(--k-acc, #EC4E86)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-surface, #160E13) 90%, transparent), 0 0 12px color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 80%, transparent);
+  animation: tm-sel-pop .22s cubic-bezier(.2, 1.4, .4, 1) both; pointer-events: none; }
+@keyframes tm-sel-pop { from { transform: scale(.3); opacity: 0; } }
+.tm-row.sel-lift { opacity: .32; scale: .985; transition: opacity .18s ease, scale .18s ease; }
+.tm-ghost.tm-bundle { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); font-size: calc(17px * var(--k-fs, 1)); }
+.tm-bundle-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-bundle-n { min-width: 28px; height: 28px; padding: 0 calc(8px * var(--k-dn, 1)); border-radius: 999px; display: grid; place-items: center; font-size: calc(14px * var(--k-fs, 1)); font-weight: 850;
+  color: var(--k-acc2, #7C3AED); background: var(--k-fg, #FFFFFF); box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
+.tm-bundle-to { grid-column: 1 / -1; font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); }
+.tm-bundle-to:empty { display: none; }
+/* more than one task: two cards peek out behind, like a little stack */
+.tm-ghost.tm-bundle.stack::before, .tm-ghost.tm-bundle.stack::after { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--k-acc2, #7C3AED) 75%, transparent), color-mix(in srgb, var(--k-acc, #EC4E86) 75%, transparent)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(25% * var(--k-ia, 1))), transparent); }
+.tm-ghost.tm-bundle.stack::before { transform: translate(7px, 7px) rotate(2.5deg); }
+.tm-ghost.tm-bundle.stack::after { transform: translate(14px, 13px) rotate(5deg); opacity: .6; }
+/* where a new group will go */
+.tm-newgroup { position: fixed; z-index: 300; height: 24px; margin-top: -12px; border-radius: calc(12px * var(--k-rd, 1)); pointer-events: none;
+  display: grid; place-items: center; font-size: calc(12px * var(--k-fs, 1)); font-weight: 850; letter-spacing: .14em; text-transform: uppercase; color: var(--k-acc2-t, #F5C2FD);
+  border: 2px dashed color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 85%, transparent); background: color-mix(in srgb, var(--k-acc2, #7C3AED) 18%, transparent); box-shadow: 0 0 22px color-mix(in srgb, var(--k-acc2, #A855F7) 45%, transparent);
+  transition: top .16s cubic-bezier(.22, .9, .25, 1); animation: tm-secline .18s cubic-bezier(.22, .9, .25, 1) both; }
+
+/* Task groups: the header holds the name, a count, rename and ungroup. */
+.tm-sec-h.tm-grp-h { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); color: var(--k-acc2-t, #F0ABFC); }
+.tm-grp-t { cursor: text; }
+.tm-sec.movable > .tm-grp-h .tm-grp-t { cursor: grab; }
+.tm-grp-h .tm-sec-note { margin-left: 2px; color: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 55%, transparent); }
+.tm-grp-name { font: inherit; letter-spacing: inherit; text-transform: none; color: var(--k-fg, #FFFFFF); width: 260px; max-width: 60vw;
+  padding: calc(2px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); margin: -2px -8px; border: 0; border-radius: calc(8px * var(--k-rd, 1)); outline: none; background: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 16%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 60%, transparent); }
+.tm-grp-tools { display: inline-flex; gap: calc(4px * var(--k-dn, 1)); opacity: 0; transition: opacity .15s ease; }
+.tm-sec:hover .tm-grp-tools, .tm-grp-tools:focus-within { opacity: 1; }
+.tm-grp-btn { height: 24px; min-width: 24px; padding: 0 calc(6px * var(--k-dn, 1)); border-radius: 999px; display: inline-grid; place-items: center; cursor: pointer;
+  font: 800 calc(10px * var(--k-fs, 1))/1 inherit; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); transition: background .15s ease, color .15s ease, border-color .15s ease; }
+.tm-grp-btn:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 20%, transparent); border-color: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 50%, transparent); }
+.tm-grp-btn.sure { color: var(--k-on-bad, #FFFFFF); background: var(--k-bad, #E5484D); border-color: var(--k-bad, #E5484D); padding: 0 calc(10px * var(--k-dn, 1)); }
+.tm-grp-empty { list-style: none; padding: calc(16px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1)); text-align: center; font-size: calc(13px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent);
+  border: 1.5px dashed color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 35%, transparent); }
+.tm-sec.drop-target .tm-grp-empty { color: var(--k-acc2-t, #F5C2FD); border-color: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 85%, transparent); background: color-mix(in srgb, var(--k-acc2, #7C3AED) 14%, transparent); }
+
+/* Private mode (the developer, 29 Oct 2026): the mask, top right of the Meetings panel. Off: plain and dim.
+   On: white, glowing. */
+.tm-meet { position: relative; }
+.tm-meet-h { padding-right: calc(84px * var(--k-dn, 1)); }
+.tm-mask { position: absolute; top: 9px; right: 10px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: color .2s ease, background .2s ease, border-color .2s ease, box-shadow .3s ease, filter .3s ease, transform .15s ease; }
+.tm-mask:hover { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); }
+.tm-mask:active { transform: scale(.92); }
+.tm-mask.on { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent), 0 0 16px color-mix(in srgb, var(--k-glow, #FFFFFF) 55%, transparent), 0 0 34px color-mix(in srgb, var(--k-glow, #FFFFFF) 25%, transparent);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--k-glow, #FFFFFF) 80%, transparent)); }
+.tm-meet-none { margin: 8px 0 2px; font-size: calc(13px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.tm-light-on .tm-mask.on { color: #1B1A1D; border-color: #1B1A1D; background: rgba(0, 0, 0, .08); box-shadow: 0 0 14px rgba(0, 0, 0, .25); filter: none; }
+.tm-meet-list:empty { display: none; }
+
+/* The Dynamic Island switch (the developer, 30 Oct 2026): left of the mask, same look. On: white and glowing.
+   Its menu sits on document.body, under the button. */
+.tm-isl-btn { position: absolute; top: 9px; right: 50px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: color .2s ease, background .2s ease, border-color .2s ease, box-shadow .3s ease, filter .3s ease, transform .15s ease; }
+.tm-isl-btn:hover, .tm-isl-btn.open { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); }
+.tm-isl-btn:active { transform: scale(.92); }
+.tm-isl-btn.on { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent), 0 0 16px color-mix(in srgb, var(--k-glow, #FFFFFF) 55%, transparent), 0 0 34px color-mix(in srgb, var(--k-glow, #FFFFFF) 25%, transparent);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--k-glow, #FFFFFF) 80%, transparent)); }
+.tm-light-on .tm-isl-btn.on { color: #1B1A1D; border-color: #1B1A1D; background: rgba(0, 0, 0, .08); box-shadow: 0 0 14px rgba(0, 0, 0, .25); filter: none; }
+
+.tm-isl-menu { position: fixed; z-index: 2147483000; width: 292px; overflow-y: auto; overscroll-behavior: contain; padding: calc(10px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); box-sizing: border-box;
+  background: color-mix(in srgb, var(--k-surface, #161016) 97%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .5), 0 2px 10px rgba(0, 0, 0, .3); font: calc(13px * var(--k-fs, 1))/1.35 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif);
+  transform-origin: 90% 0; animation: tmIslIn .32s cubic-bezier(.22, 1.2, .36, 1); }
+@keyframes tmIslIn { from { opacity: 0; transform: translateY(-6px) scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .tm-isl-menu { animation: none; } }
+.tm-isl-h { display: block; padding: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.tm-isl-opt, .tm-isl-sw { display: flex; align-items: center; gap: calc(11px * var(--k-dn, 1)); width: 100%; padding: calc(8px * var(--k-dn, 1)); border: 0; border-radius: calc(14px * var(--k-rd, 1)); background: none; color: inherit;
+  font: inherit; text-align: left; cursor: pointer; transition: background .18s ease; }
+.tm-isl-opt:hover, .tm-isl-sw:hover:not(:disabled) { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); }
+.tm-isl-opt.sel { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+.tm-isl-l { flex: 1; min-width: 0; font-weight: 700; }
+.tm-isl-l em { display: block; font-style: normal; font-weight: 550; font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); margin-top: 1px; }
+/* A tiny drawing of each choice: the screen's top edge, the notch, the island. */
+.tm-isl-pic { position: relative; flex: none; width: 54px; height: 30px; border-radius: calc(7px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); overflow: hidden; }
+.tm-isl-pic s { position: absolute; left: 50%; top: -1px; width: 14px; height: 6px; margin-left: -7px; border-radius: 0 0 calc(4px * var(--k-rd, 1)) calc(4px * var(--k-rd, 1)); background: var(--k-base, #000000); }
+.tm-isl-pic b { position: absolute; background: var(--k-base, #000000); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent); transition: all .3s ease; }
+.tm-isl-pic.notch b { left: 50%; top: -1px; width: 34px; height: 7px; margin-left: -17px; border-radius: 0 0 calc(5px * var(--k-rd, 1)) calc(5px * var(--k-rd, 1)); }
+.tm-isl-pic.pill b { left: 50%; top: 9px; width: 28px; height: 8px; margin-left: -14px; border-radius: calc(99px * var(--k-rd, 1)); }
+.tm-isl-pic.off b { display: none; }
+/* V1.43: the pictures follow the island's own look and colours (core/looksample.ts islandPicVars), so a colour picked in Edit shows here too. */
+.tm-isl-pic.notch b, .tm-isl-pic.pill b { background: linear-gradient(90deg, var(--isl-bg, var(--k-base, #000000)), var(--isl-bg2, var(--isl-bg, var(--k-base, #000000)))); }
+.tm-isl-pic.pill b { box-shadow: 0 0 0 1px var(--isl-edge, transparent), 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent); }
+.tm-isl-pic.notch b::after, .tm-isl-pic.pill b::after { content: ""; position: absolute; right: 4px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--isl-acc, transparent); }
+.tm-isl-pic.notch b::after { top: auto; bottom: 1px; margin-top: 0; }
+.tm-isl-opt.sel .tm-isl-pic b { box-shadow: 0 0 0 1px var(--k-fg, #FFFFFF), 0 0 8px color-mix(in srgb, var(--k-glow, #FFFFFF) 70%, transparent); }
+.tm-isl-sw { margin-top: 6px; border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border-radius: 0 0 calc(14px * var(--k-rd, 1)) calc(14px * var(--k-rd, 1)); padding-top: calc(11px * var(--k-dn, 1)); }
+.tm-isl-sw:disabled { opacity: .4; cursor: default; }
+.tm-isl-tog { flex: none; position: relative; width: 38px; height: 22px; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); transition: background .2s ease; }
+.tm-isl-tog b { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--k-fg, #FFFFFF); box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+  transition: transform .28s cubic-bezier(.22, 1.3, .36, 1); }
+.tm-isl-sw.sel .tm-isl-tog { background: var(--k-acc, #EC4E86); }
+.tm-isl-sw.sel .tm-isl-tog b { transform: translateX(16px); }
+.tm-light-on .tm-isl-menu { background: rgba(250, 249, 251, .98); color: #1B1A1D; border-color: rgba(0, 0, 0, .12); }
+.tm-light-on .tm-isl-h, .tm-light-on .tm-isl-l em { color: rgba(0, 0, 0, .55); }
+.tm-light-on .tm-isl-opt.sel { background: rgba(0, 0, 0, .06); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .4); }
+
+/* Meetings panel, delete and refresh (the developer, 2 Nov 2026). The X shows on a hovered meeting (always, faintly, on the
+   phone); a removed meeting slides out and an Undo bar waits a few seconds. Refresh sits left of the island
+   switch and spins while the calendar is read. Only transform and opacity animate. */
+.tm-meet-h { padding-right: calc(124px * var(--k-dn, 1)); }
+.tm-cal-ref { position: absolute; top: 9px; right: 90px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: color .2s ease, background .2s ease, border-color .2s ease, transform .15s ease; }
+.tm-cal-ref:hover { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); }
+.tm-cal-ref:active { transform: scale(.92); }
+.tm-cal-ref svg { transition: transform .5s cubic-bezier(.22, 1, .36, 1); }
+.tm-cal-ref.busy { color: var(--k-fg, #FFFFFF); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+.tm-cal-ref.busy svg { animation: tmCalSpin .9s linear infinite; }
+@keyframes tmCalSpin { to { transform: rotate(360deg); } }
+.tm-light-on .tm-cal-ref.busy { color: #1B1A1D; border-color: #1B1A1D; }
+.tm-meet li { position: relative; transition: background .15s ease, opacity .22s ease, transform .24s cubic-bezier(.22, 1, .36, 1); }
+.tm-meet li.leaving { opacity: 0; transform: translate3d(-14px, 0, 0); pointer-events: none; }
+.tm-meet-x { position: absolute; top: 3px; right: 2px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; padding: 0; cursor: pointer;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-surface, #1E141C) 92%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent);
+  opacity: 0; transform: scale(.8); transition: opacity .16s ease, transform .2s cubic-bezier(.34, 1.56, .64, 1), color .15s ease, background .15s ease; }
+.tm-meet li:hover .tm-meet-x, .tm-meet-x:focus-visible { opacity: 1; transform: none; }
+.tm-meet-x:hover { color: var(--k-on-acc, #FFFFFF); background: var(--k-acc, #C8366B); border-color: var(--k-acc, #EC4E86); }
+.tm-meet li:has(.tm-meet-j) .tm-meet-x { top: -6px; right: -4px; }
+html.gos .tm-meet-x { opacity: .55; transform: none; width: 28px; height: 28px; }
+.tm-meet-undo { display: flex; align-items: center; justify-content: space-between; gap: calc(10px * var(--k-dn, 1)); margin-top: 10px; padding: calc(7px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1));
+  font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  animation: tmUndoIn .28s cubic-bezier(.22, 1, .36, 1) both; }
+.tm-meet-undo button { border: 0; border-radius: calc(99px * var(--k-rd, 1)); padding: calc(5px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); font: 750 calc(12px * var(--k-fs, 1))/1 inherit; font-family: inherit; cursor: pointer; color: var(--k-surface, #17121A); background: var(--k-fg, #FFFFFF);
+  transition: transform .15s ease; }
+.tm-meet-undo button:active { transform: scale(.94); }
+@keyframes tmUndoIn { from { opacity: 0; transform: translate3d(0, 6px, 0); } }
+@media (prefers-reduced-motion: reduce) { .tm-cal-ref.busy svg, .tm-meet-undo { animation: none; } .tm-meet li.leaving { transform: none; } }
+
+/* ---------- Priority 1 colour (TaskMap P1ColourPick, the developer 2 Nov 2026) ----------
+   Only while a colour is set (.p1c on the overlay, with --p1col the colour, --p1acc its accent, --p1txt
+   its text tone (not --p1t, the group band uses that), --p1fg black or white on it, --p1glow the accent as "r, g, b"). Unset, none of this
+   applies and every look is exactly as before. A row being worked on keeps its white look. */
+.tm-overlay.p1c .tm-list > .tm-row.p1:not(.working) .tm-t { color: var(--p1txt); text-shadow: 0 0 18px rgba(var(--p1glow), .38), 0 1px 2px color-mix(in srgb, var(--k-tsh, #000000) 55%, transparent); }
+.tm-overlay.p1c .tm-list > .tm-row.p1:not(.working) .tm-tick { border-color: var(--p1acc); box-shadow: 0 0 12px rgba(var(--p1glow), .4); }
+.tm-overlay.p1c .tm-list > .tm-row.p1:not(.working) .tm-tick:hover { color: var(--p1txt); box-shadow: 0 0 20px rgba(var(--p1glow), .65); }
+.tm-overlay.p1c .tm-list > .tm-row.p1.done:not(.working) .tm-tick { background: var(--p1acc); border-color: var(--p1acc); color: var(--p1fg); }
+.tm-overlay.p1c .tm-list > .tm-row.p1:not(.working) .tm-prio { background: var(--p1acc); border-color: var(--p1acc); color: var(--p1fg); box-shadow: 0 0 16px rgba(var(--p1glow), .6); }
+/* the outline looks: their accent and glow (the drop highlight while dragging stays as it was) */
+.tm-overlay.p1c .tm-p1-frame:not(.mini):is(.p1d-red, .p1d-purple, .p1d-gold):not(.drop-p1) { border-color: var(--p1acc); box-shadow: 0 0 18px rgba(var(--p1glow), .55), inset 0 0 14px rgba(var(--p1glow), .2); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini):is(.p1d-crown, .p1d-radar, .p1d-spotlight, .p1d-converge, .p1d-tunnel, .p1d-hypno):not(.drop-p1) { border-color: var(--p1acc); box-shadow: 0 0 22px rgba(var(--p1glow), .5); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini):is(.p1d-red-glisten, .p1d-white-glisten, .p1d-rainbow, .p1d-glitch, .p1d-neon):not(.drop-p1) { box-shadow: 0 0 22px rgba(var(--p1glow), .5); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini):is(.p1d-red-glisten, .p1d-white-glisten) .p1-ring { background: var(--p1acc); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini).p1d-white-glisten .p1-ring b { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(95% * var(--k-ia, 1))), transparent) 45%, var(--k-fg, #FFFFFF) 50%, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(95% * var(--k-ia, 1))), transparent) 55%, transparent); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini).p1d-lightning { border-color: var(--p1acc); background: radial-gradient(120% 140% at 50% 0%, rgba(var(--p1glow), .3), color-mix(in srgb, var(--k-base, #0A0408) 60%, transparent)); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini).p1d-lightning:not(.drop-p1) { box-shadow: 0 0 26px rgba(var(--p1glow), .45); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-bolts { stroke: var(--p1txt); filter: drop-shadow(0 0 2px var(--p1acc)); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini).p1d-target { border-color: rgba(var(--p1glow), .45); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-corner, .tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-bull b { border-color: var(--p1acc); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-bull b:nth-child(3) { background: var(--p1acc); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-cross.h { background: linear-gradient(90deg, transparent, rgba(var(--p1glow), .7) 12%, transparent 30%, transparent 70%, rgba(var(--p1glow), .7) 88%, transparent); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-cross.v { background: linear-gradient(180deg, rgba(var(--p1glow), .8), transparent 30%, transparent 70%, rgba(var(--p1glow), .8)); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-radar b { background: conic-gradient(from 0deg, rgba(var(--p1glow), .32), transparent 12%); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini).p1d-neon::before { border-color: var(--p1acc); box-shadow: inset 0 0 10px rgba(var(--p1glow), .55); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-neon-l { text-shadow: 0 0 6px var(--p1acc), 0 0 14px var(--p1acc); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-gl.b { border-color: var(--p1acc); }
+.tm-overlay.p1c .tm-p1-frame:not(.mini) .p1-crown { fill: var(--p1acc); filter: drop-shadow(0 0 6px rgba(var(--p1glow), .8)); }
+/* A change of colour (or back to As before) fades across instead of jumping. */
+.tm-overlay.p1c-fade .tm-list > .tm-row.p1 :is(.tm-t, .tm-tick, .tm-prio) { transition: color .5s ease, border-color .5s ease, background-color .5s ease, box-shadow .5s ease, text-shadow .5s ease; }
+.tm-overlay.p1c-fade .tm-p1-frame:not(.mini) { transition: top .28s cubic-bezier(.22,1,.36,1), height .28s cubic-bezier(.22,1,.36,1), box-shadow .5s ease, border-color .5s ease, background .5s ease; }
+.tm-overlay.p1c-fade .tm-p1-frame:not(.mini) :is(.p1-ring, .p1-corner, .p1-bull b, .p1-gl) { transition: background-color .5s ease, border-color .5s ease; }
+.tm-overlay.p1c-fade .tm-p1-frame:not(.mini).p1d-neon::before { transition: border-color .5s ease, box-shadow .5s ease; }
+.tm-overlay.p1c-fade .tm-p1-frame:not(.mini) :is(.p1-crown, .p1-bolts) { transition: fill .5s ease, stroke .5s ease; }
+@media (prefers-reduced-motion: reduce) { .tm-overlay.p1c-fade *, .tm-overlay.p1c-fade *::before { transition-duration: 0s !important; } }
+
+/* the dot in the Priority 1 header, and its picker */
+.tm-sec-h.tm-p1-h { display: inline-flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); }
+.p1c-dot { flex: none; width: 16px; height: 16px; padding: 0; border-radius: 50%; cursor: pointer; position: relative;
+  border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); background: conic-gradient(var(--k-bad, #FF2E3E), var(--k-warn, #FFD21F), var(--k-ok, #3DFF7A), var(--k-info, #1FE0FF), var(--k-info, #3D7BFF), var(--k-acc2, #A35BFF), var(--k-acc, #FF3DC8), var(--k-bad, #FF2E3E));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-base, #000000) 35%, transparent); transition: transform .18s cubic-bezier(.22, 1.3, .36, 1), box-shadow .25s ease, background-color .5s ease, border-color .25s ease; }
+.p1c-dot.set { background: var(--sw); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-base, #000000) 35%, transparent), 0 0 12px var(--sw); }
+.p1c-dot:hover { transform: scale(1.18); border-color: var(--k-fg, #FFFFFF); }
+.p1c-dot.open { transform: scale(1.18); border-color: var(--k-fg, #FFFFFF); box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(25% * var(--k-ia, 1))), transparent), 0 0 14px color-mix(in srgb, var(--k-glow, #FFFFFF) 35%, transparent); }
+/* light theme inverts the whole list (moresettings.css); the dot is turned back so it shows the colour as picked */
+.tm-overlay.tm-light .p1c-dot { filter: invert(1) hue-rotate(180deg); }
+.p1c-menu { position: fixed; z-index: 2147483000; width: 300px; box-sizing: border-box; padding: calc(14px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1));
+  background: var(--k-surface, #161016); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .5), 0 2px 10px rgba(0, 0, 0, .3); font: calc(13px * var(--k-fs, 1))/1.35 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif);
+  transform-origin: 10% 0; animation: p1cIn .32s cubic-bezier(.22, 1.2, .36, 1); }
+@keyframes p1cIn { from { opacity: 0; transform: translateY(-6px) scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .p1c-menu { animation: none; } }
+.p1c-h { font-size: calc(14px * var(--k-fs, 1)); font-weight: 800; letter-spacing: -.01em; padding: 0 calc(2px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.p1c-h em { display: block; margin-top: 2px; font-style: normal; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.p1c-sw { display: grid; grid-template-columns: repeat(5, 1fr); gap: calc(10px * var(--k-dn, 1)); justify-items: center; padding: 0 calc(2px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); }
+.p1c-sw button { width: 38px; height: 38px; padding: 0; border-radius: 50%; cursor: pointer; background: var(--sw); border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 0 10px rgba(0, 0, 0, .3); transition: transform .18s cubic-bezier(.22, 1.3, .36, 1), box-shadow .25s ease, border-color .2s ease; }
+.p1c-sw button:hover { transform: scale(1.1); box-shadow: 0 0 16px var(--sw, color-mix(in srgb, var(--k-glow, #FFFFFF) 30%, transparent)); }
+.p1c-sw button:active { transform: scale(.94); }
+.p1c-sw button.sel { border-color: var(--k-fg, #FFFFFF); box-shadow: 0 0 0 2px var(--k-surface, #161016), 0 0 0 4px var(--k-fg, #FFFFFF), 0 0 18px var(--sw, color-mix(in srgb, var(--k-glow, #FFFFFF) 40%, transparent)); }
+.p1c-sw .p1c-none { background: var(--k-surface, #241C24) linear-gradient(135deg, transparent 46%, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent) 46% 54%, transparent 54%); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); }
+.p1c-custom { display: grid; grid-template-columns: auto minmax(0, 1fr) 78px; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) 0; border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.p1c-l { font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.p1c-hue { -webkit-appearance: none; appearance: none; width: 100%; height: 14px; margin: 0; border-radius: calc(99px * var(--k-rd, 1)); cursor: pointer; outline: none;
+  background: linear-gradient(90deg, var(--k-bad, #FF0000), var(--k-warn, #FFFF00) 16.7%, var(--k-ok, #00FF00) 33.3%, var(--k-info, #00FFFF) 50%, var(--k-info, #0000FF) 66.7%, var(--k-acc2, #FF00FF) 83.3%, var(--k-bad, #FF0000)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(15% * var(--k-ia, 1))), transparent); }
+.p1c-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--sw); border: 3px solid var(--k-fg, #FFFFFF); box-shadow: 0 1px 6px rgba(0, 0, 0, .5); cursor: grab; }
+.p1c-hue::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--sw); border: 3px solid var(--k-fg, #FFFFFF); box-shadow: 0 1px 6px rgba(0, 0, 0, .5); }
+.p1c-hue:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(15% * var(--k-ia, 1))), transparent), 0 0 0 2px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+.p1c-hex { width: 100%; box-sizing: border-box; padding: calc(7px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent);
+  color: var(--k-fg, #FFFFFF); font: 650 calc(12.5px * var(--k-fs, 1))/1 var(--k-mono, ui-monospace, SFMono-Regular, Menlo, monospace); outline: none; text-transform: lowercase; }
+.p1c-hex:focus { border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.tm-light-on .p1c-menu { background: rgb(250, 249, 251); color: #1B1A1D; border-color: rgba(0, 0, 0, .12); }
+.tm-light-on .p1c-h em, .tm-light-on .p1c-l { color: rgba(0, 0, 0, .55); }
+.tm-light-on .p1c-sw button.sel { border-color: #1B1A1D; box-shadow: 0 0 0 2px rgb(250, 249, 251), 0 0 0 4px #1B1A1D; }
+.tm-light-on .p1c-sw .p1c-none { background: rgb(236, 233, 238) linear-gradient(135deg, transparent 46%, rgba(0, 0, 0, .45) 46% 54%, transparent 54%); border-color: rgba(0, 0, 0, .2); }
+.tm-light-on .p1c-custom { border-top-color: rgba(0, 0, 0, .08); }
+.tm-light-on .p1c-hex { color: #1B1A1D; border-color: rgba(0, 0, 0, .16); background: rgba(0, 0, 0, .04); }
+
+/* Meetings panel, calendar freshness (the developer, 4 Nov 2026): one small line under the heading says when Google was last
+   read, or what is wrong; "Link Google" opens a box for the calendar's secret iCal address. Only opacity and
+   transform animate. */
+.tm-cal-upd-wrap { margin: 2px 0 4px; }
+/* With the "From your Mac's Calendar" line the panel has three rows; only the list may shrink (V1.44 #9: in a short
+   column the line sat in the shrinking row, collapsed to nothing and was drawn over TODAY). */
+.tm-meet:has(> .tm-cal-upd-wrap) { grid-template-rows: auto auto minmax(0, 1fr); }
+.tm-cal-upd { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); flex-wrap: wrap; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 600; letter-spacing: .02em;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(42% * var(--k-ia, 1))), transparent); animation: tmCalFade .3s ease both; }
+.tm-cal-upd.warn { color: var(--k-warn, #FCD34D); }
+.tm-cal-upd.bad { color: var(--k-bad-t, #FCA5A5); }
+.tm-cal-link-btn { font: inherit; font-weight: 700; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(28% * var(--k-ia, 1))), transparent);
+  border-radius: 999px; padding: calc(2px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); cursor: pointer; transition: background .2s ease, transform .15s ease; }
+.tm-cal-link-btn:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); }
+.tm-cal-link-btn:active { transform: scale(.95); }
+.tm-cal-link { margin: 8px 0 6px; padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+  display: grid; gap: calc(8px * var(--k-dn, 1)); animation: tmCalOpen .26s cubic-bezier(.22, 1, .36, 1) both; transform-origin: top center; }
+.tm-cal-link p { margin: 0; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.tm-cal-link b { color: var(--k-fg, #FFFFFF); }
+.tm-cal-link input { width: 100%; box-sizing: border-box; font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); padding: calc(7px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(8px * var(--k-rd, 1)); color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-base, #000000) 35%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); outline: none; }
+.tm-cal-link input:focus { border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tm-cal-link-err { color: var(--k-bad-t, #FCA5A5) !important; font-weight: 600; }
+.tm-cal-link-row { display: flex; justify-content: flex-end; gap: calc(8px * var(--k-dn, 1)); }
+.tm-cal-link-row button { font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; padding: calc(5px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); background: transparent; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); transition: background .2s ease, transform .15s ease, opacity .2s ease; }
+.tm-cal-link-row button.go { color: var(--k-surface, #1B1A1D); background: var(--k-fg, #FFFFFF); border-color: var(--k-fg, #FFFFFF); }
+.tm-cal-link-row button:active { transform: scale(.95); }
+.tm-cal-link-row button:disabled { opacity: .45; cursor: default; }
+@keyframes tmCalFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tmCalOpen { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+.tm-light-on .tm-cal-upd { color: rgba(27, 26, 29, .55); }
+.tm-light-on .tm-cal-upd.warn { color: #B45309; }
+.tm-light-on .tm-cal-upd.bad { color: #B91C1C; }
+.tm-light-on .tm-cal-link-btn { color: #1B1A1D; background: rgba(0, 0, 0, .06); border-color: rgba(0, 0, 0, .25); }
+.tm-light-on .tm-cal-link { background: rgba(0, 0, 0, .04); border-color: rgba(0, 0, 0, .15); }
+.tm-light-on .tm-cal-link p { color: rgba(27, 26, 29, .75); }
+.tm-light-on .tm-cal-link b { color: #1B1A1D; }
+.tm-light-on .tm-cal-link input { color: #1B1A1D; background: #FFFFFF; border-color: rgba(0, 0, 0, .2); }
+.tm-light-on .tm-cal-link-row button { color: #1B1A1D; border-color: rgba(0, 0, 0, .25); }
+.tm-light-on .tm-cal-link-row button.go { color: #FFFFFF; background: #1B1A1D; border-color: #1B1A1D; }
+html[data-nb] .tm-overlay .tm-cal-upd:not(.warn):not(.bad) { color: var(--nb-ink-2); font-family: var(--nb-small); }
+@media (prefers-reduced-motion: reduce) { .tm-cal-upd, .tm-cal-link { animation: none; } }
+
+/* ---------- Completed (V1.34, views/Completed.tsx): a grey area under every section, each task crossed out ---------- */
+.tm-sec-done { gap: calc(10px * var(--k-dn, 1)); margin-top: 6px; }
+.tm-done-bar { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+/* Complete all (V1.47): next to Sleep at the right end of the row; more than a few asks first, in place */
+.tm-done-bar .tm-all, .tm-done-bar .tm-all-ask { margin-left: auto; }
+.tm-done-bar :is(.tm-all, .tm-all-ask) + .slp-row { margin-left: 0; }
+.tm-all {
+  display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800;
+  letter-spacing: .02em; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-ok, #2EA866) min(100%, calc(14% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-ok, #2EA866) min(100%, calc(42% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, border-color .15s ease, transform .12s ease, box-shadow .2s ease;
+}
+.tm-all:hover { background: color-mix(in srgb, var(--k-ok, #2EA866) min(100%, calc(26% * var(--k-ia, 1))), transparent); border-color: var(--k-ok, #2EA866); box-shadow: 0 0 22px color-mix(in srgb, var(--k-ok, #2EA866) 35%, transparent); }
+.tm-all:active { transform: scale(.97); }
+.tm-all:hover svg { animation: tm-all-pop .45s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes tm-all-pop { 45% { transform: scale(1.2); } }
+.tm-all-ask { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(3px * var(--k-dn, 1)) calc(3px * var(--k-dn, 1)) calc(3px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-ok, #2EA866) min(100%, calc(12% * var(--k-ia, 1))), transparent); border: 1px solid var(--k-ok, #2EA866); animation: tm-all-in .18s ease-out both; }
+@keyframes tm-all-in { from { opacity: 0; transform: scale(.94); } }
+.tm-all-q { font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; color: var(--k-fg, #FFFFFF); }
+.tm-all-yes, .tm-all-no { padding: calc(6px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 800; border: 1px solid transparent; }
+.tm-all-yes { color: var(--k-on-ok, #08130D); background: var(--k-ok, #2EA866); }
+.tm-all-yes:hover { filter: brightness(1.08); }
+.tm-all-no { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); background: transparent; border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+.tm-all-no:hover { color: var(--k-fg, #FFFFFF); }
+/* the phone (and the iPhone web app): the row starts at the left and wraps before the floating Sleep, moon and + buttons */
+html.gos .tm-done-bar { padding-right: calc(196px * var(--k-dn, 1)); }   /* clear of the thumb row: Sleep, the moon and + */
+html.gos .tm-done-bar :is(.tm-all, .tm-all-ask), html.gos .tm-done-bar .slp-row { margin-left: 0; }
+/* the Complete all cascade: each row crosses out in turn (--tm-cas is its delay, set by sendCompleteAll) */
+.tm-row.ticking .tm-t, .tm-row.ticking .tm-tick { animation-delay: var(--tm-cas, 0ms); }
+.tm-done-res {
+  display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800;
+  letter-spacing: .02em; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, border-color .15s ease, transform .12s ease, box-shadow .2s ease;
+}
+.tm-done-res:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); border-color: var(--k-acc, #EC4E86); box-shadow: 0 0 22px color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent); }
+.tm-done-res:active { transform: scale(.97); }
+.tm-done-res b { font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; padding: calc(1px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); }
+.tm-done-res:hover svg { animation: tm-res-up .5s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes tm-res-up { 40% { transform: translateY(-4px); } }
+.tm-done-clear {
+  padding: calc(8px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent);
+  background: transparent; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); transition: color .15s ease, background .15s ease;
+}
+.tm-done-clear:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.tm-done-area { display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); background: color-mix(in srgb, color-mix(in srgb, var(--k-fg, #FFFFFF) 50.2%, var(--k-base, #000000)) min(100%, calc(14% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.tm-done-h { padding-left: calc(4px * var(--k-dn, 1)); }
+.tm-done-list .tm-row { cursor: default; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); }
+.tm-done-list .tm-row:hover { transform: none; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); box-shadow: none; }
+.tm-done-list .tm-row:hover::before { opacity: 0; animation: none; }
+.tm-done-list .tm-row:active { scale: 1; }
+.tm-done-list .tm-row.done { opacity: .62; }
+.tm-done-list .tm-row .tm-t { text-decoration: line-through; text-decoration-thickness: 2px; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.tm-done-list .tm-row .tm-tick { background: color-mix(in srgb, color-mix(in srgb, var(--k-fg, #FFFFFF) 62.7%, var(--k-base, #000000)) min(100%, calc(55% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, color-mix(in srgb, var(--k-fg, #FFFFFF) 62.7%, var(--k-base, #000000)) min(100%, calc(55% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); }
+.tm-done-list .tm-row .tm-tick:hover { background: transparent; border-color: var(--k-fg, #FFFFFF); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+/* ticked a moment ago: crossed out in its place before it slides down (the line draws itself in) */
+.tm-row.ticking .tm-t { text-decoration: none; background: linear-gradient(currentColor, currentColor) 0 55% / 100% 2px no-repeat; animation: tm-strike .3s ease-out both; }
+@keyframes tm-strike { from { background-size: 0 2px; } }
+.tm-row.ticking .tm-tick { animation: tm-tick-pop .32s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes tm-tick-pop { 45% { transform: scale(1.18); } }
+@media (prefers-reduced-motion: reduce) { .tm-row.ticking .tm-t, .tm-row.ticking .tm-tick, .tm-done-res:hover svg, .tm-all:hover svg, .tm-all-ask { animation: none; } }
+/* the tick sound picker (Settings, To do list): a name to pick, a small play button beside it */
+.tm-snd { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); }
+.tm-snd-i { display: inline-flex; align-items: center; border-radius: 999px; background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); padding: calc(3px * var(--k-dn, 1)); gap: calc(2px * var(--k-dn, 1)); }
+.tm-snd-pick { border: 0; background: transparent; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 700; padding: calc(5px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; }
+.tm-snd-i.on .tm-snd-pick { background: var(--k-fg, #FFFFFF); color: var(--k-surface, #17121A); }
+.tm-snd-play { display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 50%; cursor: pointer; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.tm-snd-play:hover { background: var(--k-acc, #EC4E86); }
+.tm-snd-play:active { transform: scale(.9); }
+
+/* ---------- the headline (V1.34, the developer: "make it so it's more centered just above the to-do list and remove like the weird
+   outline"): centred over the list column, no box around it, the help line under it gone. Add task sits just right of it.
+   While the headline is being typed in, a quiet accent underline shows it is editable (no ring, no box). ---------- */
+/* The side columns keep room for the + (44 px), so on a narrow list (a bigger text scaling) the headline wraps instead of
+   pushing the + out under the right column (V1.44 #9). */
+.tm-head { grid-template-columns: minmax(44px, 1fr) minmax(0, auto) minmax(44px, 1fr); align-items: center; column-gap: calc(14px * var(--k-dn, 1)); }
+.tm-head .tm-title { grid-column: 2; grid-row: 1; text-align: center; }
+.tm-head .tm-add { grid-column: 3; grid-row: 1; justify-self: start; align-self: center; }
+.tm-head, .tm-clear .tm-head, .tm-calm .tm-head { background: none; box-shadow: none; }
+.tm-title-edit, .tm-title-edit:hover { background: none; box-shadow: none; }
+.tm-title-edit { border-bottom: 2px solid transparent; border-radius: 0; transition: border-color .2s ease; }
+.tm-title-edit:focus { background: none; box-shadow: none; border-bottom-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); }
+
+/* ---------- the Add task button (V1.34, core/addbutton.ts): its own colour, and a click animation ---------- */
+.tm-add .tm-pill-btn { background: var(--tm-addc, var(--k-ok, #3DDC97)); border-color: var(--tm-addc, var(--k-ok, #3DDC97)); color: var(--tm-addink, var(--k-on-ok, #17121A));
+  box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--tm-addc, var(--k-ok, #3DDC97)) 80%, transparent); }
+.tm-add .tm-pill-btn:hover { box-shadow: 0 10px 30px -6px color-mix(in srgb, var(--tm-addc, var(--k-ok, #3DDC97)) 95%, transparent); }
+.tm-add.add-spin > .tm-pill-btn { animation: tm-add-spin .55s cubic-bezier(.3, .9, .35, 1); }
+.tm-add.add-pop > .tm-pill-btn { animation: tm-add-pop .42s cubic-bezier(.2, 1.4, .4, 1); }
+.tm-add.add-bounce > .tm-pill-btn { animation: tm-add-bounce .6s cubic-bezier(.3, .7, .4, 1); }
+.tm-add.add-pulse > .tm-pill-btn { animation: tm-add-pulse .6s ease-out; }
+@keyframes tm-add-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes tm-add-pop { 40% { transform: scale(1.32); } 70% { transform: scale(.94); } }
+@keyframes tm-add-bounce { 30% { transform: translateY(-9px); } 55% { transform: translateY(0); } 72% { transform: translateY(-4px); } 88% { transform: translateY(0); } }
+@keyframes tm-add-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tm-addc, var(--k-ok, #3DDC97)) 70%, transparent); } to { box-shadow: 0 0 0 18px color-mix(in srgb, var(--tm-addc, var(--k-ok, #3DDC97)) 0%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .tm-add[class*="add-"] > .tm-pill-btn { animation: none; } }
+/* its settings: colour dots, your own colour, the code, and a sample button that plays the animation */
+.tm-addset { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.tm-addset-row { display: flex; align-items: center; justify-content: space-between; gap: calc(12px * var(--k-dn, 1)); }
+.tm-addset-sw { display: flex; flex-wrap: wrap; align-items: center; gap: calc(7px * var(--k-dn, 1)); }
+.tm-addset-dot { width: 22px; height: 22px; padding: 0; border-radius: 50%; cursor: pointer; background: var(--sw); border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(25% * var(--k-ia, 1))), transparent); transition: transform .15s ease; }
+.tm-addset-dot:hover { transform: scale(1.12); }
+.tm-addset-dot.sel { border-color: var(--k-fg, #FFFFFF); box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-base, #000000) 50%, transparent), 0 0 12px var(--sw); }
+.tm-addset-own { position: relative; width: 22px; height: 22px; border-radius: 50%; overflow: hidden; cursor: pointer; border: 2px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.tm-addset-own input { position: absolute; inset: -6px; width: 34px; height: 34px; opacity: 0; cursor: pointer; }
+.tm-addset-hex { width: 80px; padding: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(8px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); color: inherit; font: inherit; font-size: calc(12px * var(--k-fs, 1)); }
+.tm-addset-sample { flex: none; }

@@ -1,0 +1,31 @@
+/* The right click menu on a task (V1.34, views/TaskMenu.tsx). On the page itself, above the Tab list. */
+.tm-ctx {
+  position: fixed; z-index: 400; min-width: 220px; max-width: 320px; display: grid; gap: calc(2px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-surface, #1C141A) 97%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); font-size: calc(14px * var(--k-fs, 1));
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .75), 0 0 0 1px color-mix(in srgb, var(--k-base, #000000) 35%, transparent);
+  transform-origin: top left; animation: tm-ctx-in .14s cubic-bezier(.2, .9, .3, 1) both;
+  -webkit-user-select: none; user-select: none;
+}
+.tm-ctx.up { transform-origin: bottom left; }
+@keyframes tm-ctx-in { from { opacity: 0; transform: scale(.95) translateY(-3px); } }
+.tm-ctx-t {
+  display: block; padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); margin-bottom: 3px;
+}
+.tm-ctx-grp { display: grid; gap: calc(4px * var(--k-dn, 1)); }
+.tm-ctx-i {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(18px * var(--k-dn, 1)); width: 100%; padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border: 0; border-radius: calc(9px * var(--k-rd, 1));
+  background: transparent; color: inherit; font: inherit; font-weight: 650; text-align: left; cursor: pointer; outline: none;
+}
+.tm-ctx-i:focus, .tm-ctx-i.on { background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.tm-ctx-i kbd { font: inherit; font-size: calc(11px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.tm-ctx-i:focus kbd, .tm-ctx-i.on kbd { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); }
+.tm-ctx-i.bad { color: var(--k-bad-t, #FF8F8A); }
+.tm-ctx-i.bad:focus { background: var(--k-bad, #B91423); color: var(--k-on-bad, #FFFFFF); }
+.tm-ctx-grp:last-child { border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); padding-top: calc(3px * var(--k-dn, 1)); margin-top: 2px; }
+.tm-ctx-date { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); }
+.tm-ctx-date .tm-ed-date { flex: 1 1 130px; }
+/* Edit from the Overdue card: the list's own editor, floating */
+.tm-ctx-ed { position: fixed; z-index: 400; animation: tm-ctx-in .16s cubic-bezier(.2, .9, .3, 1) both; }
+.tm-ctx-ed .tm-row { background: color-mix(in srgb, var(--k-surface, #1C141A) 98%, transparent); box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .75); }
+@media (prefers-reduced-motion: reduce) { .tm-ctx, .tm-ctx-ed { animation: none; } }

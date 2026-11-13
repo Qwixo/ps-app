@@ -1,0 +1,462 @@
+/* PS GOS: the phone layer. Everything is scoped to html.gos, so the website and PS on the Mac
+   never see a line of this. Insets come from the shell (--gos-top / --gos-bottom), with the
+   browser's own safe areas as a fallback. */
+html.gos {
+  --gos-top: var(--gos-inset-top, env(safe-area-inset-top, 0px));   /* V1.56: + the navbar when it is at the top (phonepages.css) */
+  --gos-bottom: env(safe-area-inset-bottom, 0px);
+  --gos-dock-h: 64px;
+  --gos-ease: cubic-bezier(.22, 1, .36, 1);        /* long soft settle */
+  --gos-spring: cubic-bezier(.34, 1.36, .5, 1);    /* a small overshoot */
+  --gos-glass: color-mix(in srgb, var(--k-base, #140D12) 82%, transparent);
+  --gos-line: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent);
+  --gos-ink: var(--k-fg, #FFFFFF);
+  --gos-dim: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+html.gos body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+html.gos input, html.gos textarea, html.gos [contenteditable="true"] { -webkit-user-select: text; user-select: text; }
+/* The website's pages sit under the home screen; only drawn when Vault is chosen. */
+html.gos body:has(.gos-home) #root { visibility: hidden; }
+/* What each frame costs (the 1 Nov 2026 freeze; src/gos/calm.ts has the rest). Hidden is not enough:
+   the website's page under the home was still laid out and composited as a 33,000 px tall layer.
+   Skipped, it costs nothing until Vault is picked (the home goes away then and this no longer applies).
+   The list's frosted glass blurred only the plain page background behind it on the phone (the
+   pictures and scenes are inside it), so the blur is dropped: same look, no full screen blur per frame. */
+html.gos body:has(.gos-home) #root { content-visibility: hidden; }
+html.gos .gos-home .tm-overlay { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.gos #root { padding-top: var(--gos-top); padding-bottom: calc(var(--gos-dock-h) + var(--gos-bottom) + 8px); }
+html.gos .bottomnav, html.gos .bottom-nav, html.gos nav.bottom { display: none !important; }
+html.gos .top { padding-top: var(--gos-top); }
+
+/* ---------- home: the Tab list in three panes ---------- */
+.gos-home { position: fixed; inset: 0; z-index: 40; }
+.gos-swipe { position: absolute; inset: 0; --gos-drag: 0px; }
+html.gos .gos-home .tm-overlay { position: absolute; inset: 0; --safe-top: var(--gos-top); }
+html.gos .gos-home .tm-glass-wrap { display: none; }
+/* The list pane. */
+html.gos .gos-home .tm-scroll {
+  padding: 0 !important; bottom: calc(var(--gos-dock-h) + var(--gos-bottom));
+  transform: translate3d(calc(var(--gos-shift) + var(--gos-drag)), 0, 0);
+  transition: transform .46s var(--gos-ease), opacity .3s ease; will-change: transform;
+}
+html.gos .gos-home .tm-inner { padding: calc(var(--gos-top) + 58px) calc(14px * var(--k-dn, 1)) calc(28px * var(--k-dn, 1)); gap: calc(18px * var(--k-dn, 1)); width: 100%; }
+html.gos .gos-home .tm-hint { font-size: calc(12px * var(--k-fs, 1)); }
+/* Plan (left) and Inbox (right) panes: the Mac's side columns, full width. */
+html.gos .gos-home .tm-side {
+  display: flex !important; position: absolute; left: 0; right: 0; width: auto !important;
+  top: calc(var(--gos-top) + 56px); bottom: calc(var(--gos-dock-h) + var(--gos-bottom));
+  padding: calc(6px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(24px * var(--k-dn, 1)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  justify-content: flex-start !important; gap: calc(12px * var(--k-dn, 1)); max-height: none !important; height: auto !important;
+  transition: transform .46s var(--gos-ease), opacity .3s ease; will-change: transform;
+}
+html.gos .gos-home .tm-side::-webkit-scrollbar { display: none; }
+html.gos .gos-home .tm-left { transform: translate3d(calc(-100% + var(--gos-shift) + var(--gos-drag)), 0, 0); }
+html.gos .gos-home .tm-right { transform: translate3d(calc(100% + var(--gos-shift) + var(--gos-drag)), 0, 0); }
+html.gos .gos-home .tm-left .tm-clocks { position: static; max-height: none; width: 100%; }
+html.gos .gos-home .tm-right > * { margin: 0 !important; max-height: none !important; }
+html.gos .gos-home .tm-side .tm-meet { overflow: visible; }
+html.gos .gos-home .tm-xrow { flex-wrap: wrap; gap: calc(10px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-ckdock { display: grid !important; }
+html.gos .gos-home .tm-left .tm-tl { margin-top: 0; }
+html.gos .gos-home .tm-left .tm-clocks { animation: none; }
+.gos-home { --gos-shift: 0%; }
+.gos-home[data-pane="plan"] { --gos-shift: 100%; }
+.gos-home[data-pane="inbox"] { --gos-shift: -100%; }
+html.gos .gos-home .gos-swipe.dragging .tm-scroll, html.gos .gos-home .gos-swipe.dragging .tm-side { transition: none; }
+/* Top buttons (screen time, brief, end of day, gear): one row a thumb can reach from the side. */
+html.gos .gos-home .tm-tr {
+  top: calc(var(--gos-top) + 8px); left: 66px; right: 12px; justify-content: flex-end; flex-wrap: nowrap; padding: calc(2px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1));
+}
+/* The gear menu: a bottom sheet over a dimmed list (it used to drop down inside the row and get clipped). */
+html.gos .gos-home .tm-tr .tm-pop-wrap.hover-pop { position: static; }
+html.gos .gos-home .tm-tr .hover-pop .tm-pop {
+  position: fixed; z-index: 70; left: 0; right: 0; top: auto; bottom: 0; width: auto !important; max-height: 80dvh; overflow-y: auto; overscroll-behavior: contain;
+  margin: 0; max-width: none !important; border-radius: calc(26px * var(--k-rd, 1)) calc(26px * var(--k-rd, 1)) 0 0; padding: calc(26px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)) calc(var(--gos-bottom) + 22px);
+  background: var(--k-surface, #1A1016) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  border: 0; border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); box-shadow: 0 -20px 60px rgba(0, 0, 0, .55);
+  opacity: 1; transform: translate3d(0, 104%, 0); transition: transform .42s var(--gos-ease); transform-origin: 50% 100%;
+}
+html.gos .gos-home .tm-tr .hover-pop.open .tm-pop { transform: none; }
+html.gos .gos-home .tm-tr .hover-pop .tm-pop::after { content: ""; position: absolute; top: 9px; left: 50%; width: 40px; height: 5px; margin-left: -20px; border-radius: calc(9px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(25% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .tm-tr .hover-pop.open::before { content: ""; position: fixed; inset: 0; z-index: 69; background: color-mix(in srgb, var(--k-base, #040204) 55%, transparent); animation: gos-fade-in .3s ease both; }
+html.gos .gos-home .tm-tr .hover-pop .tm-pop-range { min-height: 36px; }
+html.gos body:has(.tm-tr .hover-pop.open) .gos-dock, html.gos body:has(.tm-tr .hover-pop.open) .gos-thumb { transform: translate3d(0, calc(100% + var(--gos-bottom) + 90px), 0); opacity: 0; pointer-events: none; }
+/* Pop-ups and windows from the list fit the phone. */
+html.gos .tm-pop, html.gos .tm-st-pop { max-width: calc(100vw - 24px); }
+html.gos .tm-add-layer { padding: calc(var(--gos-top) + 10px) calc(10px * var(--k-dn, 1)) calc(var(--gos-bottom) + 10px) !important; }
+html.gos .tm-add-win { width: calc(100vw - 20px) !important; max-height: calc(100dvh - var(--gos-top) - var(--gos-bottom) - var(--gos-dock-h) - 24px); overflow-y: auto; }
+/* Rows: a finger sized hit area, and a clear lift. */
+html.gos .tm-row { min-height: 48px; }
+html.gos .tm-tick { min-width: 40px; min-height: 40px; }
+html.gos .gos-lifted { transform: scale(1.03); box-shadow: 0 18px 40px rgba(0, 0, 0, .45), 0 0 0 1.5px color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); transition: transform .18s var(--gos-spring), box-shadow .18s ease; z-index: 6; }
+html.gos [data-dragging] { box-shadow: 0 18px 40px rgba(0, 0, 0, .45), 0 0 0 1.5px color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); }
+html.gos .tm-bgvideo { object-fit: cover; }
+/* V1.47 (views/BgFit.tsx, core/bgcrop.ts): the phone's video sits in a clip that takes the zoom and the bars. The clip
+   fades with the glass slider like the video did; the video inside is then drawn at full strength. Inline crop styles
+   (object-fit, object-position, a scale) come from the saved crop. */
+html.gos .tm-bgvideo-clip { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; contain: strict;
+  opacity: calc((.3 + .7 * var(--tm-tint, .58)) * var(--tm-bgfade, 1)); }
+html.gos .tm-bgvideo-clip > .tm-bgvideo { opacity: 1; will-change: transform; }
+html.gos .tm-bgvideo-blur { position: absolute; inset: -6%; width: 112%; height: 112%; object-fit: cover; filter: blur(16px) brightness(.7) saturate(1.15); }
+html.gos .tm-overlay.scr-open .tm-bgvideo-clip, html.gos .tm-overlay.rb-open .tm-bgvideo-clip { visibility: hidden; }
+html.gos .ms-fit-btns { display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); margin-top: 10px; }
+html.gos .ms-h-sub { margin-top: 12px; }
+/* Pick the part to show: the phone's screen in small at its real shape, the whole video under it. */
+html.gos .bgx-scrim { position: fixed; inset: 0; z-index: 4000; background: color-mix(in srgb, var(--k-base, #000000)  82%, transparent); display: grid; place-items: start center;
+  padding: calc(var(--gos-top, 0px) + 10px) calc(12px * var(--k-dn, 1)) calc(var(--gos-bottom, 0px) + 12px); overflow-y: auto; }
+html.gos .bgx { width: min(100%, 520px); display: grid; gap: calc(12px * var(--k-dn, 1)); justify-items: center; color: var(--k-fg, #FFFFFF); }
+html.gos .bgx-top { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--k-dn, 1)); }
+html.gos .bgx-title { font-size: calc(15px * var(--k-fs, 1)); }
+html.gos .bgx-phone { position: relative; border-radius: calc(18px * var(--k-rd, 1)); overflow: hidden; background: #000; /* k-keep */ touch-action: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent), 0 18px 40px rgba(0, 0, 0, .5); }
+html.gos .bgx-clip { opacity: 1; contain: none; }
+html.gos .bgx-video { visibility: visible; }
+html.gos .bgx-hint { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: calc(11px * var(--k-fs, 1)); color: #FFFFFF; /* k-keep */ text-shadow: 0 1px 3px var(--k-tsh, #000000); pointer-events: none; }
+html.gos .bgx-whole { position: relative; width: 100%; touch-action: none; border-radius: calc(10px * var(--k-rd, 1)); overflow: hidden; background: #000; /* k-keep */ }
+html.gos .bgx-strip { display: block; width: 100%; height: auto; }
+html.gos .bgx-mark { position: absolute; border: 2px solid var(--k-acc, #EC4E86); box-shadow: 0 0 0 999px color-mix(in srgb, var(--k-base, #000000) 50%, transparent); border-radius: calc(4px * var(--k-rd, 1)); pointer-events: none; }
+html.gos .bgx-row { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: calc(10px * var(--k-dn, 1)); }
+html.gos .bgx-zoom { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); flex: 1 1 200px; font-size: calc(13px * var(--k-fs, 1)); }
+html.gos .bgx-zoom input { flex: 1; }
+/* Hover only effects are meaningless on glass: keep them off so a tap never leaves a glow behind. */
+
+/* ---------- dock ---------- */
+.gos-dock {
+  position: fixed; z-index: 60; left: 10px; right: 10px; bottom: calc(var(--gos-bottom) + 8px); height: var(--gos-dock-h);
+  display: grid; grid-template-columns: repeat(var(--n, 5), 1fr); align-items: stretch;
+  background: var(--gos-glass); backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid var(--gos-line); border-radius: calc(22px * var(--k-rd, 1)); box-shadow: 0 12px 40px rgba(0, 0, 0, .38);
+  animation: gos-rise .55s var(--gos-ease) both;
+}
+.gos-dock-btn { position: relative; z-index: 1; display: grid; place-items: center; align-content: center; gap: calc(3px * var(--k-dn, 1)); border: 0; background: none; color: var(--gos-dim); font: 600 calc(11px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif); letter-spacing: .02em; padding: 0; transition: color .25s ease, transform .2s var(--gos-spring); }
+.gos-dock-btn:active { transform: scale(.9); }
+.gos-dock-btn.on { color: var(--k-fg, #FFFFFF); }
+.gos-dock-ic { position: relative; display: grid; place-items: center; transition: transform .35s var(--gos-spring); }
+.gos-dock-btn.on .gos-dock-ic { transform: translateY(-1px) scale(1.08); color: var(--k-acc-t, #FF7BAA); }
+.gos-dot { position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: calc(99px * var(--k-rd, 1)); background: var(--k-acc, #EC4E86); box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-base, #140D12) 90%, transparent); animation: gos-pulse 2s ease-in-out infinite; }
+.gos-dock-glow {
+  position: absolute; z-index: 0; top: 7px; bottom: 7px; width: calc((100% - 14px) / var(--n, 5)); left: 7px; border-radius: calc(16px * var(--k-rd, 1));
+  background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--k-acc, #EC4E86) 34%, transparent), color-mix(in srgb, var(--k-acc, #EC4E86) 10%, transparent)); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent);
+  transform: translateX(calc(var(--i, 1) * 100%)); transition: transform .5s var(--gos-spring);
+}
+.gos-offline { position: fixed; z-index: 61; left: 50%; bottom: calc(var(--gos-bottom) + var(--gos-dock-h) + 16px); transform: translateX(-50%); padding: calc(7px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-surface, #281E0A) 92%, transparent); color: var(--k-warn-t, #FFD27A); font: 600 calc(12px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif); border: 1px solid color-mix(in srgb, var(--k-warn-t, #FFD27A) 35%, transparent); animation: gos-rise .4s var(--gos-ease) both; }
+
+/* ---------- fingerprint button on the sign in screen ---------- */
+.gos-finger {
+  position: fixed; z-index: 70; left: 50%; bottom: calc(var(--gos-bottom) + 28px); transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(15px * var(--k-dn, 1)) calc(24px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 0;
+  background: linear-gradient(135deg, var(--k-acc, #EC4E86), var(--k-acc, #C8366B)); color: var(--k-on-acc, #FFFFFF); font: 700 calc(15px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--k-acc, #C8366B) 45%, transparent); animation: gos-rise .5s var(--gos-ease) both;
+}
+.gos-finger:active { transform: translateX(-50%) scale(.95); }
+
+/* ---------- settings sheet ---------- */
+.gos-sheet-wrap { position: fixed; inset: 0; z-index: 80; }
+.gos-sheet-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--k-base, #000000) 50%, transparent); animation: gos-fade-in .32s ease both; }
+.gos-sheet-wrap:not(.open) .gos-sheet-dim { animation: gos-fade-out .28s ease both; }
+.gos-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: calc(100dvh - var(--gos-top) - 18px); display: flex; flex-direction: column;
+  background: var(--k-surface, #150D12); color: var(--gos-ink); border-radius: calc(26px * var(--k-rd, 1)) calc(26px * var(--k-rd, 1)) 0 0; border-top: 1px solid var(--gos-line);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, .5); animation: gos-sheet-in .48s var(--gos-ease) both; transition: transform .38s var(--gos-ease);
+  font-family: var(--k-font, Inter, system-ui, sans-serif);
+}
+.gos-sheet-wrap:not(.open) .gos-sheet { animation: gos-sheet-out .3s cubic-bezier(.4, 0, 1, 1) both; }
+.gos-grab { display: grid; place-items: center; padding: calc(10px * var(--k-dn, 1)) 0 calc(4px * var(--k-dn, 1)); touch-action: none; }
+.gos-grab i { width: 40px; height: 5px; border-radius: calc(9px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(25% * var(--k-ia, 1))), transparent); }
+.gos-sheet-h { display: flex; align-items: flex-end; justify-content: space-between; padding: calc(4px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.gos-sheet-h h2 { margin: 2px 0 0; font-size: calc(24px * var(--k-fs, 1)); letter-spacing: -.02em; }
+.gos-eyebrow { font-size: calc(11px * var(--k-fs, 1)); font-weight: 700; letter-spacing: .14em; color: var(--k-acc-t, #FF7BAA); }
+.gos-x { border: 0; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); font: 600 calc(14px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif); padding: calc(10px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); }
+.gos-sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: calc(4px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(var(--gos-bottom) + 28px); display: grid; gap: calc(18px * var(--k-dn, 1)); }
+.gos-group h3 { margin: 0 6px 8px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--gos-dim); }
+.gos-card { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4.5% * var(--k-ia, 1))), transparent); border: 1px solid var(--gos-line); border-radius: calc(18px * var(--k-rd, 1)); overflow: hidden; }
+.gos-row { display: flex; gap: calc(14px * var(--k-dn, 1)); align-items: center; padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); }
+.gos-row + .gos-row { border-top: 1px solid var(--gos-line); }
+.gos-row-main { flex: 1; min-width: 0; display: grid; gap: calc(4px * var(--k-dn, 1)); justify-items: start; }
+.gos-row-t { font-size: calc(15px * var(--k-fs, 1)); font-weight: 600; }
+.gos-row-d { font-size: calc(13px * var(--k-fs, 1)); line-height: 1.4; color: var(--gos-dim); }
+.gos-row-main .gos-btn { margin-top: 6px; }
+.gos-note { margin: 0; padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; color: var(--gos-dim); }
+.gos-ver { text-align: center; font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(38% * var(--k-ia, 1))), transparent); margin: 0; }
+.gos-ok { font-size: calc(13px * var(--k-fs, 1)); font-weight: 600; color: var(--k-ok, #7BE3A6); }
+.gos-btn { position: relative; border: 0; border-radius: calc(99px * var(--k-rd, 1)); padding: calc(11px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); font: 600 calc(14px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); white-space: nowrap; transition: transform .18s var(--gos-spring), background .2s ease; }
+.gos-btn:active { transform: scale(.94); }
+.gos-btn.sm { padding: calc(9px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); }
+.gos-btn.ghost { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); }
+.gos-btn.primary { background: linear-gradient(135deg, var(--k-acc, #EC4E86), var(--k-acc, #C8366B)); box-shadow: 0 8px 22px color-mix(in srgb, var(--k-acc, #C8366B) 40%, transparent); }
+.gos-file { overflow: hidden; display: inline-block; }
+.gos-file input { position: absolute; inset: 0; opacity: 0; }
+.gos-switch { position: relative; flex: none; width: 52px; height: 32px; border-radius: calc(99px * var(--k-rd, 1)); border: 0; padding: 0; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); transition: background .28s ease; }
+.gos-switch i { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: calc(99px * var(--k-rd, 1)); background: var(--k-fg, #FFFFFF); box-shadow: 0 2px 6px rgba(0, 0, 0, .35); transition: transform .38s var(--gos-spring), width .18s ease; }
+.gos-switch:active i { width: 31px; }
+.gos-switch.on { background: var(--k-acc, #EC4E86); }
+.gos-switch.on i { transform: translateX(20px); }
+.gos-switch.on:active i { transform: translateX(15px); }
+
+/* ---------- update card ---------- */
+.gos-upd { background: radial-gradient(140% 120% at 0% 0%, color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent), color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent) 60%); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 28%, transparent); border-radius: calc(20px * var(--k-rd, 1)); padding: calc(16px * var(--k-dn, 1)); display: grid; gap: calc(14px * var(--k-dn, 1)); transition: border-color .4s ease; }
+.gos-upd.s-error { border-color: color-mix(in srgb, var(--k-bad-t, #FF7878) 50%, transparent); }
+.gos-upd.s-ready { border-color: color-mix(in srgb, var(--k-ok, #7BE3A6) 50%, transparent); }
+.gos-upd-top { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); }
+.gos-upd-orb { flex: none; width: 42px; height: 42px; border-radius: calc(99px * var(--k-rd, 1)); display: grid; place-items: center; background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent); color: var(--k-acc-t, #FF7BAA); position: relative; transition: background .4s ease, color .4s ease; }
+.gos-upd.s-ready .gos-upd-orb, .gos-upd.s-none .gos-upd-orb { background: color-mix(in srgb, var(--k-ok, #7BE3A6) 16%, transparent); color: var(--k-ok, #7BE3A6); }
+.gos-upd-orb.spin::after { content: ""; position: absolute; inset: -3px; border-radius: calc(99px * var(--k-rd, 1)); border: 2px solid transparent; border-top-color: var(--k-acc, #EC4E86); animation: gos-spin .9s linear infinite; }
+.gos-draw { stroke-dasharray: 24; stroke-dashoffset: 24; animation: gos-draw .55s var(--gos-ease) .05s forwards; }
+/* The tick on "You are up to date" looks for updates when tapped (GosUpdate.tsx, like the Mac's gear menu). */
+.gos-upd-orb.tk { border: 0; padding: 0; margin: 0; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .4s ease, color .4s ease, transform .2s var(--gos-spring); }
+.gos-upd-orb.tk:active { transform: scale(.92); }
+.gos-upd-orb.tk.busy { cursor: default; transform: none; }
+.gos-upd-orb.tk svg { grid-area: 1 / 1; transition: opacity .3s ease, transform .5s cubic-bezier(.3, 1.35, .5, 1); }
+.gos-upd-check { min-width: 44px; display: inline-grid; place-items: center; }
+.gos-upd-check.on .gos-i-ref g { animation-play-state: running; }
+.gos-upd-orb.tk.t-fail .gos-i-ref { opacity: .5; }
+.gos-i-ref g { transform-origin: 12px 12px; animation: gos-spin .85s linear infinite paused; }
+.gos-upd-orb.tk.t-spin .gos-i-ref g { animation-play-state: running; }
+.gos-upd-s.fx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: gos-fade-in .3s ease both; }
+.gos-upd-s.soft { color: color-mix(in srgb, var(--k-warn-t, #FFDCAA) 75%, transparent); }
+.gos-upd-txt { flex: 1; min-width: 0; }
+.gos-upd-t { font-weight: 700; font-size: calc(15px * var(--k-fs, 1)); animation: gos-text-in .4s var(--gos-ease) both; }
+.gos-upd-s { font-size: calc(13px * var(--k-fs, 1)); color: var(--gos-dim); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.gos-upd-bar { height: 6px; border-radius: calc(9px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); overflow: hidden; }
+.gos-upd-bar i { display: block; height: 100%; transform-origin: 0 50%; background: linear-gradient(90deg, var(--k-acc, #C8366B), var(--k-acc, #EC4E86), var(--k-acc-t, #FF9CC0)); background-size: 200% 100%; animation: gos-sheen 1.6s linear infinite; border-radius: calc(9px * var(--k-rd, 1)); }
+.gos-upd-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); font-size: calc(12px * var(--k-fs, 1)); color: var(--gos-dim); }
+.gos-upd-steps li { display: flex; align-items: center; gap: calc(7px * var(--k-dn, 1)); transition: color .3s ease; }
+.gos-upd-steps li span { width: 9px; height: 9px; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); transition: background .3s ease, transform .35s var(--gos-spring); }
+.gos-upd-steps li.on { color: var(--k-fg, #FFFFFF); }
+.gos-upd-steps li.on span { background: var(--k-acc, #EC4E86); transform: scale(1.35); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); }
+.gos-upd-steps li.done span { background: var(--k-ok, #7BE3A6); }
+
+@keyframes gos-rise { from { opacity: 0; transform: translate3d(0, 24px, 0); } }
+@keyframes gos-fade-in { from { opacity: 0; } }
+@keyframes gos-fade-out { to { opacity: 0; } }
+@keyframes gos-sheet-in { from { transform: translate3d(0, 104%, 0); } }
+@keyframes gos-sheet-out { to { transform: translate3d(0, 104%, 0); } }
+@keyframes gos-spin { to { transform: rotate(360deg); } }
+@keyframes gos-pulse { 50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-base, #140D12) 90%, transparent), 0 0 0 6px color-mix(in srgb, var(--k-acc, #EC4E86) 25%, transparent); } }
+@keyframes gos-draw { to { stroke-dashoffset: 0; } }
+@keyframes gos-text-in { from { opacity: 0; transform: translate3d(0, 6px, 0); } }
+@keyframes gos-sheen { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  html.gos .gos-home .tm-scroll, html.gos .gos-home .tm-side, .gos-sheet, .gos-dock-glow { transition-duration: .01s; }
+  .gos-dock, .gos-sheet, .gos-sheet-dim, .gos-finger, .gos-upd-bar i, .gos-dot { animation: none; }
+  .gos-upd-orb.tk svg { transition: none; }
+  .gos-i-ref g, .gos-upd-s.fx { animation: none; }
+}
+html.gos .gos-home .tm-rail { display: none; }   /* the phone scrolls with the finger; no mouse rail */
+/* The lifted row is solid, so the rows it passes over never show through it. */
+/* Rules (the developer's rule book): the same white glowing PS mark as the button in the Plan pane, small. */
+.gos-dock-rb {
+  display: inline-grid; place-items: center; height: 22px; min-width: 34px; padding: 0 calc(7px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  font: 900 calc(10px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif); letter-spacing: .14em; text-indent: .14em; color: var(--k-fg, #FFFFFF);
+  background: linear-gradient(180deg, var(--k-surface, #2B2B2D), var(--k-base, #0C0C0D)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(58% * var(--k-ia, 1))), transparent);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--k-tsh, #FFFFFF) 70%, transparent); box-shadow: 0 0 10px color-mix(in srgb, var(--k-glow, #FFFFFF) 24%, transparent);
+}
+.gos-dock-btn.on .gos-dock-rb { border-color: var(--k-fg, #FFFFFF); box-shadow: 0 0 14px color-mix(in srgb, var(--k-glow, #FFFFFF) 45%, transparent); }
+.gos-dock-btn.on .gos-dock-ic:has(.gos-dock-rb) { color: var(--k-fg, #FFFFFF); }
+
+/* ---------- top left menu (V1.47): a panel from the left with everything off the Plan pane and the top row ---------- */
+.gos-menu { position: fixed; z-index: 46; top: calc(var(--gos-top) + 10px); left: 12px; transition: opacity .25s ease, transform .3s var(--gos-ease); }
+.gos-menu.open { z-index: 72; }
+.gos-menu-dim { position: fixed; inset: 0; background: color-mix(in srgb, var(--k-base, #040204) 58%, transparent); animation: gos-fade-in .25s ease both; }
+.gos-menu-btn {
+  position: relative; z-index: 2; display: grid; place-items: center; width: 46px; height: 46px; border-radius: calc(99px * var(--k-rd, 1)); color: var(--k-fg, #FFFFFF);
+  background: var(--gos-glass); border: 1px solid var(--gos-line); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  transition: transform .2s var(--gos-spring);
+}
+.gos-menu-btn:active { transform: scale(.9); }
+.gos-menu-list {
+  position: fixed; z-index: 1; top: 0; bottom: 0; left: 0; width: min(86vw, 360px); box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  padding: calc(var(--gos-top) + 66px) calc(10px * var(--k-dn, 1)) calc(var(--gos-bottom) + 18px); display: flex; flex-direction: column; gap: calc(2px * var(--k-dn, 1));
+  border-radius: 0 calc(26px * var(--k-rd, 1)) calc(26px * var(--k-rd, 1)) 0;
+  background: var(--k-surface, #1A1016); border-right: 1px solid var(--gos-line); box-shadow: 24px 0 60px rgba(0, 0, 0, .5);
+  animation: gos-menu-in .38s var(--gos-ease) both;
+}
+.gos-menu-list::-webkit-scrollbar { display: none; }
+@keyframes gos-menu-in { from { transform: translate3d(-104%, 0, 0); } }
+.gos-menu-it { animation: gos-menu-row .34s var(--gos-ease) both; animation-delay: calc(var(--i, 0) * 18ms + 60ms); }
+@keyframes gos-menu-row { from { opacity: 0; transform: translate3d(-14px, 0, 0); } }
+.gos-menu-sec {
+  margin: calc(14px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); font: 800 calc(11px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif);
+  letter-spacing: .14em; text-transform: uppercase; color: var(--gos-dim);
+}
+.gos-menu-it:first-child .gos-menu-sec { margin-top: 0; }
+.gos-menu-i {
+  display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); width: 100%; min-height: 60px; padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border: 0;
+  border-radius: calc(16px * var(--k-rd, 1)); background: none; color: var(--k-fg, #FFFFFF); font: inherit; text-align: left; transition: background .18s ease, transform .18s var(--gos-spring);
+}
+.gos-menu-i:active { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); transform: scale(.98); }
+.gos-menu-ic {
+  flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: calc(12px * var(--k-rd, 1));
+  color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent);
+}
+.gos-menu-ic-rb { background: none; }   /* not .rb: the rule book owns that class (a full screen page) */
+.gos-menu-ic .gos-dock-rb { min-width: 30px; }
+.gos-menu-t { flex: 1; min-width: 0; display: grid; gap: calc(3px * var(--k-dn, 1)); }
+.gos-menu-t b { font: 650 calc(16px * var(--k-fs, 1))/1.2 var(--k-font, Inter, system-ui, sans-serif); }
+.gos-menu-t em { font: 400 calc(12.5px * var(--k-fs, 1))/1.35 var(--k-font, Inter, system-ui, sans-serif); font-style: normal; color: var(--gos-dim); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.gos-menu-v {
+  flex: none; max-width: 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: calc(5px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  font: 700 calc(13px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif); font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent);
+}
+.gos-menu-v.ok { color: var(--k-ok, #4ADE80); animation: gos-fade-in .2s ease both; }
+.gos-menu-go { flex: none; color: var(--gos-dim); opacity: .7; }
+.gos-menu-it:has(.gos-menu-set) { margin-top: auto; padding-top: calc(12px * var(--k-dn, 1)); border-top: 1px solid var(--gos-line); }
+.gos-menu-it:has(.gos-menu-set) .gos-menu-ic { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+@media (prefers-reduced-motion: reduce) { .gos-menu-list, .gos-menu-it { animation: none; } }
+
+/* V1.47: the top row's buttons (screen time, Morning brief, End your day, clear the clipboard, the gear) live in the menu.
+   They still render here, unseen, so the menu taps them and they open as before; what they open shows. */
+html.gos .gos-home .tm-tr { visibility: hidden; pointer-events: none; }
+html.gos .gos-home .tm-tr :is(.tm-pop, .tm-st-pop) { visibility: visible; pointer-events: auto; }
+/* The Plan pane shows Meetings only. Its other panels (time zones, timelines, the series map, numerology, Dimension X,
+   campaigns, the rule book and Fitness buttons) render out of the way, unseen, for the menu to open. The iPhone web app
+   wraps each in an Edit mode slot (views/EditMode.tsx Slot, data-slot), PS GOS does not: both are matched. */
+html.gos .gos-home .tm-left > :not(.tm-meet, [data-slot="meetings"]) { position: absolute !important; left: 0; right: 0; top: 0; visibility: hidden; pointer-events: none; }
+/* A slot is display: contents, so its panel is the one taken out of the flow. */
+html.gos .gos-home .tm-left > [data-slot]:not([data-slot="meetings"]) > * { position: absolute !important; left: 0; right: 0; top: 0; }
+html.gos .gos-home[data-show="clocks"] .tm-left > [data-slot="clocks"] > * { position: static !important; }
+html.gos .gos-home .tm-left .tm-meet { margin-top: 0 !important; }
+/* Time zones from the menu: the Plan pane shows the clocks open in place of Meetings, with Back next to the menu. */
+html.gos .gos-home[data-show="clocks"] .tm-left > :is(.tm-ckdock, [data-slot="clocks"]) { position: static !important; visibility: visible; pointer-events: auto; animation: gos-fade-in .3s ease both; }
+html.gos .gos-home[data-show="clocks"] .tm-left > :is(.tm-meet, [data-slot="meetings"]) { display: none !important; }
+html.gos .gos-home[data-show="clocks"] .tm-left .tm-ckdock > .tm-ckpill { display: none; }
+.gos-show-back {
+  position: fixed; z-index: 45; top: calc(var(--gos-top) + 10px); left: 66px; height: 46px; display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: 0 calc(16px * var(--k-dn, 1)) 0 calc(10px * var(--k-dn, 1));
+  border-radius: calc(99px * var(--k-rd, 1)); border: 1px solid var(--gos-line); background: var(--gos-glass); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  color: var(--k-fg, #FFFFFF); font: 650 calc(16px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif); animation: gos-fade-in .25s ease both;
+  transition: transform .2s var(--gos-spring);
+}
+.gos-show-back:active { transform: scale(.95); }
+html.gos body:has(.dx-layer, .tm-add-layer, .ms-layer, .nt-pop, .gt-scrim) .gos-show-back { opacity: 0; pointer-events: none; }
+/* Goals (from the menu since V1.47) covers the dock and the thumb row like the other full screens. */
+html.gos .gt-scrim { z-index: 75; }
+html.gos body:has(.gt-scrim) :is(.gos-thumb, .gos-menu) { opacity: 0; pointer-events: none; }
+
+.gos-plan-empty { display: none; position: fixed; z-index: 41; left: 24px; right: 24px; top: calc(var(--gos-top) + 120px); text-align: center; color: var(--gos-dim); pointer-events: none; }
+.gos-plan-empty b { display: block; margin-bottom: 6px; color: var(--k-fg, #FFFFFF); font: 650 calc(17px * var(--k-fs, 1))/1.3 var(--k-font, Inter, system-ui, sans-serif); }
+.gos-plan-empty span { font-size: calc(14px * var(--k-fs, 1)); line-height: 1.45; }
+html.gos body:has(.gos-home[data-pane="plan"]):not(:has(.gos-home .tm-left .tm-meet)) .gos-plan-empty { display: block; animation: gos-fade-in .3s ease both; }
+html.gos body:has(.dx-layer, .ms-layer, .gos-menu.open) .gos-plan-empty { display: none !important; }
+/* Edit mode (moving panels) is a Mac and website thing: on the iPhone web app its button sat on the menu and Settings. */
+html.gos .gos-home .ed-corner { display: none; }
+
+/* Settings on the phone (V1.47): the old sheet's pieces as rows (gos/PhoneRows.tsx). Their cards sit inside the row. */
+html.gos .gs-phone { display: grid; gap: calc(10px * var(--k-dn, 1)); padding-top: calc(4px * var(--k-dn, 1)); }
+html.gos .gs-phone .gos-card { margin: 0; }
+html.gos .gs-phone-bare .gos-group { margin: 0; }
+html.gos .gs-phone-bare .gos-group > h3 { display: none; }
+html.gos .gs-phone-need { display: grid; gap: calc(8px * var(--k-dn, 1)); justify-items: start; }
+html.gos .gs-phone-off { color: var(--gos-dim); }
+html.gos body:has(.dx-layer, .tm-add-layer, .gos-sheet-wrap.open, .nt-pop, .tm-pop-wrap.open) .gos-menu { opacity: 0; transform: translate3d(0, -12px, 0); pointer-events: none; }
+/* V1.47: the rule ".gos-menu * { pointer-events: none }" that stood here is gone. Ending in * under body:has(), it
+   restyled the WHOLE page each time any pop up, sheet or the Fitness bubble came or went (about 780 elements on the
+   phone). Nothing inside the menu sets pointer-events, so they all take "none" from .gos-menu just above. */
+
+html.gos .tm-row[data-dragging], html.gos .tm-row.gos-lifted { background: var(--k-surface, #2A1A23) !important; backdrop-filter: none; }
+html.gos .tm-light .tm-row[data-dragging], html.gos .tm-light .tm-row.gos-lifted { background: #fff !important; }
+
+/* ---------- big screens (Dimension X, campaigns, brief, more settings) on the phone ---------- */
+/* They fill the screen inside the bars; the dock slides away while one is open. */
+html.gos .dx-win, html.gos .cs-win, html.gos .bf-win, html.gos .ms-win {
+  top: calc(var(--gos-top) + 6px) !important; bottom: calc(var(--gos-bottom) + 6px) !important; left: 6px !important; right: 6px !important; border-radius: calc(22px * var(--k-rd, 1));
+}
+html.gos .dx-layer { padding: 0 !important; }
+html.gos body:has(.dx-layer, .tm-add-layer, .gos-sheet-wrap.open) .gos-dock { transform: translate3d(0, calc(100% + var(--gos-bottom) + 20px), 0); }
+.gos-dock { transition: transform .42s var(--gos-ease); }
+html.gos .dx-grid { grid-template-columns: 1fr !important; grid-template-rows: none !important; overflow-y: auto; }
+html.gos .dx-rail { grid-template-columns: 1fr !important; }
+html.gos .dx-head { min-height: 72px; }
+/* Follow-up radar: the counts wrap into two rows instead of overlapping. */
+html.gos .rd-counts { display: flex !important; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); }
+html.gos .rd-counts > * { white-space: nowrap; }
+html.gos .cs-head { grid-template-areas: "min title" "fresh fresh" "tabs tabs" !important; grid-template-columns: auto minmax(0, 1fr) !important; }
+html.gos .cs-tiles, html.gos .cs-wins, html.gos .cs-domains { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+html.gos .cs-two, html.gos .cs-bodies { grid-template-columns: minmax(0, 1fr) !important; }
+html.gos .rd-win .cs-head { grid-template-areas: "min title" "fresh fresh" "hint hint" "tabs tabs" !important; }
+html.gos .rd-counts { justify-content: flex-start !important; }
+html.gos .rd-counts > * { white-space: normal; min-width: 0 !important; flex: 1 1 28%; }
+html.gos .cs-tabs { overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; margin-left: -4px; margin-right: -4px; padding-right: calc(12px * var(--k-dn, 1)); }
+html.gos .cs-tabs::-webkit-scrollbar { display: none; }
+html.gos .cs-tabs button { white-space: nowrap; flex: none; scroll-snap-align: start; }
+html.gos .cs-title { display: grid; gap: calc(2px * var(--k-dn, 1)); }
+html.gos .cs-title h2 { font-size: calc(23px * var(--k-fs, 1)); }
+/* Website pages (Vault): floating buttons sit above the dock. */
+html.gos .nt-launch { bottom: calc(var(--gos-dock-h) + var(--gos-bottom) + 22px) !important; }
+
+/* ---------- thumb row above the dock (List and Plan): Undo, New tasks, + ---------- */
+.gos-thumb { position: fixed; z-index: 50; left: 12px; right: 12px; bottom: calc(var(--gos-dock-h) + var(--gos-bottom) + 18px); display: flex; align-items: center; justify-content: flex-end; gap: calc(10px * var(--k-dn, 1)); pointer-events: none; }
+.gos-thumb > * { pointer-events: var(--gos-thumb-pe, auto); }   /* V1.47: hidden by the :has() rule further down */
+.gos-thumb button { border: 0; font: 600 calc(14px * var(--k-fs, 1))/1 var(--k-font, Inter, system-ui, sans-serif); color: var(--k-fg, #FFFFFF); transition: transform .2s var(--gos-spring); }
+.gos-thumb button:active { transform: scale(.92); }
+.gos-thumb-undo { flex: 0 1 auto; min-width: 0; margin-right: auto; display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); height: 48px; padding: 0 calc(16px * var(--k-dn, 1)) 0 calc(14px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-surface, #281A22) 94%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent), 0 14px 30px -12px rgba(0, 0, 0, .8); backdrop-filter: blur(14px); animation: gos-rise .4s var(--gos-ease) both; }
+.gos-thumb-l { flex: none; font-weight: 800; color: var(--k-acc-t, #FF7BAA); }
+.gos-thumb-undo svg, .gos-thumb-n { flex: none; }
+.gos-thumb-t { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); font-weight: 500; }
+.gos-thumb-n { font-size: calc(12px * var(--k-fs, 1)); padding: calc(3px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.gos-thumb-nt { flex: none; height: 48px; padding: 0 calc(16px * var(--k-dn, 1)) 0 calc(6px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); background: linear-gradient(135deg, var(--k-acc2, #8B5CF6), var(--k-acc, #EC4E86)); box-shadow: 0 12px 28px -10px color-mix(in srgb, var(--k-acc2, #8B5CF6) 80%, transparent); animation: gos-rise .4s var(--gos-ease) both; }
+.gos-thumb-nn { min-width: 36px; height: 36px; border-radius: calc(99px * var(--k-rd, 1)); display: grid; place-items: center; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); font-weight: 800; }
+.gos-thumb-add { flex: none; width: 60px; height: 60px; border-radius: calc(22px * var(--k-rd, 1)); display: grid; place-items: center; background: linear-gradient(135deg, var(--k-acc, #EC4E86), var(--k-acc, #C8366B)); box-shadow: 0 16px 34px -10px color-mix(in srgb, var(--k-acc, #EC4E86) 90%, transparent); animation: gos-rise .5s var(--gos-ease) both; }
+/* The + at the top of the list moved under the thumb; the list's own copies of Undo and the New tasks bubble stay in Inbox. */
+html.gos .gos-home .tm-head .tm-add { display: none; }
+/* Every pane can scroll its last row clear of the thumb row (60 px high, 18 px over the dock). The
+   Plan and Inbox panes ended 24 to 32 px above the dock, so Dimension X and the PS rule book
+   button at the end of Plan sat under Undo and the moon for good (the developer, 1 Nov 2026). */
+html.gos .gos-home { --gos-thumb-clear: 100px; }
+html.gos .gos-home .tm-inner, html.gos .gos-home .tm-side.tm-side { padding-bottom: var(--gos-thumb-clear); }
+html.gos body:has(.dx-layer, .tm-add-layer, .gos-sheet-wrap.open, .nt-pop, .tm-pop-wrap.open) .gos-thumb { opacity: 0; transform: translate3d(0, 30px, 0); pointer-events: none; }
+/* Hidden means untouchable too: the buttons inside turn pointer events back on (.gos-thumb > *), so an
+   invisible + took taps meant for the layer under it (the rule book's End my day, 28 Oct 2026). */
+html.gos body:has(.dx-layer, .tm-add-layer, .gos-sheet-wrap.open, .nt-pop, .tm-pop-wrap.open, .tm-tr .hover-pop.open) .gos-thumb { --gos-thumb-pe: none; }   /* V1.47: a variable, not "> *", see .gos-menu above */
+.gos-thumb { transition: opacity .25s ease, transform .35s var(--gos-ease); }
+
+/* ---------- keyboard ---------- */
+/* Nothing may scroll the frame of the app: focusing a field used to scroll these hidden-overflow boxes
+   and the whole list jumped up. Only real scroll boxes scroll now. */
+html.gos .gos-home, html.gos .gos-swipe, html.gos .gos-home .tm-overlay, html.gos .dx-layer, html.gos .tm-add-layer { overflow: clip; }
+/* Add task rises with the keyboard, frame by frame (only the sheet is relaid out, never the list). */
+html.gos body .tm-add-layer { padding-bottom: var(--gos-kb, 0px) !important; }
+html.gos body .tm-add-layer .tm-add-win { max-height: calc(100dvh - var(--gos-top) - var(--gos-kb, 0px) - 12px) !important; }
+html.gos.gos-kb-up .gos-thumb, html.gos.gos-kb-up .gos-dock { opacity: 0; pointer-events: none; }
+/* The big windows end above the keyboard once it has settled, so their own scroll reaches every field. */
+html.gos.gos-kb-up .dx-win, html.gos.gos-kb-up .cs-win, html.gos.gos-kb-up .bf-win, html.gos.gos-kb-up .ms-win { bottom: calc(var(--gos-kb-end, 0px) + 6px) !important; }
+html.gos.gos-kb-up #root { padding-bottom: calc(var(--gos-kb-end, 0px) + 16px); }
+/* Instant response on touch-down for the thumb row. */
+.gos-thumb button:active, .gos-thumb button.down { transform: scale(.9); transition-duration: .06s; }
+/* Cancel and Add stay in reach above the keyboard: the button row sticks to the bottom of the sheet. */
+html.gos body .tm-add-layer .tm-add-foot { position: sticky; bottom: calc(-1 * (var(--gos-bottom) + 16px)); z-index: 2; margin: 0 -16px calc(-1 * (var(--gos-bottom) + 16px)); padding: calc(12px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(var(--gos-bottom) + 16px);
+  background: var(--k-surface, #1A1016); border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); }
+html.gos.gos-kb-up body .tm-add-layer .tm-add-foot { padding-bottom: calc(12px * var(--k-dn, 1)); margin-bottom: calc(-1 * (var(--gos-bottom) + 16px)); }
+
+/* The PS version and its keyword: "V1.07 · Wisdom", the keyword a little softer than the number. */
+.gos-kw { font-weight: 500; opacity: .62; letter-spacing: .01em; }
+.gos-ver b { font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.gos-build { opacity: .7; }
+
+/* ---------- PS Fitness (src/fitness): the Gym button's screen, full height under the dock ---------- */
+html.gos .gos-gym { position: fixed; inset: 0; z-index: 55; overflow: hidden; animation: gos-rise .45s var(--gos-ease) both; }
+html.gos .gos-gym .fit { --fit-top: var(--gos-top); --fit-bottom: calc(var(--gos-bottom) + var(--gos-dock-h) + 18px); }
+/* A workout is open: the dock slides down out of the way (Back, or Finish, brings it back). */
+html.gos[data-fit-live] .gos-gym .fit { --fit-bottom: calc(var(--gos-bottom) + 12px); }
+html.gos[data-fit-live] .gos-dock { transform: translate3d(0, calc(100% + var(--gos-bottom) + 30px), 0); opacity: 0; pointer-events: none; transition: transform .45s var(--gos-ease), opacity .3s ease; }
+html.gos:not([data-fit-live]) .gos-dock { transition: transform .45s var(--gos-ease), opacity .3s ease; }
+/* The offline pill only tells: it never takes a tap (it sat on the RIR chips and Finish, Android run 31 Oct 2026).
+   On the Gym screen the gym header says it instead (src/fitness/Gym.tsx), so the pill stays out of the way. */
+html.gos .gos-offline { pointer-events: none; }
+/* A background video that could not download (GosBackgrounds.tsx BgProblemCard): the update card's look, small. */
+.gos-bgerr { position: fixed; z-index: 62; left: 16px; right: 16px; top: calc(env(safe-area-inset-top, 0px) + 14px); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); display: grid; gap: calc(8px * var(--k-dn, 1));
+  background: radial-gradient(140% 120% at 0% 0%, color-mix(in srgb, var(--k-bad-t, #FF7878) 16%, transparent), color-mix(in srgb, var(--k-surface, #181014) 96%, transparent) 60%); border: 1px solid color-mix(in srgb, var(--k-bad-t, #FF7878) 42%, transparent); box-shadow: 0 12px 30px rgba(0, 0, 0, .34);
+  color: var(--k-fg, #FFFFFF); font: 500 calc(13px * var(--k-fs, 1))/1.4 var(--k-font, Inter, system-ui, sans-serif); animation: gos-rise .4s var(--gos-ease) both; }
+.gos-bgerr-t { font-weight: 700; font-size: calc(14px * var(--k-fs, 1)); }
+.gos-bgerr-b { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(78% * var(--k-ia, 1))), transparent); }
+.gos-bgerr-a { display: flex; gap: calc(8px * var(--k-dn, 1)); }
+html.gos body:has(.gos-gym) .gos-offline { display: none; }
+/* Your Macs (GosMacs.tsx): remote restart, shut down and lock */
+.gos-mac { display: grid; gap: calc(6px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) 0; border-top: 1px solid color-mix(in srgb, var(--k-base, #000000) 6%, transparent); }
+.gos-mac:first-of-type { border-top: 0; }
+.gos-mac-h { display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--k-dn, 1)); }
+.gos-mac .gos-dot { font-size: calc(12px * var(--k-fs, 1)); opacity: 0.6; }
+.gos-mac .gos-dot.on { color: var(--k-ok-bg, #15803D); opacity: 1; }
+.gos-mac-b { display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); }

@@ -1,0 +1,108 @@
+// The Annoying 15 min reminders at work (core/remind.ts has the rules). Runs in the page that holds the vault: PS's
+// main page on a Mac, the page in the phone app.
+//  - Hands the shell the plan (every reminder with its words worked out and its state), only when it changed:
+//    the Mac shows the cards itself (ps-mac Sources/Reminders.swift: only while you are at the Mac, never in a
+//    meeting, under Do Not Disturb or over 1Password and Signal), the phone posts notifications by itself while PS
+//    sleeps (ps-gos Remind.kt).
+//  - Saves each answer from a shell ({type:"remAct"}: confirmed, or Remind me in) in the vault record, so the other
+//    device's card or notification goes too. An answer that comes while the vault is still locked waits here.
+//  - Reminders ON tasks (V1.55): the pop-up says the task's name, a ticked task ends today's nagging, Done on a card or
+//    a notification ticks the task, and a reminder whose task was deleted or (a one-off) finished goes after a short
+//    wait (so Undo brings both back). A once reminder goes a day after its day.
+//  - On a Mac, once: the old daily reminder (V1.38 to V1.45) that Mac kept becomes reminder one (migrateLegacy), then
+//    the Mac is told it can stop reporting it ("rem:legacyDone").
+import { vaultStore } from "./core/vault";
+import { allTodos, remindRec } from "./core/select";
+import { saveRemind, setTodoDone } from "./core/actions";
+import { applyAct, cleanLegacy, migrateLegacy, okTaskId, remPlan, removeReminders, staleTaskReminders, taskInfos, type RemAct } from "./core/remind";
+import { DEVICE_TZ } from "./core/tz";
+
+type Post = (m: object) => void;
+const PHONE = import.meta.env.MODE === "gos";
+let post: Post = () => {};
+let lastPlan = "";
+let waiting: RemAct[] = [];
+let legacyFrom: () => unknown = () => null;   // undefined: not known yet (a Mac's settings still to come)
+let migrating = false;
+let staleSince: Record<string, number> = {};   // reminders on tasks: when their task was first seen gone or finished
+let sweeping = false;
+const unlocked = () => { const s = vaultStore.get(); return s.status === "unlocked" && s.role === "owner"; };
+
+function run() {
+  if (!unlocked()) return;
+  const s = vaultStore.get();
+  if (waiting.length) { const w = waiting; waiting = []; w.forEach(remAnswer); }
+  const rec = remindRec(s);
+  // The old daily reminder of this Mac becomes reminder one (once; the Mac stops reporting it after "legacyDone").
+  const raw = PHONE ? null : legacyFrom();
+  if (raw === undefined) return;   // a Mac whose settings have not come yet: wait, never send it an empty plan
+  const leg = cleanLegacy(raw);
+  if (leg && !migrating) {
+    migrating = true;
+    const red = !!s.red, now = Date.now();
+    void saveRemind((cur) => migrateLegacy(cur, leg, red, now))
+      .then(() => post({ type: "rem:legacyDone" }))
+      .catch(() => post({ type: "log", text: "reminders: the old daily reminder could not be saved yet" }))
+      .finally(() => { migrating = false; });
+  }
+  const all = allTodos(s);
+  const tasks = taskInfos(all);
+  // Reminders on tasks that were deleted or finished: away (only once the list has really come, never on an empty one).
+  if (rec && rec.list.some((r) => r.task) && all.length && !s.syncing && (s.lastSync || s.local) && !sweeping) {
+    const now = Date.now();
+    const { remove, since } = staleTaskReminders(rec, tasks, staleSince, now, DEVICE_TZ);
+    staleSince = since;
+    if (remove.length) {
+      sweeping = true;
+      void saveRemind((cur) => (cur ? removeReminders(cur, remove, now) : null))
+        .then(() => post({ type: "log", text: `reminders: ${remove.length} on finished or deleted tasks taken away` }))
+        .catch(() => {}).finally(() => { sweeping = false; });
+    }
+  }
+  const plan = remPlan(rec, !!s.red, { tasks, now: Date.now(), deviceTz: DEVICE_TZ });
+  const json = JSON.stringify(plan);
+  // Nothing saved yet and a Mac still holding its old card: leave the Mac's own card alone until the record exists.
+  if (!rec && leg) return;
+  if (json !== lastPlan) { lastPlan = json; post(PHONE ? { type: "remPlan", plan } : { type: "rem:plan", plan }); }
+}
+
+/** An answer from a card, a notification or Settings: saved in the record (only if newer than the one kept). */
+export function remAnswer(a: RemAct) {
+  if (!unlocked()) { waiting.push(a); if (waiting.length > 40) waiting = waiting.slice(-40); return; }
+  // Done on a reminder on a task ticks the task, only when the answer is new (a Mac sending an old one again, after
+  // The developer unticked the task, never ticks it back).
+  let task: string | undefined;
+  void saveRemind((cur) => {
+    const next = cur ? applyAct(cur, a) : null;
+    if (next && a.act === "done") task = cur!.list.find((r) => r.id === a.id)?.task;
+    return next;
+  }).then(() => {
+    if (okTaskId(task)) return setTodoDone(task, true).catch(() => post({ type: "log", text: "reminders: the task could not be ticked yet" }));
+  }).catch(() => { waiting.push(a); });
+}
+/** A shell's message: {type:"remAct", id, act, day | until, at, by}. True when it was one. */
+export function remShellMessage(m: { type?: unknown }): boolean {
+  if (m.type !== "remAct") return false;
+  const o = m as Record<string, unknown>;
+  if (typeof o.id !== "string" || (o.act !== "done" && o.act !== "snooze") || typeof o.at !== "number") return true;
+  remAnswer({ id: o.id, act: o.act, at: o.at, by: o.by === "mac" || o.by === "phone" ? o.by : undefined,
+    ...(typeof o.day === "string" ? { day: o.day } : {}), ...(typeof o.until === "number" ? { until: o.until } : {}) });
+  return true;
+}
+
+let started = false, timer = 0;
+/** `legacy`: the Mac's psSettings rem.legacy (the old card's settings, until handed over). */
+export function startRemWatch(p: Post, legacy?: () => unknown) {
+  if (started) return;
+  started = true;
+  post = p;
+  if (legacy) legacyFrom = legacy;
+  vaultStore.subscribe(() => { clearTimeout(timer); timer = window.setTimeout(run, 300); });
+  // Once a minute too: a ticked task's "done for now" follows the clock into the next window, and the sweep's wait ends.
+  // Only the plan is worked out; it goes to the shell only when it changed.
+  window.setInterval(run, 60_000);
+  run();
+}
+/** Woken (a Mac's wake, the phone's background check, new Mac settings): look now. The plan is resent as it is, so
+ *  a shell that restarted gets it back. */
+export function remWake(resend = false) { if (!started) return; if (resend) lastPlan = ""; run(); }

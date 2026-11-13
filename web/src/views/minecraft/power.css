@@ -1,0 +1,103 @@
+/* Minecraft mode, power out stopwatch (PowerClock.tsx). Blocky pixel look: square corners, stepped
+   pixel borders, a pixel font when the theme gives one. Colours come from mc-theme.css (--mc-*) when the
+   scene chat's theme is loaded; the fallbacks below keep it readable without it. */
+.mcp {
+  --mcp-ink: var(--mc-ink, #f4f1e8);
+  --mcp-dim: var(--mc-ink-dim, #b9b29f);
+  --mcp-bg: var(--mc-panel, #2b2b2b);
+  --mcp-bg2: var(--mc-panel-2, #3a3a3a);
+  --mcp-edge: var(--mc-edge, #111111);
+  --mcp-hi: var(--mc-edge-hi, #5a5a5a);
+  --mcp-out: var(--mc-redstone, #ff3b2f);
+  --mcp-gold: var(--mc-gold, #fcdb4a);
+  --mcp-green: var(--mc-emerald, #3fdc5a);
+  --mcp-font: var(--mc-font, "Press Start 2P", "Silkscreen", ui-monospace, Menlo, monospace);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  color: var(--mcp-ink);
+  background: var(--mcp-bg);
+  border-radius: 0;
+  /* stepped pixel frame: dark outside, light top left, dark bottom right */
+  box-shadow:
+    0 0 0 3px var(--mcp-edge),
+    inset 3px 3px 0 var(--mcp-hi),
+    inset -3px -3px 0 var(--mcp-edge);
+  font-family: var(--mcp-font);
+  image-rendering: pixelated;
+  user-select: none;
+}
+.mcp .num { font-variant-numeric: tabular-nums; }
+
+.mcp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--mcp-dim);
+}
+.mcp-bolt { width: 16px; height: 16px; fill: var(--mcp-gold); flex: none; }
+.mcp-out .mcp-bolt { fill: var(--mcp-out); animation: mcp-blink 1s steps(2, jump-none) infinite; }
+@keyframes mcp-blink { 50% { opacity: .35; } }
+
+.mcp-face { display: flex; flex-direction: column; gap: 6px; }
+.mcp-title { font-size: 12px; line-height: 1.5; color: var(--mcp-ink); }
+.mcp-title.big { font-size: 16px; line-height: 1.4; }
+.mcp-back .mcp-title.big { color: var(--mcp-green); }
+.mcp-on .mcp-title.big { color: var(--mcp-green); }
+.mcp-waiting .mcp-title.big, .mcp-nobattery .mcp-title.big { color: var(--mcp-dim); font-size: 13px; }
+.mcp-clock {
+  font-size: 38px;
+  line-height: 1.1;
+  color: var(--mcp-out);
+  text-shadow: 3px 3px 0 var(--mcp-edge);
+  letter-spacing: .02em;
+}
+.mcp-sub { font-size: 10px; line-height: 1.6; color: var(--mcp-dim); }
+
+.mcp-batt { display: flex; align-items: center; gap: 10px; }
+.mcp-cells {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(10, 10px);
+  gap: 2px;
+  padding: 3px;
+  background: var(--mcp-edge);
+}
+.mcp-cells i { height: 14px; background: var(--mcp-bg2); }
+.mcp-batt.ok .mcp-cells i.on { background: var(--mcp-green); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .28); }
+.mcp-batt.mid .mcp-cells i.on { background: var(--mcp-gold); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .28); }
+.mcp-batt.low .mcp-cells i.on { background: var(--mcp-out); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .28); }
+.mcp-nub { position: absolute; right: -6px; top: 6px; width: 6px; height: 8px; background: var(--mcp-edge); }
+.mcp-pct { font-size: 10px; color: var(--mcp-dim); }
+
+.mcp-net {
+  font-size: 11px;
+  padding: 6px 8px;
+  color: var(--mcp-gold);
+  background: var(--mcp-bg2);
+  box-shadow: 0 0 0 2px var(--mcp-edge);
+}
+
+.mcp-list { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+.mcp-list-h { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--mcp-dim); }
+.mcp-list ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.mcp-list li {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 7px;
+  font-size: 9px;
+  line-height: 1.4;
+  background: var(--mcp-bg2);
+}
+.mcp-day { color: var(--mcp-dim); }
+.mcp-span { color: var(--mcp-ink); }
+.mcp-len { color: var(--mcp-gold); font-weight: normal; }
+
+@media (prefers-reduced-motion: reduce) { .mcp-out .mcp-bolt { animation: none; } }

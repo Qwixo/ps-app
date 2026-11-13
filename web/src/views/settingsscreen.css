@@ -1,0 +1,276 @@
+/* Settings, full screen (views/SettingsScreen.tsx, V1.32; V1.43 search bar, side menu, one row per setting). The shell is the Network monitor's (cstats.css .cs-win,
+   .cs-head, .cs-tabs, .cs-scroll): the whole screen, the header with the back button, the tabs with the moving line.
+   The cards are the Security window's look (security.css .sec-card): a soft surface, a thin line, round corners.
+   Every colour, size and corner reads a look token (the V1.31 appearance engine, scripts/looks-codemod.mjs).
+   V1.36 layout (the developer, 5 Nov 2026: "It looks shit right now"): one centred width (--gs-w) for the header, the tabs and
+   every tab's content, so they all start on the same line; sections one under the other with a heading and a hairline;
+   cards in rows (GsRow) that share their row's height, so edges line up and nothing leaves a hole; the page scrolls
+   inside the window with room at the bottom and a soft fade where it is cut. */
+
+.gs-win { --gs-w: 1240px; --gs-pad: calc(28px * var(--k-dn, 1)); --gs-gap: calc(14px * var(--k-dn, 1)); --gs-nav: calc(250px * var(--k-dn, 1));
+  --gs-line: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent);
+  --gs-soft: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+/* the gutter: at least --gs-pad, more on a wide screen so the content is --gs-w wide and centred */
+.gs-win .gs-head, .gs-win .gs-main { padding-left: max(var(--gs-pad), calc((100% - var(--gs-w)) / 2)); padding-right: max(var(--gs-pad), calc((100% - var(--gs-w)) / 2)); }
+
+/* ---------- header (V1.43): back, the title, the search bar and the version, on one line ---------- */
+.gs-win .gs-head { grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "min title search hint"; padding-top: calc(18px * var(--k-dn, 1)); padding-bottom: calc(16px * var(--k-dn, 1)); column-gap: calc(16px * var(--k-dn, 1)); }
+.gs-head .cs-min { align-self: center; }
+.gs-head .cs-title { align-self: center; }
+.gs-head .cs-title h2 { font-size: calc(26px * var(--k-fs, 1)); }
+.gs-ver { grid-area: hint; align-self: center; display: inline-flex; align-items: baseline; gap: calc(8px * var(--k-dn, 1)); margin: 0; font-size: calc(13px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .01em; white-space: nowrap;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.gs-ver span { display: inline; font-size: calc(11px * var(--k-fs, 1)); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--k-acc-t, #F49BBE); }
+.gs-gear svg { transition: transform .4s cubic-bezier(.2, .9, .3, 1); }
+.gs-gear.on svg { transform: rotate(60deg); }
+
+.gs-search { grid-area: search; justify-self: center; width: 100%; max-width: calc(560px * var(--k-dn, 1)); display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); box-sizing: border-box;
+  height: calc(44px * var(--k-dn, 1)); padding: 0 calc(8px * var(--k-dn, 1)) 0 calc(14px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); cursor: text; color: var(--gs-soft);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); transition: border-color .18s ease, box-shadow .18s ease, background .18s ease; }
+.gs-search:hover { border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); }
+.gs-search:focus-within { color: var(--k-acc-t, #F49BBE); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.gs-search input { all: unset; flex: 1; min-width: 0; height: 100%; font-size: calc(15px * var(--k-fs, 1)); font-weight: 550; color: var(--k-fg, #FFFFFF); }
+.gs-search input::placeholder { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.gs-search input::-webkit-search-cancel-button { display: none; }
+.gs-search-x { all: unset; display: grid; place-items: center; width: calc(28px * var(--k-dn, 1)); height: calc(28px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.gs-search-x:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); }
+
+/* ---------- body: the side menu and the page ---------- */
+.gs-win .cs-content { grid-template-columns: minmax(0, 1fr); }
+.gs-main { min-height: 0; display: grid; grid-template-columns: var(--gs-nav) minmax(0, 1fr); column-gap: calc(30px * var(--k-dn, 1)); }
+.gs-nav { min-height: 0; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: calc(2px * var(--k-dn, 1));
+  padding: calc(20px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(28px * var(--k-dn, 1)) 0; border-right: 1px solid var(--gs-line); }
+.gs-nav-i { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1));
+  font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 650; line-height: 1.25; cursor: pointer; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(72% * var(--k-ia, 1))), transparent);
+  transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
+.gs-nav-i svg { flex: none; opacity: .85; }
+.gs-nav-i:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); }
+.gs-nav-i.on { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc, #EC4E86) 17%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 38%, transparent); }
+.gs-nav-i.on svg { color: var(--k-acc-t, #F49BBE); opacity: 1; }
+.gs-nav-i:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: -2px; }
+.gs-scroll { padding: calc(22px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(56px * var(--k-dn, 1)) 0; scroll-padding-bottom: calc(56px * var(--k-dn, 1));
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, black calc(100% - 22px), transparent); }
+.gs-view { animation: cs-in .42s cubic-bezier(.22, 1, .36, 1) both; }
+.gs-pg { min-width: 0; }
+
+/* one group: its title, its rows in one rounded list, and its small More */
+.gs-grp { display: grid; gap: calc(16px * var(--k-dn, 1)); max-width: calc(900px * var(--k-dn, 1)); align-content: start; }
+.gs-grp-h { display: flex; align-items: center; gap: calc(14px * var(--k-dn, 1)); margin-bottom: calc(2px * var(--k-dn, 1)); }
+.gs-grp-ic { flex: none; display: grid; place-items: center; width: calc(44px * var(--k-dn, 1)); height: calc(44px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1));
+  color: var(--k-acc-t, #F49BBE); background: color-mix(in srgb, var(--k-acc, #EC4E86) 15%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); }
+.gs-grp-h h3 { margin: 0; font-size: calc(21px * var(--k-fs, 1)); font-weight: 820; letter-spacing: -.015em; line-height: 1.2; color: var(--k-fg, #FFFFFF); }
+.gs-grp-h p { margin: calc(3px * var(--k-dn, 1)) 0 0; font-size: calc(13.5px * var(--k-fs, 1)); color: var(--gs-soft); }
+.gs-rows { display: grid; min-width: 0; border-radius: calc(18px * var(--k-rd, 1)); overflow: hidden;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.gs-rows:empty { display: none; }
+
+/* one setting: name and line on the left, the control on the right; a bigger one opens below */
+.gs-set { min-width: 0; padding: calc(15px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-top: 1px solid var(--gs-line); transition: background .2s ease; }
+.gs-set:first-child { border-top: 0; }
+.gs-set-row { display: flex; flex-wrap: wrap; align-items: center; gap: calc(10px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); min-height: calc(36px * var(--k-dn, 1)); }
+.gs-set-t { flex: 1 1 240px; min-width: 0; display: grid; gap: calc(3px * var(--k-dn, 1)); }
+.gs-set.can-shut .gs-set-t { cursor: pointer; }
+.gs-set-t b { font-size: calc(15px * var(--k-fs, 1)); font-weight: 720; letter-spacing: -.005em; line-height: 1.3; color: var(--k-fg, #FFFFFF); }
+.gs-set-t span { font-size: calc(13px * var(--k-fs, 1)); line-height: 1.42; color: var(--gs-soft); }
+.gs-set-c { flex: 0 1 auto; min-width: 0; max-width: 100%; margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.gs-set-c > .tm-pop-note { flex-basis: 100%; text-align: right; }
+.gs-set-c .tm-pop-row { gap: calc(10px * var(--k-dn, 1)); }
+.gs-set-c .tm-pop-range { min-width: calc(160px * var(--k-dn, 1)); }
+.gs-set-x { all: unset; flex: none; display: grid; place-items: center; width: calc(32px * var(--k-dn, 1)); height: calc(32px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); transition: background .16s ease; }
+.gs-set-x:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); }
+.gs-set-x:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 2px; }
+.gs-set-x svg { transform: rotate(180deg); transition: transform .28s cubic-bezier(.22, 1, .36, 1); }
+.gs-set.shut .gs-set-x svg { transform: none; }
+.gs-set-body { margin-top: calc(14px * var(--k-dn, 1)); display: grid; gap: calc(12px * var(--k-dn, 1)); min-width: 0; animation: cs-in .32s cubic-bezier(.22, 1, .36, 1) both; }
+.gs-set-note { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.45; color: var(--gs-soft); max-width: 80ch; }
+/* a search jump lands here: a soft glow that fades */
+.gs-flash { animation: gs-flash 2.2s ease-out both; }
+@keyframes gs-flash {
+  0%, 35% { background: color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); box-shadow: inset 3px 0 0 var(--k-acc, #EC4E86); }
+  100% { background: transparent; box-shadow: inset 3px 0 0 transparent; }
+}
+.gs-landed { animation: gs-landed 2.4s ease-out both; }
+@keyframes gs-landed { 0%, 40% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); } 100% { box-shadow: 0 0 0 3px transparent; } }
+
+/* the pieces inside a row bring no box of their own, and no second title (the row says it) */
+.gs-set-body .panel { padding: 0; background: none; border: 0; box-shadow: none; }
+.gs-set-body > .panel > .h2:first-child, .gs-set-body > .panel > .row:first-child:has(> .h2) { display: none; }
+.gs-has-switch .gs-set-body [role=radiogroup][aria-label$="on or off"] { display: none; }
+.gs-looks { display: grid; gap: calc(12px * var(--k-dn, 1)); min-width: 0; }
+.gs-looks :is(.ms-sec, .ap-card) { padding: 0; background: none; border: 0; box-shadow: none; }
+.gs-looks .ms-sec > :is(.ms-h, .ms-changes), .gs-looks .ap-card-h > :is(b, .ap-changes) { display: none; }
+.gs-looks .ms-sec.ms-storm > .ms-h { display: block; font-size: calc(14px * var(--k-fs, 1)); }   /* lightning, video, rain amount keep their names */
+.gs-looks .ms-note { max-width: 78ch; }
+.gs-size .tm-size { background: transparent; border: 0; padding: 0; display: flex; width: calc(240px * var(--k-dn, 1)); }
+.gs-size .tm-size-l { display: none; }
+.gs-size .tm-size input { flex: 1; width: auto; }
+.gs-set .tm-hist { max-height: 260px; overflow-y: auto; scrollbar-width: thin; flex-basis: 100%; }
+.gs-sel, .gs-set-c .tm-pop-sel { max-width: calc(280px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.gs-notyet { opacity: .5; pointer-events: none; }   /* PS has not said yet (a moment after opening) */
+.gs-upd-row .mu-row { border-radius: calc(14px * var(--k-rd, 1)); }
+.gs-ver-v { font-size: calc(14px * var(--k-fs, 1)); font-weight: 750; color: var(--k-fg, #FFFFFF); }
+.gs-ver-v em { margin-left: calc(8px * var(--k-dn, 1)); font-style: normal; font-size: calc(11px * var(--k-fs, 1)); letter-spacing: .1em; text-transform: uppercase; color: var(--k-acc-t, #F49BBE); }
+.gs-open { all: unset; display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(15px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+  font-size: calc(13px * var(--k-fs, 1)); font-weight: 780; white-space: nowrap; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); transition: background .16s ease, transform .12s ease; }
+.gs-open:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 32%, transparent); }
+.gs-open:active { transform: scale(.96); }
+.gs-open:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 2px; }
+
+/* More: the rare ones, behind one small button at the foot of the group */
+.gs-more { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.gs-more-b { all: unset; justify-self: start; display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+  font-size: calc(13px * var(--k-fs, 1)); font-weight: 760; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.gs-more-b:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.gs-more-b:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 2px; }
+.gs-more-b em { font-style: normal; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 800; padding: 1px calc(7px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(11% * var(--k-ia, 1))), transparent); }
+.gs-more-b svg { transition: transform .28s cubic-bezier(.22, 1, .36, 1); }
+.gs-more.open .gs-more-b svg { transform: rotate(180deg); }
+
+/* ---------- search results: each setting with its section ---------- */
+.gs-hits { display: grid; gap: calc(6px * var(--k-dn, 1)); max-width: calc(900px * var(--k-dn, 1)); align-content: start; }
+.gs-hit { all: unset; box-sizing: border-box; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: calc(14px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1));
+  border-radius: calc(14px * var(--k-rd, 1)); cursor: pointer; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); transition: background .14s ease, border-color .14s ease; }
+.gs-hit:hover, .gs-hit:focus-visible { background: color-mix(in srgb, var(--k-acc, #EC4E86) 13%, transparent); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 42%, transparent); }
+.gs-hit:first-child { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); }
+.gs-hit-ic { display: grid; place-items: center; width: calc(36px * var(--k-dn, 1)); height: calc(36px * var(--k-dn, 1)); border-radius: calc(11px * var(--k-rd, 1)); color: var(--k-acc-t, #F49BBE);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); }
+.gs-hit-t { display: grid; gap: calc(2px * var(--k-dn, 1)); min-width: 0; }
+.gs-hit-t b { font-size: calc(15px * var(--k-fs, 1)); font-weight: 730; color: var(--k-fg, #FFFFFF); }
+.gs-hit-t em { font-style: normal; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.4; color: var(--gs-soft); }
+.gs-hit-g { display: grid; gap: calc(2px * var(--k-dn, 1)); justify-items: end; text-align: right; font-size: calc(12px * var(--k-fs, 1)); font-weight: 760; white-space: nowrap;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.gs-hit-g i { font-style: normal; font-weight: 650; color: var(--k-acc-t, #F49BBE); }
+/* Settings search, nothing found. Scoped (V1.44 #9 and the web app): a bare .gs-none also matched the G Squad button's
+   "not in a squad" state (GSquad.tsx gs-btn gs-none) and stretched the round button into a 98 px tall oval over the
+   Meeting notes panel. */
+.gs-layer .gs-none { display: grid; gap: calc(6px * var(--k-dn, 1)); justify-items: center; text-align: center; padding: calc(48px * var(--k-dn, 1)) 0; max-width: calc(900px * var(--k-dn, 1)); }
+.gs-layer .gs-none b { font-size: calc(17px * var(--k-fs, 1)); color: var(--k-fg, #FFFFFF); }
+.gs-layer .gs-none span { font-size: calc(13.5px * var(--k-fs, 1)); color: var(--gs-soft); }
+
+/* ---------- narrow (the phone, a small window): a list of sections to tap into ---------- */
+.gs-narrow { --gs-pad: calc(14px * var(--k-dn, 1)); }
+/* !important: the phone's own rule for every big screen's header (gos.css html.gos .cs-head) has no search row */
+.gs-win.gs-narrow .gs-head { grid-template-columns: auto minmax(0, 1fr) !important; grid-template-areas: "min title" "search search" !important; row-gap: calc(12px * var(--k-dn, 1)); padding-top: calc(14px * var(--k-dn, 1)); padding-bottom: calc(12px * var(--k-dn, 1)); }
+.gs-narrow .gs-head .cs-title h2 { font-size: calc(22px * var(--k-fs, 1)); }
+.gs-narrow .gs-search { max-width: none; }
+.gs-narrow .gs-main { grid-template-columns: minmax(0, 1fr); padding-left: 0; padding-right: 0; }
+.gs-narrow .gs-scroll { padding: calc(14px * var(--k-dn, 1)) var(--gs-pad) calc(48px * var(--k-dn, 1)); }
+.gs-narrow .gs-set { padding: calc(14px * var(--k-dn, 1)) calc(15px * var(--k-dn, 1)); }
+.gs-narrow .gs-set-c { margin-left: 0; justify-content: flex-start; }
+.gs-narrow .gs-set-c > .tm-pop-note { text-align: left; }
+.gs-narrow .gs-hit { grid-template-columns: auto minmax(0, 1fr); }
+.gs-narrow .gs-hit-g { grid-column: 2; display: flex; flex-wrap: wrap; gap: 0 calc(10px * var(--k-dn, 1)); justify-items: start; text-align: left; white-space: normal; margin-top: calc(-6px * var(--k-dn, 1)); }
+.gs-home { display: grid; gap: calc(8px * var(--k-dn, 1)); align-content: start; }
+.gs-home-i { all: unset; box-sizing: border-box; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: calc(14px * var(--k-dn, 1)); min-height: calc(62px * var(--k-dn, 1));
+  padding: calc(12px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); cursor: pointer; color: var(--gs-soft);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4.5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent);
+  transition: background .14s ease, transform .12s ease; }
+.gs-home-i:active { transform: scale(.985); background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); }
+.gs-home-i:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 2px; }
+.gs-home-ic { display: grid; place-items: center; width: calc(40px * var(--k-dn, 1)); height: calc(40px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); color: var(--k-acc-t, #F49BBE);
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 15%, transparent); }
+.gs-home-t { display: grid; gap: calc(2px * var(--k-dn, 1)); min-width: 0; }
+.gs-home-t b { font-size: calc(16px * var(--k-fs, 1)); font-weight: 750; color: var(--k-fg, #FFFFFF); }
+.gs-home-t em { font-style: normal; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.35; color: var(--gs-soft); }
+.gs-home .gs-ver { justify-self: center; margin-top: calc(14px * var(--k-dn, 1)); }
+
+/* General: sections one under the other, each a heading with a hairline and its rows of cards. */
+.gs-sections { display: grid; gap: calc(34px * var(--k-dn, 1)); }
+.gs-group { display: grid; gap: var(--gs-gap); align-content: start; min-width: 0; }
+.gs-group-h { display: flex; align-items: center; gap: calc(14px * var(--k-dn, 1)); margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.gs-group-h::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.gs-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--gs-gap); min-width: 0; }
+.gs-row > .gs-card { flex: 1 1 260px; }
+.gs-row > .gs-mic { flex: 2 1 400px; }
+/* Notifications: one wide card per kind, one under the other. */
+.gs-list { display: grid; gap: var(--gs-gap); }
+
+/* one card: its title, its controls, and its note at the foot (notes line up along a row) */
+.gs-card { display: flex; flex-direction: column; gap: calc(10px * var(--k-dn, 1)); min-width: 0; padding: calc(17px * var(--k-dn, 1)) calc(19px * var(--k-dn, 1)) calc(17px * var(--k-dn, 1));
+  border-radius: calc(18px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4.5% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(11% * var(--k-ia, 1))), transparent);
+  transition: border-color .2s ease; animation: mac-in .42s cubic-bezier(.2, .9, .3, 1) both; }
+.gs-card:hover { border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(17% * var(--k-ia, 1))), transparent); }
+.gs-group:nth-child(2) .gs-card { animation-delay: .04s; }
+.gs-group:nth-child(3) .gs-card { animation-delay: .07s; }
+.gs-group:nth-child(n+4) .gs-card { animation-delay: .1s; }
+.gs-card .tm-panel-h { margin: 0; color: var(--k-fg, #FFFFFF); font-size: calc(15px * var(--k-fs, 1)); font-weight: 750; letter-spacing: -.005em; text-transform: none; line-height: 1.3; }
+.gs-card .tm-panel-h .tm-hover-hint { margin-left: calc(6px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); font-weight: 600; letter-spacing: 0; }
+.gs-card > .tm-pop-note { margin-top: auto; padding-top: calc(2px * var(--k-dn, 1)); line-height: 1.45; max-width: 72ch; }
+.gs-card .tm-ed-seg { justify-self: start; align-self: flex-start; flex-wrap: wrap; }
+.gs-card .tm-pop-sel { width: 100%; padding: calc(9px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+/* the task size slider fills its card (the gear menu's rules, taskmap.css .tm-pop .tm-size) */
+.gs-card .tm-size { background: transparent; border: 0; padding: 0; display: flex; width: 100%; }
+.gs-card .tm-size-l { display: none; }
+.gs-card .tm-size input { flex: 1; width: auto; }
+.gs-card .tm-hist { max-height: 260px; overflow-y: auto; scrollbar-width: thin; }
+/* The microphones flow in columns in their wide card. */
+.gs-mic .tm-mics { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+/* the update row is its own card already (macupdate.css): no second box round it */
+.gs-upd { padding: 0; background: none; border: 0; }
+.gs-upd .mu-row { border-radius: calc(18px * var(--k-rd, 1)); }
+.gs-upd .mu-row.quiet { padding-top: calc(9px * var(--k-dn, 1)); padding-bottom: calc(9px * var(--k-dn, 1)); padding-left: calc(19px * var(--k-dn, 1)); padding-right: calc(9px * var(--k-dn, 1)); }
+/* Meeting alerts: its two halves side by side when there is room, each with its own heading. */
+.gs-meet .mp { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); column-gap: calc(28px * var(--k-dn, 1)); row-gap: calc(18px * var(--k-dn, 1)); align-items: start; }
+.gs-meet .mp-part { display: grid; gap: calc(7px * var(--k-dn, 1)); align-content: start; min-width: 0; }
+.gs-meet .mp-part > .tm-panel-h { margin-bottom: calc(3px * var(--k-dn, 1)); }
+/* mailpeople.css has a .mp-row of its own (a boxed person row) that also lands on these rows: undo its box here */
+.gs-meet .mp-row { flex-wrap: nowrap; align-items: stretch; gap: calc(6px * var(--k-dn, 1)); padding: 0; border: 0; border-radius: 0; }
+
+/* ---------- Appearance rows (the looks keep the class ms-win: the Notebook looks know them by it) ---------- */
+/* the looks: PS and Notebook one under the other on the left, Productivity on the right, both columns the same height */
+.gs-looks .ap-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "classic productivity" "notebook productivity"; align-items: stretch; gap: var(--gs-gap); }
+.gs-looks .ap-classic { grid-area: classic; }
+.gs-looks .ap-notebook { grid-area: notebook; }
+.gs-looks .ap-productivity { grid-area: productivity; }
+.gs-looks .ap-col { align-content: start; padding: calc(12px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.gs-looks .ap-col-h { padding: calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); }
+.gs-looks .ap-accent .ap-custom { max-width: 760px; }
+.gs-looks .ap-card { gap: calc(12px * var(--k-dn, 1)); }
+
+/* Notebook looks: notebook.css draws the old .gs-gen as one paper sheet; nothing of it is left here */
+html[data-nb] .gs-pg.gs-gen { background: none; border: 0; border-radius: 0; box-shadow: none; }
+
+@media (min-width: 1900px) { .gs-win { --gs-w: 1480px; } }   /* a big screen: a little wider, still centred */
+@media (max-width: 1000px) { .gs-win { --gs-nav: calc(210px * var(--k-dn, 1)); } }
+@media (max-width: 900px) {
+  .gs-looks .ap-cols { grid-template-columns: minmax(0, 1fr); grid-template-areas: "classic" "notebook" "productivity"; }
+}
+/* ---------- Minecraft mode, the entry (views/Minecraft.tsx MinecraftEntry) ---------- */
+.gs-mc-card { padding: 0; overflow: hidden; border-color: color-mix(in srgb, var(--k-ok, #5FB84A) 45%, transparent); }
+.mcw-entry { all: unset; box-sizing: border-box; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: calc(14px * var(--k-dn, 1)); width: 100%; cursor: pointer;
+  padding: calc(15px * var(--k-dn, 1)) calc(17px * var(--k-dn, 1)); color: var(--k-fg, #FFFFFF);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--k-ok, #5FB84A) 18%, transparent), color-mix(in srgb, var(--k-ok, #5FB84A) 4%, transparent) 70%);
+  transition: background .2s ease; }
+.mcw-entry:hover { background: linear-gradient(100deg, color-mix(in srgb, var(--k-ok, #5FB84A) 28%, transparent), color-mix(in srgb, var(--k-ok, #5FB84A) 8%, transparent) 70%); }
+.mcw-entry:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: -2px; }
+.mcw-entry-ico { display: grid; place-items: center; width: 48px; height: 48px; border-radius: calc(10px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-base, #000000) 32%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: transform .45s cubic-bezier(.22, 1.3, .36, 1); }
+.mcw-entry:hover .mcw-entry-ico { transform: rotate(-12deg) scale(1.04); }
+.mcw-entry-t { display: grid; gap: calc(3px * var(--k-dn, 1)); min-width: 0; }
+.mcw-entry-t b { font-size: calc(16px * var(--k-fs, 1)); font-weight: 800; letter-spacing: -.01em; }
+.mcw-entry-t em { font-style: normal; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.4; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.mcw-entry-go { padding: calc(7px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; white-space: nowrap;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-ok, #5FB84A) 30%, transparent); border: 1px solid color-mix(in srgb, var(--k-ok, #5FB84A) 60%, transparent); }
+
+/* ---------- Preview (Looks): the whole screen steps aside while the list shows the look ---------- */
+.gs-layer .gs-win { transition: opacity .16s ease; }
+.gs-layer.peek .gs-win { opacity: 0; pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-view, .gs-card, .gs-set-body, .gs-flash, .gs-landed { animation: none; }
+  .gs-flash { background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent); }
+  .gs-gear svg, .mcw-entry-ico, .gs-layer .gs-win, .gs-set-x svg, .gs-more-b svg, .gs-home-i { transition: none; }
+}

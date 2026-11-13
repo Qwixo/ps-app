@@ -1,0 +1,65 @@
+/* Minecraft mode, the shell (Minecraft.tsx): the big pop up over the whole screen with
+   the scene behind everything, the Minimise button top left, and the floating bubble. Colours and the blocky kit
+   (mcm-panel, --mcm-*) come from minecraft/mc-theme.css when the scene piece is merged; these are the fallbacks.
+   Only mcw classes here (mc- is taken by the mail cards). Only transform and opacity animate. */
+
+/* The pickaxe button left the Tab list's top bar in V1.32 (the developer: no pickaxe anywhere on the main screen): Minecraft
+   mode opens from the gear's Settings, General (its entry card is in settingsscreen.css, .mcw-entry). */
+
+/* ---------- the pop up: the whole screen ---------- */
+.mcw-full { z-index: 60; pointer-events: none; visibility: hidden; opacity: 0; color: var(--mcm-ink, #F6EEF1);
+  font-family: var(--mcm-font, var(--k-font, Inter, system-ui, sans-serif)); }
+.mcw-full.mcw-open { pointer-events: auto; visibility: visible; opacity: 1; }
+/* The power clock and torch pieces read --mc-* names: here they follow the theme's blocks (mc-theme.css). */
+.mcw-full { --mc-ink: var(--mcm-ink); --mc-ink-dim: var(--mcm-ink-soft); --mc-panel: var(--mcm-panel-hi); --mc-panel-2: var(--mcm-panel);
+  --mc-edge: var(--mcm-panel-lo); --mc-edge-hi: var(--mcm-panel-hi); --mc-font: var(--mcm-font);
+  /* Used as TEXT too: dark shades on the light birch (4.5:1 or more), the bright ones on dark obsidian. */
+  --mc-redstone: #9E1C15; --mc-gold: #7A4300; --mc-emerald: #2B6619; }
+.mcw-full[data-mcm-theme="dark"] { --mc-redstone: #FF9A90; --mc-gold: #FCDB4A; --mc-emerald: #5FE07A; }
+@media (prefers-color-scheme: dark) { .mcw-full:not([data-mcm-theme="light"]) { --mc-redstone: #FF9A90; --mc-gold: #FCDB4A; --mc-emerald: #5FE07A; } }
+/* Minimised or closed: hidden only after the shrink has played (the animation holds the last frame). */
+.mcw-full:not(.mcw-open) { transition: visibility 0s linear .34s; }
+.mcw-bg { position: absolute; inset: 0; overflow: hidden; }
+/* Until the scene is there: a plain blocky sky and ground, drawn with gradients only. */
+.mcw-sky { position: absolute; inset: 0;
+  background:
+    linear-gradient(to bottom, transparent calc(100% - 96px), #5DA03A calc(100% - 96px), #5DA03A calc(100% - 80px), #7A5230 calc(100% - 80px)),
+    linear-gradient(to bottom, #2E5FA8, #6FA4E8 70%); }
+
+/* Minimise and Close, top left. Close puts it away with no bubble left on the screen. */
+.mcw-topbtns { position: absolute; top: calc(18px + var(--safe-top, 0px)); left: 20px; z-index: 3; display: flex; align-items: center; gap: 10px; }
+.mcw-minbtn, .mcw-closebtn { display: flex; align-items: center; gap: 8px; }
+
+.mcw-stage { position: absolute; z-index: 2; inset: calc(64px + var(--safe-top, 0px)) 24px calc(var(--mcw-crew, 0px) + 16px); display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px;
+  max-width: 1180px; margin: 0 auto; min-height: 0; transform-origin: 50% 50%; }
+.mcw-title { display: flex; align-items: center; gap: 12px; justify-self: start; padding: 8px 16px 8px 10px;
+  background: var(--mcm-plate, rgba(16, 12, 10, .78)); border: 2px solid var(--mcm-edge, rgba(0, 0, 0, .7)); border-radius: 4px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .1), 0 4px 0 rgba(0, 0, 0, .45); }
+.mcw-title h2 { margin: 0; font: 700 22px/1.1 var(--mcm-font, inherit); letter-spacing: .02em; color: var(--mcm-ink, #fff); text-shadow: 2px 2px 0 rgba(0, 0, 0, .55); }
+.mcw-title p { margin: 2px 0 0; font-size: 12.5px; color: var(--mcm-muted, rgba(255, 255, 255, .72)); }
+.mcw-title-ico { display: grid; place-items: center; width: 38px; height: 38px; color: rgba(0, 0, 0, .85); background: rgba(255, 255, 255, .14); border-radius: 3px; }
+
+.mcw-grid { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 16px; align-items: start; }
+.mcw-side { display: grid; gap: 16px; align-content: start; min-height: 0; max-height: 100%; overflow-y: auto; scrollbar-width: thin; }
+/* A block panel: the theme's mcm-panel when merged; this fallback is dark stone with a hard pixel edge. */
+.mcw-panel { min-height: 0; padding: 16px 18px; color: var(--mcm-ink, #F6EEF1); background: var(--mcm-panel-bg, rgba(22, 18, 16, .9));
+  border: 3px solid var(--mcm-edge, #0E0B09); border-radius: 2px;
+  box-shadow: inset 3px 3px 0 rgba(255, 255, 255, .08), inset -3px -3px 0 rgba(0, 0, 0, .35), 0 6px 0 rgba(0, 0, 0, .4); }
+.mcw-tr-panel { max-height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; }
+@media (max-width: 900px) {
+  .mcw-grid { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .mcw-tr-panel { max-height: none; }
+}
+
+/* ---------- the bubble ---------- */
+.mcw-bubble-layer { z-index: 61; }
+.mcw-bubble { position: absolute; left: 0; top: 0; pointer-events: auto; touch-action: none; display: flex; align-items: center; gap: 8px; height: 58px; min-width: 58px;
+  padding: 0 14px 0 14px; cursor: grab; color: rgba(0, 0, 0, .85);
+  background: linear-gradient(#6BB34A 0 14px, #8A5A33 14px); border: 3px solid #1A120C; border-radius: 4px;
+  box-shadow: inset 3px 3px 0 rgba(255, 255, 255, .22), inset -3px -3px 0 rgba(0, 0, 0, .3), 0 5px 0 rgba(0, 0, 0, .45), 0 10px 26px rgba(0, 0, 0, .4);
+  will-change: transform; }
+.mcw-bubble:active { cursor: grabbing; }
+.mcw-bubble-ico { display: grid; place-items: center; }
+.mcw-bubble-t { font: 700 13px/1.15 var(--mcm-font, ui-monospace, Menlo, monospace); color: #fff; text-shadow: 1px 1px 0 #000; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mcw-bubble-out { background: linear-gradient(#C0392B 0 14px, #5A1F18 14px); }
+

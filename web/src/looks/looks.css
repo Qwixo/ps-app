@@ -1,0 +1,87 @@
+/* The PS look, page wide parts (src/looks/engine.ts, core/looks.ts). The colours of every screen come from the
+   --k-* tokens inside each stylesheet (scripts/looks-codemod.mjs); this file only adds what belongs to the page as a
+   whole: the switch animation, scrollbars, selection, the cover over the screen behind, and the density of task rows.
+   Nothing here applies without a look (html[data-look]) except the size tokens, which are 1 by default. */
+
+/* ---------- switching: a soft cross fade (a notebook turns its page, notebook.css) ---------- */
+html.lk-turning::view-transition-old(root) { animation: lk-out .42s cubic-bezier(.4, 0, .2, 1) both; }
+html.lk-turning::view-transition-new(root) { animation: lk-in .42s cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes lk-out { to { opacity: 0; filter: blur(2px); } }
+@keyframes lk-in { from { opacity: 0; filter: blur(2px); } }
+html.lk-fading, html.lk-fading * {
+  transition: background-color .45s ease, color .45s ease, border-color .45s ease, fill .45s ease, stroke .45s ease, box-shadow .45s ease !important;
+}
+
+/* ---------- page wide ---------- */
+html[data-look] { color-scheme: dark; }
+html[data-look="light"], html[data-look][data-paper] { color-scheme: light; }
+html[data-look] ::selection { background: color-mix(in srgb, var(--k-acc) 34%, transparent); color: inherit; }
+html[data-look] :focus-visible { outline-color: var(--k-acc); }
+html[data-look] { scrollbar-color: color-mix(in srgb, var(--k-fg) 26%, transparent) transparent; }   /* inherited, so the page root is enough */
+html[data-look] ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--k-fg) 26%, transparent); border-radius: 99px; }
+html[data-look] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--k-fg) 42%, transparent); }
+html[data-look] ::placeholder { color: color-mix(in srgb, var(--k-fg) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+
+/* The cover over your screen behind the Tab list: a paper look is solid, a glass look keeps the glass slider.
+   Hover mode still shows the screen clearly (that is what it is for). */
+html[data-solid] .tm-overlay:not(.tm-docked):not(.tm-hovermode) {
+  /* a plain percentage: max() inside color-mix() stops Chromium painting the page */
+  background-color: color-mix(in srgb, var(--k-base) var(--k-cover, 96%), transparent);
+}
+/* V1.43 List transparency (Settings, Looks; views/TaskMap.tsx coverAt): on PS's floating list the solid cover thins with
+   it. --tm-cover is a plain percentage worked out by the list (the look's own cover at 0%, nothing at 100%). */
+html[data-solid] .tm-overlay.tm-see:not(.tm-docked):not(.tm-hovermode) {
+  background-color: color-mix(in srgb, var(--k-base) var(--tm-cover, var(--k-cover, 96%)), transparent);
+}
+
+/* ---------- density: task rows (their padding is in task size units, so it gets the density here) ---------- */
+html .tm-row { padding: calc(14px * var(--z) * var(--k-dn, 1)) calc(18px * var(--z) * var(--k-dn, 1)); gap: calc(14px * var(--z) * var(--k-dn, 1)); }
+html[data-density="dense"] .tm-list { gap: 6px; }
+html[data-density="dense"] .tm-t { line-height: 1.15; }
+html[data-density="focus"] .tm-list { gap: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.lk-turning::view-transition-old(root), html.lk-turning::view-transition-new(root) { animation: none; }
+}
+
+/* ---------- the bundled fonts (src/assets/fonts/looks, SIL Open Font License) ---------- */
+@font-face { font-family: "PS Atkinson"; src: url("../assets/fonts/looks/AtkinsonHyperlegibleNext-Variable.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "PS Atkinson Mono"; src: url("../assets/fonts/looks/AtkinsonHyperlegibleMono-Variable.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "PS Plex"; src: url("../assets/fonts/looks/IBMPlexSans-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "PS Plex"; src: url("../assets/fonts/looks/IBMPlexSans-SemiBold.woff2") format("woff2"); font-weight: 500 900; font-display: swap; }
+@font-face { font-family: "PS Plex Mono"; src: url("../assets/fonts/looks/IBMPlexMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "PS JetBrains Mono"; src: url("../assets/fonts/looks/JetBrainsMono-Variable.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
+@font-face { font-family: "PS Source Serif"; src: url("../assets/fonts/looks/SourceSerif4-Variable.woff2") format("woff2"); font-weight: 200 900; font-display: swap; }
+html[data-look] body, html[data-look] .tm-overlay { font-family: var(--k-font, var(--font)); }
+html[data-look] :is(code, kbd, samp, .num-mono) { font-family: var(--k-mono, ui-monospace, Menlo, monospace); }
+
+/* ---------- priority colours (P1 to P4 and on; a look sets --k-p1 to --k-p4, checked for contrast) ---------- */
+html[data-look] .tm-prio[data-p] { color: var(--k-pc); border-color: color-mix(in srgb, var(--k-pc) 45%, transparent); background: color-mix(in srgb, var(--k-pc) 12%, transparent); }
+html[data-look] .tm-prio[data-p="1"] { --k-pc: var(--k-p1); }
+html[data-look] .tm-prio[data-p="2"] { --k-pc: var(--k-p2); }
+html[data-look] .tm-prio[data-p="3"] { --k-pc: var(--k-p3); }
+html[data-look] .tm-prio[data-p="4"] { --k-pc: var(--k-p4); }
+
+/* ---------- the research looks' own touches (v131-productivity-research.md, section 5) ---------- */
+html[data-look] .tm-title { font-family: var(--k-head, inherit); }
+html[data-look] :is(.num, time) { font-variant-numeric: tabular-nums; }
+/* Control Room and Ledger: tighter titles, more rows */
+html:is([data-look="control"], [data-look="ledger"]) .tm-t { font-weight: 600; letter-spacing: -.005em; }
+/* Ledger: a fine rule under every fifth row, so the eye can follow a wide row */
+html[data-look="ledger"] .tm-list > .tm-row:nth-child(5n) { box-shadow: 0 1px 0 color-mix(in srgb, var(--k-fg) 22%, transparent); }
+/* Calm Focus: one calm centre column, softer weight */
+html[data-look="calm"] .tm-overlay:not(.tm-docked) .tm-inner { width: min(720px, 100%); }
+html[data-look="calm"] .tm-t { font-weight: 600; }
+/* Big Print: tall rows, titles wrap instead of being cut, big hit targets */
+html[data-look="bigprint"] .tm-row { min-height: 64px; }
+html[data-look="bigprint"] .tm-t { -webkit-line-clamp: unset; white-space: normal; letter-spacing: .01em; }
+html[data-look="bigprint"] .tm-tick { min-width: 36px; min-height: 36px; }
+/* Night Shift: one step lighter type, light text on dark blooms */
+html[data-look="night"] .tm-t { font-weight: 600; }
+/* Signal: Priority 1 is shown three ways (glyph, colour and an edge) */
+html[data-look="signal"] .tm-row.p1 { box-shadow: inset 3px 0 0 var(--k-p1); }
+html[data-look="signal"] :focus-visible { outline: 3px solid var(--k-p2); }
+
+/* ---------- the V1.30 Light theme was an invert filter (moresettings.css .tm-light): off, Light is tokens now ---------- */
+html[data-look] .tm-overlay.tm-light, html[data-look] .tm-light :is(img, video, picture, .tm-bgvideo, .tm-bgvideo-sample, .p1c-dot) { filter: none; }
+html.gos[data-look] .tm-light .tm-row:is([data-dragging], .gos-lifted) { background: var(--k-surface) !important; }

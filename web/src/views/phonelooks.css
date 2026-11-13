@@ -1,0 +1,99 @@
+/* V1.56 Saved looks and Reset for a phone (views/PhoneLooks.tsx): the phone's own Edit mode and the Mac's phone canvas.
+   Above both editors (pe-room 99, pm-room 2147483000). */
+.lk-btn {
+  display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255, 255, 255, .14); cursor: pointer; color: #fff;
+  background: rgba(255, 255, 255, .08); font: 600 13px/1 var(--k-font, Inter, system-ui, sans-serif); border-radius: 999px; padding: 0 14px; height: 34px;
+  transition: background .2s ease, transform .2s cubic-bezier(.34, 1.36, .5, 1);
+}
+.lk-btn.phone { height: 44px; padding: 0 16px; font-size: 15px; background: rgba(30, 24, 34, .9); }
+.lk-btn:active { transform: scale(.94); }
+.lk-btn.on, .lk-btn:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, rgba(30, 24, 34, .9)); }
+
+.lk-panel {
+  position: fixed; z-index: 2147483100; display: grid; grid-template-rows: auto auto 1fr auto; gap: 10px; padding: 14px; color: #fff;
+  background: rgba(24, 19, 28, .97); border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 30px 80px -10px rgba(0, 0, 0, .85);
+  font: 500 13px/1.3 var(--k-font, Inter, system-ui, sans-serif); -webkit-user-select: none; user-select: none;
+}
+.lk-panel.mac { right: 16px; top: 72px; width: 330px; max-height: calc(100vh - 100px); border-radius: 22px; animation: lk-pop .38s cubic-bezier(.34, 1.36, .5, 1) both; transform-origin: 80% 0; }
+.lk-panel.phone {
+  left: 0; right: 0; bottom: 0; max-height: 78vh; border-radius: 26px 26px 0 0; font-size: 15px;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px) + var(--gos-inset-bottom, 0px));
+  animation: lk-up .48s cubic-bezier(.22, 1.1, .36, 1) both;
+}
+@keyframes lk-pop { from { opacity: 0; transform: translateY(-8px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes lk-up { from { transform: translateY(105%); } to { transform: none; } }
+.lk-head { display: flex; align-items: center; gap: 10px; }
+.lk-head b { font-size: 16px; }
+.lk-head span { flex: 1; opacity: .5; font-size: 12px; }
+.lk-x { width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .08); color: inherit; font: 600 20px/1 system-ui; cursor: pointer; }
+.lk-save, .lk-reset {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 14px; cursor: pointer; color: inherit; font: 700 14px/1.2 inherit;
+  border: 1px dashed rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .04); transition: background .2s ease;
+}
+.lk-save:hover:not(:disabled) { background: color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); border-color: var(--k-acc, #EC4E86); }
+.lk-save:disabled { opacity: .55; cursor: default; font-weight: 500; }
+.lk-reset { border-style: solid; border-color: rgba(255, 255, 255, .1); font-weight: 600; opacity: .85; }
+.lk-reset:hover { background: rgba(229, 72, 77, .18); border-color: #e5484d; }
+.lk-saving { display: flex; gap: 6px; }
+.lk-name { flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--k-acc, #EC4E86); outline: 0; background: rgba(0, 0, 0, .35); color: #fff; font: 600 15px/1 inherit; -webkit-user-select: text; user-select: text; }
+.lk-go, .lk-cancel { min-height: 44px; padding: 0 14px; border-radius: 12px; border: 0; cursor: pointer; font: 700 14px/1 inherit; color: #fff; white-space: nowrap; }
+.lk-go { background: var(--k-acc, #EC4E86); }
+.lk-go.warn { background: #e5484d; }
+.lk-go:disabled { opacity: .5; }
+.lk-cancel { background: rgba(255, 255, 255, .08); }
+.lk-list { display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; min-height: 60px; margin: 0 -4px; padding: 0 4px; }
+.lk-row { position: relative; display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 16px; background: rgba(255, 255, 255, .04); border: 1px solid transparent;
+  animation: lk-pop .36s cubic-bezier(.34, 1.36, .5, 1) both; animation-delay: calc(var(--i, 0) * 30ms); transition: background .2s ease, border-color .2s ease; }
+.lk-row.cur { border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); }
+.lk-row.auto { background: transparent; border: 1px dashed rgba(255, 255, 255, .12); }
+.lk-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px; border: 0; border-radius: 12px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.lk-pick:active { transform: scale(.98); }
+.lk-what { display: grid; gap: 3px; min-width: 0; }
+.lk-what b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lk-what em { font-style: normal; font-size: 12px; opacity: .55; }
+.lk-row.cur .lk-what em { opacity: .9; color: var(--k-acc, #EC4E86); }
+.lk-rename { position: absolute; left: 112px; right: 96px; top: 50%; transform: translateY(-50%); min-height: 38px; }
+.lk-icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 12px; background: transparent; color: rgba(255, 255, 255, .7); cursor: pointer; }
+.lk-icon:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.lk-icon.del:hover { background: #e5484d; }
+.lk-empty { margin: 8px 6px; opacity: .55; font-size: 13px; }
+
+/* The little picture of a look: its pages side by side. */
+.lk-pic { flex: none; display: flex; gap: 3px; height: 54px; }
+.lk-pg { position: relative; width: 25px; height: 54px; border-radius: 5px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, .14); }
+.lk-pg i { position: absolute; border-radius: 1.5px; background: rgba(255, 255, 255, .55); }
+.lk-pg i.lk-pane { left: 10%; right: 10%; height: 34%; width: auto; border-radius: 2px; background: rgba(255, 255, 255, .3); }
+.lk-pg u { position: absolute; left: 12%; right: 12%; height: 4%; border-radius: 2px; background: rgba(255, 255, 255, .35); text-decoration: none; }
+.lk-pg s { position: absolute; inset: 30% 25%; border: 1px dashed rgba(255, 255, 255, .3); border-radius: 2px; }
+.lk-pg .lk-nav { position: absolute; height: 7%; border-radius: 2px; background: rgba(255, 255, 255, .8); }
+
+/* Reset: Are you sure? */
+.lk-ask-wrap { position: fixed; inset: 0; z-index: 2147483200; display: grid; place-items: center; padding: 20px; }
+.lk-ask-dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); animation: lk-fade .25s ease both; }
+@keyframes lk-fade { from { opacity: 0; } }
+.lk-ask { position: relative; width: min(360px, 100%); display: grid; gap: 10px; padding: 20px; border-radius: 22px; color: #fff; background: rgba(28, 22, 32, .98);
+  border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 30px 80px rgba(0, 0, 0, .8); font: 500 14px/1.4 var(--k-font, Inter, system-ui, sans-serif); animation: lk-pop .4s cubic-bezier(.34, 1.36, .5, 1) both; }
+.lk-ask b { font-size: 18px; }
+.lk-ask p { margin: 0; opacity: .75; }
+.lk-ask div { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+
+/* The Undo toast. */
+.lk-toast {
+  position: fixed; z-index: 2147483150; left: 50%; display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 18px; border-radius: 999px; color: #fff; white-space: nowrap;
+  background: rgba(30, 24, 34, .97); border: 1px solid rgba(255, 255, 255, .12); box-shadow: 0 20px 50px rgba(0, 0, 0, .6); font: 600 14px/1 var(--k-font, Inter, system-ui, sans-serif);
+  animation: lk-toast .5s cubic-bezier(.34, 1.36, .5, 1) both;
+}
+.lk-toast.mac { bottom: 44px; transform: translateX(-50%); }
+.lk-toast.phone { top: calc(66px + var(--gos-inset-top, env(safe-area-inset-top, 0px))); transform: translateX(-50%); max-width: calc(100vw - 24px); }
+@keyframes lk-toast { from { opacity: 0; translate: 0 14px; scale: .9; } to { opacity: 1; translate: 0 0; scale: 1; } }
+.lk-toast span { overflow: hidden; text-overflow: ellipsis; }
+.lk-toast button { min-height: 36px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--k-acc, #EC4E86); color: #fff; font: 700 14px/1 inherit; cursor: pointer; }
+
+/* A look going on: a short soft blur through the phone while the tiles glide to their places. */
+html.lk-swap :is(.pe-card.cur .pe-screen, .pm-card.cur .pe-screen) { animation: lk-swap .7s cubic-bezier(.22, 1, .36, 1); }
+@keyframes lk-swap { 0% { filter: none; } 30% { filter: blur(6px) brightness(1.25); transform: scale(.97); } 100% { filter: none; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lk-panel, .lk-row, .lk-ask, .lk-toast, .lk-ask-dim { animation: none !important; }
+  html.lk-swap .pe-screen { animation: none !important; }
+}

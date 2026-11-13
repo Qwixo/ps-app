@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
+<title>Download PS for Mac</title>
+<link rel="icon" href="/client/icon.svg">
+<link rel="stylesheet" href="download.css">
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="logo">PS</div>
+    <h1>PS for Mac</h1>
+    <p class="ver" id="ver">macOS 13 or newer, Apple silicon</p>
+  </header>
+
+  <section class="card easy">
+    <p class="tag">Easiest</p>
+    <h2>One line in Terminal</h2>
+    <p>It downloads PS, checks its signature and puts it in Applications. Your Mac will not ask you to approve it.</p>
+    <ol class="mini">
+      <li>Open <b>Terminal</b>: press <kbd>Cmd</kbd> <kbd>Space</kbd>, type <i>Terminal</i>, press Return.</li>
+      <li>Paste this and press Return.</li>
+    </ol>
+    <div class="cmd">
+      <code id="cmd">curl -fsSL https://cincee.com/client/ps/install.sh | bash</code>
+      <button id="copy" type="button">Copy</button>
+    </div>
+    <p class="small">If anything does not match it prints STOPPED and installs nothing. <a href="../install.sh">Read the script</a>.</p>
+  </section>
+
+  <section class="card">
+    <h2>Or download the disk image</h2>
+    <a class="big" id="dmg" href="../PS.dmg" download>Download PS</a>
+    <p class="small center" id="dmgInfo">PS.dmg</p>
+
+    <h3>Opening it the first time</h3>
+    <p>PS is signed by Cincee, not by Apple, so your Mac asks you to confirm it once.</p>
+
+    <div class="step">
+      <div class="n">1</div>
+      <div class="txt">
+        <p>Open <b>PS.dmg</b> and double-click <b>PS</b>. Your Mac says <b>"PS" Not Opened</b>. Click <b>Done</b>. Not Move to Trash.</p>
+      </div>
+      <svg class="pic" viewBox="0 0 320 200" role="img" aria-label="The PS Not Opened dialog with the Done button marked">
+        <rect x="40" y="10" width="240" height="180" rx="16" class="win"/>
+        <rect x="140" y="26" width="40" height="40" rx="9" class="icon"/><text x="160" y="52" class="iconT">PS</text>
+        <text x="160" y="88" class="h">“PS” Not Opened</text>
+        <text x="160" y="106" class="t">Apple could not verify “PS” is free</text>
+        <text x="160" y="119" class="t">of malware that may harm your Mac</text>
+        <text x="160" y="132" class="t">or compromise your privacy.</text>
+        <rect x="58" y="146" width="98" height="28" rx="8" class="btn"/><text x="107" y="164" class="bt">Move to Trash</text>
+        <rect x="164" y="146" width="98" height="28" rx="8" class="btn"/><text x="213" y="164" class="bt">Done</text>
+        <rect x="160" y="142" width="106" height="36" rx="11" class="mark"/>
+      </svg>
+    </div>
+
+    <div class="step">
+      <div class="n">2</div>
+      <div class="txt">
+        <p>Open <b>System Settings &gt; Privacy &amp; Security</b> and scroll down to <b>Security</b>. Next to <b>"PS" was blocked to protect your Mac</b>, click <b>Open Anyway</b>, then use Touch ID or your password.</p>
+        <p class="small">The button stays for about an hour. If it is gone, do step 1 again.</p>
+      </div>
+      <svg class="pic" viewBox="0 0 320 200" role="img" aria-label="System Settings, Privacy and Security, with the Open Anyway button marked">
+        <rect x="10" y="10" width="300" height="180" rx="14" class="win"/>
+        <rect x="10" y="10" width="92" height="180" rx="14" class="side"/>
+        <rect x="18" y="38" width="76" height="12" rx="4" class="bar"/>
+        <rect x="18" y="58" width="60" height="12" rx="4" class="bar"/>
+        <rect x="16" y="78" width="80" height="18" rx="6" class="sel"/><text x="56" y="91" class="selT">Privacy &amp; Security</text>
+        <rect x="18" y="104" width="68" height="12" rx="4" class="bar"/>
+        <rect x="18" y="124" width="56" height="12" rx="4" class="bar"/>
+        <text x="116" y="40" class="hl">Privacy &amp; Security</text>
+        <text x="116" y="72" class="sec">Security</text>
+        <rect x="114" y="82" width="184" height="62" rx="9" class="row"/>
+        <text x="124" y="102" class="tl">“PS” was blocked to protect</text>
+        <text x="124" y="115" class="tl">your Mac.</text>
+        <rect x="216" y="114" width="72" height="22" rx="7" class="btn"/><text x="252" y="129" class="bt">Open Anyway</text>
+        <rect x="212" y="110" width="80" height="30" rx="10" class="mark"/>
+      </svg>
+    </div>
+
+    <div class="step">
+      <div class="n">3</div>
+      <div class="txt">
+        <p>Your Mac asks once more: <b>Open "PS"?</b> Click <b>Open Anyway</b>.</p>
+      </div>
+      <svg class="pic" viewBox="0 0 320 200" role="img" aria-label="The Open PS question with the Open Anyway button marked">
+        <rect x="40" y="10" width="240" height="180" rx="16" class="win"/>
+        <rect x="140" y="26" width="40" height="40" rx="9" class="icon"/><text x="160" y="52" class="iconT">PS</text>
+        <text x="160" y="88" class="h">Open “PS”?</text>
+        <text x="160" y="106" class="t">macOS cannot verify that this app</text>
+        <text x="160" y="119" class="t">is free from malware. Opening “PS”</text>
+        <text x="160" y="132" class="t">will always allow it to run on this Mac.</text>
+        <rect x="58" y="146" width="98" height="28" rx="8" class="btn"/><text x="107" y="164" class="bt">Open Anyway</text>
+        <rect x="164" y="146" width="98" height="28" rx="8" class="btn"/><text x="213" y="164" class="bt">Done</text>
+        <rect x="54" y="142" width="106" height="36" rx="11" class="mark"/>
+      </svg>
+    </div>
+
+    <div class="step">
+      <div class="n">4</div>
+      <div class="txt">
+        <p>The <b>Install PS</b> window opens. Click <b>Install PS</b>. It puts PS in Applications and shows the one setting it needs. From then on PS updates itself.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="mc">
+    <h2>Also for Mac: PS Middle Clicker</h2>
+    <p>A firm Force Touch press on the trackpad becomes a middle click. PS already has it built in (PS Settings, Force Touch middle click), so this separate app is optional.</p>
+    <a class="big alt" id="mcLink" href="#">Download PS Middle Clicker</a>
+    <p class="small center" id="mcInfo"></p>
+    <p>Unzip it, drag <b>PSMiddleClicker</b> to Applications and open it. The first time, the same Open Anyway steps as above. Then switch it on in <b>System Settings &gt; Privacy &amp; Security &gt; Device Control and Data Access</b> (called Accessibility on older macOS).</p>
+  </section>
+
+  <p class="foot">PS is made by Cincee.</p>
+</main>
+<script src="download.js"></script>
+</body>
+</html>

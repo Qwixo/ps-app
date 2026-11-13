@@ -1,0 +1,216 @@
+/* Do Not Disturb (the developer, 30 Oct 2026): the moon top right of the Tab list, the same look as the private mode
+   mask (dim off, glowing white on), its pop-up on the Mac and its sheet on the phone. Views/Dnd.tsx. */
+.dnd-btn { position: relative; flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; padding: 0;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: color .35s ease, background .35s ease, border-color .35s ease, box-shadow .6s cubic-bezier(.22, 1, .36, 1), filter .6s ease, transform .15s ease; }
+.dnd-btn:hover, .dnd-btn.open { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); }
+.dnd-btn:active { transform: scale(.92); }
+.dnd-btn svg { transition: transform .5s cubic-bezier(.22, 1.3, .36, 1); }
+.dnd-btn.on { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent), 0 0 16px color-mix(in srgb, var(--k-glow, #FFFFFF) 55%, transparent), 0 0 34px color-mix(in srgb, var(--k-glow, #FFFFFF) 25%, transparent);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--k-glow, #FFFFFF) 80%, transparent)); }
+.dnd-btn.on svg { transform: rotate(-14deg); }
+.dnd-stars { transition: opacity .5s ease .15s; }
+/* The floating Tab list (PS): the moon is the far right of the row just under the top bar (taskmap.css .tm-tr2).
+   The website's docked list keeps it in the bar. */
+/* Turning it on: one soft ring of light grows out of the moon and fades. */
+.dnd-burst { position: absolute; inset: -1px; border-radius: 50%; pointer-events: none; border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(90% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--k-glow, #FFFFFF) 70%, transparent); animation: dndBurst .9s cubic-bezier(.22, 1, .36, 1) forwards; }
+@keyframes dndBurst { from { transform: scale(1); opacity: .95; } to { transform: scale(2.4); opacity: 0; } }
+.tm-light-on .dnd-btn { color: rgba(0, 0, 0, .5); background: rgba(0, 0, 0, .04); border-color: rgba(0, 0, 0, .14); }
+.tm-light-on .dnd-btn.on { color: #1B1A1D; border-color: #1B1A1D; background: rgba(0, 0, 0, .08); box-shadow: 0 0 14px rgba(0, 0, 0, .25); filter: none; }
+.tm-light-on .dnd-burst { border-color: rgba(0, 0, 0, .6); box-shadow: 0 0 14px rgba(0, 0, 0, .25); }
+@media (prefers-reduced-motion: reduce) { .dnd-burst { animation: none; display: none; } .dnd-btn svg { transition: none; } }
+
+/* ---------- the pop-up (Mac): drops from the moon ---------- */
+.dnd-menu { position: fixed; z-index: 2147483000; width: 318px; max-height: calc(100vh - 90px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  padding: calc(12px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); box-sizing: border-box;
+  background: var(--k-surface, #161016); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .5), 0 2px 10px rgba(0, 0, 0, .3); font: calc(13px * var(--k-fs, 1))/1.35 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif);
+  transform-origin: 92% 0; animation: dndIn .34s cubic-bezier(.22, 1.2, .36, 1); }
+@keyframes dndIn { from { opacity: 0; transform: translateY(-6px) scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .dnd-menu { animation: none; } }
+
+.dnd-top { display: flex; align-items: center; gap: calc(11px * var(--k-dn, 1)); padding: calc(2px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.dnd-orb { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--k-fg, #FFFFFF);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(28% * var(--k-ia, 1))), transparent), color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--k-glow, #FFFFFF) 35%, transparent); }
+.dnd-t { display: block; font-size: calc(15px * var(--k-fs, 1)); font-weight: 800; letter-spacing: -.01em; }
+.dnd-t em { display: block; margin-top: 2px; font-style: normal; font-size: calc(12px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+
+.dnd-chips { display: flex; gap: calc(6px * var(--k-dn, 1)); padding: 0 calc(2px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.dnd-chips button { flex: 1 1 auto; padding: calc(8px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent);
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(78% * var(--k-ia, 1))), transparent); font-family: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; line-height: 1; white-space: nowrap; cursor: pointer;
+  transition: background .2s ease, color .2s ease, border-color .2s ease, box-shadow .3s ease, transform .15s ease; }
+.dnd-chips button:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); }
+.dnd-chips button:active { transform: scale(.95); }
+.dnd-chips button.sel { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); box-shadow: 0 0 12px color-mix(in srgb, var(--k-glow, #FFFFFF) 25%, transparent); }
+
+.dnd-h { display: block; padding: calc(10px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.dnd-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(1px * var(--k-dn, 1)); }
+.dnd-row { display: flex; align-items: center; gap: calc(11px * var(--k-dn, 1)); width: 100%; padding: calc(7px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border: 0; border-radius: calc(13px * var(--k-rd, 1)); background: none; color: inherit;
+  font: inherit; text-align: left; cursor: pointer; transition: background .18s ease; }
+.dnd-row:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); }
+.dnd-l { flex: 1; min-width: 0; font-weight: 700; }
+.dnd-l em { display: block; font-style: normal; font-weight: 550; font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); margin-top: 1px; transition: color .2s ease; }
+.dnd-row:not(.muted) .dnd-l em { color: var(--k-acc-t, #F49BBE); }
+.dnd-n { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 7px; padding: 0 calc(5px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); box-sizing: border-box;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; vertical-align: 1px; }
+.dnd-tog { flex: none; position: relative; width: 38px; height: 22px; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); transition: background .25s ease; }
+.dnd-tog b { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--k-fg, #FFFFFF); box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+  transition: transform .3s cubic-bezier(.22, 1.3, .36, 1); }
+.dnd-row.muted .dnd-tog { background: var(--k-acc, #EC4E86); }
+.dnd-row.muted .dnd-tog b { transform: translateX(16px); }
+.dnd-note { margin: 8px 8px 12px; font-size: calc(11.5px * var(--k-fs, 1)); line-height: 1.4; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.dnd-off { display: block; width: 100%; padding: calc(12px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); cursor: pointer;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); font-family: inherit; font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 750; line-height: 1; transition: background .2s ease, transform .15s ease; }
+.dnd-off:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); }
+.dnd-off:active { transform: scale(.97); }
+
+.tm-light-on .dnd-menu { background: rgb(250, 249, 251); color: #1B1A1D; border-color: rgba(0, 0, 0, .12); }
+.tm-light-on .dnd-t em, .tm-light-on .dnd-h, .tm-light-on .dnd-l em, .tm-light-on .dnd-note { color: rgba(0, 0, 0, .55); }
+.tm-light-on .dnd-orb { color: #1B1A1D; border-color: rgba(0, 0, 0, .35); background: rgba(0, 0, 0, .05); box-shadow: none; }
+.tm-light-on .dnd-chips button { color: rgba(0, 0, 0, .7); border-color: rgba(0, 0, 0, .14); background: rgba(0, 0, 0, .03); }
+.tm-light-on .dnd-chips button.sel { color: #1B1A1D; border-color: #1B1A1D; background: rgba(0, 0, 0, .08); box-shadow: none; }
+.tm-light-on .dnd-row:hover { background: rgba(0, 0, 0, .05); }
+.tm-light-on .dnd-tog { background: rgba(0, 0, 0, .14); }
+.tm-light-on .dnd-n { background: rgba(0, 0, 0, .08); }
+.tm-light-on .dnd-off { color: #1B1A1D; background: rgba(0, 0, 0, .05); border-color: rgba(0, 0, 0, .18); }
+
+/* ---------- the phone: a sheet from the bottom, thumb-sized (48 px and up) ---------- */
+.dnd-sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 calc(16px * var(--k-dn, 1)) calc(var(--gos-bottom, 0px) + 20px); }
+/* The title row stays put while the switches scroll under it. */
+.dnd-sheet .dnd-top { position: sticky; top: 0; z-index: 2; margin: 0 -16px; padding: calc(4px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); background: var(--k-surface, #150D12); }
+.dnd-sheet .dnd-top .gos-x { margin-left: auto; align-self: flex-start; }
+.dnd-sheet .dnd-orb { width: 48px; height: 48px; }
+.dnd-sheet .dnd-t { font-size: calc(22px * var(--k-fs, 1)); letter-spacing: -.02em; }
+.dnd-sheet .dnd-t em { font-size: calc(13.5px * var(--k-fs, 1)); }
+.dnd-sheet .dnd-chips { gap: calc(8px * var(--k-dn, 1)); padding-bottom: calc(16px * var(--k-dn, 1)); }
+.dnd-sheet .dnd-chips button { min-height: 48px; font-size: calc(14px * var(--k-fs, 1)); }
+.dnd-sheet .dnd-chips button:active { transform: scale(.94); }
+.dnd-sheet .dnd-h { padding: calc(14px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); }
+.dnd-sheet .dnd-list { gap: 0; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4.5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border-radius: calc(18px * var(--k-rd, 1)); overflow: hidden; }
+.dnd-sheet .dnd-list li + li { border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); }
+.dnd-sheet .dnd-row { min-height: 60px; padding: calc(10px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: 0; gap: calc(14px * var(--k-dn, 1)); }
+.dnd-sheet .dnd-row:hover { background: none; }
+.dnd-sheet .dnd-row:active { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); }
+.dnd-sheet .dnd-l { font-size: calc(15px * var(--k-fs, 1)); font-weight: 650; }
+.dnd-sheet .dnd-l em { font-size: calc(13px * var(--k-fs, 1)); }
+.dnd-sheet .dnd-tog { width: 52px; height: 32px; }
+.dnd-sheet .dnd-tog b { top: 3px; left: 3px; width: 26px; height: 26px; transition: transform .38s cubic-bezier(.34, 1.56, .64, 1); }
+.dnd-sheet .dnd-row.muted .dnd-tog b { transform: translateX(20px); }
+.dnd-sheet .dnd-note { margin: 12px 6px 14px; font-size: calc(13px * var(--k-fs, 1)); }
+.dnd-sheet .dnd-off { min-height: 54px; border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(15.5px * var(--k-fs, 1)); font-weight: 750; border: 0; background: linear-gradient(135deg, var(--k-acc, #EC4E86), var(--k-acc, #C8366B)); box-shadow: 0 8px 22px color-mix(in srgb, var(--k-acc, #C8366B) 40%, transparent); }
+.dnd-sheet .dnd-off:active { transform: scale(.96); }
+
+html.gos .gos-thumb .dnd-btn:active { transform: scale(.9); }
+/* The phone's moon: in the thumb row above the dock (next to +), glass like the dock, glowing white when on. */
+html.gos .gos-thumb .dnd-btn { width: 56px; height: 56px; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(72% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-surface, #1C121A) 92%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 14px 30px -12px rgba(0, 0, 0, .9); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); animation: gos-rise .45s var(--gos-ease) both; }
+html.gos .gos-thumb .dnd-btn.on { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-surface, #3C2E40) 94%, transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent), 0 0 18px color-mix(in srgb, var(--k-glow, #FFFFFF) 50%, transparent), 0 14px 30px -12px rgba(0, 0, 0, .9); }
+
+/* ---------- V1.43: the settings cog on the moon, and the settings card with focus modes (views/DndSettings.tsx) ---------- */
+.dnd-wrap { position: relative; display: inline-grid; flex: none; }
+/* A small cog in a circle on the moon's top right corner. */
+.dnd-cog { position: absolute; top: -5px; right: -6px; z-index: 2; width: 17px; height: 17px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); background: var(--k-surface, #161016);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(26% * var(--k-ia, 1))), transparent); box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+  transition: color .2s ease, border-color .2s ease, transform .25s cubic-bezier(.22, 1.3, .36, 1); }
+.dnd-cog svg { transition: transform .5s cubic-bezier(.22, 1, .36, 1); }
+.dnd-cog:hover, .dnd-cog.open { color: var(--k-fg, #FFFFFF); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); transform: scale(1.12); }
+.dnd-cog:hover svg, .dnd-cog.open svg { transform: rotate(60deg); }
+.dnd-cog:active { transform: scale(.9); }
+.tm-light-on .dnd-cog { color: rgba(0, 0, 0, .7); background: #FFFFFF; border-color: rgba(0, 0, 0, .2); box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
+html.gos .gos-thumb .dnd-cog { top: -3px; right: -3px; width: 24px; height: 24px; }
+html.gos .gos-thumb .dnd-cog svg { width: 13px; height: 13px; }
+.dnd-mode-now { display: grid; place-items: center; }
+@media (prefers-reduced-motion: reduce) { .dnd-cog, .dnd-cog svg { transition: none; } .dnd-cog:hover svg, .dnd-cog.open svg { transform: none; } }
+
+.dnd-set { width: 340px; }
+.dnd-set .dnd-top { padding-right: 0; }
+.dnd-x, .dnd-back { flex: none; margin-left: auto; align-self: flex-start; width: 26px; height: 26px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent);
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); font: 700 calc(18px * var(--k-fs, 1))/1 inherit; transition: background .2s ease, color .2s ease; }
+.dnd-back { margin-left: 0; align-self: center; }
+.dnd-x:hover, .dnd-back:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+
+.dnd-modes { margin-bottom: 4px; }
+.dnd-mode { display: flex; align-items: center; gap: calc(2px * var(--k-dn, 1)); border-radius: calc(13px * var(--k-rd, 1)); transition: background .2s ease; }
+.dnd-mode .dnd-mode-pick { flex: 1; min-width: 0; }
+.dnd-mode-ic { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); transition: box-shadow .3s ease, border-color .3s ease; }
+.dnd-mode.live .dnd-mode-ic { border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--k-glow, #FFFFFF) 40%, transparent); }
+.dnd-on-pill { margin-left: 7px; padding: calc(2px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .04em; vertical-align: 1px;
+  background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.dnd-radio { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent); box-sizing: border-box; position: relative; transition: border-color .2s ease; }
+.dnd-radio::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--k-acc, #EC4E86); transform: scale(0); transition: transform .3s cubic-bezier(.22, 1.4, .36, 1); }
+.dnd-mode.picked .dnd-radio { border-color: var(--k-acc, #EC4E86); }
+.dnd-mode.picked .dnd-radio::after { transform: scale(1); }
+.dnd-mode-edit { flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: none; display: grid; place-items: center; cursor: pointer;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); transition: background .2s ease, color .2s ease; }
+.dnd-mode-edit:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.dnd-add { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); width: 100%; margin: 2px 0 10px; padding: calc(9px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(13px * var(--k-rd, 1)); cursor: pointer;
+  border: 1px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); background: none; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent);
+  font: inherit; font-weight: 700; transition: background .2s ease, border-color .2s ease; }
+.dnd-add span { font-size: calc(17px * var(--k-fs, 1)); line-height: 1; }
+.dnd-add:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.dnd-quick { padding: 0 0 calc(12px * var(--k-dn, 1)); }
+.dnd-go { background: var(--k-acc, #EC4E86); border-color: transparent; color: var(--k-on-acc, #FFFFFF); }
+.dnd-go:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 85%, var(--k-fg, #FFFFFF)); }
+.dnd-link { margin-top: 8px; border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border-radius: 0 0 calc(13px * var(--k-rd, 1)) calc(13px * var(--k-rd, 1)); padding-top: calc(10px * var(--k-dn, 1)); }
+.dnd-chev { flex: none; font-size: calc(20px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+.dnd-tight { margin-top: 4px; }
+
+.dnd-field { display: grid; gap: calc(5px * var(--k-dn, 1)); padding: 0 calc(4px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.dnd-fl { font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.dnd-set input { width: 100%; box-sizing: border-box; padding: calc(8px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)); border-radius: calc(11px * var(--k-rd, 1)); font: inherit; font-weight: 650; color: inherit; outline: none;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); transition: border-color .2s ease; color-scheme: dark; }
+.dnd-set input:focus { border-color: var(--k-acc, #EC4E86); }
+.dnd-icons { display: grid; grid-template-columns: repeat(5, 1fr); gap: calc(6px * var(--k-dn, 1)); padding: 0 calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.dnd-icons button, .dnd-days button { height: 36px; padding: 0; border-radius: calc(11px * var(--k-rd, 1)); display: grid; place-items: center; cursor: pointer; font: inherit; font-weight: 800;
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent);
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); transition: background .2s ease, border-color .2s ease, color .2s ease, transform .15s ease; }
+.dnd-icons button:hover, .dnd-days button:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.dnd-icons button:active, .dnd-days button:active { transform: scale(.92); }
+.dnd-icons button.sel, .dnd-days button.sel { color: var(--k-fg, #FFFFFF); border-color: var(--k-acc, #EC4E86); background: color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); }
+.dnd-senders { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); padding: 0 calc(4px * var(--k-dn, 1)); }
+.dnd-chip { display: inline-flex; align-items: center; gap: calc(4px * var(--k-dn, 1)); max-width: 100%; padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; overflow-wrap: anywhere;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.dnd-chip button { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; font: 700 calc(15px * var(--k-fs, 1))/1 inherit; opacity: .7; }
+.dnd-chip button:hover { opacity: 1; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.dnd-add-sender { display: flex; gap: calc(6px * var(--k-dn, 1)); width: 100%; }
+.dnd-add-sender button { flex: none; padding: 0 calc(12px * var(--k-dn, 1)); border-radius: calc(11px * var(--k-rd, 1)); border: 0; cursor: pointer; font: inherit; font-weight: 750; background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.dnd-add-sender button:disabled { opacity: .4; cursor: default; }
+.dnd-sched { padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); }
+.dnd-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: calc(5px * var(--k-dn, 1)); }
+.dnd-days button { height: 32px; font-size: calc(12px * var(--k-fs, 1)); }
+.dnd-times { display: flex; gap: calc(8px * var(--k-dn, 1)); margin-top: 8px; }
+.dnd-times label { flex: 1; display: grid; gap: calc(4px * var(--k-dn, 1)); font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.dnd-del { display: block; width: 100%; margin-top: 12px; padding: calc(10px * var(--k-dn, 1)); border-radius: calc(13px * var(--k-rd, 1)); border: 0; background: none; cursor: pointer; font: inherit; font-weight: 700; color: var(--k-bad-t, #FF6B6B); transition: background .2s ease; }
+.dnd-del:hover { background: color-mix(in srgb, var(--k-bad, #FF5A5A) 10%, transparent); }
+.dnd-del-ask { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); margin-top: 12px; padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(13px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-bad, #FF5A5A) 10%, transparent); font-weight: 700; }
+.dnd-del-ask span { flex: 1; min-width: 0; }
+.dnd-del-ask button { padding: calc(7px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); background: none; color: inherit; cursor: pointer; font: inherit; font-weight: 750; }
+.dnd-del-ask .dnd-del-yes { background: var(--k-bad, #E5484D); border-color: transparent; color: var(--k-on-bad, #FFFFFF); }
+
+.tm-light-on .dnd-set input { color-scheme: light; background: rgba(0, 0, 0, .04); border-color: rgba(0, 0, 0, .15); }
+.tm-light-on :is(.dnd-x, .dnd-back, .dnd-icons button, .dnd-days button) { color: rgba(0, 0, 0, .7); border-color: rgba(0, 0, 0, .14); background: rgba(0, 0, 0, .03); }
+.tm-light-on :is(.dnd-icons button.sel, .dnd-days button.sel) { color: #1B1A1D; }
+.tm-light-on .dnd-mode-ic { background: rgba(0, 0, 0, .05); border-color: rgba(0, 0, 0, .12); }
+.tm-light-on .dnd-add { color: rgba(0, 0, 0, .75); border-color: rgba(0, 0, 0, .22); }
+.tm-light-on .dnd-chip { background: rgba(0, 0, 0, .07); }
+.tm-light-on :is(.dnd-fl, .dnd-times label, .dnd-mode-edit, .dnd-chev) { color: rgba(0, 0, 0, .55); }
+.tm-light-on .dnd-link { border-color: rgba(0, 0, 0, .1); }
+
+/* the phone: thumb sized */
+.dnd-sheet.dnd-set { width: auto; }
+.dnd-sheet .dnd-mode-ic { width: 40px; height: 40px; }
+.dnd-sheet .dnd-mode-edit, .dnd-sheet .dnd-x, .dnd-sheet .dnd-back { width: 44px; height: 44px; }
+.dnd-sheet .dnd-icons button, .dnd-sheet .dnd-days button { height: 48px; }
+.dnd-sheet .dnd-add, .dnd-sheet .dnd-del { min-height: 52px; }
+.dnd-sheet .dnd-set input, .dnd-sheet.dnd-set input { min-height: 48px; font-size: calc(16px * var(--k-fs, 1)); }
+/* Mode lines, the schedule and Sleep mode switches: their small line stays grey whatever the switch says. */
+.dnd-row.dnd-plain .dnd-l em { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tm-light-on .dnd-row.dnd-plain .dnd-l em { color: rgba(0, 0, 0, .55); }
+.dnd-cog svg { width: 11px; height: 11px; }

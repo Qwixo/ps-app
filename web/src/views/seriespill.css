@@ -1,0 +1,46 @@
+/* Tab list, bottom left: the Map pill between Timelines and Numerology, and the window it grows
+   (morph() in DimensionX.tsx). Inside, the website's own series map, sized to the window. */
+.sp { position: relative; display: grid; flex: none; }
+.sp-pill {
+  position: relative; display: inline-grid; place-items: center; width: 36px; padding: 0; border-radius: 999px; cursor: pointer;
+  font: inherit; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: background .18s ease, border-color .18s ease, transform .25s cubic-bezier(.2,1.3,.3,1);
+}
+.sp-pill > b {
+  position: absolute; left: 50%; bottom: calc(100% + 8px); padding: calc(5px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: 999px; pointer-events: none; white-space: nowrap;
+  font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; background: var(--k-surface, #1B1219); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); box-shadow: 0 10px 26px -10px rgba(0, 0, 0, .7);
+  opacity: 0; transform: translate3d(-50%, 4px, 0) scale(.94); transition: opacity .18s ease, transform .28s cubic-bezier(.2,1.3,.3,1);
+}
+.sp-pill:hover > b, .sp-pill:focus-visible > b { opacity: 1; transform: translate3d(-50%, 0, 0) scale(1); }
+.sp-pill.on > b { opacity: 0; }
+.sp-pill:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); }
+.sp-pill:active { transform: scale(.96); }
+.sp-pill.on { background: color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 50%, transparent); }
+
+.sp-layer { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+.sp-layer.docked { z-index: 95; }
+.sp-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--k-base, #040206) 60%, transparent); pointer-events: auto; }
+.sp-win {
+  position: absolute; inset: calc(var(--safe-top, 0px) + 2.5vh) 0 2.5vh; margin: auto; width: min(1240px, 95vw); height: min(940px, calc(95vh - var(--safe-top, 0px)));
+  border-radius: calc(26px * var(--k-rd, 1)); overflow: hidden; isolation: isolate; pointer-events: auto; will-change: transform; background: var(--bg);
+  border: 1px solid var(--line); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent), 0 0 90px color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent), 0 40px 120px rgba(0, 0, 0, .75);
+}
+.sp-tint { position: absolute; inset: 0; z-index: 5; pointer-events: none; opacity: 0; background: radial-gradient(circle at 30% 40%, var(--k-acc-t, #F7A8C8), var(--k-acc, #C8366B)); }
+.sp-content { position: absolute; inset: 0; }
+/* the website's map, filling the window instead of the whole screen */
+.sm-overlay.sm-embedded { position: absolute; inset: 0; z-index: auto; animation: none; }
+.sm-embedded .sm-bar { padding: calc(14px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)); }
+.sm-embedded .sm-main { padding: calc(16px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)) calc(28px * var(--k-dn, 1)); }
+
+/* phone (GOS): a sheet like Numerology's, the dock out of the way */
+html.gos .sp-pill { width: 44px; }
+html.gos .sp-win { --morph: sheet; inset: auto; top: calc(var(--gos-top, 0px) + 6px); bottom: calc(var(--gos-bottom, 0px) + 6px); left: 6px; right: 6px; width: auto; height: auto; border-radius: calc(24px * var(--k-rd, 1)); }
+html.gos body:has(.sp-layer) .gos-dock { transform: translate3d(0, calc(100% + var(--gos-bottom) + 20px), 0); }
+html.gos body:has(.sp-layer) .gos-menu, html.gos body:has(.sp-layer) .gos-thumb { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .sp-pill, .sp-pill > b { transition: none; } }
+/* phone: the four views fit on one line (no tab hidden past the edge) */
+html.gos .sm-embedded .tabs { max-width: 100%; }
+html.gos .sm-embedded .tabs .tab { padding: calc(7px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); white-space: nowrap; }
+/* phone: the month's episode title gets its own line, so a long one is never cut */
+html.gos .sm-embedded .sm-mtitle { flex-wrap: wrap; }
+html.gos .sm-embedded .sm-mepisode { flex-basis: 100%; }

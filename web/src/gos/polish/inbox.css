@@ -1,0 +1,169 @@
+/* PS GOS touch polish for the Inbox pane (client emails, meeting notes) and the Vault pages (clients, projects, settings).
+   Owned by one polish session; every rule is scoped to html.gos so the website and the Mac never see it. */
+
+/* ================= Inbox pane ================= */
+/* The pane scrolls as one page: no panel squeezes its own list into a small inner scroller. */
+html.gos .gos-home .tm-right { gap: calc(14px * var(--k-dn, 1)); padding-top: calc(12px * var(--k-dn, 1)); padding-bottom: calc(32px * var(--k-dn, 1));
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, var(--k-base, #000000) 12px); mask-image: linear-gradient(180deg, transparent 0, var(--k-base, #000000) 12px); }
+html.gos .gos-home .tm-right > * { flex: none !important; min-height: auto; overflow: visible; }
+html.gos .gos-home .tm-right .tm-mail ul { max-height: none; overflow: visible; margin: 0; padding: 0; }
+
+/* Client emails: roomy rows, readable text, two thumb sized buttons. */
+html.gos .gos-home .tm-right .tm-mail { padding: calc(16px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); }
+html.gos .gos-home .tm-right .tm-meet-h { font-size: calc(12px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-mail li { margin: 0; padding: calc(14px * var(--k-dn, 1)) 0; gap: calc(4px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-right .tm-mail li:first-child { padding-top: calc(10px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-right .tm-mail li { border-radius: 0; }
+html.gos .gos-home .tm-right .tm-mail-who { font-size: calc(15.5px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-mail-t { font-size: calc(12.5px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-mail-s { font-size: calc(14px * var(--k-fs, 1)); white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+html.gos .gos-home .tm-right .tm-mail-p { font-size: calc(14.5px * var(--k-fs, 1)); line-height: 1.5; -webkit-line-clamp: 4; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .tm-right .tm-mail-a { gap: calc(10px * var(--k-dn, 1)); margin-top: 10px; }
+html.gos .gos-home .tm-right .tm-mail-a .tm-meet-j,
+html.gos .gos-home .tm-right .tm-mail-done {
+  flex: 1; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 calc(16px * var(--k-dn, 1));
+  font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 750; border-radius: calc(99px * var(--k-rd, 1)); transition: transform .18s var(--gos-spring), background .2s ease;
+}
+html.gos .gos-home .tm-right .tm-mail-done { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); }
+html.gos .gos-home .tm-right .tm-mail-a .tm-meet-j:active, html.gos .gos-home .tm-right .tm-mail-done:active { transform: scale(.95); }
+
+/* Meeting notes during a call: a calmer title, finger sized rows, a tap that presses in. */
+html.gos .gos-home .tm-right .tm-mn { padding: calc(18px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); gap: calc(12px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-right .tm-mn-h { font-size: calc(22px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-mn-sub { font-size: calc(13.5px * var(--k-fs, 1)); line-height: 1.4; margin-top: -2px; }
+html.gos .gos-home .tm-right .tm-mn ul { gap: calc(10px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-right .tm-mn li { min-height: 56px; padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); transition: transform .18s var(--gos-spring), background .2s ease, opacity .25s ease; }
+html.gos .gos-home .tm-right .tm-mn li .tick { width: 30px; height: 30px; }
+html.gos .gos-home .tm-right .tm-mn li .txt { flex: 1; min-width: 0; font-size: calc(16px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-mn li:active { transform: scale(.975); }
+
+/* Urgent: bigger tick and remove, an always visible edit, a 16 px field (no zoom on focus). */
+html.gos .gos-home .tm-right .tm-aware { padding: calc(16px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); gap: calc(12px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-right .tm-aware-h { font-size: calc(12px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-aware li { min-height: 56px; padding: calc(6px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); gap: calc(6px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); touch-action: pan-y; }
+html.gos .gos-home .tm-right .tm-aware-t { font-size: calc(16px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-aware-tick { position: relative; width: 30px; height: 30px; margin-right: 4px; }
+html.gos .gos-home .tm-right .tm-aware-tick::after { content: ""; position: absolute; inset: -9px; }
+html.gos .gos-home .tm-right .tm-aware-ed,
+html.gos .gos-home .tm-right .tm-aware-x { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border-radius: calc(12px * var(--k-rd, 1)); opacity: .8; }
+html.gos .gos-home .tm-right .tm-aware-x { font-size: calc(24px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-aware-ed:active, html.gos .gos-home .tm-right .tm-aware-x:active { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+html.gos .gos-home .tm-right .tm-aware-in { font-size: calc(16px * var(--k-fs, 1)); min-height: 44px; padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); }
+
+/* ================= Vault: the website's own pages ================= */
+/* The header sits under the status bar by itself; no second gap above it. The email cards join the
+   page flow right under the header (see .mc below), so the root is a column we can order. */
+html.gos #root:has(> header.top) { padding-top: 0; display: flex; flex-direction: column; min-height: 100dvh; }
+html.gos #root > header.top { order: -2; }
+html.gos #root > .mc { order: -1; }
+html.gos #root > main.page { flex: 1 0 auto; }
+html.gos #root > main.page { padding-bottom: calc(28px * var(--k-dn, 1)); }
+
+/* Header: brand and buttons on one row, the page switcher (Today, To-do, Clients...) on a second row
+   that scrolls sideways. On the phone it is the only way between the vault pages. */
+html.gos header.top .wrap { height: auto; min-height: 56px; flex-wrap: wrap; row-gap: 0; column-gap: calc(4px * var(--k-dn, 1)); padding-inline: calc(12px * var(--k-dn, 1)); }
+html.gos header.top .brand { min-height: 44px; display: inline-flex; align-items: center; }
+html.gos header.top .nav {
+  order: 9; display: flex !important; flex: 0 0 100%; width: 100%; gap: calc(6px * var(--k-dn, 1)); padding: calc(2px * var(--k-dn, 1)) 0 calc(10px * var(--k-dn, 1));
+  overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(90deg, var(--k-base, #000000) calc(100% - 26px), transparent);
+          mask-image: linear-gradient(90deg, var(--k-base, #000000) calc(100% - 26px), transparent);
+}
+html.gos header.top .nav::-webkit-scrollbar { display: none; }
+html.gos header.top .nav a {
+  flex: none; scroll-snap-align: start; min-height: 40px; display: inline-flex; align-items: center; padding: 0 calc(16px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  font-size: calc(14.5px * var(--k-fs, 1)); color: var(--muted); background: color-mix(in srgb, var(--ink) 6%, transparent); transition: background .25s ease, color .25s ease, transform .18s var(--gos-spring);
+}
+html.gos header.top .nav a::after { content: ""; position: absolute; inset: -2px -3px; }   /* 44 px hit area, rows stay tight */
+html.gos header.top .nav a[aria-current="page"] { color: var(--k-on-acc, #FFFFFF); background: linear-gradient(135deg, var(--k-acc, #EC4E86), var(--k-acc, #C8366B)); box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--k-acc, #C8366B) 60%, transparent); }
+html.gos header.top .nav a:active { transform: scale(.94); }
+html.gos header.top .nav .badge { top: -3px; right: -3px; }
+html.gos header.top .btn.icon { min-width: 44px; min-height: 44px; }
+html.gos header.top button.pill::after { inset: -10px -2px; }
+
+/* Client email cards (they stay until Dismiss): on the phone a strip under the header that you swipe
+   sideways, instead of floating over the page. One card shows whole; with more, the next one peeks in. */
+html.gos #root > .mc {
+  position: relative; inset: auto; z-index: 1; width: auto; max-height: none; display: flex; gap: calc(10px * var(--k-dn, 1)); align-items: stretch;
+  margin: 0; padding: calc(12px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); overflow-x: auto; overflow-y: visible; scroll-snap-type: x mandatory; scroll-padding-inline: 16px;
+  overscroll-behavior-x: contain; scrollbar-width: none;
+}
+html.gos #root > .mc::-webkit-scrollbar { display: none; }
+html.gos #root > .mc .mc-card { flex: 0 0 calc(100% - 34px); scroll-snap-align: start; display: flex; flex-direction: column; padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); box-shadow: 0 10px 26px rgba(0, 0, 0, .28); }
+html.gos #root > .mc .mc-card:only-of-type { flex-basis: 100%; }
+html.gos #root > .mc .mc-card b { font-size: calc(15.5px * var(--k-fs, 1)); }
+html.gos #root > .mc .mc-card time { font-size: calc(12.5px * var(--k-fs, 1)); }
+html.gos #root > .mc .mc-sub { margin: 6px 0 0; font-size: calc(13.5px * var(--k-fs, 1)); }
+html.gos #root > .mc .mc-b { margin: 6px 0 0; font-size: calc(14.5px * var(--k-fs, 1)); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+html.gos #root > .mc .mc-acts { margin: auto 0 0; padding-top: calc(12px * var(--k-dn, 1)); gap: calc(10px * var(--k-dn, 1)); }
+html.gos #root > .mc .mc-open, html.gos #root > .mc .mc-dis {
+  flex: 1; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 calc(14px * var(--k-dn, 1)); font-size: calc(14.5px * var(--k-fs, 1));
+  transition: transform .18s var(--gos-spring), background .2s ease;
+}
+html.gos #root > .mc .mc-dis { margin-left: 0; }
+html.gos #root > .mc .mc-open:active, html.gos #root > .mc .mc-dis:active { transform: scale(.95); }
+html.gos #root > .mc .mc-more { flex: none; align-self: center; min-height: 44px; padding: 0 calc(16px * var(--k-dn, 1)); font-size: calc(14px * var(--k-fs, 1)); scroll-snap-align: end; }
+
+/* Notes launcher: above the dock, never under it. */
+html.gos .nt-launch { right: 16px; bottom: calc(var(--gos-dock-h) + var(--gos-bottom) + 18px); min-height: 48px; transition: transform .2s var(--gos-spring), box-shadow .2s ease; }
+html.gos .nt-launch:active { transform: scale(.94); }
+
+/* Thumb sized controls on every vault page (the website's phone layout uses 40 px). */
+html.gos #root .btn { min-height: 44px; }
+html.gos #root .btn.icon { min-width: 44px; }
+html.gos #root .btn.sm { padding-inline: calc(13px * var(--k-dn, 1)); font-size: calc(14px * var(--k-fs, 1)); }
+html.gos #root .btn, html.gos #root .chip, html.gos #root .tab, html.gos #root .cv-countbtn { transition: transform .18s var(--gos-spring), background .2s ease, color .2s ease, box-shadow .2s ease; }
+html.gos #root .btn:active:not(:disabled), html.gos #root .chip:active, html.gos #root .tab:active, html.gos #root .cv-countbtn:active { transform: scale(.95); }
+html.gos #root .chip { min-height: 44px; padding: 0 calc(15px * var(--k-dn, 1)); font-size: calc(14px * var(--k-fs, 1)); }
+html.gos #root .tab { min-height: 44px; padding-inline: calc(16px * var(--k-dn, 1)); font-size: calc(14px * var(--k-fs, 1)); }
+html.gos #root .tabs { max-width: 100%; scroll-snap-type: x proximity; }
+html.gos #root .tabs > .tab { scroll-snap-align: start; max-width: calc(100% - 8px); overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+html.gos #root .cv-countbtn { min-height: 44px; align-items: center; padding: 0 calc(14px * var(--k-dn, 1)); }
+html.gos #root .mb-x { width: 44px; height: 44px; }
+html.gos #root .mb-more { min-height: 44px; }
+html.gos #root .td-info-btn { position: relative; }
+html.gos #root .td-info-btn::after { content: ""; position: absolute; inset: -7px; }
+/* Small text links and tags inside cards: a taller hit area without moving the layout. */
+html.gos #root .cv-link, html.gos #root .cv-cardname, html.gos #root .tv-what, html.gos #root .rp-client, html.gos #root .mb-read { padding-block: calc(10px * var(--k-dn, 1)); margin-block: -10px; }
+html.gos #root .tv-hl, html.gos #root .tv-claude { position: relative; }
+html.gos #root .tv-hl::after, html.gos #root .tv-claude::after { content: ""; position: absolute; inset: -10px -2px; }
+html.gos #root .check { width: 26px; height: 26px; }
+
+/* Forms: 16 px text so the keyboard never zooms the page, and fields a finger can hit. */
+html.gos #root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+html.gos #root select, html.gos #root textarea,
+html.gos .gos-home .tm-right input, html.gos .gos-home .tm-right textarea { font-size: calc(16px * var(--k-fs, 1)) !important; }
+html.gos #root .input, html.gos #root .select { min-height: 48px; }
+html.gos #root .cv-mini, html.gos #root .cv-mini-date { min-height: 44px; }
+html.gos #root .cvd-actions { flex-wrap: nowrap; }
+html.gos #root .cvd-actions > .select { flex: 1 1 auto; min-width: 0; }
+html.gos #root .qt-author { min-height: 36px; }
+html.gos #root textarea, html.gos #root .textarea { scroll-margin-bottom: calc(var(--gos-dock-h) + var(--gos-bottom) + 24px); }
+html.gos #root input, html.gos #root select { scroll-margin-bottom: calc(var(--gos-dock-h) + var(--gos-bottom) + 24px); scroll-margin-top: 120px; }
+
+/* Wide things scroll sideways inside their own card, never the page. */
+html.gos #root main.page { overflow-x: clip; }
+html.gos #root table { display: block; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+html.gos #root table::-webkit-scrollbar { display: none; }
+html.gos #root pre, html.gos #root code { overflow-wrap: anywhere; white-space: pre-wrap; }
+
+/* Full screen pages opened from the vault (series map, goals): inside the system bars. */
+html.gos .sm-overlay { padding-top: var(--gos-top); padding-bottom: var(--gos-bottom); }
+html.gos .gt-scrim { padding: calc(var(--gos-top) + 10px) calc(10px * var(--k-dn, 1)) calc(var(--gos-bottom) + 10px); }
+
+@media (hover: none) {
+  html.gos .gos-home .tm-right .tm-mn li:hover { transform: none; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); box-shadow: none; }
+  html.gos .gos-home .tm-right .tm-mn li.done:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); }
+  html.gos .gos-home .tm-right .tm-aware li:hover { background: color-mix(in srgb, var(--k-bad, #FF2828) 10%, transparent); }
+  html.gos .gos-home .tm-right .tm-mail-done:hover { transform: none; }
+  html.gos #root > .mc .mc-dis:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); }
+  html.gos .nt-launch:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.gos .gos-home .tm-right .tm-mn li, html.gos #root .btn, html.gos #root .chip, html.gos #root .tab, html.gos header.top .nav a { transition: none; }
+}
+
+/* Boards (clients, pipeline): columns snap into place as you swipe the board sideways. */
+html.gos #root .board-wrap { scroll-snap-type: x mandatory; scroll-padding-inline: 16px; scrollbar-width: none; }
+html.gos #root .board-wrap::-webkit-scrollbar { display: none; }
+html.gos #root .board > * { scroll-snap-align: start; }

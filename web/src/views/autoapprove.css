@@ -1,0 +1,14 @@
+/* Settings, Sentry mode, Auto approve (views/AutoApprove.tsx). Its own classes start with aa-. */
+.aa { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.aa-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.aa-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.aa-name { font-weight: 600; }
+.aa-line { font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.4; color: var(--gs-soft); }
+.aa-now { font-weight: 600; }
+.aa-now.on { color: var(--accent, #7ee0a8); }
+.aa-log { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.aa-log li { display: flex; gap: 10px; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.4; }
+.aa-log time { flex: none; color: var(--gs-soft); font-variant-numeric: tabular-nums; }
+.aa-log span { min-width: 0; overflow-wrap: anywhere; }
+.aa-log .aa-wait span { color: var(--gs-soft); font-style: italic; }
+.aa-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }

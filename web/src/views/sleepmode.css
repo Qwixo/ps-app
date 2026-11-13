@@ -1,0 +1,451 @@
+/* Sleep mode (V1.40, views/SleepMode.tsx). The button and its settings follow the PS look (--k- tokens); the sleep
+   screen itself is its own calm look on purpose: near black, warm amber, dim, so it never lights up a bedroom. */
+
+/* ---------- the button at the end of the list, next to Resurrect ---------- */
+.slp-bar { margin-top: 6px; }
+.slp-row { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); margin-left: auto; }
+.tm-done-bar .slp-row { margin-left: auto; }
+.slp-bar .slp-row { margin-left: 0; }
+/* V1.47: where the button lives. Bottom right of the Tab list and the website (the right column, level with Dimension X);
+   the phone's thumb row (a round button like the moon); the end of the list only while the side column is hidden. */
+.slp-place .slp-row { margin-left: 0; }
+.slp-side { display: flex; justify-content: flex-end; }
+.slp-end { display: none; }
+@media (max-width: 760px) { html:not(.gos) .tm-done-bar .slp-end { display: block; margin-left: auto; } }
+html:not(.gos) .tm-done-bar :is(.tm-all, .tm-all-ask) + .slp-end { margin-left: 0; }
+.slp-thumb .slp-btn { width: 52px; height: 52px; padding: 0; justify-content: center; border-radius: 50%; }
+.slp-thumb .slp-btn > span:not(.slp-icon) { display: none; }
+.slp-btn {
+  display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800;
+  letter-spacing: .02em; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc2, #8B7CF6) min(100%, calc(16% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-acc2, #8B7CF6) min(100%, calc(40% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, border-color .15s ease, transform .12s ease, box-shadow .2s ease;
+}
+.slp-btn:hover { background: color-mix(in srgb, var(--k-acc2, #8B7CF6) min(100%, calc(28% * var(--k-ia, 1))), transparent); border-color: var(--k-acc2, #8B7CF6); box-shadow: 0 0 22px color-mix(in srgb, var(--k-acc2, #8B7CF6) 35%, transparent); }
+.slp-btn:active { transform: scale(.97); }
+.slp-btn.busy { opacity: .6; pointer-events: none; }
+.slp-icon { position: relative; display: inline-flex; }
+.slp-bed { display: block; }
+/* the floating Z's: three small letters drifting up and fading, one after another, forever (calm, slow) */
+.slp-z { position: absolute; left: 13px; top: -9px; width: 18px; height: 18px; pointer-events: none; }
+.slp-z i { position: absolute; left: 0; bottom: 0; font-style: normal; font-weight: 900; font-size: calc(8px * var(--k-fs, 1)); color: var(--k-acc2-t, #C4BBFF); opacity: 0; animation: slp-z 3.6s ease-in-out infinite; }
+.slp-z i:nth-child(2) { font-size: calc(9px * var(--k-fs, 1)); animation-delay: 1.2s; }
+.slp-z i:nth-child(3) { font-size: calc(11px * var(--k-fs, 1)); animation-delay: 2.4s; }
+@keyframes slp-z {
+  0% { opacity: 0; transform: translate(0, 4px) rotate(-8deg); }
+  20% { opacity: .95; }
+  100% { opacity: 0; transform: translate(9px, -14px) rotate(10deg); }
+}
+.slp-btn:hover .slp-z i { animation-duration: 2.2s; }
+.slp-pen {
+  display: inline-grid; place-items: center; width: calc(28px * var(--k-dn, 1)); height: calc(28px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; padding: 0;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); background: transparent; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: color .15s ease, background .15s ease;
+}
+.slp-pen:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.slp-away { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-acc2, #8B7CF6) min(100%, calc(14% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-acc2, #8B7CF6) min(100%, calc(36% * var(--k-ia, 1))), transparent); }
+.slp-away-t { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); font-weight: 700; color: var(--k-fg, #FFFFFF); }
+.slp-wake-btn { padding: calc(6px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; border: 0; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; color: var(--k-base, #000000); background: var(--k-acc2-t, #C4BBFF); }
+.slp-wake-btn:hover { filter: brightness(1.08); }
+
+/* ---------- its settings: a sheet over the list ---------- */
+.slp-layer { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: calc(20px * var(--k-dn, 1)); background: color-mix(in srgb, var(--k-base, #000000) 55%, transparent); animation: slp-fade .16s ease-out; }
+@keyframes slp-fade { from { opacity: 0; } }
+.slp-sheet {
+  width: min(520px, 100%); max-height: min(86vh, 760px); overflow: auto; display: grid; gap: calc(12px * var(--k-dn, 1)); padding: calc(18px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1));
+  color: var(--k-fg, #FFFFFF); background: var(--k-surface, #17151C); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); box-shadow: 0 24px 70px color-mix(in srgb, var(--k-base, #000000) 60%, transparent);
+  animation: slp-rise .22s cubic-bezier(.2, .9, .3, 1);
+}
+@keyframes slp-rise { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+.slp-sheet-h { display: flex; align-items: center; justify-content: space-between; }
+.slp-sheet-t { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); font-size: calc(17px * var(--k-fs, 1)); font-weight: 900; }
+.slp-x { display: inline-grid; place-items: center; width: calc(28px * var(--k-dn, 1)); height: calc(28px * var(--k-dn, 1)); padding: 0; border-radius: 999px; cursor: pointer; color: inherit; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 0; }
+.slp-set { display: grid; gap: calc(14px * var(--k-dn, 1)); }
+.slp-set-what, .slp-set-dev { margin: 0; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(72% * var(--k-ia, 1))), transparent); }
+.slp-set-dev { padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); }
+.slp-set-b { display: grid; gap: calc(7px * var(--k-dn, 1)); }
+.slp-set-l { font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.slp-set-n { font-size: calc(12px * var(--k-fs, 1)); line-height: 1.4; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.slp-alarms { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.slp-alarms li { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); opacity: .6; transition: opacity .15s ease; }
+.slp-alarms li.on { opacity: 1; }
+.slp-set input[type="time"], .slp-set input[type="number"], .slp-card input[type="time"] {
+  font: inherit; font-size: calc(16px * var(--k-fs, 1)); font-weight: 800; font-variant-numeric: tabular-nums; color: var(--k-fg, #FFFFFF); color-scheme: dark;
+  padding: calc(5px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-base, #000000) 35%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+}
+.slp-alarms li input { margin-right: auto; }
+.slp-set input[type="number"] { width: calc(70px * var(--k-dn, 1)); }
+.slp-sw { position: relative; width: calc(38px * var(--k-dn, 1)); height: calc(22px * var(--k-dn, 1)); padding: 0; border-radius: 999px; cursor: pointer; border: 0; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); transition: background .18s ease; }
+.slp-sw i { position: absolute; top: 3px; left: 3px; width: calc(16px * var(--k-dn, 1)); height: calc(16px * var(--k-dn, 1)); border-radius: 50%; background: var(--k-fg, #FFFFFF); transition: transform .2s cubic-bezier(.2, 1.3, .4, 1); }
+.slp-sw.on { background: var(--k-acc2, #8B7CF6); }
+.slp-sw.on i { transform: translateX(calc(16px * var(--k-dn, 1))); }
+.slp-del { display: inline-grid; place-items: center; width: calc(26px * var(--k-dn, 1)); height: calc(26px * var(--k-dn, 1)); padding: 0; border-radius: 999px; cursor: pointer; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); background: transparent; border: 0; }
+.slp-del:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.slp-add, .slp-panel { display: flex; align-items: center; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(72% * var(--k-ia, 1))), transparent); }
+
+/* ---------- the note (refused, stopped on battery, an old PS) ---------- */
+.slp-note {
+  position: fixed; left: 50%; bottom: calc(28px + var(--gos-bottom, 0px)); z-index: 95; transform: translateX(-50%); display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); max-width: min(560px, calc(100vw - 32px));
+  padding: calc(10px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); font-size: calc(13px * var(--k-fs, 1)); font-weight: 700;
+  color: var(--k-fg, #FFFFFF); background: var(--k-surface, #17151C); border: 1px solid color-mix(in srgb, var(--k-acc2, #8B7CF6) min(100%, calc(45% * var(--k-ia, 1))), transparent); animation: slp-rise .22s cubic-bezier(.2, .9, .3, 1);
+}
+
+/* V1.47 (the developer: the X "on the top left", like macOS notifications): the note's close X sits on its top left corner, shown on
+   hover or keyboard focus, always shown on a touch screen (no hover there) */
+.slp-note .slp-x { position: absolute; left: calc(-8px * var(--k-dn, 1)); top: calc(-8px * var(--k-dn, 1)); width: calc(22px * var(--k-dn, 1)); height: calc(22px * var(--k-dn, 1)); background: var(--k-surface, #17151C); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); box-shadow: 0 1px 4px rgba(0, 0, 0, .4); opacity: 0; transform: scale(.7); transition: opacity .15s ease, transform .18s ease; }
+.slp-note:hover .slp-x, .slp-note .slp-x:focus-visible { opacity: 1; transform: none; }
+@media (hover: none) { .slp-note .slp-x { opacity: 1; transform: none; } }
+
+/* ---------- after Wake up: the sleep to save ---------- */
+.slp-card {
+  position: fixed; left: 50%; bottom: calc(28px + var(--gos-bottom, 0px)); z-index: 92; transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); display: grid; gap: calc(10px * var(--k-dn, 1));
+  padding: calc(16px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); color: var(--k-fg, #FFFFFF); background: var(--k-surface, #17151C);
+  border: 1px solid color-mix(in srgb, var(--k-acc2, #8B7CF6) min(100%, calc(45% * var(--k-ia, 1))), transparent); box-shadow: 0 20px 60px color-mix(in srgb, var(--k-base, #000000) 55%, transparent); animation: slp-card-in .4s cubic-bezier(.2, 1.2, .4, 1);
+}
+@keyframes slp-card-in { from { opacity: 0; transform: translate(-50%, 24px) scale(.97); } }
+.slp-card-t { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); font-size: calc(17px * var(--k-fs, 1)); font-weight: 900; }
+.slp-card-s, .slp-card-n { font-size: calc(14px * var(--k-fs, 1)); line-height: 1.4; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(82% * var(--k-ia, 1))), transparent); }
+.slp-card-n { font-size: calc(12px * var(--k-fs, 1)); color: var(--k-warn-t, #FFD58A); }
+.slp-card-times { display: flex; gap: calc(12px * var(--k-dn, 1)); flex-wrap: wrap; }
+.slp-card-times label { display: grid; gap: calc(4px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.slp-card-b { display: flex; gap: calc(8px * var(--k-dn, 1)); }
+.slp-card-save, .slp-card-skip { flex: 1; padding: calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(14px * var(--k-fs, 1)); font-weight: 800; }
+.slp-card-save { color: var(--k-base, #000000); background: var(--k-acc2-t, #C4BBFF); border: 0; }
+.slp-card-save:disabled { opacity: .45; cursor: default; }
+.slp-card-skip { color: var(--k-fg, #FFFFFF); background: transparent; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); }
+
+/* ---------- the web sleep screen (iPhone web app, website): its own calm look ---------- */
+/* Its colours are fixed on purpose (warm, dim, the same in every PS look): kept literal here, used below. */
+/* V1.42 Customise: the clock colour (--slp-rgb), its brightness (--slp-bright), the background (--slp-night), the
+   size (--slp-size) and the widest clock that fits (--slp-fit) come from the look, set on the screen by SleepFace.tsx
+   faceStyle. The text colours below follow them; the defaults are the V1.40 look. */
+.slp-screen {
+  --slp-rgb: 231, 163, 94; /* k-keep */
+  --slp-trgb: 231, 163, 94; /* k-keep */
+  --slp-face: 231, 163, 94; /* k-keep */
+  --slp-hand: 231, 163, 94; /* k-keep */
+  --slp-tick: 231, 163, 94; /* k-keep */
+  --slp-c78: rgba(var(--slp-rgb), var(--slp-bright)); /* k-keep */
+  --slp-bright: .78;
+  --slp-size: 1;
+  --slp-fit: 30cqw;
+  --slp-amber: rgb(var(--slp-rgb)); /* k-keep */
+  --slp-night: #050302; /* k-keep */
+  --slp-a78: rgba(var(--slp-trgb), var(--slp-bright)); /* k-keep */
+  --slp-a58: rgba(var(--slp-trgb), calc(var(--slp-bright) * .744)); /* k-keep */
+  --slp-a36: rgba(var(--slp-trgb), calc(var(--slp-bright) * .46)); /* k-keep */
+  --slp-r96: rgba(255, 190, 120, .96); /* k-keep */
+  --slp-r86: rgba(255, 190, 120, .86); /* k-keep */
+  --slp-a06: rgba(var(--slp-trgb), .06); /* k-keep */
+  --slp-a14: rgba(var(--slp-trgb), .14); /* k-keep */
+  --slp-a66: rgba(var(--slp-trgb), calc(var(--slp-bright) * .846)); /* k-keep */
+  --slp-a70: rgba(var(--slp-trgb), calc(var(--slp-bright) * .9)); /* k-keep */
+  --slp-live: #7FD69B; /* k-keep */
+  --slp-live-g: rgba(127, 214, 155, .6); /* k-keep */
+  --slp-a45: rgba(var(--slp-trgb), calc(var(--slp-bright) * .577)); /* k-keep */
+  --slp-a82: rgba(var(--slp-trgb), calc(var(--slp-bright) * 1.05)); /* k-keep */
+  --slp-a08: rgba(var(--slp-trgb), .08); /* k-keep */
+  --slp-a22: rgba(var(--slp-trgb), .22); /* k-keep */
+  --slp-ink: #1A0F06; /* k-keep */
+  --slp-r92: rgba(255, 190, 120, .92); /* k-keep */
+  --slp-a34: rgba(var(--slp-trgb), calc(var(--slp-bright) * .436)); /* k-keep */
+}
+.slp-screen {
+  position: fixed; inset: 0; z-index: 2147483000; display: grid; grid-template-rows: 1fr auto auto; place-items: center; overflow: hidden; cursor: default; container-type: size;
+  width: 100vw; height: 100vh; height: 100dvh; justify-self: stretch; align-self: stretch; box-sizing: border-box;
+  color: var(--slp-amber); background: var(--slp-night); animation: slp-fade 1.2s ease-out;
+  padding: max(16px, env(safe-area-inset-top)) calc(16px * var(--k-dn, 1)) max(16px, env(safe-area-inset-bottom));
+  -webkit-user-select: none; user-select: none;
+}
+.slp-face { display: grid; justify-items: center; gap: calc(6px * var(--k-dn, 1)); transition: transform 6s ease-in-out; }
+.slp-clock { font-size: min(calc(clamp(84px, 24cqw, 220px) * var(--k-fs, 1) * var(--slp-size, 1)), var(--slp-fit, 30cqw), 56cqh); font-weight: var(--slp-w, 200); white-space: nowrap; letter-spacing: calc(-.03em + var(--slp-ls, 0em)); line-height: 1; color: var(--slp-c78); font-variant-numeric: tabular-nums; }
+.slp-for { font-size: calc(clamp(17px, 4.4vw, 26px) * var(--k-fs, 1)); font-weight: 500; color: var(--slp-a58); }
+.slp-alarm { font-size: calc(14px * var(--k-fs, 1)); color: var(--slp-a36); margin-top: 4px; }
+.slp-screen.ringing .slp-clock { color: var(--slp-r96); animation: slp-breathe 2.6s ease-in-out infinite; }
+.slp-screen.ringing .slp-for { color: var(--slp-r86); }
+@keyframes slp-breathe { 50% { transform: scale(1.03); } }
+.slp-panel-up {
+  width: min(460px, 100%); display: grid; gap: calc(6px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); margin-bottom: 14px;
+  background: var(--slp-a06); border: 1px solid var(--slp-a14); color: var(--slp-a78);
+  opacity: 0; transform: translateY(40px); pointer-events: none; transition: opacity .8s ease, transform .8s cubic-bezier(.2, .9, .3, 1);
+}
+.slp-panel-up.up { opacity: 1; transform: none; pointer-events: auto; }
+.slp-p-l { font-size: calc(17px * var(--k-fs, 1)); font-weight: 700; }
+.slp-p-list { margin: 0; padding-left: calc(18px * var(--k-dn, 1)); display: grid; gap: calc(3px * var(--k-dn, 1)); font-size: calc(14px * var(--k-fs, 1)); color: var(--slp-a66); }
+.slp-p-sq { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); font-size: calc(14px * var(--k-fs, 1)); color: var(--slp-a70); }
+.slp-p-sq i { width: 8px; height: 8px; border-radius: 50%; background: var(--slp-live); box-shadow: 0 0 10px var(--slp-live-g); animation: slp-live 2.4s ease-in-out infinite; }
+@keyframes slp-live { 50% { opacity: .4; } }
+.slp-p-n { font-size: calc(12px * var(--k-fs, 1)); color: var(--slp-a45); }
+.slp-foot { display: grid; justify-items: center; gap: calc(10px * var(--k-dn, 1)); width: min(460px, 100%); }
+.slp-wake, .slp-stop {
+  width: 100%; padding: calc(15px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(17px * var(--k-fs, 1)); font-weight: 800;
+  color: var(--slp-a82); background: var(--slp-a08); border: 1px solid var(--slp-a22); transition: background .2s ease;
+}
+.slp-stop { color: var(--slp-ink); background: var(--slp-r92); border-color: transparent; }
+.slp-wake:active, .slp-stop:active { transform: scale(.98); }
+.slp-honest { font-size: calc(12px * var(--k-fs, 1)); line-height: 1.4; text-align: center; color: var(--slp-a34); max-width: 380px; }
+@media (prefers-reduced-motion: reduce) {
+  .slp-z i, .slp-screen.ringing .slp-clock, .slp-p-sq i { animation: none; }
+  .slp-z i:nth-child(3) { opacity: .8; }
+  .slp-face { transition: none; }
+}
+/* narrow screens (the phone, the iPhone web app, the website on a phone): clear the bottom tab bar */
+@media (max-width: 700px) {
+  .slp-card, .slp-note { bottom: calc(84px + var(--gos-bottom, 0px)); }
+}
+
+/* ---------- V1.42 Customise: fonts, where the clock sits, the date, the stopwatch, the pointer ---------- */
+/* V1.43: twelve fonts, all bundled with PS (no network). The Mac loads the same files for its own clock. Each font
+   has its own weight and spacing; Customise's weight (--slp-w) and letter spacing (--slp-ls) change them. */
+@font-face { font-family: "PS Sleep Clean"; src: url("../assets/fonts/looks/AtkinsonHyperlegibleNext-Variable.woff2") format("woff2"); font-weight: 200 800; font-display: block; }
+@font-face { font-family: "PS Sleep Mono"; src: url("../assets/fonts/looks/JetBrainsMono-Variable.woff2") format("woff2"); font-weight: 100 800; font-display: block; }
+@font-face { font-family: "PS Sleep Type"; src: url("../assets/fonts/looks/IBMPlexMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "PS Sleep Serif"; src: url("../assets/fonts/looks/SourceSerif4-Variable.woff2") format("woff2"); font-weight: 200 900; font-display: block; }
+@font-face { font-family: "PS Sleep Digital"; src: url("./minecraft/fonts/Silkscreen-Regular.ttf") format("truetype"); font-weight: 400; font-display: block; }
+@font-face { font-family: "PS Sleep Pixel"; src: url("./minecraft/fonts/PixelifySans-Variable.ttf") format("truetype"); font-weight: 400 700; font-display: block; }
+@font-face { font-family: "PS Sleep Hand"; src: url("../assets/fonts/notebook/Caveat-Variable.woff2") format("woff2"); font-weight: 400 700; font-display: block; }
+@font-face { font-family: "PS Sleep Marker"; src: url("../assets/fonts/notebook/PatrickHand-Regular.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "PS Sleep Chalk"; src: url("../assets/fonts/notebook/GochiHand-Regular.ttf") format("truetype"); font-weight: 400; font-display: block; }
+.slp-f-thin .slp-fs { font-weight: 200; }
+.slp-f-bold .slp-clock, .slp-f-bold .slp-fs { font-weight: var(--slp-w, 800); letter-spacing: calc(-.045em + var(--slp-ls, 0em)); }
+.slp-f-rounded .slp-clock, .slp-f-rounded .slp-fs { font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; font-weight: var(--slp-w, 500); }
+.slp-f-clean .slp-clock, .slp-f-clean .slp-fs { font-family: "PS Sleep Clean", system-ui, sans-serif; font-weight: var(--slp-w, 300); letter-spacing: calc(-.02em + var(--slp-ls, 0em)); }
+.slp-f-mono .slp-clock, .slp-f-mono .slp-fs { font-family: "PS Sleep Mono", var(--k-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace); font-weight: var(--slp-w, 300); letter-spacing: calc(-.04em + var(--slp-ls, 0em)); }
+.slp-f-type .slp-clock, .slp-f-type .slp-fs { font-family: "PS Sleep Type", "American Typewriter", "Courier New", monospace; font-weight: var(--slp-w, 400); letter-spacing: calc(-.02em + var(--slp-ls, 0em)); }
+.slp-f-serif .slp-clock, .slp-f-serif .slp-fs { font-family: "PS Sleep Serif", ui-serif, "New York", Georgia, serif; font-weight: var(--slp-w, 400); letter-spacing: calc(-.02em + var(--slp-ls, 0em)); }
+.slp-f-digital .slp-clock, .slp-f-digital .slp-fs { font-family: "PS Sleep Digital", ui-monospace, monospace; font-weight: var(--slp-w, 400); letter-spacing: calc(.02em + var(--slp-ls, 0em)); }
+.slp-f-pixel .slp-clock, .slp-f-pixel .slp-fs { font-family: "PS Sleep Pixel", ui-monospace, monospace; font-weight: var(--slp-w, 400); letter-spacing: calc(0em + var(--slp-ls, 0em)); }
+.slp-f-hand .slp-clock, .slp-f-hand .slp-fs { font-family: "PS Sleep Hand", "Bradley Hand", cursive; font-weight: var(--slp-w, 500); letter-spacing: calc(0em + var(--slp-ls, 0em)); }
+.slp-f-marker .slp-clock, .slp-f-marker .slp-fs { font-family: "PS Sleep Marker", "Chalkboard SE", cursive; font-weight: var(--slp-w, 400); letter-spacing: calc(0em + var(--slp-ls, 0em)); }
+.slp-f-chalk .slp-clock, .slp-f-chalk .slp-fs { font-family: "PS Sleep Chalk", "Chalkboard SE", cursive; font-weight: var(--slp-w, 400); letter-spacing: calc(.01em + var(--slp-ls, 0em)); }
+.slp-face.pos-top { align-self: start; margin-top: 5cqh; }
+.slp-face.pos-bottom { align-self: end; margin-bottom: 3cqh; }
+.slp-ampm { font-size: .26em; font-weight: 600; letter-spacing: .04em; margin-left: .18em; vertical-align: .95em; }
+.slp-date { font-size: calc(clamp(15px, 3.6cqw, 22px) * var(--k-fs, 1)); font-weight: 600; color: var(--slp-a58); }
+.slp-watch { display: grid; justify-items: center; gap: calc(8px * var(--k-dn, 1)); margin-top: calc(10px * var(--k-dn, 1)); }
+.slp-watch.small { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); }
+.slp-watch-t { font-size: calc(22px * var(--k-fs, 1)); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--slp-a70); }
+.slp-watch.big .slp-watch-t { font-size: min(calc(clamp(44px, 11cqw, 130px) * var(--k-fs, 1)), 22cqh); font-weight: 300; line-height: 1; color: var(--slp-a78); }
+.slp-watch-b { display: inline-flex; gap: calc(8px * var(--k-dn, 1)); }
+.slp-wb {
+  padding: calc(6px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800;
+  color: var(--slp-a82); background: var(--slp-a08); border: 1px solid var(--slp-a22);
+}
+.slp-wb:disabled { opacity: .4; cursor: default; }
+.slp-watch.big .slp-wb { font-size: calc(15px * var(--k-fs, 1)); padding: calc(9px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)); }
+.slp-cust-btn { padding: calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; color: var(--slp-a45); background: transparent; border: 1px solid var(--slp-a14); }
+.slp-cust-btn:hover { color: var(--slp-a82); }
+/* the pointer hides after the chosen seconds still, on this screen only */
+.slp-screen.nocursor, .slp-screen.nocursor * { cursor: none !important; }
+
+/* ---------- Customise: a sheet with a live preview (or a side panel over the live web screen) ---------- */
+.slp-cust-layer { position: fixed; inset: 0; z-index: 2147483100; display: grid; place-items: center; padding: calc(16px * var(--k-dn, 1)); background: color-mix(in srgb, var(--k-base, #000000) 60%, transparent); animation: slp-fade .16s ease-out; }
+.slp-cust-layer.over { place-items: stretch end; padding: 0; background: transparent; pointer-events: none; }
+.slp-cust {
+  width: min(600px, 100%); max-height: min(92vh, 900px); overflow: auto; display: grid; gap: calc(12px * var(--k-dn, 1)); padding: calc(18px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1));
+  color: var(--k-fg, #FFFFFF); background: var(--k-surface, #17151C); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); box-shadow: 0 24px 70px color-mix(in srgb, var(--k-base, #000000) 60%, transparent);
+  animation: slp-rise .22s cubic-bezier(.2, .9, .3, 1);
+}
+.slp-cust-layer.over .slp-cust { width: min(400px, 100%); max-height: none; height: 100%; border-radius: 0; pointer-events: auto; background: color-mix(in srgb, var(--k-surface, #17151C) 94%, transparent); }
+.slp-prev-box { position: relative; width: 100%; overflow: hidden; border-radius: calc(14px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); }
+.slp-screen.slp-prev { position: absolute; inset: auto; left: 0; top: 0; z-index: auto; transform-origin: 0 0; animation: none; pointer-events: none; padding: calc(24px * var(--k-dn, 1)); }
+.slp-cust-set { gap: calc(12px * var(--k-dn, 1)); }
+.slp-seg { flex-wrap: wrap; }
+.slp-two { display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); }
+.slp-range { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); }
+.slp-range input { flex: 1; accent-color: var(--k-acc2, #8B7CF6); }
+.slp-range b { min-width: calc(48px * var(--k-dn, 1)); text-align: right; font-size: calc(13px * var(--k-fs, 1)); }
+.slp-fonts .dwell { display: inline-grid; justify-items: center; gap: calc(2px * var(--k-dn, 1)); }
+.slp-fs { font-size: calc(18px * var(--k-fs, 1)); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.slp-swatches { display: flex; flex-wrap: wrap; gap: calc(10px * var(--k-dn, 1)); }
+.slp-swatch { width: calc(30px * var(--k-dn, 1)); height: calc(30px * var(--k-dn, 1)); border-radius: 50%; cursor: pointer; padding: 0; border: 2px solid transparent; box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); }
+.slp-swatch.on { border-color: var(--k-fg, #FFFFFF); }
+.slp-pieces { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); }
+.slp-piece { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(5px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(5px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font-size: calc(13px * var(--k-fs, 1)); font-weight: 700; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); opacity: .7; }
+.slp-piece.on { opacity: 1; background: color-mix(in srgb, var(--k-acc2, #8B7CF6) min(100%, calc(18% * var(--k-ia, 1))), transparent); }
+.slp-piece input { accent-color: var(--k-acc2, #8B7CF6); margin: 0; }
+.slp-cust-b { display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); justify-content: flex-end; position: sticky; bottom: calc(-20px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) 0 0; background: inherit; }
+.slp-cust-done, .slp-cust-reset { padding: calc(9px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(14px * var(--k-fs, 1)); font-weight: 800; }
+.slp-cust-done { color: var(--k-base, #000000); background: var(--k-acc2-t, #C4BBFF); border: 0; }
+.slp-cust-reset { color: var(--k-fg, #FFFFFF); background: transparent; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); }
+.slp-cust-open { justify-self: start; }
+@media (max-width: 700px) {
+  .slp-cust-layer { padding: 0; place-items: end stretch; }
+  .slp-cust { width: 100%; max-height: 92vh; border-radius: calc(22px * var(--k-rd, 1)) calc(22px * var(--k-rd, 1)) 0 0; padding-bottom: calc(20px + var(--gos-bottom, 0px)); }
+  .slp-cust-layer.over { place-items: end stretch; }
+  .slp-cust-layer.over .slp-cust { width: 100%; height: auto; max-height: 62vh; border-radius: calc(22px * var(--k-rd, 1)) calc(22px * var(--k-rd, 1)) 0 0; }
+}
+
+/* ---------- V1.43 breaks: "Up for the day, or just checking something?", "Go back to sleep?", the break row ---------- */
+.slp-choose-l { margin-top: calc(4px * var(--k-dn, 1)); font-weight: 800; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.slp-mins { display: flex; gap: calc(6px * var(--k-dn, 1)); overflow-x: auto; scroll-snap-type: x mandatory; padding: calc(2px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); scrollbar-width: thin; overscroll-behavior-x: contain; }
+.slp-min {
+  flex: 0 0 auto; scroll-snap-align: center; display: inline-grid; justify-items: center; min-width: calc(52px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); cursor: pointer; font: inherit;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border: 1px solid transparent;
+}
+.slp-min b { font-size: calc(17px * var(--k-fs, 1)); line-height: 1.1; }
+.slp-min small { font-size: calc(10px * var(--k-fs, 1)); opacity: .7; }
+.slp-min.on { background: color-mix(in srgb, var(--k-acc2, #8B7CF6) min(100%, calc(26% * var(--k-ia, 1))), transparent); border-color: var(--k-acc2, #8B7CF6); }
+.slp-choose .slp-card-save, .slp-ask .slp-card-save { width: 100%; }
+.slp-choose .slp-card-skip { width: 100%; }
+.slp-away-up { padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; color: var(--k-fg, #FFFFFF); background: transparent; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); }
+
+/* ---------- V1.43: the countdown, "Wake me up in", the wake styles' light, a big Stop ---------- */
+.slp-count { font-size: calc(clamp(14px, 3.2cqw, 20px) * var(--k-fs, 1)); font-weight: 600; color: var(--slp-a45); }
+.slp-light { position: absolute; inset: 0; z-index: 0; opacity: 0; pointer-events: none; transition: background .25s linear; }
+.slp-screen > .slp-face, .slp-screen > .slp-foot, .slp-screen > .slp-panel-up { position: relative; z-index: 1; }
+.slp-screen.lit-dark .slp-clock, .slp-screen.lit-dark .slp-for, .slp-screen.lit-dark .slp-date, .slp-screen.lit-dark .slp-alarm, .slp-screen.lit-dark .slp-honest { color: var(--slp-ink); }
+.slp-stop.big { font-size: calc(24px * var(--k-fs, 1)); padding: calc(24px * var(--k-dn, 1)) calc(22px * var(--k-dn, 1)); box-shadow: 0 0 0 3px var(--slp-ink), 0 0 40px var(--slp-r86); }
+.slp-screen.ringing .slp-foot, .slp-screen.dawn .slp-foot { width: min(560px, 100%); }
+.slp-wi-btn { padding: calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; color: var(--slp-a45); background: transparent; border: 1px solid var(--slp-a14); }
+.slp-wi-btn:hover { color: var(--slp-a82); }
+.slp-foot-row { display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); justify-content: center; }
+.slp-wi-layer { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; padding: calc(16px * var(--k-dn, 1)); background: rgba(0, 0, 0, .55); /* k-keep */ }
+.slp-wi-sheet { width: min(560px, 100%); max-height: 88cqh; overflow: auto; display: grid; gap: calc(12px * var(--k-dn, 1)); padding: calc(16px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); background: var(--slp-night); border: 1px solid var(--slp-a22); color: var(--slp-a82); }
+.slp-wi-sheet .slp-sheet-t { color: var(--slp-a82); }
+.slp-wi { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.slp-wi-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(132px * var(--k-dn, 1)), 1fr)); gap: calc(6px * var(--k-dn, 1)); }
+.slp-wi-c { display: grid; justify-items: start; gap: calc(2px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); cursor: pointer; text-align: left; font: inherit; color: inherit; background: color-mix(in srgb, currentColor 7%, transparent); border: 1px solid transparent; }
+.slp-wi-c b { font-size: calc(18px * var(--k-fs, 1)); line-height: 1.1; }
+.slp-wi-c small { font-size: calc(11px * var(--k-fs, 1)); opacity: .75; }
+.slp-wi-c .slp-wi-at { opacity: 1; font-weight: 700; }
+.slp-wi-c.on { border-color: currentColor; background: color-mix(in srgb, currentColor 16%, transparent); }
+.slp-wi-own { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); }
+.slp-wi-ol { font-weight: 800; }
+.slp-wi-own input { width: calc(58px * var(--k-dn, 1)); font: inherit; font-size: calc(15px * var(--k-fs, 1)); font-weight: 800; font-variant-numeric: tabular-nums; color: inherit; color-scheme: dark; padding: calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-rd, 1)); background: color-mix(in srgb, currentColor 8%, transparent); border: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+.slp-wi-now { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); font-weight: 700; }
+.slp-screen .tm-pill-btn { color: var(--slp-a82); background: var(--slp-a08); border: 1px solid var(--slp-a22); }
+.slp-style { font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; color: var(--k-fg, #FFFFFF); color-scheme: dark; padding: calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-base, #000000) 35%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); max-width: calc(150px * var(--k-dn, 1)); }
+.slp-ws { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.slp-ws-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.slp-ws-i { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); }
+.slp-ws-t { flex: 1; display: grid; gap: calc(2px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); }
+.slp-ws-t small { font-size: calc(12px * var(--k-fs, 1)); line-height: 1.35; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.slp-ws-t .slp-ws-st { color: var(--k-warn-t, #FFD58A); }
+.slp-ws-sw { flex: 0 0 auto; width: calc(30px * var(--k-dn, 1)); height: calc(30px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); }
+/* the style's look in its little square (literal on purpose: they are the light itself) */
+.ws-chime .slp-ws-sw { background: radial-gradient(circle, #e7a35e 0 30%, #050302 75%); /* k-keep */ }
+.ws-sunrise .slp-ws-sw { background: linear-gradient(0deg, #240200, #e65c1e 55%, #ffeed4); /* k-keep */ }
+.ws-alert .slp-ws-sw { background: var(--k-bad, #FF1A10); animation: slp-ws-pulse 1.6s ease-in-out infinite; /* k-keep */ }
+.ws-wave .slp-ws-sw { background: linear-gradient(120deg, var(--k-info-bg, #0A1440), var(--k-info, #4F7CFF), var(--k-info-bg, #0A1440)); background-size: 300% 100%; animation: slp-ws-wave 6s ease-in-out infinite; /* k-keep */ }
+.ws-white .slp-ws-sw { background: #ffffff; /* k-keep */ }
+.ws-strobe .slp-ws-sw { background: repeating-linear-gradient(90deg, #ffffff 0 6px, #000000 6px 12px); /* k-keep */ }
+.ws-light .slp-ws-sw { background: radial-gradient(circle, #f6d4a8 0 40%, #3a2410 100%); /* k-keep */ }
+.ws-loud .slp-ws-sw { background: radial-gradient(circle, #ff6a3a 0 25%, #200400 30%, #ff6a3a 34%, #200400 40%, #ff6a3a 44%, #050302 60%); /* k-keep */ }
+@keyframes slp-ws-pulse { 50% { opacity: .3; } }
+@keyframes slp-ws-wave { 50% { background-position: 100% 0; } }
+.slp-wprev { cursor: pointer; animation: none; }
+.slp-warn-layer { z-index: 2147483200; }
+.slp-warn { width: min(460px, 100%); }
+/* the colour wheel (views/ColorWheel.tsx): the hues round the ring, white in the middle (literal on purpose) */
+.cw { display: flex; flex-wrap: wrap; align-items: center; gap: calc(14px * var(--k-dn, 1)); }
+.cw-wheel {
+  position: relative; width: calc(150px * var(--k-dn, 1)); aspect-ratio: 1; border-radius: 50%; cursor: crosshair; touch-action: none; flex: 0 0 auto;
+  background: radial-gradient(circle closest-side, #ffffff, rgba(255, 255, 255, 0)), conic-gradient(#ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000); /* k-keep */
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent);
+}
+.cw-wheel:focus-visible { outline: 2px solid var(--k-acc2, #8B7CF6); outline-offset: 3px; }
+.cw-dot { position: absolute; width: calc(16px * var(--k-dn, 1)); height: calc(16px * var(--k-dn, 1)); margin: calc(-8px * var(--k-dn, 1)) 0 0 calc(-8px * var(--k-dn, 1)); border-radius: 50%; border: 2px solid var(--k-fg, #FFFFFF); box-shadow: 0 0 0 1px var(--k-base, #000000); pointer-events: none; /* k-keep */ }
+.cw-side { display: grid; gap: calc(8px * var(--k-dn, 1)); min-width: calc(150px * var(--k-dn, 1)); flex: 1; }
+.cw-now { width: 100%; height: calc(26px * var(--k-dn, 1)); border-radius: calc(8px * var(--k-rd, 1)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); }
+.cw-l { display: grid; gap: calc(3px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.cw-l input[type="range"] { accent-color: var(--k-acc2, #8B7CF6); }
+.cw-hex { font: inherit; font-size: calc(14px * var(--k-fs, 1)); font-weight: 700; color: var(--k-fg, #FFFFFF); font-family: var(--k-mono, ui-monospace, monospace); padding: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(8px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-base, #000000) 35%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+.slp-swatch.wheel { background: conic-gradient(#ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000); /* k-keep */ }
+.slp-swatch.same { background: transparent; font-size: calc(10px * var(--k-fs, 1)); font-weight: 800; color: var(--k-fg, #FFFFFF); width: auto; padding: 0 calc(10px * var(--k-dn, 1)); border-radius: 999px; }
+@media (prefers-reduced-motion: reduce) {
+  .ws-alert .slp-ws-sw, .ws-wave .slp-ws-sw { animation: none; }
+}
+
+/* ---------- V1.43 the analogue face (views/SleepFace.tsx Dial): face, hands and ticks in their own colours, a soft glow ---------- */
+.slp-dial {
+  display: block; width: min(calc(clamp(200px, 74cqmin, 420px) * var(--k-fs, 1) * var(--slp-size, 1)), 92cqw, 64cqh); height: auto; aspect-ratio: 1; overflow: visible;
+  filter: drop-shadow(0 0 calc(10px * var(--slp-bright, .78)) rgba(var(--slp-face), calc(var(--slp-bright, .78) * .45))); /* k-keep */
+}
+.slp-dial-face { fill: rgba(var(--slp-face), .045); stroke: rgba(var(--slp-face), calc(var(--slp-bright, .78) * .5)); stroke-width: 1.4; /* k-keep */ }
+.slp-dial-maj { stroke: rgba(var(--slp-tick), calc(var(--slp-bright, .78) * .95)); stroke-width: 2.6; stroke-linecap: round; /* k-keep */ }
+.slp-dial-min { stroke: rgba(var(--slp-tick), calc(var(--slp-bright, .78) * .5)); stroke-width: 1; stroke-linecap: round; /* k-keep */ }
+.slp-dial-dot { fill: rgba(var(--slp-tick), calc(var(--slp-bright, .78) * .55)); /* k-keep */ }
+.slp-dial-n { fill: rgba(var(--slp-tick), calc(var(--slp-bright, .78) * .95)); font-size: calc(15px * var(--k-fs, 1)); font-weight: var(--slp-w, 400); letter-spacing: var(--slp-ls, 0em); /* k-keep */ }
+.dial-roman .slp-dial-n { font-size: calc(12.5px * var(--k-fs, 1)); font-family: "PS Sleep Serif", ui-serif, Georgia, serif; }
+.slp-dial-h, .slp-dial-m { stroke: rgba(var(--slp-hand), var(--slp-bright, .78)); stroke-linecap: round; /* k-keep */ }
+.slp-dial-h { stroke-width: 6; }
+.slp-dial-m { stroke-width: 3.6; }
+.slp-dial-s { stroke: rgba(var(--slp-hand), calc(var(--slp-bright, .78) * .8)); stroke-width: 1.3; stroke-linecap: round; /* k-keep */ }
+.slp-dial-cap { fill: rgba(var(--slp-hand), var(--slp-bright, .78)); /* k-keep */ }
+.slp-dial-sweep { animation: slp-sweep 60s linear infinite; }
+@keyframes slp-sweep { to { transform: rotate(360deg); } }
+.slp-dial.ring .slp-dial-h, .slp-dial.ring .slp-dial-m, .slp-dial.ring .slp-dial-cap { stroke: var(--slp-r96); fill: var(--slp-r96); }
+.slp-screen.lit-dark .slp-dial-h, .slp-screen.lit-dark .slp-dial-m, .slp-screen.lit-dark .slp-dial-s, .slp-screen.lit-dark .slp-dial-maj, .slp-screen.lit-dark .slp-dial-n { stroke: var(--slp-ink); fill: var(--slp-ink); }
+.slp-screen.lit-dark .slp-dial-cap { fill: var(--slp-ink); }
+.slp-digi { font-size: calc(clamp(22px, 5cqw, 44px) * var(--k-fs, 1)); font-weight: var(--slp-w, 300); letter-spacing: var(--slp-ls, 0em); color: var(--slp-c78); font-variant-numeric: tabular-nums; line-height: 1.1; margin-top: calc(6px * var(--k-dn, 1)); }
+.slp-f-rounded .slp-digi { font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif; }
+.slp-f-clean .slp-digi, .slp-f-clean .slp-dial-n { font-family: "PS Sleep Clean", system-ui, sans-serif; }
+.slp-f-mono .slp-digi, .slp-f-mono .slp-dial-n { font-family: "PS Sleep Mono", ui-monospace, monospace; }
+.slp-f-type .slp-digi, .slp-f-type .slp-dial-n { font-family: "PS Sleep Type", monospace; }
+.slp-f-serif .slp-digi, .slp-f-serif .slp-dial-n { font-family: "PS Sleep Serif", ui-serif, serif; }
+.slp-f-digital .slp-digi, .slp-f-digital .slp-dial-n { font-family: "PS Sleep Digital", monospace; }
+.slp-f-pixel .slp-digi, .slp-f-pixel .slp-dial-n { font-family: "PS Sleep Pixel", monospace; }
+.slp-f-hand .slp-digi, .slp-f-hand .slp-dial-n { font-family: "PS Sleep Hand", cursive; }
+.slp-f-marker .slp-digi, .slp-f-marker .slp-dial-n { font-family: "PS Sleep Marker", cursive; }
+.slp-f-chalk .slp-digi, .slp-f-chalk .slp-dial-n { font-family: "PS Sleep Chalk", cursive; }
+@media (prefers-reduced-motion: reduce) { .slp-dial-sweep { animation: none; } }
+/* V1.44 Alarm loudness and Your own sound (SleepWake.tsx AlarmLoudness, OwnSoundRow) */
+.slp-loud, .slp-own { align-items: center; }
+.slp-loud > .slp-set-n:first-child, .slp-own > .slp-set-n:first-child { flex-basis: 100%; font-weight: 700; color: var(--k-fg, #FFFFFF); }
+.slp-loud input[type="range"] { flex: 1 1 140px; min-width: 120px; accent-color: var(--k-acc2, #8B7CF6); }
+.slp-loud-v { min-width: calc(44px * var(--k-dn, 1)); text-align: right; font-size: calc(13px * var(--k-fs, 1)); }
+.slp-loud-line, .slp-own > .slp-set-n:last-child { flex-basis: 100%; }
+.slp-own-n { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: calc(13px * var(--k-fs, 1)); }
+.slp-own-n small { font-weight: 400; opacity: 0.6; }
+.slp-own-err { flex-basis: 100%; color: var(--k-warn, #FFB547); }
+/* V1.47 alarm playlist */
+.slp-pl { align-items: center; border-radius: calc(12px * var(--k-dn, 1)); transition: background 0.18s ease, box-shadow 0.18s ease; }
+.slp-pl.over { background: color-mix(in srgb, var(--k-acc2, #8B7CF6) 14%, transparent); box-shadow: 0 0 0 2px var(--k-acc2, #8B7CF6); }
+.slp-pl > .slp-set-n:first-child { flex-basis: 100%; font-weight: 700; color: var(--k-fg, #FFFFFF); }
+.slp-pl > .slp-set-n, .slp-pl-today { flex-basis: 100%; }
+.slp-pl-h { margin-top: calc(4px * var(--k-dn, 1)); }
+.slp-pl-today { font-weight: 700; font-size: calc(13px * var(--k-fs, 1)); }
+.slp-pl-today small { font-weight: 400; opacity: 0.65; }
+.slp-pl-today.away small:last-child { color: var(--k-warn, #FFB547); opacity: 1; }
+.slp-pl-list { flex-basis: 100%; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(4px * var(--k-dn, 1)); }
+.slp-pl-list li { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(5px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-dn, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); transition: background 0.18s ease, opacity 0.18s ease; }
+.slp-pl-list li.today { background: color-mix(in srgb, var(--k-acc2, #8B7CF6) 16%, transparent); }
+.slp-pl-list li.away { opacity: 0.6; }
+.slp-pl-n { min-width: 1.6em; text-align: right; opacity: 0.55; font-size: calc(12px * var(--k-fs, 1)); }
+.slp-pl-t { flex: 1 1 170px; min-width: 0; display: flex; flex-direction: column; }
+.slp-pl-t b { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; font-size: calc(13px * var(--k-fs, 1)); }
+.slp-pl-t small { opacity: 0.6; font-size: calc(11px * var(--k-fs, 1)); }
+.slp-pl-lib small { font-weight: 400; opacity: 0.6; margin-left: 6px; }
+.slp-pl-list li.off { opacity: 0.55; }
+.slp-pl-tick { flex: 0 0 auto; width: calc(22px * var(--k-dn, 1)); height: calc(22px * var(--k-dn, 1)); border-radius: calc(6px * var(--k-rd, 1)); border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 45%, transparent);
+  background: transparent; color: var(--k-fg, #FFFFFF); font-weight: 800; font-size: calc(13px * var(--k-fs, 1)); line-height: 1; cursor: pointer; transition: background 0.18s ease, border-color 0.18s ease; }
+.slp-pl-tick.on { background: var(--k-acc2, #8B7CF6); border-color: var(--k-acc2, #8B7CF6); }
+.slp-pl-libs, .slp-pl-share { flex-basis: 100%; display: flex; flex-direction: column; gap: calc(6px * var(--k-dn, 1)); }
+.slp-pl-share { flex-direction: row; flex-wrap: wrap; align-items: center; padding: calc(8px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-dn, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); }
+.slp-pl-share > .slp-set-n { flex-basis: 100%; }
+.slp-pl-share input { flex: 1 1 180px; min-width: 0; }
+.slp-pl-pack { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-dn, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); }
+.slp-pl-packfiles { flex-basis: 100%; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(4px * var(--k-dn, 1)); }
+.slp-pl-packfiles li { display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); }
+.slp-pl-packfiles small { opacity: 0.6; }
+.slp-pl-b { display: flex; gap: calc(6px * var(--k-dn, 1)); margin-left: auto; }
+.slp-pl-mv { padding-left: calc(8px * var(--k-dn, 1)); padding-right: calc(8px * var(--k-dn, 1)); }
+.slp-pl .tm-pill-btn { transition: background 0.18s ease, color 0.18s ease, opacity 0.18s ease; }
+.slp-loud .tm-pill-btn, .slp-own .tm-pill-btn { transition: background 0.18s ease, color 0.18s ease, opacity 0.18s ease; }
+
+/* ---------- V1.47 Sleep mode's own settings, full screen (views/SleepSettings.tsx; the rows are Settings' own) ---------- */
+.sls-rows { min-width: 0; display: grid; gap: calc(14px * var(--k-dn, 1)); align-content: start; }
+.sls-body .slp-set-b { gap: calc(8px * var(--k-dn, 1)); }
+.sls-body .slp-sub { margin-top: calc(10px * var(--k-dn, 1)); }
+/* the loudness and own sound pieces carry their own small label; the row's name says it here */
+.sls-body .slp-loud > .slp-set-n:first-child, .sls-body .slp-own > .slp-set-n:first-child, .sls-body .slp-pl > .slp-set-n:first-child { display: none; }
+.sls-set .gs-set-c .slp-panel { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+
+/* V1.47: the gear in a corner of the web sleep screen, and Sleep settings opened over that screen */
+.slp-gear { position: absolute; top: max(14px, env(safe-area-inset-top)); right: calc(16px * var(--k-dn, 1)); z-index: 2; display: grid; place-items: center; width: calc(42px * var(--k-dn, 1)); height: calc(42px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; padding: 0;
+  color: var(--slp-a45); background: transparent; border: 1px solid var(--slp-a14); transition: color .2s ease, background .2s ease; }
+.slp-gear:hover, .slp-gear:focus-visible { color: var(--slp-a82); background: var(--slp-a08); }
+.dx-layer.cs-layer.gs-layer.sls-layer.over-sleep { z-index: 2147483150; }
+.sls-back { margin-left: auto; }

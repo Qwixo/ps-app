@@ -1,0 +1,37 @@
+/* Mac settings (MacSettings.tsx): PS > Settings, now in the Tab list. The window is the More settings
+   shell (cstats.css .cs-*); the sections inside are the same ones the main window had, recoloured for
+   the dark glass by redefining the theme tokens on the window only. */
+.mac-win {
+  left: max(2vw, calc(50% - 470px)); right: max(2vw, calc(50% - 470px));
+  --ink: var(--k-fg, #F6EEF1); --ink-2: var(--k-fg, #E4D7DD); --muted: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(58% * var(--k-ia, 1))), transparent);
+  --line: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); --line-2: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent);
+  --surface: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4.5% * var(--k-ia, 1))), transparent); --bg: var(--k-surface, #170C21); --raise: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent);
+  --pink: var(--k-acc, #F06A9A); --pink-d: var(--k-acc-t, #F58DB2); --pink-l: color-mix(in srgb, var(--k-acc, #EC4E86) 28%, transparent); --blush: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); --soft: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent);
+  --good: var(--k-ok, #5CCB98); --good-bg: color-mix(in srgb, var(--k-ok, #5CCB98) 16%, transparent); --warn: var(--k-warn, #F0B35A); --warn-bg: color-mix(in srgb, var(--k-warn, #F0B35A) 14%, transparent); --bad: var(--k-bad-t, #F2857E); --bad-bg: color-mix(in srgb, var(--k-bad-t, #F2857E) 14%, transparent);
+  color-scheme: dark; color: var(--ink);
+}
+.mac-scroll { display: grid; gap: calc(16px * var(--k-dn, 1)); align-content: start; }
+.mac-scroll .panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: calc(18px * var(--k-rd, 1)); box-shadow: none;
+  animation: mac-in .42s cubic-bezier(.2, .9, .3, 1) both;
+}
+.mac-scroll .panel:nth-child(2) { animation-delay: .03s; } .mac-scroll .panel:nth-child(3) { animation-delay: .06s; }
+.mac-scroll .panel:nth-child(4) { animation-delay: .09s; } .mac-scroll .panel:nth-child(n+5) { animation-delay: .12s; }
+@keyframes mac-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.mac-scroll .h2 { color: var(--k-fg, #FFFFFF); }
+.mac-scroll .muted, .mac-scroll .hint { color: var(--muted); }
+.mac-scroll .input, .mac-scroll .select { background: color-mix(in srgb, var(--k-base, #000000) 28%, transparent); color: var(--ink); border-color: var(--line-2); }
+.mac-scroll .tabs { background: color-mix(in srgb, var(--k-base, #000000) 28%, transparent); }
+.mac-note { margin: 0; font-size: calc(13px * var(--k-fs, 1)); color: var(--muted); }
+.mac-note a { color: var(--pink-d); }
+.mac-perm { display: flex; flex-wrap: wrap; gap: calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); align-items: center; padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: var(--warn-bg); border: 1px solid color-mix(in srgb, var(--k-warn, #F0B35A) 40%, transparent); color: var(--ink); }
+.mac-perm b { color: var(--warn); }
+/* Security moved to its own window (the padlock, views/Security.tsx): this row says so and opens it. */
+.ms-moved { display: flex; flex-wrap: wrap; gap: calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); align-items: center; justify-content: space-between; padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: var(--blush); border: 1px solid var(--pink-l); color: var(--ink); font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; }
+.ms-moved span { flex: 1 1 320px; }
+.ms-moved b { color: var(--k-fg, #FFFFFF); }
+@media (prefers-reduced-motion: reduce) { .mac-scroll .panel { animation: none; } }
+/* Mac settings > App name (PsSettings.tsx, V1.36): what is wrong with a typed name, in the bad colour. */
+.mac-scroll .an-err { color: var(--bad); }

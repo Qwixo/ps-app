@@ -1,0 +1,65 @@
+/* Shared accordion: smooth height via grid rows, plus the per client group rows used on
+   Today (Projects in motion) and Pipeline. Tokens only, light and dark. */
+
+:root { --acc-ease: cubic-bezier(.22, .8, .22, 1); }
+
+.acc-collapse {
+  display: grid; grid-template-rows: 0fr; opacity: 0; min-width: 0;
+  transition: grid-template-rows .5s var(--acc-ease), opacity .25s ease;
+}
+.acc-collapse.open {
+  grid-template-rows: 1fr; opacity: 1;
+  transition: grid-template-rows .5s var(--acc-ease), opacity .45s ease .06s;
+}
+.acc-clip { min-height: 0; overflow: hidden; min-width: 0; }
+/* room for focus rings and hover lifts inside the clipped area */
+.acc-inner { padding: calc(3px * var(--k-dn, 1)); margin: -3px; min-width: 0; }
+.acc-collapse > .acc-clip > .acc-inner { transform: translateY(-8px); transition: transform .5s var(--acc-ease); }
+.acc-collapse.open > .acc-clip > .acc-inner { transform: none; }
+
+.acc-chev { transition: transform .4s var(--acc-ease); color: var(--muted); flex: none; }
+.acc-chev.open { transform: rotate(180deg); color: var(--pink-d); }
+
+/* ---------- a list of client groups ---------- */
+.acc-groups { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(8px * var(--k-dn, 1)); }
+.acc-group {
+  border: 1px solid var(--line); border-radius: calc(16px * var(--k-rd, 1)); background: var(--surface); min-width: 0;
+  transition: border-color .3s ease, box-shadow .4s var(--acc-ease), background-color .3s ease;
+}
+.acc-group.open { border-color: color-mix(in srgb, var(--pink) 28%, var(--line)); box-shadow: var(--shadow); }
+.acc-group.amber:not(.open) { border-color: color-mix(in srgb, var(--warn) 30%, var(--line)); }
+.acc-group.bad:not(.open) { border-color: color-mix(in srgb, var(--bad) 30%, var(--line)); }
+
+.acc-row {
+  width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1));
+  padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border: 0; background: none; text-align: left; border-radius: calc(15px * var(--k-rd, 1)); color: var(--ink);
+}
+.acc-row:hover .acc-name { color: var(--pink-d); }
+.acc-row:focus-visible { outline-offset: -2px; }
+.acc-mono {
+  width: 36px; height: 36px; border-radius: calc(12px * var(--k-rd, 1)); display: grid; place-items: center; flex: none;
+  font-weight: 800; font-size: calc(15px * var(--k-fs, 1)); color: var(--pink-d); background: var(--soft);
+  transition: background .3s ease, color .3s ease;
+}
+.acc-group.open .acc-mono { background: linear-gradient(135deg, var(--pink), var(--pink-d)); color: var(--k-fg, #FFFFFF); }
+.acc-main { display: grid; gap: calc(3px * var(--k-dn, 1)); min-width: 0; }
+.acc-name { font-weight: 750; font-size: calc(15px * var(--k-fs, 1)); transition: color .2s; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-sub { font-size: calc(12.5px * var(--k-fs, 1)); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-side { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+.acc-mini { height: 4px; border-radius: calc(99px * var(--k-rd, 1)); background: var(--soft); overflow: hidden; margin-top: 3px; }
+.acc-mini > i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--pink), var(--pink-d)); transition: width .6s var(--acc-ease); }
+.acc-mini.amber > i { background: linear-gradient(90deg, var(--k-warn, #F0B35A), var(--warn)); }
+.acc-body { padding: 0 calc(14px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); display: grid; gap: calc(8px * var(--k-dn, 1)); }
+
+/* narrow lists (phones, or a side column): the chip drops under the name so long names stay readable */
+.acc-groups { container-type: inline-size; }
+.pill.acc-chip-m { display: none; }
+@container (max-width: 460px) {
+  .acc-side .pill, .acc-side .acc-pct { display: none; }
+  .acc-main .pill.acc-chip-m { display: inline-flex; justify-self: start; margin-top: 3px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acc-collapse, .acc-collapse.open, .acc-inner, .acc-chev, .acc-group, .acc-mini > i { transition: none !important; }
+  .acc-collapse > .acc-clip > .acc-inner { transform: none; }
+}

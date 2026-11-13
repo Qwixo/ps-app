@@ -1,0 +1,117 @@
+/* V1.56 the phone's own Edit mode (gos/PhoneEditMode.tsx), PS GOS and the iPhone web app. Above everything on the
+   phone; the Looks panel and its toasts sit above this (views/phonelooks.css). The pages themselves are drawn by the
+   Mac's phone canvas pieces (views/phoneeditor.css), made touch sized here. */
+.pm-edit-open { display: none; }
+
+.pm-room {
+  position: fixed; inset: 0; z-index: 2147483000; overflow: hidden; overflow: clip; touch-action: none; color: #fff;   /* clip: focus or scrollIntoView can never slide it */
+  font-family: var(--k-font, Inter, system-ui, sans-serif); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.pm-dim { position: absolute; inset: 0; background: radial-gradient(110% 80% at 50% 45%, rgba(26, 16, 30, .97), rgba(5, 3, 7, .995)); opacity: 0; transition: opacity .45s ease; }
+.pm-room.on .pm-dim { opacity: 1; }
+.pm-room.out .pm-dim { opacity: 0; transition-duration: .35s; }
+
+/* The pages: the one being edited in the middle, the others beside it, all sliding with a soft spring. */
+.pm-card {
+  position: absolute; left: 0; top: 0; transform-origin: 50% 50%; border-radius: 46px;
+  box-shadow: 0 0 0 calc(7px * var(--inv, 1)) #0b0b0e, 0 0 0 calc(8.5px * var(--inv, 1)) #2c2a33, 0 calc(30px * var(--inv, 1)) calc(70px * var(--inv, 1)) -10px rgba(0, 0, 0, .9);
+  transition: transform .55s cubic-bezier(.3, 1.25, .45, 1), opacity .4s ease, filter .4s ease, box-shadow .3s ease;
+}
+.pm-room.in .pm-card { box-shadow: none; border-radius: 0; }
+.pm-room.in .pm-card .pe-screen { border-radius: 0; }
+.pm-room.on .pm-card:not(.cur) { opacity: calc(1 - min(var(--d, 0), 3) * .2); filter: brightness(.62); }
+.pm-room.out .pm-card { transition-duration: .38s; transition-timing-function: cubic-bezier(.22, 1, .36, 1); }
+.pm-room.dragging .pm-card, .pm-room:has(.pm-pill.lifting) .pm-card { transition-duration: .3s; }
+.pm-card.lit { filter: brightness(1.05) !important; box-shadow: 0 0 0 calc(7px * var(--inv, 1)) #0b0b0e, 0 0 0 calc(11px * var(--inv, 1)) var(--k-acc, #EC4E86); }
+.pm-card-hit { position: absolute; inset: 0; z-index: 30; border-radius: inherit; }
+.pm-card .pe-screen { transition: border-radius .4s ease, background .5s ease; }
+
+/* Touch sized handles: about 40 px on the screen whatever the zoom (--inv is 1 / the page's scale). */
+.pm-room .pe-tile-x { width: calc(30px * var(--inv)); height: calc(30px * var(--inv)); right: calc(-11px * var(--inv)); top: calc(-11px * var(--inv)); font-size: calc(19px * var(--inv)); }
+.pm-room .pe-tile-x::before, .pm-room .pe-tile-rs::before { content: ""; position: absolute; inset: calc(-8px * var(--inv)); border-radius: 50%; }
+.pm-room .pe-tile-rs { width: calc(24px * var(--inv)); height: calc(24px * var(--inv)); right: calc(-9px * var(--inv)); bottom: calc(-9px * var(--inv)); box-shadow: 0 0 0 calc(3px * var(--inv)) var(--k-acc, #EC4E86), 0 4px 10px rgba(0, 0, 0, .5); }
+.pm-room .pe-tile-hit, .pm-room .pe-tile-rs, .pm-room .pe-nav, .pm-room .pe-nav-i, .pm-room .pe-nav-grip { touch-action: none; }
+.pm-room .pe-tile-name { opacity: 1; transform: none; font-size: calc(11px * min(var(--inv), 1.7)); top: calc(-13px * min(var(--inv), 1.7)); }
+.pm-room .pe-tile { animation: pm-wiggle 2.6s ease-in-out infinite; animation-delay: calc(var(--n, 0) * -.4s); }
+.pm-room .pe-tile.dragging, .pm-room .pe-tile.fresh { animation: none; }
+.pm-room .pe-tile.fresh { animation: pe-fresh .6s cubic-bezier(.34, 1.56, .5, 1) both; }
+@keyframes pm-wiggle { 0%, 100% { rotate: 0deg; } 25% { rotate: -.5deg; } 75% { rotate: .5deg; } }
+.pm-room .pe-nav-x { opacity: 1; width: calc(22px * var(--inv)); height: calc(22px * var(--inv)); font-size: calc(15px * var(--inv)); right: calc(-4px * var(--inv)); top: calc(-8px * var(--inv)); }
+.pm-room .pe-nav-grip { height: calc(12px * min(var(--inv), 1.6)); top: calc(-16px * min(var(--inv), 1.6)); width: 60px; margin-left: -30px; }
+.pm-room .pe-nav-grip::before { inset: calc(-14px * var(--inv)) -20px; }
+
+/* The + New page cards past each end. */
+.pm-plus {
+  position: absolute; left: 0; top: 0; display: grid; place-items: center; align-content: center; gap: 6px; border-radius: 22px; color: rgba(255, 255, 255, .75);
+  background: rgba(255, 255, 255, .04); border: 2px dashed rgba(255, 255, 255, .2); font: 600 13px/1 var(--k-font, Inter, system-ui, sans-serif);
+  transition: transform .55s cubic-bezier(.3, 1.25, .45, 1), background .2s ease; animation: pm-in .45s ease .15s both;
+}
+.pm-room.dragging .pm-plus { transition-duration: .3s; }
+.pm-plus span { font: 300 34px/1 system-ui; }
+.pm-plus em { font-style: normal; }
+.pm-plus:active { background: color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); border-color: var(--k-acc, #EC4E86); }
+@keyframes pm-in { from { opacity: 0; } }
+
+/* Page names. */
+.pm-pill {
+  position: absolute; left: 0; top: 0; z-index: 40; display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border-radius: 999px;
+  background: rgba(255, 255, 255, .08); font: 600 14px/1 var(--k-font, Inter, system-ui, sans-serif); white-space: nowrap; touch-action: none;
+  transition: transform .55s cubic-bezier(.3, 1.25, .45, 1), opacity .3s ease, background .2s ease; animation: pm-in .4s ease .1s both; opacity: .7;
+}
+.pm-pill span { display: inline-flex; align-items: center; gap: 6px; }
+.pm-pill.cur { opacity: 1; background: rgba(255, 255, 255, .15); }
+.pm-pill.lifting { transition: opacity .2s ease; background: var(--k-acc, #EC4E86); z-index: 41; scale: 1.06; }
+.pm-pill-x { min-width: 30px; min-height: 30px; margin-right: -10px; padding: 0 10px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, .12); color: inherit; font: 600 15px/1 inherit; }
+.pm-pill-x.sure { background: #e5484d; font-size: 13px; }
+.pm-rename { width: 150px; min-height: 30px; border: 0; outline: 0; border-radius: 8px; padding: 0 8px; background: rgba(0, 0, 0, .45); color: #fff; font: 600 16px/1 inherit; -webkit-user-select: text; user-select: text; }
+
+/* The bars. */
+.pm-top { position: absolute; left: 12px; right: 12px; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 10px; transition: opacity .3s ease, transform .45s cubic-bezier(.34, 1.36, .5, 1); }
+.pm-room.in .pm-top, .pm-room.out .pm-top, .pm-room.in .pm-tools, .pm-room.out .pm-tools, .pm-room.in .pm-hint, .pm-room.out .pm-hint { opacity: 0; transform: translateY(-14px); pointer-events: none; }
+.pm-room.in .pm-tools, .pm-room.out .pm-tools { transform: translateY(20px); }
+.pm-done { min-height: 44px; padding: 0 20px; border: 0; border-radius: 999px; background: var(--k-acc, #EC4E86); color: #fff; font: 700 15px/1 var(--k-font, Inter, system-ui, sans-serif); box-shadow: 0 10px 26px -6px rgba(0, 0, 0, .7); }
+.pm-done:active, .pm-tool:active { transform: scale(.94); }
+.pm-dots { display: flex; gap: 6px; }
+.pm-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .3); transition: background .25s ease, scale .25s ease; }
+.pm-dots i.on { background: #fff; scale: 1.3; }
+.pm-tools { position: absolute; left: 12px; right: 12px; z-index: 50; display: flex; gap: 10px; justify-content: center; transition: opacity .3s ease, transform .45s cubic-bezier(.34, 1.36, .5, 1); }
+.pm-tool {
+  flex: 1 1 0; max-width: 220px; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 18px; color: #fff; font: 700 15px/1.1 var(--k-font, Inter, system-ui, sans-serif);
+  background: rgba(36, 28, 40, .94); border: 1px solid rgba(255, 255, 255, .12); box-shadow: 0 14px 34px -10px rgba(0, 0, 0, .8); transition: transform .2s cubic-bezier(.34, 1.36, .5, 1), background .2s ease;
+}
+.pm-tool.pm-add { background: color-mix(in srgb, var(--k-acc, #EC4E86) 32%, rgba(36, 28, 40, .94)); }
+.pm-tool.pm-add span { font: 400 26px/1 system-ui; margin-top: -2px; }
+.pm-hint { position: absolute; left: 20px; right: 20px; z-index: 49; margin: 0; text-align: center; font: 500 12.5px/1.35 var(--k-font, Inter, system-ui, sans-serif); opacity: .55; pointer-events: none; transition: opacity .3s ease .2s; }
+.pm-room.gal .pm-hint, .pm-room.dragging .pm-hint { opacity: 0; transition-delay: 0s; }
+
+/* The gallery: the Mac canvas's own, as a sheet from the bottom. */
+.pm-gal { position: absolute; left: 0; right: 0; bottom: 0; z-index: 60; }
+.pm-gal .pe-gal { position: absolute; inset: 0; left: 0; right: 0; bottom: 0; height: auto; border-radius: 26px 26px 0 0; padding: 16px 14px; }
+.pm-gal .pe-gal-head { flex-wrap: wrap; }
+.pm-gal .pe-gal-head input { order: 3; flex: 1 1 100%; width: auto; min-height: 42px; font-size: 16px; }
+.pm-gal .pe-gal-x { width: 40px; height: 40px; }
+.pm-gal .pe-gal-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; padding-bottom: 12px; }
+.pm-gal .pe-gal-i { width: auto; min-height: 150px; }
+.pm-gal .pe-gal-i:active { transform: scale(.96); }
+
+/* Navbar and looks: the Mac canvas's own sheet, from the bottom. */
+.pm-drawer-wrap { position: absolute; inset: 0; z-index: 70; }
+.pm-drawer-dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .5); animation: pm-in .25s ease both; }
+.pm-drawer {
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: 80%; display: grid; grid-template-rows: auto 1fr; border-radius: 26px 26px 0 0; padding: 14px 14px 0;
+  background: rgba(24, 19, 28, .98); border-top: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 -20px 60px rgba(0, 0, 0, .6); animation: pm-up .45s cubic-bezier(.22, 1.1, .36, 1) both;
+}
+@keyframes pm-up { from { transform: translateY(105%); } }
+.pm-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 10px; font: 700 16px/1 var(--k-font, Inter, system-ui, sans-serif); }
+.pm-drawer-head button { width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .08); color: inherit; font: 600 22px/1 system-ui; }
+.pm-drawer .pe-sheet { position: static; inset: auto; width: auto; opacity: 1; transform: none; border: 0; box-shadow: none; background: transparent; padding: 0 4px 10px; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; font-size: 15px; }
+.pm-drawer .pe-who, .pm-drawer .pe-switch, .pm-drawer .pe-note { display: none; }
+.pm-drawer .pe-seg button { min-height: 40px; font-size: 14px; }
+.pm-drawer .pe-chk { min-height: 44px; }
+.pm-drawer .pe-chk input { width: 20px; height: 20px; }
+.pm-drawer .pe-look select { min-height: 44px; font-size: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-card, .pm-plus, .pm-pill, .pm-top, .pm-tools, .pm-drawer, .pm-dim { transition-duration: .01s !important; animation: none !important; }
+  .pm-room .pe-tile { animation: none !important; }
+}

@@ -1,0 +1,110 @@
+/* Mini tasks (views/MiniTasks.tsx): a chevron with a quiet count on the task, and the list that
+   slides open under it. Tab list first (PS and the To-do page), then Today. */
+
+/* ---------- Tab list ---------- */
+/* The list sits on its own line inside the task, so dragging the task carries it along. */
+.tm-row { flex-wrap: wrap; row-gap: 0; }
+.tm-row > .mt-panel { flex: 1 0 100%; order: 99; min-width: 0; }
+.tm-row.mini-open::before { top: calc(34px * var(--z, .85)); }
+.tm-row:has(.mt-panel :active) { scale: none; }
+
+.mt-toggle {
+  flex: none; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: calc(6px * var(--k-dn, 1));
+  height: calc(34px * var(--z, .85)); padding: 0 calc(11px * var(--z, .85)); border-radius: 999px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(72% * var(--k-ia, 1))), transparent);
+  font: inherit; transition: opacity .18s ease, background .15s ease, color .15s ease, border-color .2s ease, box-shadow .3s ease;
+}
+.mt-toggle:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); }
+.mt-toggle.empty { padding: 0; width: calc(34px * var(--z, .85)); }
+.mt-toggle .acc-chev { color: inherit; }
+.mt-toggle.open { border-color: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 45%, transparent); color: var(--k-acc2-t, #F5C2FD); }
+.mt-toggle.open .acc-chev { color: var(--k-acc2-t, #F5C2FD); }
+.mt-count { font-size: calc(calc(14px * var(--z, .85)) * var(--k-fs, 1)); font-weight: 760; letter-spacing: .02em; }
+.mt-toggle.all { color: var(--k-ok-t, #86E5BE); border-color: color-mix(in srgb, var(--k-ok, #5CCB98) 50%, transparent); }
+/* With no mini tasks the chevron waits for the mouse (the list stays clean). */
+.tm-row:not(:hover):not([data-hm]):not(.mini-open) > .mt-toggle.empty { opacity: 0; }
+
+/* Every mini task done, the task itself not ticked: a quiet glow (it is never ticked for him). */
+.tm-row.mini-all { border-color: color-mix(in srgb, var(--k-ok, #5CCB98) 55%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-ok, #5CCB98) 22%, transparent), 0 0 28px color-mix(in srgb, var(--k-ok, #5CCB98) 16%, transparent); }
+
+.mt-box { display: grid; gap: calc(7px * var(--z, .85)); padding: calc(12px * var(--z, .85)) 0 calc(2px * var(--z, .85)) calc(54px * var(--z, .85)); cursor: default; }
+.mt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(7px * var(--z, .85)); }
+.mt-item {
+  position: relative; display: flex; align-items: center; gap: calc(11px * var(--z, .85)); min-width: 0;
+  padding: calc(8px * var(--z, .85)) calc(13px * var(--z, .85)); border-radius: calc(13px * var(--z, .85));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); cursor: grab;
+  transition: background .15s ease, border-color .15s ease, box-shadow .2s ease, transform .2s cubic-bezier(.2, .9, .3, 1);
+}
+.mt-item:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.mt-item.sel { border-color: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 65%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 30%, transparent); }
+.mt-item[data-dragging] { cursor: grabbing; background: var(--k-surface, #2C1F27); box-shadow: 0 12px 30px rgba(0, 0, 0, .5); }
+.mt-tick {
+  flex: none; display: grid; place-items: center; width: calc(26px * var(--z, .85)); height: calc(26px * var(--z, .85)); border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); background: transparent; color: transparent; cursor: pointer; padding: 0; transition: all .18s ease;
+}
+.mt-tick svg { width: calc(14px * var(--z, .85)); height: calc(14px * var(--z, .85)); }
+.mt-tick:hover { border-color: var(--k-fg, #FFFFFF); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.mt-item.done .mt-tick { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.mt-item.claude .mt-tick { background: var(--k-acc2, #8B5CF6); border-color: var(--k-acc2-t, #A78BFA); color: var(--k-on-acc2, #FFFFFF); box-shadow: 0 0 12px color-mix(in srgb, var(--k-acc2-t, #A78BFA) 55%, transparent); }
+.mt-t { flex: 1; min-width: 0; font-size: calc(calc(19px * var(--z, .85)) * var(--k-fs, 1)); font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(93% * var(--k-ia, 1))), transparent); }
+.mt-item.done .mt-t { text-decoration: line-through; opacity: .5; }
+.mt-claude { flex: none; font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--k-acc2-t, #C4B5FD); }
+.mt-edit, .mt-input {
+  flex: 1; min-width: 0; font: inherit; font-size: calc(calc(19px * var(--z, .85)) * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-base, #000000) 28%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 50%, transparent); border-radius: calc(9px * var(--k-rd, 1)); padding: calc(4px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); outline: none;
+  user-select: text; -webkit-user-select: text; cursor: text;
+}
+.mt-input::placeholder { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(38% * var(--k-ia, 1))), transparent); }
+.mt-add {
+  justify-self: start; display: inline-flex; align-items: center; gap: calc(7px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+  border: 1px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(24% * var(--k-ia, 1))), transparent); background: transparent; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent);
+  font: inherit; font-size: calc(calc(15px * var(--z, .85)) * var(--k-fs, 1)); font-weight: 700; transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.mt-add:hover { color: var(--k-fg, #FFFFFF); border-color: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 60%, transparent); background: color-mix(in srgb, var(--k-acc2-t, #F0ABFC) 8%, transparent); }
+.mt-addrow { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(2px * var(--k-dn, 1)) 0 calc(2px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+
+/* ---------- Today page (website tokens, light and dark) ---------- */
+.tv-mini .mt-toggle, .tv-item .mt-toggle { height: 26px; padding: 0 calc(9px * var(--k-dn, 1)); border-color: var(--line); background: transparent; color: var(--muted); }
+.tv-mini .mt-toggle.empty, .tv-item .mt-toggle.empty { width: 26px; padding: 0; }
+.tv-mini .mt-toggle:hover, .tv-item .mt-toggle:hover { color: var(--ink); background: var(--surface-2, transparent); }
+.tv-mini .mt-toggle.open, .tv-item .mt-toggle.open, .tv-mini .mt-toggle.open .acc-chev, .tv-item .mt-toggle.open .acc-chev { color: var(--pink-d); }
+.tv-mini .mt-count, .tv-item .mt-count { font-size: calc(12px * var(--k-fs, 1)); }
+.tv-item:not(:hover):not(.mini-open) .mt-toggle.empty, .tv-mini:not(:hover):not(.mini-open) .mt-toggle.empty { opacity: 0; }
+.tv-mini.mini-all, .tv-item.mini-all { box-shadow: inset 3px 0 0 var(--good); }
+.tv-mini-panel { grid-column: 1 / -1; }
+.tv-mini-panel .mt-box, .tv-item .mt-box { padding: calc(6px * var(--k-dn, 1)) 0 calc(4px * var(--k-dn, 1)) calc(30px * var(--k-dn, 1)); gap: calc(4px * var(--k-dn, 1)); }
+.tv-mini-panel .mt-item, .tv-item .mt-item { padding: calc(5px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-rd, 1)); background: transparent; border-color: var(--line); gap: calc(9px * var(--k-dn, 1)); }
+.tv-mini-panel .mt-item:hover, .tv-item .mt-item:hover { background: color-mix(in srgb, var(--pink) 6%, transparent); }
+.tv-mini-panel .mt-tick, .tv-item .mt-tick { width: 18px; height: 18px; border-color: var(--muted); }
+.tv-mini-panel .mt-tick svg, .tv-item .mt-tick svg { width: 10px; height: 10px; }
+.tv-mini-panel .mt-tick:hover, .tv-item .mt-tick:hover { border-color: var(--ink); color: var(--muted); }
+.tv-mini-panel .mt-t, .tv-mini-panel .mt-edit, .tv-mini-panel .mt-input, .tv-item .mt-t, .tv-item .mt-edit, .tv-item .mt-input { font-size: calc(14px * var(--k-fs, 1)); font-weight: 550; color: var(--ink); }
+.tv-mini-panel .mt-edit, .tv-mini-panel .mt-input, .tv-item .mt-edit, .tv-item .mt-input { background: var(--surface); }
+.tv-mini-panel .mt-input::placeholder, .tv-item .mt-input::placeholder { color: var(--muted); }
+.tv-mini-panel .mt-add, .tv-item .mt-add { font-size: calc(13px * var(--k-fs, 1)); padding: calc(3px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); color: var(--muted); border-color: var(--line); }
+.tv-mini-panel .mt-add:hover, .tv-item .mt-add:hover { color: var(--pink-d); border-color: var(--pink); background: transparent; }
+.tv-mini-panel .mt-addrow, .tv-item .mt-addrow { color: var(--muted); padding-left: calc(8px * var(--k-dn, 1)); }
+.tv-item > .mt-panel { flex: 1 0 100%; order: 99; }
+
+@media (prefers-reduced-motion: reduce) { .mt-item, .mt-toggle { transition: none; } }
+.tv-mini-line { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+.tv-mini-line > label { flex: 1; min-width: 0; }
+.tv-mini.mini-all { border-radius: calc(10px * var(--k-rd, 1)); }
+/* Today's rows do not wrap: the mini list takes its own line below, the first line stays as it was */
+.tv-item.has-mini { flex-wrap: wrap; }
+.tv-item.has-mini > .tv-text { flex-basis: 0; }
+
+/* The task being worked on is white (the lightning look keeps it dark): dark ink for its mini tasks */
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-toggle { color: color-mix(in srgb, var(--k-surface, #17121A) 70%, transparent); border-color: color-mix(in srgb, var(--k-base, #000000) 20%, transparent); background: color-mix(in srgb, var(--k-base, #000000) 4%, transparent); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-toggle:hover, .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-toggle.open { color: var(--k-surface, #17121A); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); background: color-mix(in srgb, var(--k-acc, #EC4E86) 8%, transparent); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-toggle.open .acc-chev { color: var(--k-acc, #C2185B); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-item { background: color-mix(in srgb, var(--k-base, #000000) 4%, transparent); border-color: color-mix(in srgb, var(--k-base, #000000) 10%, transparent); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-item:hover { background: color-mix(in srgb, var(--k-base, #000000) 7%, transparent); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-item[data-dragging] { background: var(--k-fg, #FFFFFF); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-tick { border-color: color-mix(in srgb, var(--k-surface, #17121A) 45%, transparent); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-tick:hover { color: color-mix(in srgb, var(--k-surface, #17121A) 50%, transparent); border-color: var(--k-surface, #17121A); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-t { color: var(--k-surface, #17121A); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-edit, .tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-input { color: var(--k-surface, #17121A); background: color-mix(in srgb, var(--k-base, #000000) 5%, transparent); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-input::placeholder { color: color-mix(in srgb, var(--k-surface, #17121A) 42%, transparent); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-add { color: color-mix(in srgb, var(--k-surface, #17121A) 60%, transparent); border-color: color-mix(in srgb, var(--k-base, #000000) 25%, transparent); }
+.tm-overlay:not(.ws-lightning):not(.ws-own) .tm-row.working .mt-addrow { color: color-mix(in srgb, var(--k-surface, #17121A) 50%, transparent); }

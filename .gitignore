@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+keystore.properties
+local.properties
+build/
+.gradle/
+signing/*.key
+signing/*.keychain-db
+signing/.keychain-pass

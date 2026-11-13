@@ -1,0 +1,94 @@
+/* The welcome tour's preview (views/MiniPs.tsx): a small drawing of the Tab list in the current look's colours, a
+   ring on the button that holds the setting, the screen it opens, and a pointer that walks there. Only transform and
+   opacity animate (the pointer moves with transform: translate on a full size layer). */
+.mps { position: relative; width: 100%; }
+.mps-screen { position: relative; width: 100%; aspect-ratio: 16 / 10.4; overflow: hidden; border-radius: calc(16px * var(--k-rd, 1)); isolation: isolate;
+  background: radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent), transparent 70%), color-mix(in srgb, var(--k-base, #0B0709) 92%, var(--k-fg, #FFFFFF));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent), 0 18px 40px rgba(0, 0, 0, .35);
+  font-size: calc(9px * var(--k-fs, 1)); color: var(--k-fg, #FFFFFF); }
+.mps-screen > * { position: absolute; box-sizing: border-box; }
+.mps-island { left: 43%; top: 0; width: 14%; height: 5%; border-radius: 0 0 calc(10px * var(--k-rd, 1)) calc(10px * var(--k-rd, 1)); background: var(--k-base, #000000); display: grid; place-items: center; }
+.mps-island i { width: 30%; height: 28%; border-radius: calc(9px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-acc, #EC4E86) 70%, var(--k-base, #000000)); opacity: .7; }
+.mps-bar { inset: 0; pointer-events: none; }
+.mps-bar > * { position: absolute; box-sizing: border-box; }
+.mps-clock, .mps-pill { display: grid; place-items: center; border-radius: calc(99px * var(--k-rd, 1)); white-space: nowrap; overflow: hidden; font-weight: 650;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); }
+.mps-glass { border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent); }
+.mps-glass i { position: absolute; left: 12%; right: 12%; top: 46%; height: 8%; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 35%, transparent); }
+.mps-btn { display: grid; place-items: center; border-radius: calc(9px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 80%, transparent); font-weight: 800; }
+.mps-btn svg { width: 62%; height: 62%; }
+.mps-btn.round { border-radius: calc(99px * var(--k-rd, 1)); }
+.mps-btn.add { background: color-mix(in srgb, var(--k-ok, #34D399) 70%, transparent); color: var(--k-on-ok, #FFFFFF); font-size: calc(13px * var(--k-fs, 1)); }
+.mps-card { display: grid; align-content: start; gap: calc(3px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); overflow: hidden;
+  background: color-mix(in srgb, var(--k-surface, #17121A) 80%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); }
+.mps-card b { font-size: calc(9.5px * var(--k-fs, 1)); }
+.mps-card em { font-style: normal; font-size: calc(8px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mps-card.warn { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-bad, #FF5A5A) 45%, transparent); }
+.mps-head { left: 29%; top: 15%; width: 33%; height: 8%; display: flex; align-items: center; }
+.mps-head b { font-size: calc(16px * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.02em; white-space: nowrap; }
+.mps-list { display: grid; gap: calc(4px * var(--k-dn, 1)); align-content: start; }
+.mps-task { display: flex; align-items: center; gap: calc(5px * var(--k-dn, 1)); padding: 0 calc(7px * var(--k-dn, 1)); height: 7.2cqh; min-height: 15px; border-radius: calc(8px * var(--k-rd, 1)); font-size: calc(8.5px * var(--k-fs, 1)); font-weight: 650; white-space: nowrap; overflow: hidden;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); }
+.mps-task i { flex: none; width: 8px; height: 8px; border-radius: calc(99px * var(--k-rd, 1)); box-shadow: inset 0 0 0 1.3px color-mix(in srgb, var(--k-fg, #FFFFFF) 55%, transparent); }
+.mps-task.p1 { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-bad, #FF5A5A) 70%, transparent); }
+.mps-task.work { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 18%, transparent); }
+.mps-task.done { opacity: .55; text-decoration: line-through; }
+.mps-task.done i { background: var(--k-acc, #EC4E86); box-shadow: none; }
+.mps-done { display: grid; gap: calc(3px * var(--k-dn, 1)); align-content: start; padding: calc(5px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 4%, transparent); }
+.mps-done b { font-size: calc(8px * var(--k-fs, 1)); text-transform: uppercase; letter-spacing: .06em; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 55%, transparent); }
+
+/* The ring on the place to click. */
+.mps-ring { z-index: 3; border-radius: calc(10px * var(--k-rd, 1)); pointer-events: none; opacity: 0; transform: scale(1.5);
+  box-shadow: 0 0 0 2px var(--k-acc-t, #FF9CC0), 0 0 18px 2px color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent);
+  transition: opacity .35s ease, transform .45s cubic-bezier(.3, 1.4, .5, 1); }
+.mps-ring.on { opacity: 1; transform: scale(1); animation: mps-pulse 1.4s .4s ease-in-out infinite; }
+
+/* The screen the button opens: Settings, Security, Do Not Disturb, or macOS's System Settings. */
+.mps-sheet { z-index: 4; left: 12%; right: 12%; top: 18%; bottom: 8%; padding: calc(8px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); display: grid; align-content: start; gap: calc(4px * var(--k-dn, 1));
+  background: color-mix(in srgb, var(--k-surface, #17121A) 96%, var(--k-fg, #FFFFFF)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent), 0 16px 40px rgba(0, 0, 0, .55);
+  opacity: 0; transform: translate3d(0, 8%, 0) scale(.92); transition: opacity .3s ease, transform .45s cubic-bezier(.2, 1.2, .35, 1); }
+.mps-sheet.on { opacity: 1; transform: none; }
+.mps-sheet.dnd { left: 52%; right: 3%; top: 15%; bottom: 30%; }
+.mps-sheet-h { display: flex; align-items: baseline; gap: calc(7px * var(--k-dn, 1)); padding-bottom: calc(3px * var(--k-dn, 1)); }
+.mps-sheet-h b { font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; }
+.mps-sheet-h span { font-size: calc(8px * var(--k-fs, 1)); font-weight: 700; color: var(--k-acc-t, #FF9CC0); }
+.mps-row { display: flex; align-items: center; justify-content: space-between; gap: calc(6px * var(--k-dn, 1)); padding: 0 calc(8px * var(--k-dn, 1)); height: 8.2cqh; min-height: 15px; border-radius: calc(8px * var(--k-rd, 1)); font-size: calc(8.5px * var(--k-fs, 1)); font-weight: 600;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); transition: background-color .3s ease, box-shadow .3s ease; }
+.mps-row span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mps-row.hot { background: color-mix(in srgb, var(--k-acc, #EC4E86) 24%, transparent); box-shadow: 0 0 0 1.5px var(--k-acc-t, #FF9CC0), 0 0 14px color-mix(in srgb, var(--k-acc, #EC4E86) 50%, transparent); }
+/* macOS System Settings, light like the real one (its own colours in every look). */
+.mps-sheet.macos { left: 8%; right: 8%; top: 12%; bottom: 6%; padding: 0; overflow: hidden; background: #ECECEE; /* k-keep */ color: #1D1D1F; /* k-keep */ box-shadow: 0 16px 40px rgba(0, 0, 0, .55);; /* k-keep */ }
+.mps-mac { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+.mps-mac-bar { display: flex; align-items: center; gap: 4px; /* k-keep */ padding: 5px 7px; /* k-keep */ background: #E2E2E5; /* k-keep */ font-size: 8px; /* k-keep */ font-weight: 700; }
+.mps-mac-bar i { width: 6px; height: 6px; border-radius: 99px; /* k-keep */ background: #FF5F57;; /* k-keep */ }
+.mps-mac-bar i:nth-child(2) { background: #FEBC2E;; /* k-keep */ }
+.mps-mac-bar i:nth-child(3) { background: #28C840;; /* k-keep */ }
+.mps-mac-bar span { margin-left: 6px; color: #555555;; /* k-keep */ }
+.mps-mac-body { display: grid; grid-template-columns: 30% 1fr; min-height: 0; }
+.mps-mac-side { display: grid; align-content: start; gap: 3px; /* k-keep */ padding: 6px; /* k-keep */ background: #E5E5E8;; /* k-keep */ }
+.mps-mac-side em { font-style: normal; font-size: 8px; /* k-keep */ padding: 3px 5px; /* k-keep */ border-radius: 5px; /* k-keep */ color: #333333;; /* k-keep */ }
+.mps-mac-side em.on { background: #0A66D9; /* k-keep */ color: #FFFFFF;; /* k-keep */ }
+.mps-mac-main { display: grid; align-content: start; gap: 4px; /* k-keep */ padding: 7px 8px; /* k-keep */ background: #F5F5F7;; /* k-keep */ }
+.mps-mac-main b { font-size: 10px; /* k-keep */ color: #1D1D1F;; /* k-keep */ }
+.mps-mac-main .mps-row { background: #FFFFFF; /* k-keep */ color: #1D1D1F; /* k-keep */ box-shadow: inset 0 0 0 1px #DDDDDD;; /* k-keep */ }
+.mps-mac-main .mps-row.hot { background: #EAF2FE; /* k-keep */ box-shadow: 0 0 0 1.5px #0A66D9;; /* k-keep */ }
+.mps-tog { position: relative; flex: none; width: 18px; height: 10px; border-radius: 99px; /* k-keep */ background: #C9C9CE; /* k-keep */ transition: background-color .3s ease; }
+.mps-tog i { position: absolute; top: 1px; left: 1px; width: 8px; height: 8px; border-radius: 99px; /* k-keep */ background: #FFFFFF; /* k-keep */ transition: transform .3s cubic-bezier(.3, 1.4, .5, 1); }
+.mps-tog.on { background: #34C759;; /* k-keep */ }
+.mps-tog.on i { transform: translateX(8px); }
+
+/* The pointer: a full size layer moved by transform, so it glides; a ripple on each click. */
+.mps-ptr { z-index: 6; inset: 0; pointer-events: none; transform: translate3d(calc(var(--x) - 50%), calc(var(--y) - 50%), 0); transition: transform 1s cubic-bezier(.45, .05, .25, 1); }
+.mps-ptr svg { position: absolute; left: 50%; top: 50%; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .5)); }
+.mps-tap { position: absolute; left: calc(50% - 9px); top: calc(50% - 9px); width: 18px; height: 18px; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-acc-t, #FF9CC0) 70%, transparent); opacity: 0; }
+.mps-ptr.click .mps-tap, .mps-ptr.row .mps-tap { animation: mps-tap .6s ease-out both; }
+.mps-ptr.move .mps-tap { display: none; }
+.mps-screen { container-type: size; }
+
+@keyframes mps-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes mps-tap { from { opacity: .9; transform: scale(.3); } to { opacity: 0; transform: scale(2.2); } }
+@media (prefers-reduced-motion: reduce) {
+  .mps-ptr, .mps-sheet, .mps-ring, .mps-row, .mps-tog i { transition: none; }
+  .mps-ring.on, .mps-ptr .mps-tap { animation: none; }
+}

@@ -1,0 +1,136 @@
+/* Several to-do lists as pages, like the iPhone home screen (V1.55, views/ListPager.tsx). */
+
+/* The list's name under the headline (only once there is more than one list) */
+.tl-strip {
+  display: flex; align-items: center; justify-content: center; margin: calc(-14px * var(--k-dn, 1)) 0 calc(-8px * var(--k-dn, 1)); min-height: 24px;
+  -webkit-user-select: none; user-select: none;
+}
+.tl-strip.none { display: none; }
+.tl-name {
+  font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; cursor: default;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(72% * var(--k-ia, 1))), transparent);
+  padding: 4px 10px; margin: -4px -10px; border-radius: 999px; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: background-color .2s ease; -webkit-touch-callout: none;
+}
+.tl-name:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); }
+.tl-name-in {
+  font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); border-radius: 999px; padding: 3px 10px; outline: none; min-width: 8ch;
+}
+.tm-sec-h .tl-name-in { font-size: inherit; letter-spacing: inherit; padding: 2px 8px; margin: -3px -9px; }
+.tl-sec-t { cursor: inherit; }
+
+/* The dots: bottom middle of the screen, the home one a small house, + at each end. The bright pill slides between
+   them with the fingers (one transform a frame, views/ListPager.tsx moveDots). */
+.tl-dots {
+  position: fixed; z-index: 30; left: 50%; bottom: calc(14px + var(--safe-bottom, 0px)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px; padding: 4px 10px; border-radius: 999px; max-width: calc(100vw - 24px);
+  background: color-mix(in srgb, var(--k-surface, #160E13) 70%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  -webkit-user-select: none; user-select: none; touch-action: pan-y;
+}
+html.gos .tl-dots { bottom: 10px; }
+.tm-docked .tl-dots { position: sticky; left: auto; bottom: 12px; transform: none; justify-self: center; grid-column: 1 / -1; margin: 8px auto 0; }
+.tl-dot {
+  position: relative; z-index: 1; width: 22px; height: 26px; padding: 0; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(48% * var(--k-ia, 1))), transparent); -webkit-touch-callout: none;
+  transition: color .25s ease;
+}
+.tl-dot i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; transition: transform .3s cubic-bezier(.3, 1.5, .5, 1); }
+.tl-dot svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.tl-dot.home svg { fill: currentColor; stroke-width: 1; }
+.tl-dot.plus { opacity: .7; }
+.tl-dot:hover { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.tl-dot.on { color: var(--k-on-acc, #FFFFFF); }
+.tl-pill {
+  position: absolute; z-index: 0; left: 0; top: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; pointer-events: none;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) 30%, transparent);
+  will-change: transform;
+}
+.tl-dot.drop i, .tl-dot.drop svg { transform: scale(1.9); color: var(--k-acc, #EC4E86); }
+.tl-dot.got i { animation: tl-got .7s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes tl-got { 30% { transform: scale(2); background: var(--k-acc, #EC4E86); } }
+@media (pointer: coarse) { .tl-dot { width: 24px; height: 30px; } }
+
+/* The pager: the current page in the list column. While a swipe moves, it reaches out to the edges of the list column
+   (the neighbours slide in from there) and clips sideways only, so nothing shows over the side panels. */
+.tl-pager { --tl-pad: calc(24px * var(--k-dn, 1)); position: relative; margin: 0 calc(-1 * var(--tl-pad)); padding: 0 var(--tl-pad); touch-action: pan-y; min-width: 0; }
+.tm-docked .tl-pager { --tl-pad: 12px; }
+.tl-pager.moving { overflow-x: clip; }
+.tl-track { position: relative; }
+.tl-pager.moving .tl-track { will-change: transform; }
+.tl-page { display: grid; align-content: start; gap: calc(26px * var(--k-dn, 1)); min-width: 0; }
+.tl-near { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
+.tl-empty {
+  display: grid; justify-items: center; gap: 12px; padding: 36px 20px; text-align: center; border-radius: calc(20px * var(--k-rd, 1));
+  border: 1px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent);
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); font-size: calc(14px * var(--k-fs, 1));
+}
+.tl-empty button {
+  font: inherit; font-weight: 700; padding: 8px 14px; border-radius: 999px; cursor: pointer; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+}
+
+/* The empty + page: a big + in the middle of the screen */
+.tl-plus-page { position: relative; }
+.tl-plus-big {
+  position: absolute; width: 96px; height: 96px; margin: -48px 0 0 -48px; display: grid; place-items: center; border-radius: 50%; cursor: pointer;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent);
+  border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 18px 50px -18px rgba(0, 0, 0, .7); animation: tl-plus-in .5s cubic-bezier(.3, 1.4, .5, 1) both;
+  transition: transform .25s cubic-bezier(.3, 1.4, .5, 1), background-color .2s ease, border-color .2s ease;
+}
+.tl-plus-big svg { width: 44px; height: 44px; }
+.tl-plus-big:hover { transform: scale(1.07); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(13% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); }
+.tl-plus-big:active { transform: scale(.95); }
+.tl-plus-big.gone { visibility: hidden; }
+@keyframes tl-plus-in { from { opacity: 0; transform: scale(.6); } }
+/* the + on its way to the Add task button: it takes the button's colour as it lands */
+.tl-plus-fly {
+  position: fixed; z-index: 500; display: grid; place-items: center; border-radius: 50%; pointer-events: none; color: #FFFFFF;
+  background: rgba(255, 255, 255, .08); border: 1.5px solid rgba(255, 255, 255, .25); transform-origin: 50% 50%;
+  transition: background-color .5s ease .15s, border-color .5s ease .15s;
+}
+.tl-plus-fly.go { background: var(--to, #3DDC84); border-color: transparent; }
+.tl-plus-fly svg { width: 46%; height: 46%; }
+/* "Create a to-do list" */
+.tl-card {
+  position: absolute; z-index: 5; width: min(360px, calc(100vw - 32px)); transform: translate(-50%, -50%); display: grid; gap: 12px; padding: 20px;
+  border-radius: calc(20px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-surface, #1C141A) 96%, transparent); color: var(--k-fg, #FFFFFF);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); box-shadow: 0 28px 70px -20px rgba(0, 0, 0, .8);
+  animation: tl-card-in .32s cubic-bezier(.2, 1.2, .4, 1) both;
+}
+@keyframes tl-card-in { from { opacity: 0; transform: translate(-50%, -46%) scale(.94); } }
+.tl-card b { font-size: calc(18px * var(--k-fs, 1)); font-weight: 800; }
+.tl-card-in {
+  font: inherit; font-size: calc(16px * var(--k-fs, 1)); padding: 11px 14px; border-radius: 12px; outline: none; color: inherit;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent);
+}
+.tl-card-row { display: flex; justify-content: flex-end; gap: 8px; }
+.tl-card-row button { font: inherit; font-weight: 700; padding: 8px 16px; border-radius: 999px; cursor: pointer; border: 0; }
+.tl-card-no { background: transparent; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 70%, transparent); }
+.tl-card-go { background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.tl-card-row button:disabled { opacity: .6; cursor: default; }
+
+/* The menus' lists (backgrounds and looks can be long: they scroll) */
+.tl-sub { display: grid; gap: 1px; padding: 0 0 4px calc(10px * var(--k-dn, 1)); max-height: 46vh; overflow-y: auto; }
+.tl-sub-i { font-weight: 600; padding-top: calc(6px * var(--k-dn, 1)); padding-bottom: calc(6px * var(--k-dn, 1)); }
+.tl-sub-i.cur { color: var(--k-acc, #EC4E86); }
+.tl-sub-none { padding: 6px 10px; font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+
+/* Dragging a task to the left or right edge: the list on that side, lit when the task would go there */
+.tl-edge {
+  position: fixed; z-index: 390; width: 36px; display: grid; place-items: center; border-radius: 18px; pointer-events: none;
+  writing-mode: vertical-rl; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgba(255, 255, 255, .55);
+  background: rgba(255, 255, 255, .05); border: 1px dashed rgba(255, 255, 255, .18); animation: tl-edge-in .18s ease both;
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .25s cubic-bezier(.3, 1.4, .5, 1);
+}
+.tl-edge.left { transform: rotate(180deg); }
+.tl-edge.hot { color: #FFFFFF; background: color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); border-color: var(--k-acc, #EC4E86); border-style: solid; }
+.tl-edge.right.hot { transform: scale(1.04); }
+.tl-edge.left.hot { transform: rotate(180deg) scale(1.04); }
+@keyframes tl-edge-in { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) { .tl-dot i, .tl-edge, .tl-plus-big, .tl-card, .tl-plus-fly { transition: none; animation: none; } }
+/* An open danger item (Delete list) stays readable: the red of the task menu's Delete, not the accent */
+.tl-menu .tm-ctx-i.bad.on, .tl-menu .tm-ctx-i.bad:focus { background: var(--k-bad, #B91423); color: var(--k-on-bad, #FFFFFF); }

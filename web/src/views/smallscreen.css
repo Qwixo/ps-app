@@ -1,0 +1,24 @@
+/* V1.55 small screens (the developer, 12 Nov 2026: "optimize it for smaller screens as well ... Thirteen inch MacBook Air M1").
+   PS zooms the page on a screen under 1440 x 860 points (core/screenfit.ts, ps-mac ScreenFit.swift, never under 0.8),
+   so the page itself is never shorter than about 800 px: a 13 inch Air at its default 1440 x 900 or 1280 x 800 lays out
+   on 1440 x 900, at 1024 x 640 on 1280 x 800. These rules only start under 920 px tall, so a 14 inch (982), a 16 inch
+   (1117), the developer's 1710 x 1112, every big display and the phone (html.gos) look exactly as before. They only tighten the
+   room above and between things, so the list starts higher and more of it shows; nothing moves or hides. */
+@media (max-height: 920px) {
+  /* The headline and the list start right under the glass bar (still never under it: --tm-glass-low and the top band
+     are measured, taskmap.css), with a little less room between the sections. */
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-inner {
+    gap: calc(20px * var(--k-dn, 1));
+    padding-top: max(calc(40px + 64px + var(--safe-top, 0px)), var(--tm-glass-low, 0px), calc(var(--tm-top-band, 0px) + 18px));
+  }
+  /* The headline follows the screen's height too, not only its width (58 px on 900 px tall: 54 px). */
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-title { font-size: calc(clamp(34px, min(6vw, 6vh), 58px) * var(--k-fs, 1)); }
+  /* The side columns: a little less room between their cards. */
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-side { gap: calc(10px * var(--k-dn, 1)); }
+}
+/* Still shorter (only a page PS has not zoomed, or "Larger text" with Accessibility Zoom): the bottom of the list keeps
+   less empty room, the side columns start higher. */
+@media (max-height: 760px) {
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-inner { padding-bottom: calc(64px * var(--k-dn, 1)); }
+  html:not(.gos) .tm-overlay:not(.tm-docked) .tm-side { bottom: 16px; }
+}

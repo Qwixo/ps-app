@@ -1,0 +1,102 @@
+/* More settings (TaskMap.tsx MoreSettings): every design choice in one big window, each with a
+   two second Preview. Uses the Dimension X / Network window shell (cstats.css .cs-*). */
+.ms-win { left: max(2vw, calc(50% - 620px)); right: max(2vw, calc(50% - 620px)); }
+.ms-head { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "min title"; }
+.ms-scroll { display: grid; gap: calc(26px * var(--k-dn, 1)); align-content: start; }
+.ms-sec { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.ms-h { margin: 0; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.ms-note { margin: 0; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); max-width: 70ch; }
+.ms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: calc(12px * var(--k-dn, 1)); }
+.ms-tile-wrap { display: grid; grid-template-rows: 1fr auto; gap: calc(6px * var(--k-dn, 1)); }
+.ms-tile { align-content: start; }
+.ms-tile { width: 100%; padding: calc(10px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); }
+.ms-tile .tm-p1-sample { height: 64px; }
+.ms-tile .tm-p1-name { font-size: calc(12.5px * var(--k-fs, 1)); }
+.ms-peek-btn { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: calc(6px * var(--k-dn, 1)); height: 28px; border-radius: 999px;
+  font-size: calc(12px * var(--k-fs, 1)); font-weight: 750; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease; }
+.ms-peek-btn:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); border-color: var(--k-acc, #EC4E86); color: var(--k-fg, #FFFFFF); }
+.ms-seg { justify-self: start; }
+.ms-slider { max-width: 520px; }
+.ms-storm { padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-bad, #FF3C3C) 25%, transparent); }
+/* theme samples: a tiny list in each colour */
+.ms-theme-sample { position: absolute; inset: 0; display: grid; align-content: center; gap: calc(5px * var(--k-dn, 1)); padding: 0 calc(14px * var(--k-dn, 1)); }
+.ms-theme-sample.dark { background: var(--k-base, #120C10); }
+.ms-theme-sample.light { background: var(--k-fg, #F4F2F3); }
+.ms-theme-sample i { height: 12px; border-radius: calc(4px * var(--k-rd, 1)); }
+.ms-theme-sample.dark i { background: var(--k-surface, #2A1D25); box-shadow: inset 12px 0 0 var(--k-surface, #3A2A34); }
+.ms-theme-sample.light i { background: var(--k-fg, #FFFFFF); box-shadow: inset 12px 0 0 var(--k-fg, #E3DDE1), 0 0 0 1px var(--k-fg, #DDD5DA); }
+/* working on samples: a row that glows white, or with a red edge */
+.ms-work-sample { position: absolute; inset: 0; display: grid; align-content: center; gap: calc(6px * var(--k-dn, 1)); padding: 0 calc(14px * var(--k-dn, 1)); }
+.ms-work-sample i { height: 14px; border-radius: calc(5px * var(--k-rd, 1)); background: var(--k-surface, #2A1D25); }
+.ms-work-sample.white i:first-child { background: var(--k-fg, #FFFFFF); box-shadow: 0 0 12px color-mix(in srgb, var(--k-glow, #FFFFFF) 70%, transparent); }
+.ms-work-sample.lightning i:first-child { background: var(--k-surface, #2A0F18); box-shadow: 0 0 0 1.5px var(--k-bad, #FF2E43), 0 0 12px color-mix(in srgb, var(--k-bad, #FF2E43) 80%, transparent); }
+/* preview: the window steps aside, the list shows for 2 s; a click anywhere ends it */
+.ms-layer .cs-dim, .ms-layer .ms-win { transition: opacity .16s ease; }
+.ms-layer.peek .cs-dim, .ms-layer.peek .ms-win { opacity: 0; pointer-events: none; }
+.ms-catch { position: absolute; inset: 0; z-index: 60; pointer-events: auto; cursor: pointer; }
+.ms-peek-chip { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); overflow: hidden;
+  padding: calc(10px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: 999px; font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-surface, #160E13) 96%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); box-shadow: 0 10px 40px rgba(0, 0, 0, .5); white-space: nowrap; }
+.ms-peek-chip b { color: var(--k-fg, #FFFFFF); }
+.ms-peek-chip i { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--k-acc, #EC4E86); transform-origin: left; animation: ms-count linear both; }
+@keyframes ms-count { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+/* the gear menu's door to it */
+/* The version at the top of the gear menu: "PS V1.07 · Wisdom" (one version for the Mac and the phone). */
+.tm-ver { display: flex; align-items: baseline; gap: calc(7px * var(--k-dn, 1)); margin: 0 2px 2px; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.2; }
+.tm-ver b { font-weight: 800; letter-spacing: .02em; color: var(--k-fg, #FFFFFF); }
+.tm-ver i { font-style: normal; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent); }
+.tm-ver em { font-style: normal; font-weight: 650; letter-spacing: .04em; color: color-mix(in srgb, var(--k-acc-t, #F4AAC8) 85%, transparent); }
+.tm-more-btn { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); width: 100%; padding: calc(11px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); cursor: pointer;
+  font-size: calc(14px * var(--k-fs, 1)); font-weight: 800; color: var(--k-fg, #FFFFFF); background: linear-gradient(90deg, color-mix(in srgb, var(--k-acc, #EC4E86) 28%, transparent), color-mix(in srgb, var(--k-acc2, #8B5CF6) 24%, transparent)); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); }
+.tm-more-btn span { display: grid; gap: calc(1px * var(--k-dn, 1)); }
+.tm-more-btn em { font-style: normal; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.tm-more-btn:hover { background: linear-gradient(90deg, color-mix(in srgb, var(--k-acc, #EC4E86) 42%, transparent), color-mix(in srgb, var(--k-acc2, #8B5CF6) 36%, transparent)); }
+
+/* ---------- Light theme (More settings > Theme): for bright sun ----------
+   The whole Tab list turns into dark text on a solid near-white background: every colour is
+   flipped in lightness while keeping its hue (invert + half turn of hue), so every panel, window
+   and pop-up follows without a second copy of the styles. Photos and app icons flip back. The
+   see-through backdrop becomes solid (except in Hover mode, which is see-through on purpose). */
+/* V1.43: the backing follows List transparency too (core/bgfade.ts): solid at 0% (tint .58 / .58 = 1), see through at 100%. */
+.tm-overlay.tm-light { background: rgba(14, 11, 13, calc(var(--tm-tint, .58) / .58)); -webkit-backdrop-filter: none; backdrop-filter: none; filter: invert(1) hue-rotate(180deg); }
+.tm-overlay.tm-light.tm-hovermode { background: rgba(14, 11, 13, var(--tm-tint, .58)); }
+.tm-light img, .tm-light video, .tm-light picture { filter: invert(1) hue-rotate(180deg); }
+.tm-light-on .ps-ovl-ctl:not(.inline), .tm-light-on .tm-ghost, .tm-light-on .tm-newgroup, .tm-light-on .dx-ghost { filter: invert(1) hue-rotate(180deg); }
+/* The developer's own background video (TaskMap BgVideoLayer): behind everything, cover, its strength follows the glass slider */
+.tm-bgvideo { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none;
+  opacity: calc((.3 + .7 * var(--tm-tint, .58)) * var(--tm-bgfade, 1)); }
+.tm-light .tm-bgvideo, .tm-light .tm-bgvideo-sample { filter: invert(1) hue-rotate(180deg); }
+.tm-overlay.scr-open .tm-bgvideo { visibility: hidden; }
+/* V1.53: the storm rain and its flash rest too while a full screen (Settings, Fitness, the Soundboard) covers the list (core/screenrest.ts). */
+.tm-overlay.scr-open .tm-rain { visibility: hidden; }
+.tm-bgvideo-sample { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* V1.33 video brightness (views/BgBright.tsx): a black layer over the video, as strong as the video shows */
+.tm-bgvideo-dim { position: absolute; inset: 0; z-index: 0; background: #000; /* k-keep */ pointer-events: none; opacity: calc(var(--bgv-dim, 0) * (.3 + .7 * var(--tm-tint, .58)) * var(--tm-bgfade, 1)); }
+.tm-bgvideo-dim.sample { opacity: var(--bgv-dim, 0); }
+.tm-overlay.scr-open .tm-bgvideo-dim, .tm-overlay.rb-open .tm-bgvideo-dim { visibility: hidden; }
+.ms-add .ms-add-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ms-add.busy { opacity: .6; }
+.ms-add-note { max-width: 220px; }
+/* The Campaigns envelope opens only on a click (23 Oct 2026): no "about to open" bar on hover. */
+.cs-btn.hot:not(.on)::after { opacity: 0; transform: scaleX(0); transition: none; }
+/* Background, Add video (the developer's own videos, PS only) */
+.ms-add .ms-add-plus { display: grid; place-items: center; font-size: calc(30px * var(--k-fs, 1)); font-weight: 300; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); border: 1.5px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(28% * var(--k-ia, 1))), transparent); border-radius: calc(10px * var(--k-rd, 1)); }
+.ms-add:hover .ms-add-plus { color: var(--k-fg, #FFFFFF); border-color: var(--k-acc, #EC4E86); }
+
+/* List transparency (V1.43, views/ListTransparency.tsx): a little screen with two windows on it and the list over them;
+   the list's backing thins as the slider goes up, like the real one. */
+.ms-lt .lt-row { display: flex; gap: calc(18px * var(--k-dn, 1)); align-items: center; flex-wrap: wrap; }
+.lt-prev { --lt: 0; position: relative; flex: none; width: 168px; height: 104px; border-radius: calc(12px * var(--k-rd, 1)); overflow: hidden; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+  background: linear-gradient(135deg, var(--k-info, #3B6FD8) 0%, var(--k-acc2, #7A4FD0) 45%, var(--k-acc, #E0679A) 100%); }
+.lt-win { position: absolute; border-radius: calc(5px * var(--k-rd, 1)); background: var(--k-fg, #F4F2EE); box-shadow: 0 3px 8px rgba(0, 0, 0, .3); }
+.lt-win.a { left: 12px; top: 14px; width: 70px; height: 50px; }
+.lt-win.b { left: 70px; top: 44px; width: 84px; height: 48px; background: var(--k-surface, #1E2230); }
+.lt-list { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: calc(6px * var(--k-dn, 1));
+  background: rgba(11, 7, 9, calc(.58 * (1 - var(--lt)) + .06)); -webkit-backdrop-filter: blur(calc(6px * (1 - var(--lt)))); backdrop-filter: blur(calc(6px * (1 - var(--lt)))); transition: background .15s ease; }
+.lt-list i { display: block; width: 92px; height: 13px; border-radius: calc(4px * var(--k-rd, 1)); background: var(--k-surface, #241820); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); }
+.lt-list i.short { width: 64px; }
+.lt-ctl { flex: 1 1 260px; min-width: 0; }
+.lt-reset { margin-top: 6px; padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 700; cursor: pointer; }
+.lt-reset:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+@media (prefers-reduced-motion: reduce) { .lt-list { transition: none; } }

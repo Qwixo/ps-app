@@ -1,0 +1,105 @@
+/* V1.40, your list of clocks on the Time zones screen: the small x that takes a clock off, dragging a clock to
+   move it, a clock just added popping in, and the Add a time zone box (views/TzZones.tsx, TimeZones.tsx). */
+
+/* take a clock off: a small x on its face, shown while the mouse is on the row (always on a touch screen) */
+.tz-zx {
+  position: absolute; left: -3px; top: -3px; z-index: 2; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border-radius: 999px; cursor: pointer; font: inherit;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-surface, #1B1219) 82%, var(--k-fg, #FFFFFF));
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(28% * var(--k-ia, 1))), transparent);
+  opacity: 0; transform: scale(.6); transition: opacity .15s ease, transform .2s cubic-bezier(.2,1.6,.4,1), background .15s ease;
+}
+.tm-ck:hover .tz-zx, .tz-zx:focus-visible { opacity: 1; transform: none; }
+.tz-zx:hover { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); }
+.tz-zx:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 2px; }
+.tz-dragging .tz-zx { opacity: 0 !important; }
+@media (hover: none) { .tz-zx { opacity: .9; transform: none; } }
+
+/* drag a clock: the others slide out of its way, it rides on top with a soft shadow */
+.tm-ck.tz-movable { cursor: grab; user-select: none; -webkit-user-select: none; }
+.tz-dragging .tm-ck { transition: transform .22s cubic-bezier(.2,.9,.3,1), background .15s ease; }
+.tz-dragging .tm-ck:not(.lift):hover { background: transparent; }
+.tm-ck.lift {
+  z-index: 3; cursor: grabbing; transition: none !important;
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, var(--k-surface, #1B1219)) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .35), inset 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 50%, transparent);
+}
+.tz-dragging, .tz-dragging * { cursor: grabbing !important; }
+.tz-settle .tm-ck { transition: none !important; }
+
+/* a clock just added (or put back with Undo) pops in */
+.tm-ck.new { animation: tz-zone-new .75s cubic-bezier(.18,1.25,.4,1); }
+@keyframes tz-zone-new {
+  0% { opacity: 0; transform: translateY(-6px) scale(.92); box-shadow: 0 0 0 0 color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); }
+  55% { opacity: 1; box-shadow: 0 0 0 8px color-mix(in srgb, var(--k-acc, #EC4E86) 0%, transparent); }
+}
+
+/* Add time zone, under the clocks */
+.tz-zadd-b {
+  display: flex; align-items: center; justify-content: center; gap: calc(6px * var(--k-dn, 1)); width: 100%; height: 32px; padding: 0 calc(12px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent);
+  background: transparent; border: 1px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(24% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .2s cubic-bezier(.2,.9,.3,1);
+}
+.tz-zadd-b:hover { color: var(--k-fg, #FFFFFF); border-style: solid; border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); }
+.tz-zadd-b:active { transform: scale(.97); }
+.tz-zadd-b:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 2px; }
+.tz-zadd {
+  display: grid; gap: calc(8px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 9%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 32%, transparent);
+  animation: tz-drop .3s cubic-bezier(.18,1.25,.4,1); transform-origin: top center;
+}
+.tz-short {
+  margin-left: calc(6px * var(--k-dn, 1)); padding: 0 calc(5px * var(--k-dn, 1)); border-radius: calc(5px * var(--k-rd, 1)); font-style: normal; font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .04em; vertical-align: 1px;
+  color: var(--k-acc-t, #F7A8C8); background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent);
+}
+/* the panel is narrow: one line for the name and its tag, one for what it is, the time and gap on the right */
+.tz-zadd { padding: calc(10px * var(--k-dn, 1)); }
+.tz-zadd-list li { gap: calc(8px * var(--k-dn, 1)); padding: calc(7px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); }
+.tz-zadd-l { display: flex; align-items: center; min-width: 0; }
+.tz-zadd-l > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tz-zadd-l .tz-short { flex: none; white-space: nowrap; }
+.tz-zadd-list .tz-find-n small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tz-zadd-list .tz-find-t b { font-size: calc(14px * var(--k-fs, 1)); white-space: nowrap; }
+.tz-zadd-list li.taken { opacity: .5; cursor: default; }
+.tz-zadd-list li.taken.on { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); }
+.tz-zempty { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+
+/* V1.43, rename a clock: the name with a small pencil (shown while the mouse is on the row), and the box that
+   takes its place while you type, with Reset name for a clock that has a name of your own */
+.tz-nm { display: flex; align-items: center; min-width: 0; }
+.tz-nm .tm-ck-n { min-width: 0; cursor: text; }
+.tz-zpen {
+  flex: none; display: grid; place-items: center; width: 0; height: 18px; margin-left: 0; padding: 0; overflow: hidden; border-radius: 999px; cursor: pointer; font: inherit; border: 0;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); background: transparent;
+  opacity: 0; transform: scale(.7); transition: opacity .15s ease, transform .2s cubic-bezier(.2,1.6,.4,1), width .15s ease, margin .15s ease, background .15s ease, color .15s ease;
+}
+/* hidden it takes no room, so names are not cut short; it slides in while the mouse is on the row */
+.tm-ck:hover .tz-zpen, .tz-zpen:focus-visible { width: 18px; margin-left: 4px; opacity: 1; transform: none; }
+.tz-zpen:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); }
+.tz-zpen:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 1px; }
+.tz-dragging .tz-zpen { opacity: 0 !important; }
+@media (hover: none) { .tz-zpen { width: 18px; margin-left: 4px; opacity: .75; transform: none; } }
+/* the box fills the name's place; Reset name sits under it so the box never gets squeezed on a narrow row */
+.tz-ren { display: flex; flex-direction: column; align-items: flex-start; gap: calc(5px * var(--k-dn, 1)); min-width: 0; animation: tz-ren-in .18s cubic-bezier(.2,.9,.3,1); }
+.tz-ren-in {
+  box-sizing: border-box; min-width: 0; width: 100%; height: calc(24px * var(--k-dn, 1)); padding: 0 calc(7px * var(--k-dn, 1)); border-radius: calc(7px * var(--k-rd, 1));
+  font: inherit; font-size: calc(calc(13.5px * var(--ck)) * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent);
+}
+.tz-ren-in::placeholder { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(40% * var(--k-ia, 1))), transparent); }
+.tz-ren-reset {
+  flex: none; height: calc(22px * var(--k-dn, 1)); padding: 0 calc(8px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; white-space: nowrap;
+  font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; color: var(--k-acc-t, #F7A8C8);
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent);
+  transition: background .15s ease, color .15s ease;
+}
+.tz-ren-reset:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc, #EC4E86) 34%, transparent); }
+.tz-ren-reset:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 1px; }
+@keyframes tz-ren-in { from { opacity: 0; transform: translateY(-2px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-ck.new, .tz-zadd, .tz-ren { animation: none; }
+  .tz-zx, .tz-zadd-b, .tz-dragging .tm-ck, .tz-zpen, .tz-ren-reset { transition: none; }
+}

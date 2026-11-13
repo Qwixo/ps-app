@@ -1,0 +1,298 @@
+/* PS Fitness navigation and home (V1.43, Nav.tsx, Home.tsx, Bests.tsx, Exercises.tsx, FitnessApp.tsx).
+   Tokens only (--f-*), so every look in light and dark draws it. Only transform and opacity animate.
+   Prefixes: fit-head / fit-donut / fit-menu / fit-rail / fit-look (shell), fn- (home and the two lists), fl- (look previews). */
+
+/* ---------- the shell ---------- */
+.fit-app.fit-phone { display: flex; flex-direction: column; }
+.fit-app .fit-main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.fit-app.fit-phone .fit-main { flex: 1 1 auto; }
+.fit-app.fit-phone .fit-view { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: calc(6px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) var(--fit-bottom, 20px); }
+.fit-app.fit-phone .fit-view-gym { overflow: hidden; padding: 0; --fit-top: 4px; }
+.fit-app.fit-phone .fit-view-gym > .fg { height: 100%; }
+.fit-app .fit-view { animation: fit-in var(--f-mid) var(--f-ease) both; }
+
+.fit-app.fit-desk { display: grid; grid-template-columns: auto minmax(0, 1fr); padding: 0; }
+.fit-scr-content > .fit-app.fit-desk { min-height: 100%; }
+.fit-app.fit-desk .fit-main { grid-column: 2; padding: 0 calc(24px * var(--k-dn, 1)) calc(28px * var(--k-dn, 1)); }
+.fit-app.fit-desk .fit-head { position: sticky; top: 0; z-index: 6; margin: 0 calc(-24px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(24px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1));
+  background: var(--f-bg); border-bottom: var(--f-line-w) solid var(--f-line); }
+.fit[data-fit-style="pulse"].fit-app.fit-desk .fit-head { background: color-mix(in srgb, var(--f-bg) 92%, transparent); }
+
+/* The top bar of every screen: the donut, Back, the title, then the window's own buttons. */
+.fit-head { flex: none; display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); min-width: 0;
+  padding: var(--fit-top, 12px) calc(12px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); }
+.fit-head-t { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: calc(3px * var(--k-dn, 1)); padding-left: calc(2px * var(--k-dn, 1)); }
+.fit-head-t h1 { margin: 0; font: var(--f-title-w) calc(22px * var(--k-fs, 1))/1.1 var(--f-font); letter-spacing: -.02em; color: var(--f-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fit-head-t small { font: 650 calc(13px * var(--k-fs, 1))/1.2 var(--f-font); color: var(--f-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fit-in-pop .fit-head-t h1 { font-size: calc(20px * var(--k-fs, 1)); }
+.fit-head-end { flex: none; display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+.fit-head-tools { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+.fit .fit-back { flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; cursor: pointer; border: var(--f-line-w) solid var(--f-line);
+  background: var(--f-surface); color: var(--f-ink); transition: transform var(--f-fast) var(--f-spring), background-color var(--f-fast) ease; }
+.fit .fit-back:hover { background: var(--f-surface-2); }
+.fit .fit-back:active { transform: scale(.9); }
+
+/* The donut: one round button, always the top left corner. */
+.fit .fit-donut { position: relative; flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; cursor: pointer; padding: 0;
+  border: var(--f-line-w) solid var(--f-line); background: var(--f-surface-2); color: var(--f-accent); transition: transform var(--f-fast) var(--f-spring), background-color var(--f-fast) ease; }
+.fit[data-fit-style="chalk"] .fit-donut { color: var(--f-ink); }
+.fit[data-fit-theme="light"] .fit-donut { color: var(--f-accent-2); }
+.fit[data-fit-style="chalk"][data-fit-theme="dark"] .fit-donut { color: var(--f-accent); }
+.fit[data-fit-style="chalk"][data-fit-theme="light"] .fit-donut { color: var(--f-ink); }
+.fit .fit-donut:hover { background: color-mix(in srgb, var(--f-accent) 14%, var(--f-surface-2)); }
+.fit .fit-donut:active { transform: scale(.9); }
+/* V1.47: three lines (a hamburger); open, the top and bottom turn into an X and the middle one goes.
+   Each line turns around its own centre (fill-box): a px pivot is scaled by the page zoom on a zoomed in Mac. */
+.fit-burger-l { fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; transform-box: fill-box; transform-origin: 50% 50%; transition: transform var(--f-mid) var(--f-spring), opacity var(--f-fast) ease; }
+.fit .fit-donut:hover .fit-burger-m { transform: scaleX(.78); }
+.fit .fit-donut.open .fit-burger-t { transform: translateY(5.5px) rotate(45deg); }
+.fit .fit-donut.open .fit-burger-m { opacity: 0; transform: scaleX(.2); }
+.fit .fit-donut.open .fit-burger-b { transform: translateY(-5.5px) rotate(-45deg); }
+@media (prefers-reduced-motion: reduce) { .fit-burger-l { transition: none; } }
+.fit-donut-warn { position: absolute; top: 5px; right: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--f-warn); box-shadow: 0 0 0 2px var(--f-surface-2); }
+
+/* ---------- the menu: a panel growing out of the donut ---------- */
+.fit-menu-layer { position: fixed; inset: 0; z-index: 80; }
+.fit-menu-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--f-bg) 55%, color-mix(in srgb, var(--k-base, #000000) 45%, transparent)); animation: fn-fade .22s ease both; }
+.fit-menu { position: absolute; top: calc(var(--fit-top, 12px) - 4px); left: 8px; width: min(400px, calc(100% - 16px)); max-height: calc(100% - 16px); display: flex; flex-direction: column;
+  border-radius: var(--f-r); background: var(--f-bg); border: var(--f-line-w) solid var(--f-line); box-shadow: var(--f-shadow), 0 30px 80px -20px rgba(0, 0, 0, .55);
+  transform-origin: 30px 30px; animation: fn-grow .26s var(--f-ease) both; overflow: hidden; }
+.fit[data-fit-style="pulse"] .fit-menu { background: var(--f-surface); }
+.fit-menu-layer.out .fit-menu { animation: fn-shrink .17s ease both; }
+.fit-menu-layer.out .fit-menu-dim { animation: fn-fade-out .17s ease both; }
+.fit-menu-h { flex: none; display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); }
+.fit-menu-h b { flex: 1; font: var(--f-title-w) calc(20px * var(--k-fs, 1))/1 var(--f-font); letter-spacing: -.02em; }
+.fit .fit-menu-x { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--f-ink-2); cursor: pointer; }
+.fit .fit-menu-x:hover { background: var(--f-surface-2); color: var(--f-ink); }
+.fit-menu-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 calc(8px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); display: flex; flex-direction: column; gap: calc(2px * var(--k-dn, 1)); }
+.fit-menu-sep { height: var(--f-line-w); background: var(--f-line); margin: 6px 10px; flex: none; }
+.fit-menu-f { flex: none; display: flex; flex-direction: column; gap: calc(8px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-top: var(--f-line-w) solid var(--f-line); }
+.fit-menu-f-row { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+.fit-menu-f-row .fit-sync { flex: 1 1 auto; }
+.fit .fit-menu-act { all: unset; box-sizing: border-box; flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: calc(8px * var(--k-dn, 1)); min-height: 48px; padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1));
+  border-radius: var(--f-r-pill); border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink); cursor: pointer; font: 750 calc(14px * var(--k-fs, 1))/1.2 var(--f-font); text-align: center; }
+.fit .fit-menu-act:hover { background: var(--f-surface-2); }
+.fit .fit-menu-act:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+
+.fit .fit-nav-row { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: calc(12px * var(--k-dn, 1)); min-height: 60px; width: 100%;
+  padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: var(--f-r-s); cursor: pointer; color: var(--f-ink); animation: fn-in .3s var(--f-ease) both; transition: background-color var(--f-fast) ease, transform var(--f-fast) var(--f-ease); }
+.fit .fit-nav-row:hover { background: var(--f-surface); }
+.fit .fit-nav-row:active { transform: scale(.98); }
+.fit .fit-nav-row:focus-visible { outline: 3px solid var(--f-accent); outline-offset: -3px; }
+.fit .fit-nav-row.on { background: var(--f-surface-2); }
+.fit-nav-i { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--f-surface-2); color: var(--f-ink); }
+.fit .fit-nav-row.on .fit-nav-i { background: var(--f-accent); color: var(--f-on-accent); }
+.fit[data-fit-style="pulse"] .fit-nav-row.on .fit-nav-i { background: var(--f-grad); }
+.fit-nav-t { display: flex; flex-direction: column; gap: calc(3px * var(--k-dn, 1)); min-width: 0; }
+.fit-nav-t b { font: 750 calc(16px * var(--k-fs, 1))/1.15 var(--f-font); }
+.fit-nav-t small { font: 600 calc(13px * var(--k-fs, 1))/1.3 var(--f-font); color: var(--f-ink-2); }
+.fit-nav-go { color: var(--f-ink-3); display: grid; }
+.fit .fit-nav-row.slim { grid-template-columns: 36px minmax(0, 1fr); min-height: 46px; gap: calc(10px * var(--k-dn, 1)); padding: calc(5px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(5px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); animation: none; }
+.fit .fit-nav-row.slim .fit-nav-i { width: 36px; height: 36px; background: transparent; }
+.fit .fit-nav-row.slim.on .fit-nav-i { background: var(--f-accent); }
+.fit .fit-nav-row.slim .fit-nav-t b { font-size: calc(15px * var(--k-fs, 1)); font-weight: 700; }
+
+/* ---------- the Mac's slim bar (desk, when there is room) ---------- */
+.fit-rail { grid-column: 1; display: none; width: 220px; border-right: var(--f-line-w) solid var(--f-line); background: color-mix(in srgb, var(--f-surface) 70%, var(--f-bg)); }
+.fit-rail-in { position: sticky; top: 0; display: flex; flex-direction: column; gap: calc(2px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); }
+.fit-rail-top { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: 0 calc(4px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.fit-rail-top b { font: var(--f-title-w) calc(20px * var(--k-fs, 1))/1 var(--f-font); letter-spacing: -.02em; }
+.fit-rail-foot { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--k-dn, 1)); margin-top: 14px; padding: calc(12px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) 0; border-top: var(--f-line-w) solid var(--f-line); }
+.fit-rail-foot .fit-sync { flex: 1 1 100%; min-width: 0; }
+@media (min-width: 980px) {
+  .fit-app.fit-desk .fit-rail { display: block; }
+  .fit-app.fit-desk .fit-head-donut, .fit-app.fit-desk .fit-head-tools { display: none; }
+}
+
+/* ---------- Pick your look ---------- */
+.fit-look-layer { position: fixed; inset: 0; z-index: 90; background: var(--f-bg); overflow-y: auto; overscroll-behavior: contain; animation: fn-up .32s var(--f-ease) both; }
+.fit[data-fit-style="pulse"] .fit-look-layer { background: radial-gradient(120% 70% at 50% -10%, var(--k-info-bg, #1A1F5A) 0%, var(--f-bg) 62%), var(--f-bg); }
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fit-look-layer { background: var(--f-bg); }
+.fit-look-layer.out { animation: fn-down .2s ease both; }
+.fit-look { box-sizing: border-box; max-width: 820px; min-height: 100%; margin: 0 auto; display: flex; flex-direction: column; padding: calc(var(--fit-top, 12px) + 14px) calc(16px * var(--k-dn, 1)) 0; }
+.fit-look-h h2 { margin: 0 0 6px; font: var(--f-title-w) calc(30px * var(--k-fs, 1))/1.05 var(--f-font); letter-spacing: -.03em; }
+.fit-look-h p { margin: 0 0 16px; font: 600 calc(15px * var(--k-fs, 1))/1.4 var(--f-font); color: var(--f-ink-2); }
+.fit-look-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(12px * var(--k-dn, 1)); }
+@media (min-width: 700px) { .fit-look-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(16px * var(--k-dn, 1)); } }
+.fit .fit-look-tile { all: unset; box-sizing: border-box; position: relative; display: flex; flex-direction: column; gap: calc(8px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)); border-radius: var(--f-r); cursor: pointer;
+  border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); animation: fn-in .36s var(--f-ease) both; transition: transform var(--f-fast) var(--f-ease), box-shadow var(--f-fast) ease; }
+.fit .fit-look-tile:nth-child(2) { animation-delay: 30ms; } .fit-look-tile:nth-child(3) { animation-delay: 60ms; } .fit-look-tile:nth-child(4) { animation-delay: 90ms; }
+.fit .fit-look-tile:nth-child(5) { animation-delay: 120ms; } .fit-look-tile:nth-child(6) { animation-delay: 150ms; }
+.fit .fit-look-tile:active { transform: scale(.97); }
+.fit .fit-look-tile:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+.fit .fit-look-tile.on { box-shadow: 0 0 0 3px var(--f-accent), var(--f-shadow); border-color: transparent; }
+.fit[data-fit-theme="light"] .fit-look-tile.on { box-shadow: 0 0 0 3px var(--f-accent-2), var(--f-shadow); }
+.fit[data-fit-style="chalk"] .fit-look-tile.on { box-shadow: 0 0 0 4px var(--f-ink), var(--f-shadow); }
+.fit-look-name { display: flex; flex-direction: column; gap: calc(2px * var(--k-dn, 1)); padding: 0 calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); }
+.fit-look-name b { font: 800 calc(15px * var(--k-fs, 1))/1.15 var(--f-font); color: var(--f-ink); }
+.fit-look-name small { font: 600 calc(12.5px * var(--k-fs, 1))/1.3 var(--f-font); color: var(--f-ink-2); }
+.fit-look-check { position: absolute; top: 14px; right: 14px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--f-accent); color: var(--f-on-accent);
+  opacity: 0; transform: scale(.5); transition: opacity var(--f-fast) ease, transform var(--f-mid) var(--f-spring); z-index: 2; }
+.fit .fit-look-tile.on .fit-look-check { opacity: 1; transform: none; }
+.fit-look-f { position: sticky; bottom: 0; margin-top: auto; padding: calc(16px * var(--k-dn, 1)) 0 calc(var(--fit-bottom, 16px) + 8px); background: linear-gradient(to top, var(--f-bg) 70%, transparent); }
+.fit .fit-look-done { all: unset; box-sizing: border-box; display: grid; place-items: center; width: 100%; height: var(--f-tap); border-radius: var(--f-r-pill); cursor: pointer;
+  background: var(--f-accent); color: var(--f-on-accent); font: 800 calc(19px * var(--k-fs, 1))/1 var(--f-font); transition: transform var(--f-fast) var(--f-ease); }
+.fit[data-fit-style="pulse"] .fit-look-done { background: var(--f-grad); }
+.fit .fit-look-done:active { transform: scale(.97); }
+.fit .fit-look-done:focus-visible { outline: 3px solid var(--f-ink); outline-offset: 3px; }
+
+/* A look's tiny live home (each tile is its own .fit with that look's tokens). */
+.fl-mini { display: flex; flex-direction: column; gap: calc(7px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)); border-radius: calc(var(--f-r) - 6px); background: var(--f-bg); border: var(--f-line-w) solid var(--f-line); overflow: hidden; }
+.fl-bar { display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); color: var(--f-accent); }
+.fit[data-fit-style="chalk"].fl-mini .fl-bar { color: var(--f-ink); }
+.fl-bar b { font: var(--f-title-w) calc(12px * var(--k-fs, 1))/1 var(--f-font); color: var(--f-ink); }
+.fl-card { display: flex; flex-direction: column; gap: calc(3px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)); border-radius: var(--f-r-s); background: var(--f-surface); border: var(--f-line-w) solid var(--f-line); }
+.fl-card small { font: 700 calc(9.5px * var(--k-fs, 1))/1 var(--f-font); color: var(--f-ink-2); }
+.fl-card b { font-size: calc(18px * var(--k-fs, 1)); color: var(--f-ink); }
+.fl-go { margin-top: 4px; display: grid; place-items: center; height: 24px; border-radius: 999px; background: var(--f-accent); color: var(--f-on-accent); font: 800 calc(11px * var(--k-fs, 1))/1 var(--f-font); }
+.fit[data-fit-style="pulse"].fl-mini .fl-go { background: var(--f-grad); }
+.fl-row { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: var(--f-r-s); background: var(--f-done-bg); border: var(--f-line-w) solid var(--f-line); }
+.fl-num { display: flex; align-items: baseline; gap: calc(2px * var(--k-dn, 1)); color: var(--f-ink); }
+.fl-num b { font-size: calc(17px * var(--k-fs, 1)); }
+.fl-num small { font: 700 calc(9px * var(--k-fs, 1))/1 var(--f-font); color: var(--f-ink-2); }
+.fl-tick { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--f-accent); color: var(--f-on-accent); }
+.fl-rir { display: flex; gap: calc(4px * var(--k-dn, 1)); }
+.fl-rir span { flex: 1; display: grid; place-items: center; height: 18px; border-radius: calc(6px * var(--k-rd, 1)); font-size: calc(10px * var(--k-fs, 1)); background: var(--f-surface-2); color: var(--f-ink-2); }
+.fl-rir span.on { background: var(--f-accent); color: var(--f-on-accent); }
+
+/* ---------- home ---------- */
+.fn { display: flex; flex-direction: column; gap: calc(14px * var(--k-dn, 1)); padding-top: calc(4px * var(--k-dn, 1)); }
+.fit-desk .fn { max-width: 760px; margin: 0 auto; width: 100%; padding-top: calc(10px * var(--k-dn, 1)); }
+.fn-hero { display: flex; flex-direction: column; padding: calc(20px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: var(--f-r);
+  background: var(--f-surface); border: var(--f-line-w) solid var(--f-line); animation: fn-in .4s var(--f-ease) both; }
+.fn-hero.live { box-shadow: var(--f-glow); }
+.fn-kick { margin: 0 0 8px; display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); font: 750 calc(13px * var(--k-fs, 1))/1 var(--f-font); color: var(--f-ink-2); letter-spacing: .02em; }
+.fn-live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--f-good); animation: fn-beat 1.6s ease-in-out infinite; }
+.fn-h { margin: 0; font: var(--f-title-w) calc(34px * var(--k-fs, 1))/1.05 var(--f-font); letter-spacing: -.03em; color: var(--f-ink); }
+.fn-sub { margin: 8px 0 0; font: 600 calc(15px * var(--k-fs, 1))/1.4 var(--f-font); color: var(--f-ink-2); }
+.fn-bar { display: block; height: 8px; margin-top: 14px; border-radius: 999px; background: var(--f-surface-2); overflow: hidden; }
+.fn-bar i { display: block; height: 100%; background: var(--f-accent); transform-origin: left; transition: transform var(--f-slow) var(--f-ease); }
+.fit[data-fit-style="pulse"] .fn-bar i { background: var(--f-grad); }
+.fit .fn-go { all: unset; box-sizing: border-box; display: grid; place-items: center; width: 100%; height: var(--f-tap); margin-top: 18px; border-radius: var(--f-r-pill); cursor: pointer;
+  background: var(--f-accent); color: var(--f-on-accent); font: 800 calc(20px * var(--k-fs, 1))/1 var(--f-font); letter-spacing: -.01em; transition: transform var(--f-fast) var(--f-ease), opacity var(--f-fast) ease; }
+.fit[data-fit-style="pulse"] .fn-go { background: var(--f-grad); box-shadow: 0 10px 34px -10px color-mix(in srgb, var(--k-info-t, #6E78FF) 75%, transparent); }
+.fit[data-fit-style="pulse"][data-fit-theme="light"] .fn-go { color: #FFFFFF; }
+.fit[data-fit-style="volt"][data-fit-theme="light"] .fn-go { box-shadow: inset 0 0 0 2px #7A5600, 0 10px 24px -12px rgba(122, 86, 0, .5); }
+.fit .fn-go:active { transform: scale(.97); }
+.fit .fn-go:disabled, .fit .fn-go.busy { opacity: .6; cursor: default; }
+.fit .fn-go:focus-visible { outline: 3px solid var(--f-ink); outline-offset: 3px; }
+.fit .fn-link { all: unset; box-sizing: border-box; display: grid; place-items: center; min-height: 48px; margin-top: 6px; padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: var(--f-r-pill); cursor: pointer; text-align: center;
+  font: 700 calc(14.5px * var(--k-fs, 1))/1.3 var(--f-font); color: var(--f-ink-2); transition: background-color var(--f-fast) ease, color var(--f-fast) ease; }
+.fit .fn-link:hover { background: var(--f-surface-2); color: var(--f-ink); }
+.fit .fn-link:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 0; }
+
+.fn-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(8px * var(--k-dn, 1)); }
+.fit .fn-tile { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: calc(6px * var(--k-dn, 1)); min-width: 0; min-height: 112px; padding: calc(12px * var(--k-dn, 1)); border-radius: var(--f-r-s); cursor: pointer;
+  background: var(--f-surface); border: var(--f-line-w) solid var(--f-line); animation: fn-in .4s var(--f-ease) both; transition: transform var(--f-fast) var(--f-ease), background-color var(--f-fast) ease; }
+.fit .fn-tile:nth-child(2) { animation-delay: 40ms; } .fn-tile:nth-child(3) { animation-delay: 80ms; }
+.fit .fn-tile:hover:not(:disabled) { background: var(--f-surface-2); }
+.fit .fn-tile:active:not(:disabled) { transform: scale(.97); }
+.fit .fn-tile:disabled { cursor: default; }
+.fit .fn-tile:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+.fn-tile-k { display: flex; align-items: center; gap: calc(5px * var(--k-dn, 1)); font: 750 calc(12px * var(--k-fs, 1))/1.1 var(--f-font); color: var(--f-ink-2); }
+.fn-tile-k svg { flex: none; }
+.fn-tile-big { display: flex; align-items: baseline; gap: calc(5px * var(--k-dn, 1)); color: var(--f-ink); }
+.fn-tile-big b { font-size: calc(30px * var(--k-fs, 1)); }
+.fn-tile-big small { font: 700 calc(13px * var(--k-fs, 1))/1 var(--f-font); color: var(--f-ink-2); }
+.fn-tile-m { font: 800 calc(17px * var(--k-fs, 1))/1.15 var(--f-font); color: var(--f-ink); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.fn-tile-m.dim { color: var(--f-ink-3); }
+.fn-tile-s { font: 600 calc(12.5px * var(--k-fs, 1))/1.3 var(--f-font); color: var(--f-ink-2); overflow-wrap: anywhere; }
+.fn-dots { display: flex; gap: calc(4px * var(--k-dn, 1)); flex-wrap: wrap; }
+.fn-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--f-surface-2); border: 1px solid var(--f-line); }
+.fn-dots i.on { background: var(--f-accent); border-color: transparent; }
+.fit[data-fit-style="chalk"] .fn-dots i.on { background: var(--f-ink); }
+.fn-rows { display: flex; flex-direction: column; gap: calc(10px * var(--k-dn, 1)); }
+.fn-rows > * { margin: 0 !important; }
+
+/* ---------- personal bests and exercises ---------- */
+.fn-list { max-width: 820px; margin: 0 auto; width: 100%; padding-top: calc(4px * var(--k-dn, 1)); }
+.fn-lead { margin: 4px 2px 12px; font: 600 calc(14px * var(--k-fs, 1))/1.4 var(--f-font); color: var(--f-ink-2); }
+.fn-rowsx { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(8px * var(--k-dn, 1)); }
+.fn-rowsx.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fn-rowsx li { animation: fn-in .32s var(--f-ease) both; min-width: 0; }
+/* V1.47: only the first screenful slides in. The other 140 never showed theirs, yet each one got its own GPU layer. */
+.fn-rowsx li:nth-child(n+13) { animation: none; }
+.fit .fn-bx { all: unset; box-sizing: border-box; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: calc(12px * var(--k-dn, 1)); width: 100%; min-height: 66px; padding: calc(8px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1));
+  border-radius: var(--f-r-s); cursor: pointer; background: var(--f-surface); border: var(--f-line-w) solid var(--f-line); color: var(--f-ink); transition: background-color var(--f-fast) ease, transform var(--f-fast) var(--f-ease); }
+.fit .fn-bx:hover { background: var(--f-surface-2); }
+.fit .fn-bx:active { transform: scale(.985); }
+.fit .fn-bx:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+.fn-bx-pic { border-radius: calc(var(--f-r-s) - 4px); }
+.fn-bx-t { display: flex; flex-direction: column; gap: calc(3px * var(--k-dn, 1)); min-width: 0; }
+.fn-bx-n { font: 750 calc(16px * var(--k-fs, 1))/1.2 var(--f-font); overflow-wrap: anywhere; }
+.fn-bx-s { font: 600 calc(13px * var(--k-fs, 1))/1.3 var(--f-font); color: var(--f-ink-2); }
+.fn-bx-v { display: flex; flex-direction: column; align-items: flex-end; gap: calc(3px * var(--k-dn, 1)); font-size: calc(24px * var(--k-fs, 1)); color: var(--f-ink); }
+.fn-bx-v small { font: 700 calc(12px * var(--k-fs, 1))/1 var(--f-font); color: var(--f-ink-2); letter-spacing: 0; }
+.fn-ex-top { position: sticky; top: -6px; z-index: 3; display: flex; flex-direction: column; gap: calc(10px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) 0 calc(10px * var(--k-dn, 1)); background: var(--f-bg); }
+.fit-desk .fn-ex-top { top: 74px; }
+.fn-search { box-sizing: border-box; width: 100%; height: 52px; padding: 0 calc(18px * var(--k-dn, 1)); border-radius: var(--f-r-pill); border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink);
+  font: 650 calc(17px * var(--k-fs, 1))/1 var(--f-font); outline: none; }
+.fn-search::placeholder { color: var(--f-ink-3); }
+.fn-search:focus { border-color: var(--f-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--f-accent) 30%, transparent); }
+.fit[data-fit-style="chalk"] .fn-search:focus { box-shadow: 0 0 0 3px var(--f-accent-2); }
+.fn-chips { display: flex; gap: calc(6px * var(--k-dn, 1)); overflow-x: auto; scrollbar-width: none; padding-bottom: calc(2px * var(--k-dn, 1)); }
+.fn-chips::-webkit-scrollbar { display: none; }
+.fit .fn-chips button { flex: none; height: 40px; padding: 0 calc(16px * var(--k-dn, 1)); border-radius: var(--f-r-pill); border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink-2); cursor: pointer;
+  font: 700 calc(14px * var(--k-fs, 1))/1 var(--f-font); transition: background-color var(--f-fast) ease, color var(--f-fast) ease; }
+.fit .fn-chips button.on { background: var(--f-accent); color: var(--f-on-accent); border-color: transparent; }
+.fit[data-fit-style="pulse"] .fn-chips button.on { background: var(--f-grad); }
+.fn-empty { text-align: center; padding: calc(40px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); }
+.fn-empty-i { display: inline-grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; background: var(--f-surface-2); color: var(--f-accent); margin-bottom: 14px; }
+.fit[data-fit-style="chalk"] .fn-empty-i { color: var(--f-ink); }
+.fn-empty h2 { margin: 0 0 8px; font: var(--f-title-w) calc(24px * var(--k-fs, 1))/1.1 var(--f-font); }
+.fn-empty p { margin: 0 auto; max-width: 340px; font: 600 calc(15px * var(--k-fs, 1))/1.45 var(--f-font); color: var(--f-ink-2); }
+
+/* Settings > Look: open the big picker. */
+.fit .fs-looks-all { all: unset; box-sizing: border-box; display: grid; place-items: center; width: 100%; min-height: 52px; margin-top: 12px; border-radius: var(--f-r-pill); cursor: pointer;
+  border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink); font: 750 calc(15px * var(--k-fs, 1))/1.2 var(--f-font); text-align: center; padding: calc(8px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); }
+.fit .fs-looks-all:hover { background: var(--f-surface-2); }
+.fit .fs-looks-all:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+
+@keyframes fn-in { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
+@keyframes fn-grow { from { opacity: 0; transform: scale(.88); } }
+@keyframes fn-shrink { to { opacity: 0; transform: scale(.9); } }
+@keyframes fn-fade { from { opacity: 0; } }
+@keyframes fn-fade-out { to { opacity: 0; } }
+@keyframes fn-up { from { opacity: 0; transform: translate3d(0, 24px, 0); } }
+@keyframes fn-down { to { opacity: 0; transform: translate3d(0, 24px, 0); } }
+@keyframes fn-beat { 50% { opacity: .35; transform: scale(.8); } }
+
+/* ---------- V1.43 round two: Minimise in words, panels under the top bar, plain day words ---------- */
+/* The pop up's one button during a workout: an icon AND the word, so it never reads as a mystery arrow. */
+.fit .fit-min-pill { all: unset; box-sizing: border-box; flex: none; display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); height: 48px; padding: 0 calc(16px * var(--k-dn, 1)) 0 calc(12px * var(--k-dn, 1)); border-radius: var(--f-r-pill); cursor: pointer;
+  border: var(--f-line-w) solid var(--f-line); background: var(--f-surface-2); color: var(--f-ink); font: 800 calc(15px * var(--k-fs, 1))/1 var(--f-font); transition: transform var(--f-fast) var(--f-spring); }
+.fit .fit-min-pill:active { transform: scale(.94); }
+.fit .fit-min-pill:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+/* The one time explanation under the top bar, its arrow pointing up at Minimise. */
+.fit-minhint { position: relative; flex: none; display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); margin: 2px 12px 8px; padding: calc(12px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: var(--f-r-s);
+  background: var(--f-surface); border: var(--f-line-w) solid var(--f-accent); box-shadow: var(--f-shadow); animation: fn-in .3s var(--f-ease) both; }
+.fit-minhint::before { content: ""; position: absolute; top: -7px; right: 44px; width: 12px; height: 12px; background: var(--f-surface); border-left: var(--f-line-w) solid var(--f-accent); border-top: var(--f-line-w) solid var(--f-accent); transform: rotate(45deg); }
+.fit-minhint p { margin: 0; flex: 1; font: 600 calc(13.5px * var(--k-fs, 1))/1.4 var(--f-font); color: var(--f-ink-2); }
+.fit-minhint p b { color: var(--f-ink); }
+.fit .fit-minhint button { all: unset; box-sizing: border-box; flex: none; height: 44px; padding: 0 calc(16px * var(--k-dn, 1)); border-radius: var(--f-r-pill); cursor: pointer; background: var(--f-accent); color: var(--f-on-accent); font: 800 calc(14px * var(--k-fs, 1))/44px var(--f-font); }
+.fit-desk .fit-minhint { margin: 0 0 12px; }
+.fit-desk .fit-minhint::before { right: 150px; }
+
+/* A program's own full screen panel (an exercise, Add an exercise to Day 2) sits UNDER Fitness's top bar on the phone,
+   so the Back arrow, the title and the menu stay where they always are. Its own bar is not needed there. */
+.fit-app.fit-phone .fp-layer { position: absolute; inset: var(--fit-head-h, 68px) 0 0 0; z-index: 30; }
+.fit-app.fit-phone .fp-layer:not(.fp-layer-desk) .fp-panel-h { display: none; }
+.fit-app.fit-phone .fp-layer .fp-panel { border-top: var(--f-line-w) solid var(--f-line); }
+
+/* Home: the day's title beside it, and the exercises it holds under it. */
+.fn-h-t { display: block; margin-top: 4px; font-size: .62em; color: var(--f-ink-2); letter-spacing: -.02em; }
+.fn-exs { margin: 10px 0 0; font: 650 calc(15px * var(--k-fs, 1))/1.45 var(--f-font); color: var(--f-ink); }
+
+/* Settings: every group named at the top. */
+.fit .fs-jump { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); margin: 0 0 14px; }
+.fit .fs-jump button { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; min-height: 40px; padding: 0 calc(14px * var(--k-dn, 1)); border-radius: var(--f-r-pill); cursor: pointer;
+  border: var(--f-line-w) solid var(--f-line); background: var(--f-surface); color: var(--f-ink); font: 700 calc(14px * var(--k-fs, 1))/1 var(--f-font); }
+.fit .fs-jump button:hover { background: var(--f-surface-2); }
+.fit .fs-jump button:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+.fit .fs-sec { scroll-margin-top: calc(var(--fit-head-h, 68px) + 8px); }
+.fit-phone .fs-sec { scroll-margin-top: 8px; }
+/* Settings > G Squad sharing: the Squad screen's own switches, without a second card around them. */
+.fit .fq-in-settings { background: none; padding: 0; }
+.fit .fq-in-settings .fq-card { border: 0; padding: 0; margin: 0; background: none; box-shadow: none; }
+.fit .fq-in-settings .fq-h { display: none; }

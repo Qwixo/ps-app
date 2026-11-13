@@ -1,0 +1,35 @@
+{
+  "name": "web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p . && vite build && node scripts/postbuild.mjs",
+    "build:ps": "tsc --noEmit -p . && vite build --mode ps",
+    "ps": "bash ../mac/build.sh",
+    "release": "bash scripts/release.sh",
+    "preview": "vite preview",
+    "test:crypto": "node --experimental-strip-types tests/crypto.test.ts",
+    "test:mail": "node --experimental-strip-types tests/mail.test.ts",
+    "test:telegram": "node --experimental-strip-types tests/telegram.test.ts",
+    "test:tgbot": "node --experimental-strip-types tests/tgbot.test.ts",
+    "test:prio": "node --experimental-strip-types tests/prio.test.ts",
+    "test:subtasks": "node --experimental-strip-types tests/subtasks.test.ts",
+    "test:releasefast": "node --experimental-strip-types tests/releasefast.test.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.2.5",
+    "@supabase/supabase-js": "^2.108.2",
+    "jsqr": "^1.4.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  }
+}

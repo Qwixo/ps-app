@@ -1,0 +1,29 @@
+/* Gear menu > Meeting alerts (views/MeetPrefs.tsx) */
+.mp { display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.mp-part { display: contents; }   /* the two halves; full screen Settings lays them side by side (settingsscreen.css) */
+.mp-row { display: flex; align-items: stretch; gap: calc(6px * var(--k-dn, 1)); }
+.mp-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: calc(10px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); cursor: pointer;
+  text-align: left; font: inherit; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); transition: background .15s ease, border-color .15s ease;
+}
+.mp-main:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.mp-row.on .mp-main { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); }
+.mp-t { display: grid; gap: calc(1px * var(--k-dn, 1)); min-width: 0; }
+.mp-t b { font-size: calc(13px * var(--k-fs, 1)); font-weight: 750; }
+.mp-t em { font-style: normal; font-size: calc(11.5px * var(--k-fs, 1)); line-height: 1.35; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.mp-k { flex: none; width: 36px; height: 21px; border-radius: 999px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); position: relative; transition: background .2s ease; }
+.mp-k i { position: absolute; top: 3px; left: 3px; width: 15px; height: 15px; border-radius: 50%; background: var(--k-fg, #FFFFFF); transition: transform .25s cubic-bezier(.22, 1, .36, 1); }
+.mp-row.on .mp-k { background: linear-gradient(135deg, var(--k-acc2, #8B5CF6), var(--k-acc, #EC4E86)); }
+.mp-row.on .mp-k i { transform: translateX(15px); }
+.mp-snd {
+  flex: none; width: 38px; border-radius: calc(12px * var(--k-rd, 1)); display: grid; place-items: center; cursor: pointer; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); transition: background .15s ease, color .15s ease;
+}
+.mp-snd.on { color: var(--k-fg, #FFFFFF); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); }
+.mp-snd:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.mp-l { margin: 4px 2px 0; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.mp-chips { display: flex; flex-wrap: wrap; gap: calc(5px * var(--k-dn, 1)); }
+.mp-chips button { min-width: 34px; padding: calc(5px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent);
+  font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 750; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.mp-chips button:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.mp-chips button.on { color: var(--k-on-acc2, #FFFFFF); background: linear-gradient(135deg, var(--k-acc2, #8B5CF6), var(--k-acc, #EC4E86)); border-color: transparent; }

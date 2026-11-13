@@ -1,0 +1,53 @@
+/* Typed priority (V1.40, views/TypedPrio.tsx): the priority word painted in its colour, and the Suggested chip.
+   P1 takes the Priority 1 colour from Settings (--tp-p1) or the accent; P2 and P3 look like their badges in the list. */
+.tp-wrap { position: relative; display: block; min-width: 0; }
+.tp-wrap > input { box-sizing: border-box; }
+.tp-p1 { --tp-c: var(--tp-p1, var(--p1acc, var(--k-acc, #EC4E86))); --tp-a: 34%; }
+.tp-p2 { --tp-c: var(--k-acc-t, #F7A8C8); --tp-a: 32%; }
+.tp-p3 { --tp-c: var(--k-acc-t, #F7A8C8); --tp-a: 22%; }
+
+/* The paint sits over the input's text area (pointer events go through), clipped to it, so it scrolls with a long title. */
+.tp-hl { position: absolute; top: 0; bottom: 0; overflow: hidden; pointer-events: none; }
+.tp-mark {
+  position: absolute; top: 50%; left: 0; height: 1.3em; margin-left: -.14em; padding: 0 .14em; box-sizing: content-box; border-radius: .32em;
+  background: color-mix(in srgb, var(--tp-c) var(--tp-a), transparent); box-shadow: inset 0 -2px 0 var(--tp-c);
+  transition: background-color .2s ease, box-shadow .2s ease, opacity .2s ease; animation: tp-mark-in .24s cubic-bezier(.22, 1, .36, 1) both;
+}
+.tp-mark.lose { opacity: .45; background: transparent; box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--tp-c) 60%, transparent); }
+@keyframes tp-mark-in { from { opacity: 0; } }
+
+.tp-chip {
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: inline-flex; align-items: center; gap: calc(5px * var(--k-dn, 1)); white-space: nowrap;
+  padding: calc(3px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(3px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: 999px; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.25; font-weight: 700;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) 80%, transparent);
+  background: color-mix(in srgb, var(--k-surface, #1A1016) 70%, color-mix(in srgb, var(--tp-c) 30%, transparent));
+  border: 1px solid color-mix(in srgb, var(--tp-c) 55%, transparent); box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+  transition: border-color .2s ease, background-color .2s ease; animation: tp-chip-in .26s cubic-bezier(.22, 1, .36, 1) both;
+}
+.tp-chip b { color: var(--tp-c); font-weight: 850; letter-spacing: .03em; transition: color .2s ease; }
+.tp-chip.leaving { animation: tp-chip-out .2s ease both; pointer-events: none; }
+@keyframes tp-chip-in { from { opacity: 0; transform: translateY(-50%) translateX(6px) scale(.9); } to { opacity: 1; transform: translateY(-50%); } }
+@keyframes tp-chip-out { to { opacity: 0; transform: translateY(-50%) translateX(4px) scale(.94); } }
+.tp-chip-x {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; margin-left: 1px; border: 0; border-radius: 50%; cursor: pointer;
+  color: inherit; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); transition: background-color .15s ease, color .15s ease;
+}
+.tp-chip-x:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent); }
+/* A narrow box (Dimension X, the phone's boards) keeps just the P number. */
+.tp-wrap.tp-compact .tp-chip-l { display: none; }
+/* The big Add task window has bigger words. */
+.tm-add-win .tp-chip { right: 12px; font-size: calc(13px * var(--k-fs, 1)); padding: calc(4px * var(--k-dn, 1)) calc(5px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.tm-add-win .tp-chip-x { width: 22px; height: 22px; }
+
+/* Dimension X: the box's own sizing moves to the wrapper. */
+.tp-wrap.dx-addw { flex: 1 1 200px; min-width: 170px; max-width: 380px; }
+.tp-wrap.dx-addw > .dx-add { width: 100%; min-width: 0; max-width: none; }
+.dx-mini .tp-wrap.dx-addw { max-width: none; width: 100%; }
+html.gos .tp-wrap.dx-addw { flex: 1 1 100%; max-width: none; min-width: 0; }
+
+/* Light themes: the chip on a light surface. */
+.tm-light .tp-chip, html[data-nb] .tp-chip { box-shadow: 0 3px 10px rgba(0, 0, 0, .12); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tp-mark, .tp-chip, .tp-chip.leaving { animation: none; transition: none; }
+}

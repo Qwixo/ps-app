@@ -1,0 +1,26 @@
+/* Meetings: the Google Calendar card. Tokens only, light and dark. */
+.cal-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.cal-days { display: grid; gap: calc(14px * var(--k-dn, 1)); }
+.cal-day-h { margin: 0 0 6px; font-size: calc(13px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); display: flex; gap: calc(6px * var(--k-dn, 1)); align-items: baseline; }
+.cal-day-h.today { color: var(--pink-d); }
+.cal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.cal-ev {
+  display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: calc(12px * var(--k-dn, 1)); align-items: center;
+  padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1)); background: var(--blush);
+  transition: background .2s ease, box-shadow .2s ease;
+}
+.cal-ev:hover { background: var(--soft); }
+.cal-ev.live { box-shadow: inset 3px 0 0 var(--pink); background: color-mix(in srgb, var(--pink) 10%, var(--blush)); }
+.cal-day.past .cal-ev { opacity: .75; }
+.cal-time { display: grid; font-weight: 750; font-size: calc(14px * var(--k-fs, 1)); line-height: 1.2; }
+.cal-time small { font-weight: 500; font-size: calc(12px * var(--k-fs, 1)); color: var(--muted); }
+.cal-main { display: grid; gap: calc(4px * var(--k-dn, 1)); min-width: 0; }
+.cal-title { font-weight: 650; font-size: calc(14.5px * var(--k-fs, 1)); overflow-wrap: anywhere; }
+.cal-meta { display: flex; flex-wrap: wrap; align-items: center; gap: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); min-width: 0; }
+.cal-meta .trunc { max-width: 100%; }
+.cal-act { display: flex; gap: calc(4px * var(--k-dn, 1)); align-items: center; }
+@media (max-width: 520px) {
+  .cal-ev { grid-template-columns: 52px minmax(0, 1fr); }
+  .cal-act { grid-column: 2; }
+}
+.cal-refresh { display: inline-flex; align-items: center; gap: calc(4px * var(--k-dn, 1)); margin-left: auto; }

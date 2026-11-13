@@ -1,0 +1,232 @@
+{
+ "1.36": {
+  "code": "405367aad19b",
+  "at": "2026-11-05T21:22:27.646Z",
+  "keyword": "Humanity",
+  "notes": [
+   "A cleaner Settings layout: everything lines up and nothing gets cut off.",
+   "New Notifications settings: pick a colour and a sound for each kind of pop up, or turn the sound off.",
+   "Time zones: hover a zone and type a time, like 2pm, to see what it is for you.",
+   "Dynamic Island: give it any background colour, and click the small grey line at the top to hide it for 5 seconds.",
+   "Name the app whatever you like in Settings, under Mac settings."
+  ]
+ },
+ "1.37": {
+  "code": "a824d2fb6280",
+  "at": "2026-11-06T23:30:10.381Z",
+  "keyword": "Spark",
+  "notes": [
+   "Connect your own Supabase: PS can now set itself up inside a project you already use. It keeps to its own separate part and leaves your tables, data and users alone.",
+   "Access tokens limited to one project now work. If PS cannot list your projects, paste your project's address instead.",
+   "Not signed in yet? PS now offers new versions with an Update now card, so you never need to download it from the website again."
+  ]
+ },
+ "1.38": {
+  "code": "820c980ad017",
+  "at": "2026-11-07T12:32:07.785Z",
+  "keyword": "Vision",
+  "notes": [
+   "Meetings panel: see your upcoming meetings from your Mac's Calendar app, with the Dynamic Island switch and meeting settings right there.",
+   "Do Not Disturb is here: one button quiets pop ups while you focus.",
+   "Daily reminder: a card checks in once a day until you confirm. Write your own question for it in Settings.",
+   "Time zones: scroll over a time, or use the up and down arrow keys, to change it.",
+   "Hold Tab and let go, and the list now stays open. Hold Tab again to hide it. You can turn this off in Settings."
+  ]
+ },
+ "1.39": {
+  "code": "4e8e503e526d",
+  "at": "2026-11-07T15:01:26.027Z",
+  "keyword": "Imagination",
+  "notes": [
+   "Time zones: add anyone with their time zone, and search a name to jump straight to where they are."
+  ]
+ },
+ "1.40": {
+  "code": "6aecde3ce82a",
+  "at": "2026-11-07T19:59:07.635Z",
+  "keyword": "Discipline",
+  "notes": [
+   "G Squad: start a squad with friends, see who is working right now, share and hand over tasks, and chat. All end to end encrypted.",
+   "Leaderboards for money, tasks and screen time, plus gym boards, personal bests and compare any exercise with your squad.",
+   "Fitness: your own rest times and sets, finish an exercise early, a sleep log, and Sleep mode with a big clock and alarms.",
+   "A new setup menu explains every setting in plain words, and updates now show right in your list.",
+   "Edit mode to move and hide panels and the Dynamic Island, PS fits any screen, plus colour backgrounds and rain.",
+   "Time zones by city, country or CET, type P1 to P3 when adding a task, Headphones mode, and Tab over every app."
+  ]
+ },
+ "1.41": {
+  "code": "f869af4c83ca",
+  "at": "2026-11-07T21:42:57.121Z",
+  "keyword": "Adventure",
+  "notes": [
+   "Holding Tab is never dead without a reason: if macOS blocks keys (Secure Input), a permission is missing or PS is waiting for you to sign in, PS now tells you and shows the fix.",
+   "Sleep mode: Wake up always works, and the unlock prompt shows in front of the sleep screen.",
+   "Esc always backs you out, on every screen, Sleep mode included."
+  ]
+ },
+ "1.42": {
+  "code": "a6929ceec232",
+  "at": "2026-11-07T23:18:01.653Z",
+  "keyword": "Responsibility",
+  "notes": [
+   "See available squads: The G Squad is listed. Tap Ask to join and the squad admin approves you.",
+   "The G Squad button now always shows, in one tidy row at the top of your list.",
+   "Sleep mode: customise the clock, add a stopwatch, the pointer hides when you leave the mouse alone, and take a short break when you wake up.",
+   "Fitness: a picture and a moving figure for every exercise.",
+   "Choose when your tasks reset, for example 4am instead of midnight.",
+   "A shorter setup menu, and every appearance option now previews properly and changes colour as you pick."
+  ]
+ },
+ "1.43": {
+  "code": "5509afe185d9",
+  "at": "2026-11-08T03:26:27.676Z",
+  "keyword": "Truth",
+  "notes": [
+   "G Squad looks like a messenger now, with a Fitness section, maximise and minimise. Task sharing is off until you switch it on, and you can rename the squad and yourself.",
+   "Reply to client emails right in PS: your signature, quick replies, and send now or at a random time a few minutes later.",
+   "Settings has a search bar and simple groups, and every button shows what it does when you hover over it.",
+   "Fitness is simpler: one menu, today's workout first. Timelines open big with birthdays, weddings and more.",
+   "Sleep mode: more fonts and colours, a clock face, Wake me up in, and new wake styles.",
+   "Do Not Disturb focus modes, sparkly mouse trails, rename any time zone, and no more accidental text highlighting."
+  ]
+ },
+ "1.44": {
+  "code": "ac0da0fbd803",
+  "at": "2026-11-09T14:07:32.114Z",
+  "keyword": "Prosperity",
+  "notes": [
+   "Keep everything on this Mac or phone: use PS with no account and no Supabase. Turn on sync later and nothing is lost, and Export my data now works for every account.",
+   "PS in your browser: the website's To-do page is now the full Tab list. Add friend in Settings shows a QR code a friend scans to join or ask to join your G Squad.",
+   "Fitness History: a calendar of your sleep and workouts, the month in numbers, charts, and Export with Copy for Claude, CSV or JSON.",
+   "Alarms: pick your own sound, set how loud it rings and test it. The built in sounds are no longer quiet.",
+   "The transparency slider is back at the top of your list, and you can pick the Overdue card's colour, text colour and effect in Settings.",
+   "Hold Tab to open PS over any app, Signal and 1Password included, even when locked. Fixes: the list no longer piles up after Tab, and the Dynamic Island moves to the side in full screen and never shows a stuck Working task."
+  ]
+ },
+ "1.46": {
+  "code": "2ea6d50536f1",
+  "at": "2026-11-09T22:51:26.321Z",
+  "keyword": "Independence",
+  "notes": [
+   "Annoying 15 min reminder: add as many reminders as you like, each with its own words, times, buttons, colour and sound, on the Mac and the phone.",
+   "Auto reboot: the restart helper now stays switched on through updates."
+  ]
+ },
+ "1.47": {
+  "code": "6813bd4ff5d0",
+  "at": "2026-11-10T22:11:47.898Z",
+  "keyword": "Awakening",
+  "notes": [
+   "G Squad: one squad for everyone, The G Squad. Tap Ask to join. It now opens full screen like a messenger, with bigger chat, simpler settings and its own looks.",
+   "Phone app: a tidier menu with Screen time, Timelines, Goals and Time zones, simpler Settings, smoother Fitness, and backgrounds of its own you can crop.",
+   "Fitness: a quick setup that saves as you go, an (i) on every setting explaining it, a clear menu button, and type any rest time.",
+   "New: a Soundboard for your audio and video, alarm playlists with a different sound each day, and alarms that ring even without Sleep mode.",
+   "Your list: Complete all, Resurrect is back, Sleep sits at the bottom right, and Time zones fit any screen zoom with a Create event button.",
+   "Settings: Tab overlay shortcuts with any key or combo, Add Telegram Bot, and simpler Sleep settings with a pinned preview."
+  ]
+ },
+ "1.48": {
+  "code": "4beff06ff570",
+  "at": "2026-11-11T19:02:59.656Z",
+  "keyword": "Inspiration",
+  "notes": [
+   "New: Sentry mode. Press the AI button to lock your Mac while it stays fully awake, even on battery, so long jobs keep running.",
+   "The screen goes very dim to save power. Touch anything and it shows Protected by PS. Only Touch ID or your password gets you back in.",
+   "If nobody unlocks it within 8 hours, your Mac restarts by itself into its most secure state. Change the time in the AI button's gear.",
+   "Optional: keep your Mac awake with the lid closed, with a safety stop at low battery or high heat."
+  ]
+ },
+ "1.49": {
+  "code": "3924fdb26592",
+  "at": "2026-11-11T20:38:15.927Z",
+  "keyword": "Order",
+  "notes": [
+   "The app is now called PS app.",
+   "The G Squad is now automatic: everyone with PS app is in it, no codes or asking to join.",
+   "Setting up is much simpler: PS app opens each Supabase page for you, shows you where to click, and comes back by itself when your token is copied.",
+   "New accounts only need a passphrase. No name or username to fill in.",
+   "Sentry mode: hover over Dim Screen to save battery, and the screen comes back the moment you move away.",
+   "Update pop-ups now appear at the top centre, and the Meetings panel keeps its layout before you link a calendar."
+  ]
+ },
+ "1.50": {
+  "code": "c227e343438d",
+  "at": "2026-11-11T21:00:53.468Z",
+  "keyword": "Curiosity",
+  "notes": [
+   "The left column is back at the bottom left: the Meetings panel and its buttons sit where they always did.",
+   "Fixed: the \"Restart helper is on\" message no longer stays on screen, and the Soundboard name fits inside its button."
+  ]
+ },
+ "1.51": {
+  "code": "5e05eec37cdc",
+  "at": "2026-11-11T21:57:15.758Z",
+  "keyword": "Healing",
+  "notes": [
+   "The restart helper fixes itself after an update. No more switching PS app off and on in System Settings.",
+   "Update now always installs the newest version in one go.",
+   "About and updates is now at the top of Settings, and the update check button is a reload symbol."
+  ]
+ },
+ "1.52": {
+  "code": "02087ab05b31",
+  "at": "2026-11-11T23:07:55.464Z",
+  "keyword": "Knowing",
+  "notes": [
+   "Sleep mode has an AI Sentry button: one click keeps your Mac protected and locked while you sleep, with its own 18 hour restart timer.",
+   "Sentry mode now checks that auto restart is working before it starts, and tells you how to fix it if not.",
+   "The helper steps now say to switch PS app off and on again if it already looks on.",
+   "Skipped a few updates? What's new now shows everything from every version you missed.",
+   "No more heat warning when you first use Sentry mode."
+  ]
+ },
+ "1.53": {
+  "code": "cd33e4f6ecdf",
+  "at": "2026-11-12T04:45:54.695Z",
+  "keyword": "Resilience",
+  "notes": [
+   "Sentry mode: keeping your Mac awake with the lid closed now really works, and Dim Screen turns the screen fully black while you hover over it.",
+   "Sentry mode now warns you before it starts if FileVault is off, with a button that opens the FileVault settings.",
+   "Keep overlay and Hover mode now slide out of the Dynamic Island's way, nothing on screen covers anything else, and the googly eyes look is gone.",
+   "What's new now catches you up from any older version, and the Settings background no longer flickers between dark and light.",
+   "Link your iPhone by scanning a code on your Mac, and the iPhone app now shows you how to save it to your Home Screen.",
+   "Get a card when a Claude Code, Codex, Gemini or Cursor chat finishes. Turn it on in Settings, Notifications."
+  ]
+ },
+ "1.54": {
+  "code": "3b4dfa7424cb",
+  "at": "2026-11-12T06:17:56.166Z",
+  "keyword": "Generosity",
+  "notes": [
+   "PS app now checks for updates every 5 minutes. Pick 5, 10, 15 or 30 minutes in Settings, About and updates.",
+   "Sentry mode checks the lid before it starts: if keeping your Mac awake with the lid closed will not work, it tells you why and how to fix it.",
+   "The Sentry screen no longer shows lid text, and Sentry mode no longer says the restart helper is off when you have just switched it on."
+  ]
+ },
+ "1.55": {
+  "code": "6c9bf776226b",
+  "at": "2026-11-12T09:13:14.760Z",
+  "keyword": "Leadership",
+  "notes": [
+   "New: more to-do lists. Swipe with two fingers to move between pages, with dots at the bottom like an iPhone, and give each page its own background and look.",
+   "New: Edit zooms out to show all your pages. Add pages on either side, move any panel or button between pages, add as many panels as you like and resize them.",
+   "New: put an annoying reminder on any task. Right click it or edit it, pick the times and how often it repeats, and tick Done right from the reminder.",
+   "Notifications and reminders now come out of the Dynamic Island. Choose island or top right for each kind in the Dynamic Island settings.",
+   "AI chat finished cards now go away by themselves after 15 seconds. Change the time or turn it off in Settings.",
+   "Rename any list or section, and quick tips show you the new tricks. Swipe to tick and delete and the Notebook looks are gone."
+  ]
+ },
+ "1.56": {
+  "code": "63a62c579966",
+  "at": "2026-11-13T04:23:56.031Z",
+  "keyword": "Openness",
+  "notes": [
+   "New: your AI can manage your tasks. Turn on the AI task API in Settings, press Copy for AI, and paste it into Claude Code or Codex. Tasks it adds land in your AI Inbox in Dimension X, and it can start Sentry mode once you allow it.",
+   "New: Auto approve says Yes to your AI's permission prompts so long jobs keep going. Pick AI mode, Sleep mode or always in Settings. Questions still wait for you.",
+   "New: edit your phone's layout from your Mac. Press the phone icon in Edit and your changes glide across live. Your phone has its own Edit mode too, and a QR code links it if it isn't linked yet.",
+   "Edit overview: click a page to fly into it, click the background to go back, drag to move around, save looks you like and reset to the default, all with new sounds.",
+   "Finished AI chats now share one bubble, each with its own timer and the real chat name, and stay 10 seconds. Fixed: PS app no longer freezes when a reminder pops up.",
+   "The island glides to the top left in full screen apps, private mode is easy to spot and switch off, the tick circle stays on the left, and Dimension X manages your list pages."
+  ]
+ }
+}

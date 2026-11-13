@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The collapsed rest countdown (lock screen and shade): clock and set line on one row, because a
+     collapsed notification is too short for the two line layout in notif_rest.xml (Fitness.kt). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+
+    <Chronometer
+        android:id="@+id/rest_clock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+        android:textSize="34sp"
+        android:textStyle="bold"
+        android:fontFeatureSettings="tnum"
+        android:includeFontPadding="false"
+        android:countDown="true" />
+
+    <TextView
+        android:id="@+id/rest_line"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="14dp"
+        android:textAppearance="@android:style/TextAppearance.Material.Notification"
+        android:maxLines="2"
+        android:ellipsize="end" />
+</LinearLayout>

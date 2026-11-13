@@ -1,0 +1,18 @@
+/* "How your data stays private" (views/PrivacyNote.tsx): on PS's Sign in window (pssignin.css colours) and the
+   website's lock card. Only opacity and transform animate. */
+.pvn { display: grid; gap: calc(8px * var(--k-dn, 1)); text-align: left; }
+.pvn-head { all: unset; box-sizing: border-box; cursor: pointer; justify-self: center; display: inline-flex; align-items: center; gap: calc(7px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 650; color: var(--si-label, var(--ink-2, inherit)); transition: background-color .2s ease, transform .18s cubic-bezier(.3, 1.5, .5, 1); }
+.pvn-head:hover { background: color-mix(in srgb, var(--pink, var(--k-acc, #EC4E86)) 10%, transparent); }
+.pvn-head:active { transform: scale(.97); }
+.pvn-head:focus-visible { outline: 2px solid color-mix(in srgb, var(--pink, var(--k-acc, #EC4E86)) 60%, transparent); outline-offset: 2px; }
+.pvn-head svg:first-child { color: var(--pink, var(--k-acc, #EC4E86)); }
+.pvn-chev { transition: transform .25s cubic-bezier(.3, 1.4, .5, 1); }
+.pvn.open .pvn-chev { transform: rotate(180deg); }
+.pvn-list { margin: 0; display: grid; gap: calc(8px * var(--k-dn, 1)); }
+.pvn-list > div { padding: calc(9px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--pink, var(--k-acc, #EC4E86)) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pink, var(--k-acc, #EC4E86)) 16%, transparent); animation: pvn-in .35s cubic-bezier(.2, 1.1, .35, 1) both; }
+.pvn-list dt { font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; margin-bottom: 2px; }
+.pvn-list dd { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.5; color: var(--si-sub, var(--muted, inherit)); }
+@keyframes pvn-in { from { opacity: 0; transform: translate3d(0, 6px, 0); } }
+@media (prefers-reduced-motion: reduce) { .pvn-list > div { animation: none; } .pvn-chev, .pvn-head { transition: none; } }

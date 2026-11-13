@@ -1,0 +1,339 @@
+// The control of every row in Settings (V1.43, views/SettingsScreen.tsx), keyed by the setting's id in
+// core/settingsindex.ts (which says its name, its one line, its group, its More and who sees it). Small controls sit on
+// the right of their row; a bigger one opens below it (`open` keeps it open, else the row's arrow or a search jump
+// opens it). A row with no control here and a `go` in the index is an Open button (onGo below).
+// Adding a setting: an entry in core/settingsindex.ts and its control here, under the same id.
+import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { PS, psPost, usePsMic, usePsSettings, type PsSettings } from "../ps";
+import { GOS, MWEB } from "../gos/bridge";
+import { useVault } from "../ui/kit";
+import { LocalBackupSetting, LocalDataSetting } from "./LocalFirst";
+import { localView } from "../localfirst";
+const hasLocalBackup = () => { const v = localView(); return !!v.mirror?.backup || v.head?.state === "moved"; };
+import { editSfx, sfx } from "../ui/sfx";
+import { editSoundsOn } from "../core/editsounds";
+import { isRedAccount } from "../core/account";
+import { settingsData } from "../core/select";
+import { appName } from "../core/appname";
+import { islandPrefs } from "../core/island";
+import { ChatFadeRow } from "./IslandCards";
+import { tabStaysShown } from "../core/tabstays";
+import { DAY_ENDS_DEFAULT } from "../core/daylog";
+import { cleanUpdateEvery, UPDATE_EVERY_CHOICES, UPDATE_EVERY_OFF } from "../core/updateevery";
+import { onUnlessOff } from "../core/offswitches";
+import { hasExamples } from "../core/examples";
+import type { Settings } from "../core/model";
+import type { Go, SetEntry, Where } from "../core/settingsindex";
+import { OpenButton, openSettings, SetRow, SettingsScreen, useSettingsWanted, type Controls, type RowProps, type SettingsOwner } from "./SettingsScreen";
+import {
+  AfkControls, Choice, LookBackground, LookBgColour, LookOutline, LookOwnColour, LookRain, MicPicker, NetworkSetting, networkNote, NotifyControls,
+  SoundControls, StHoursControls, taskMapActions, TzSelect, type GenProps,
+} from "./TaskMap";
+import { AccentPart, LookPicker, TypePart, WorkPart } from "../looks/AppearanceSettings";
+import { ListTransparency } from "./ListTransparency";
+import { MouseTrailSettings } from "./MouseTrail";
+import { OverdueLookSettings } from "./OverdueLook";
+import { AddButtonControls, ListBehaviourControls } from "./Completed";
+import { TypedPrioSwitch } from "./TypedPrio";
+import { NewBadgeControls } from "./NewBadge";
+import { NotifyPage } from "./NoteLook";
+import { AiDoneSettings, type AiDoneState } from "./AiDone";
+import { AutoApproveSettings } from "./AutoApprove";
+import { MeetPrefsPanel } from "./MeetPrefs";
+import { CalSwitch } from "./CalSwitch";
+import { RemindSettings, RemTestCard } from "./RemindSettings";
+import { TelegramBotSettings } from "./TelegramBot";
+import { TaskApiSettings } from "./TaskApi";
+import { MailPeople } from "./MailPeople";
+import { AutoResetSetting } from "./AutoReset";
+import { AppNameSetting, IgnoredAppsSetting, IslandPlace } from "./PsSettings";
+import { OpenShortcuts } from "./OpenShortcuts";
+import { MiddleClickSettings } from "./MiddleClickSettings";
+import { AfkSettings } from "./AfkSettings";
+import { useAfkOn } from "./AfkBadge";
+import { MediaGuardSettings } from "./MediaGuardSettings";
+import { PsProjectSetting } from "./PsCreate";
+import { SecondSettings } from "./Second";
+import { openSleepSettings } from "./SleepSettings";
+import { SentryBatterySetting, SentryLidSetting, SentryRestartSetting, SentryRestartSleepSetting } from "./Sentry";
+import { SharingList, openGSquad } from "./GSquad";
+import { AddFriendPanel } from "./AddFriend";
+import { LinkIphoneRow } from "./LinkIphone";
+import { MacUpdateRow } from "./MacUpdate";
+import { WhatsNewEntry } from "./WhatsNew";
+import { ExamplesEntry, WelcomeEntry } from "./Welcome";
+import { TipsAgainEntry } from "./Tips";
+import { openSecurity } from "./Security";
+import { askFitness } from "../fitness/fitask";
+import { MINECRAFT_ENABLED } from "../core/mcmode";
+import { MinecraftEntry } from "./Minecraft";
+import { MAC_NOTE } from "../core/webtodo";
+import { PHONE_CONTROLS } from "../gos/PhoneRows";
+
+// ---------- what the Tab list hands in (the volume, the task size slider, the time zone) ----------
+const GenContext = createContext<{ gen: GenProps; st: Settings } | null>(null);
+const useGen = () => useContext(GenContext)!;
+const save = (patch: Partial<Settings>) => void taskMapActions.looks(patch);
+
+/** Where this page runs (core/settingsindex.ts Where). */
+export const settingsWhere = (): Where => (PS ? "mac" : GOS || MWEB ? "phone" : "web");
+
+/** Settings, for the Tab list (owner "tab"), the website's To-do page ("docked") and the phone. */
+export function SettingsHost({ st, gen, owner }: { st: Settings; gen: GenProps; owner: SettingsOwner }) {
+  const red = isRedAccount(useVault());
+  const v = useVault();
+  // Reply from PS is for people whose PS shows client email cards (Gmail replies or Who emails me records).
+  const mail = useMemo(() => [...v.docs.values()].some((d) => d.kind === "reply" || (d.kind as string) === "msender"), [v.docs]);
+  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail]);
+  return (
+    <GenContext.Provider value={{ gen, st }}>
+      <SettingsScreen owner={owner} ctx={ctx} controls={CONTROLS} phone={GOS || MWEB} onGo={(go, e, close) => goTo(go, e, close, owner)} />
+    </GenContext.Provider>
+  );
+}
+
+/** A setting that lives on a screen of its own: Settings steps aside, then that screen opens. */
+function goTo(go: Go, e: SetEntry, close: () => void, owner: SettingsOwner) {
+  const later = (f: () => void) => window.setTimeout(f, 170);
+  if (go === "macApp") { window.open(MAC_NOTE.link, "_blank", "noopener,noreferrer"); return; }   // a new tab; Settings stays
+  close();
+  if (go === "fitness") later(() => askFitness("settings", { docked: owner === "docked", phone: GOS || MWEB }));
+  else if (go === "security") later(() => openSecurity(true));
+  else if (go === "sleepSettings") later(() => openSleepSettings(e.id.startsWith("sleep.") ? e.id.slice(6) : null));   // V1.47: full screen, on that setting
+  else if (go === "gsquad") later(() => openGSquad(true));
+  else if (go === "phone") later(() => openSettings("phone", { owner }));   // V1.47: This phone is a group of Settings now
+  else if (go === "dnd") later(() => {
+    const cogs = [...document.querySelectorAll<HTMLElement>(owner === "docked" ? ".tm-overlay.tm-docked .dnd-cog" : ".dnd-cog")];
+    (cogs.find((c) => c.offsetParent !== null) ?? cogs[0])?.click();
+  });
+  else if (go === "vault") openVault(e.anchor);
+}
+/** The website's own Settings page (vault, passphrase, sign-in log): there, scrolled to the heading and lit up. */
+function openVault(anchor?: string) {
+  if (location.hash !== "#/settings") location.hash = "#/settings";
+  let tries = 0;
+  const find = () => {
+    const h = anchor ? document.getElementById(anchor) : null;
+    if (!h) { if (++tries < 30) window.setTimeout(find, 100); return; }
+    const box = h.closest<HTMLElement>(".panel") ?? h;
+    box.scrollIntoView({ block: "center", behavior: "smooth" });
+    box.classList.add("gs-landed");
+    window.setTimeout(() => box.classList.remove("gs-landed"), 2400);
+  };
+  window.setTimeout(find, 60);
+}
+
+// ---------- small pieces ----------
+function OnOff({ on, ready = true, set, label }: { on: boolean; ready?: boolean; set: (v: boolean) => void; label: string }) {
+  return (
+    <div className={`tm-ed-seg${ready ? "" : " gs-notyet"}`} role="radiogroup" aria-label={label}>
+      <Choice selected={ready && on} onPick={() => { if (ready) { sfx.hover(); set(true); } }}>On</Choice>
+      <Choice selected={ready && !on} onPick={() => { if (ready) { sfx.hover(); set(false); } }}>Off</Choice>
+    </div>
+  );
+}
+/** A synced On/Off that is on unless switched off (core/offswitches.ts), saved in the vault's settings for every device. */
+function SyncedOnOff({ e, field }: { e: RowProps["e"]; field: "squadAutoJoin" | "psPresence" | "tipsShow" }) {
+  const v = useVault();
+  return <SetRow e={e} right={<OnOff label={e.name} on={onUnlessOff(settingsData(v)[field])} ready={v.status === "unlocked"} set={(on) => save({ [field]: on })} />} />;
+}
+type Ps = (PsSettings & { afk?: { on: boolean }; mediaGuard?: { on: boolean }; middleClick?: { on: boolean }; fu?: { on: boolean }; aiDone?: AiDoneState }) | null;
+const usePs = () => usePsSettings() as Ps;
+const row = (right: (p: RowProps) => ReactNode) => (p: RowProps) => <SetRow e={p.e} right={right(p)} />;
+const block = (body: (p: RowProps) => ReactNode, open = true) => (p: RowProps) => <SetRow e={p.e} body={body(p)} open={open} />;
+
+function Looks({ p, part }: { p: RowProps; part: "look" | "accent" | "type" | "work" | "lt" | "outline" | "bg" | "bgc" | "own" | "rain" | "trail" }) {
+  const { st } = useGen();
+  const body = part === "look" ? <LookPicker st={st} set={save} preview={p.preview} />
+    : part === "accent" ? <AccentPart st={st} set={save} />
+    : part === "type" ? <TypePart st={st} set={save} />
+    : part === "work" ? <WorkPart st={st} set={save} preview={p.preview} />
+    : part === "lt" ? <ListTransparency saved={st.tmBackdrop} save={(v, keep) => taskMapActions.backdrop(v, keep)} />
+    : part === "outline" ? <LookOutline st={st} preview={p.preview} />
+    : part === "bg" ? <LookBackground st={st} preview={p.preview} />
+    : part === "bgc" ? <LookBgColour st={st} preview={p.preview} />
+    : part === "own" ? <LookOwnColour st={st} preview={p.preview} />
+    : part === "trail" ? <MouseTrailSettings st={st} set={save} />
+    : <LookRain st={st} preview={p.preview} />;
+  return <SetRow e={p.e} body={<div className="gs-looks ms-win">{body}</div>} open plain className="gs-look-row" />;
+}
+const looks = (part: Parameters<typeof Looks>[0]["part"]) => (p: RowProps) => <Looks p={p} part={part} />;
+
+// ---------- every row ----------
+export const CONTROLS: Controls = {
+  // The phone's own rows (V1.47): GrapheneOS app and iPhone web app, gos/PhoneRows.tsx.
+  ...PHONE_CONTROLS,
+  // Your list
+  "tick-mode": row(() => <ListBehaviourControls part="mode" />),
+  "completed-show": row(() => <ListBehaviourControls part="show" />),
+  "completed-keep": row(() => <ListBehaviourControls part="keep" />),
+  "task-size": function TaskSize({ e }) { return <SetRow e={e} right={<div className="tm-pop-row col gs-size">{useGen().gen.size}</div>} />; },
+  "sounds": function Sounds({ e }) { const { gen } = useGen(); return <SetRow e={e} right={<SoundControls volume={gen.volume} muted={gen.muted} soundOff={gen.soundOff} onMute={gen.onMute} />} />; },
+  "tick-sound": row(() => <ListBehaviourControls part="sound" />),
+  "edit-sounds": row(() => <EditSoundsSwitch />),
+  "add-button": block(() => <AddButtonControls />),
+  "typed-prio": row(() => <TypedPrioSwitch save={save} />),
+  "new-badge": row(() => <NewBadgeControls />),
+
+  // Appearance
+  "look": looks("look"),
+  "accent": looks("accent"),
+  "layout-text": looks("type"),
+  "working-on": looks("work"),
+  "mouse-trail": looks("trail"),
+  "transparency": looks("lt"),
+  "overdue-tab": (p) => <SetRow e={p.e} body={<div className="gs-looks ms-win"><OverdueLookSettings preview={p.preview} /></div>} open plain className="gs-look-row" />,
+  "outline": looks("outline"),
+  "background": looks("bg"),
+  "bg-colour": looks("bgc"),
+  "rain": looks("rain"),
+  "own-colour": looks("own"),
+
+  // Notifications and Do Not Disturb
+  "popups": function Popups({ e }) { const { gen } = useGen(); return <SetRow e={e} right={<NotifyControls notifyOn={gen.notifyOn} notifyLog={gen.notifyLog} />} />; },
+  "ai-done": function AiDone({ e }) {   // V1.53, views/AiDone.tsx; V1.55 the cards' own time (views/IslandCards.tsx)
+    const fade = settingsData(useVault()).chatFade;
+    return <SetRow e={e} body={<><ChatFadeRow value={fade} save={(chatFade) => save({ chatFade })} /><AiDoneSettings state={usePs()?.aiDone} /></>} open />;
+  },
+  "card-looks": block(() => <NotifyPage />, false),
+  "meetings": block(() => <div className="gs-meet"><MeetPrefsPanel /></div>, false),
+  "calendar": row(() => <CalSwitch />),
+  // V1.46: the daily reminder lives in Annoying 15 min reminder now (reminder one); this row takes you there.
+  "daily-reminder": function Daily({ e }) {
+    return <SetRow e={e} right={<button type="button" className="gs-open" onClick={() => { sfx.click(); openSettings("remind", { jump: "reminders" }); }}>Open
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></button>} />;
+  },
+  // Annoying 15 min reminder (core/remind.ts): the whole list, always open. The website's Test card sits here too.
+  "reminders": function Reminders({ e }) { return <SetRow e={e} body={<><RemindSettings /><RemTestCard /></>} open plain />; },
+  // Sentry mode (V1.48, views/Sentry.tsx): three simple settings.
+  "sentry-battery": row(() => <SentryBatterySetting />),
+  "sentry-restart": block(() => <SentryRestartSetting />),
+  "sentry-restart-sleep": block(() => <SentryRestartSleepSetting />),
+  "sentry-lid": block(() => <SentryLidSetting />),
+  "auto-approve": function AutoApprove({ e }) { return <SetRow e={e} body={<AutoApproveSettings state={(usePs() as { autoApprove?: unknown } | null)?.autoApprove} />} open />; },
+  // Add Telegram Bot (V1.47, views/TelegramBot.tsx): the four steps, the rules and Remove, always open.
+  "telegram-bot": function TelegramBot({ e }) { return <SetRow e={e} body={<TelegramBotSettings />} open plain />; },
+  // AI task API (views/TaskApi.tsx): on or off, the key, the switches, Copy for AI, always open.
+  "task-api": function TaskApi({ e }) { return <SetRow e={e} body={<TaskApiSettings />} open plain />; },
+  // Reply from PS: no settings page of its own (the developer, 8 Nov 2026); this opens the reply panel with no email in it.
+  "reply-from-ps": row(() => <button className="btn quiet sm" onClick={() => psPost({ type: "looks", patch: { replySetup: true } })}
+    data-tip="Open the reply panel" data-tip-line="Quick replies, your signature, Send now or at a random time, and the accounts that can send.">Open</button>),
+  "gmail-replies": block(() => <MailPeople overlay={PS} />, false),
+
+  // Time and reset
+  "home-tz": function HomeTz({ e }) { return <SetRow e={e} right={<TzSelect homeTz={useGen().gen.homeTz} />} />; },
+  "tz-names": row(() => undefined),
+  "auto-reset": function Reset({ e }) { return <SetRow e={e} body={<AutoResetSetting className="gs-reset" st={settingsData(useVault())} save={save} />} open />; },
+  "day-ends": function DayEnds({ e }) {
+    const v = settingsData(useVault()).dayEndsHour ?? DAY_ENDS_DEFAULT;
+    return <SetRow e={e} right={
+      <select className="tm-pop-sel gs-sel" value={v} aria-label={e.name} onChange={(ev) => { save({ dayEndsHour: Number(ev.target.value) }); ev.target.blur(); }}>
+        <option value={0}>Midnight (no night shifts)</option>
+        {Array.from({ length: 23 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{new Date(2026, 0, 1, h).toLocaleTimeString(undefined, { hour: "numeric" })}</option>)}
+      </select>} />;
+  },
+  "st-hours": function StHours({ e }) { return <SetRow e={e} right={<StHoursControls stHours={useGen().gen.stHours} />} />; },
+  "screen-time": function ScreenTime({ e }) {
+    const st = usePsSettings();
+    return <SetRow e={e} right={<OnOff label={e.name} on={!!st?.screenTime} ready={!!st} set={(on) => psPost({ type: "psSettings:screenTime", on })} />} />;
+  },
+
+  // Tab overlay shortcuts (V1.47): the whole list, always open (the / then . chord is one of its shortcuts)
+  "trigger-key": function Trigger({ e }) { return <SetRow e={e} body={<OpenShortcuts />} open />; },
+
+  // Keyboard and Tab
+  "tab-stays": function TabStays({ e }) {
+    const st = usePsSettings();
+    const on = tabStaysShown(st, isRedAccount(useVault()));
+    return <SetRow e={e} right={<OnOff label={e.name} on={on} ready={!!st} set={(v) => psPost({ type: "psSettings:tabStays", on: v })} />} />;
+  },
+  "middle-click": function Middle({ e }) {
+    const m = usePs()?.middleClick;
+    return <SetRow e={e} className="gs-has-switch" right={<OnOff label={e.name} on={!!m?.on} ready={!!m} set={(on) => psPost({ type: "middleClick", op: "set", on })} />} body={<MiddleClickSettings />} />;
+  },
+  "ignored-apps": block(() => <IgnoredAppsSetting />, false),
+
+  // Mac
+  "island": function Island({ e }) {
+    const st = usePsSettings();
+    return <SetRow e={e} body={<IslandPlace moved={!!st?.islandMoved} ready={!!st} prefs={islandPrefs(settingsData(useVault()).island)} save={save} />} />;
+  },
+  "afk": function Afk({ e }) {
+    const on = useAfkOn();
+    return <SetRow e={e} className="gs-has-switch" right={on === undefined ? undefined : <AfkControls afkOn={on} />} body={<AfkSettings />} />;
+  },
+  "airpods": function AirPods({ e }) {
+    const g = usePs()?.mediaGuard;
+    return <SetRow e={e} className="gs-has-switch" right={<OnOff label={e.name} on={!!g?.on} ready={!!g} set={(on) => psPost({ type: "mediaGuard", on })} />} body={<MediaGuardSettings />} />;
+  },
+  "mic": function Mic({ e }) { return usePsMic() ? <SetRow e={e} body={<div className="gs-mic"><MicPicker /></div>} open /> : null; },
+  "network": function Net({ e }) { const { st } = useGen(); return <SetRow e={e} right={<NetworkSetting st={st} />} body={<p className="gs-set-note">{networkNote(st)}</p>} open />; },
+  "app-name": block(() => <AppNameSetting />, false),
+
+  // Privacy and sharing (open source build): the "PS app is open" presence channel (src/ps.ts startPsPresence)
+  "ps-presence": function PsPresence({ e }) { return <SyncedOnOff e={e} field="psPresence" />; },
+
+  // Sync and account
+  "local-data": function LocalData({ e }) { const s = useVault(); return s.local || hasLocalBackup() ? <SetRow e={e} body={<LocalDataSetting s={s} />} open /> : null; },
+  "local-backup": function LocalBackup({ e }) { const s = useVault(); return s.status === "unlocked" ? <SetRow e={e} body={<LocalBackupSetting s={s} />} open={!!s.local} /> : null; },
+  "project": block(() => <PsProjectSetting />, false),
+  "link-iphone": function LinkIphone({ e }) { return <LinkIphoneRow e={e} />; },
+  "mac-phone-signin": function PhoneSignIn({ e }) { return <LinkIphoneRow e={e} red />; },
+  "second": block(() => <SecondSettings />, false),
+  "invite": row(() => undefined),
+
+  // Sleep mode (V1.47): one line and a button, like Security; its settings open full screen (views/SleepSettings.tsx)
+  "sleep-settings": function SleepEntryRow({ e }) { return <SetRow e={e} right={<OpenButton e={e} label="Open Sleep settings" />} />; },
+
+  // G Squad
+  "gs-share": block(() => <SharingList />),
+  "gs-auto-join": function GsAutoJoin({ e }) { return <SyncedOnOff e={e} field="squadAutoJoin" />; },
+  // V1.44: the QR code comes up as soon as the section opens (a fresh code each time; closing calls it off).
+  "add-friend": function AddFriend({ e }) { return <SetRow e={e} body={<AddFriendPanel />} open plain className="af-row-set" />; },
+
+  // About and updates
+  "updates": function Updates({ e }) { const open = !!useSettingsWanted(); return <SetRow e={e} className="gs-upd-row" body={<MacUpdateRow menuOpen={open} />} open />; },
+  // V1.54: one synced choice, 5 (default), 10, 15 or 30 minutes; the Mac, the website and the phone (while open) follow it at once.
+  // The phone's grey line says what Android allows with the app closed.
+  "update-every": function UpdateEvery({ e }) {
+    const v = useVault();
+    const now = cleanUpdateEvery(settingsData(v).updateEvery), ready = v.status === "unlocked";
+    const line = GOS ? `${e.line} With the app closed, Android allows about every 15 minutes at most.` : e.line;
+    return <SetRow e={{ ...e, line }} className="gs-upd-every" right={
+      <div className={`tm-ed-seg${ready ? "" : " gs-notyet"}`} role="radiogroup" aria-label={e.name}>
+        {UPDATE_EVERY_CHOICES.map((m) => <Choice key={m} selected={ready && now === m} onPick={() => { if (ready) { sfx.hover(); save({ updateEvery: m }); } }}>{m}</Choice>)}
+        {/* Off: no automatic looks on any device; Check now still looks. */}
+        <Choice selected={ready && now === UPDATE_EVERY_OFF} onPick={() => { if (ready) { sfx.hover(); save({ updateEvery: UPDATE_EVERY_OFF }); } }}>Off</Choice>
+      </div>} />;
+  },
+  "whats-new": row(() => <WhatsNewEntry />),
+  "setup": function Setup({ e }) {
+    return (<>
+      {/* Minecraft mode is switched off (core/mcmode.ts): switched on, its card sits here, above the setup menu. */}
+      {MINECRAFT_ENABLED && <MinecraftEntry onOpen={() => openSettings(null)} />}
+      <SetRow e={e} right={<WelcomeEntry />} />
+    </>);
+  },
+  "tips": row(() => <TipsAgainEntry />),
+  "tips-show": function TipsShow({ e }) { return <SyncedOnOff e={e} field="tipsShow" />; },
+  "examples": function Examples({ e }) {
+    const s = useVault();
+    const set = settingsData(s);
+    if (s.status !== "unlocked" || !hasExamples(set.examples, s.docs.values(), set.aware, set.timelines)) return null;
+    return <SetRow e={e} body={<ExamplesEntry />} open />;
+  },
+  "version": function Version({ e }) {
+    return <SetRow e={e} right={<span className="gs-ver-v">{appName()} {__PS_VERSION__.name || "dev"}{__PS_VERSION__.keyword ? <em>{__PS_VERSION__.keyword}</em> : null}</span>} />;
+  },
+};
+
+/** V1.56 Edit mode sounds (core/editsounds.ts): On plays a soft sample as it turns on. */
+function EditSoundsSwitch() {
+  const on = editSoundsOn(settingsData(useVault()));
+  return (
+    <div className="tm-ed-seg" role="radiogroup" aria-label="Edit mode sounds">
+      <button type="button" role="radio" aria-checked={on} className={`dwell${on ? " on" : ""}`} onClick={() => { if (!on) { save({ editSounds: true }); editSfx("edit-save", true); } }}>On</button>
+      <button type="button" role="radio" aria-checked={!on} className={`dwell${!on ? " on" : ""}`} onClick={() => { if (on) { sfx.hover(); save({ editSounds: false }); } }}>Off</button>
+    </div>
+  );
+}

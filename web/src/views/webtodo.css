@@ -1,0 +1,119 @@
+/* The website's To-do page in web form (V1.44, views/WebTodo.tsx): the Tab list filling the browser window under the
+   site's bar, laid out like PS's floating list (taskmap.css), not like the old docked board. The list is `.tm-docked`
+   for who owns the windows; `.tm-web` puts back the floating layout over the docked one.
+   Wide (1100 px and up): clocks top left, Timelines and Coming up bottom left, the buttons top right, Overdue and the
+   notes bottom right, the list in the middle scrolling in its own layer, exactly as on the Mac.
+   Narrower (a small window, a tablet, a phone): one column that scrolls, the buttons in a row on top, then the list,
+   then the left panels, then the right ones. */
+
+/* ---------- the page around it ---------- */
+html.web-todo, html.web-todo body { overflow: hidden; overscroll-behavior: none; }
+html.web-todo body {
+  /* What sits behind the list: a soft desk in the look's own colours (on the Mac it is your screen). */
+  background:
+    radial-gradient(90% 70% at 15% 0%, color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent), transparent 60%),
+    radial-gradient(80% 60% at 100% 100%, color-mix(in srgb, var(--k-acc2, #A855F7) 10%, transparent), transparent 60%),
+    var(--k-base, #0E080B);
+}
+html.web-todo main.page { padding: 0; min-height: 0; }
+html.web-todo .nt-launch { display: none; }   /* the website's notes button: the Tab list has its own notes panels */
+
+/* ---------- the list: the floating layout ---------- */
+.tm-overlay.tm-docked.tm-web {
+  --web-top: calc(60px + env(safe-area-inset-top, 0px));
+  position: fixed; inset: var(--web-top) 0 0 0; z-index: 1; overflow: hidden;
+  display: block; width: auto; min-height: 0; margin: 0; padding: 0; border-radius: 0; box-shadow: none;
+  background: color-mix(in srgb, var(--k-base, #0B0709) calc(var(--tm-tint, .58) * 60%), transparent);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  --tm-colw: clamp(240px, 21vw, 300px);
+  /* safe-top is the Mac's notch room; the site's bar is above the list here */
+  --safe-top: 0px;
+  animation: wt-in .32s cubic-bezier(.2, .9, .3, 1) both;
+}
+@keyframes wt-in { from { opacity: 0; transform: translateY(6px) scale(.995); } }
+html[data-nb] .tm-overlay.tm-docked.tm-web { background: rgba(var(--nb-desk), calc(var(--tm-tint, .58) * .9 + .1 * var(--tm-bgfade, 1))); }
+html[data-solid] .tm-overlay.tm-docked.tm-web:not(.tm-hovermode) { background-color: color-mix(in srgb, var(--k-base) var(--k-cover, 96%), transparent); }
+
+.tm-web .tm-side { position: absolute; top: 20px; bottom: 24px; display: flex; }
+.tm-web .tm-left { left: 24px; grid-column: auto; grid-row: auto; align-self: auto; width: max(min(290px, var(--tm-colw, 300px)), calc(var(--tm-colw, 300px) * var(--ck, 1))); }
+.tm-web .tm-left .tm-clocks { max-height: calc(100% - 60px); }
+.tm-web .tm-right { right: 24px; top: 76px; grid-column: auto; grid-row: auto; align-self: auto; width: var(--tm-colw, 300px); justify-content: flex-end; }
+.tm-web .tm-tr { position: absolute; top: 20px; right: 24px; grid-column: auto; grid-row: auto; }
+.tm-web .tm-side:has(.tm-tl.open, .tm-clocks) { z-index: 6; }
+.tm-web .tm-scroll {
+  position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; grid-column: auto; grid-row: auto;
+  padding: 0 calc(var(--tm-colw, 300px) + 36px) 0 calc(max(min(290px, var(--tm-colw, 300px)), var(--tm-colw, 300px) * var(--ck, 1)) + 36px);
+  scroll-behavior: smooth;
+}
+.tm-web .tm-inner { width: min(900px, 100%); min-height: 100%; padding: max(40px, 6vh) calc(24px * var(--k-dn, 1)) calc(80px * var(--k-dn, 1)); animation: tm-pop .3s cubic-bezier(.2, .9, .3, 1) both; }
+.tm-web .tm-rail { display: block; }
+html[data-look="calm"] .tm-overlay.tm-web .tm-inner { width: min(720px, 100%); }
+@media (min-width: 1101px) {
+  .tm-web .tm-tr > .tm-tr2 { position: absolute; top: calc(100% + 8px); right: 0; display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 8px; /* k-keep */ }
+  .tm-web:has(.tm-tr2 button) .tm-right { top: 124px; }
+  html:not(.gos) .tm-web .tm-xrow { justify-content: flex-start; }
+  html:not(.gos) .tm-web .tm-xrow > * { flex-shrink: 0; }
+}
+@media (min-width: 1101px) and (max-width: 1699px) {
+  html:not(.gos) .tm-web .tm-xrow > .fit-tab-btn { margin-left: 0; width: 38px; padding: 0; justify-content: center; }
+  html:not(.gos) .tm-web .tm-xrow > .fit-tab-btn span { display: none; }
+}
+
+/* ---------- narrower: one column that scrolls ---------- */
+@media (max-width: 1100px) {
+  .tm-overlay.tm-docked.tm-web { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
+  .tm-web .tm-side, .tm-web .tm-tr, .tm-web .tm-scroll { position: relative; inset: auto; top: auto; left: auto; right: auto; bottom: auto; }
+  .tm-overlay.tm-web > * { flex-shrink: 0; }
+  .tm-web .tm-tr { order: 0; z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: calc(8px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) 0; }
+  .tm-web .tm-scroll { order: 1; overflow: visible; padding: 0; flex: none; }
+  .tm-web .tm-inner { min-height: 0; padding: calc(18px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); }
+  .tm-web .tm-left { order: 2; width: auto; flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: calc(12px * var(--k-dn, 1)); padding: 0 calc(16px * var(--k-dn, 1)); }
+  .tm-web .tm-left > * { flex: 0 1 auto; min-width: 0; }
+  .tm-web .tm-left > .tm-meet, .tm-web .tm-left > [data-slot="meetings"] { flex: 1 1 320px; }
+  .tm-web .tm-left .nu-tlrow { margin-top: 0; }
+  .tm-web .tm-left .tm-clocks { position: absolute; top: calc(100% + 8px); left: 0; width: min(360px, calc(100vw - 32px)); max-height: 70vh; }
+  .tm-web .tm-right { order: 3; width: auto; justify-content: flex-start; padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .tm-web .tm-rail { display: none; }
+}
+@media (max-width: 760px) {
+  /* the base layout hides the side columns on a narrow floating list; here they come under the list */
+  .tm-overlay.tm-web .tm-side { display: flex; }
+  .tm-web .tm-tr { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding: calc(12px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)); }
+  .tm-web .tm-tr::-webkit-scrollbar { display: none; }
+  .tm-web .tm-tr > *, .tm-web .tm-tr2 > * { flex: none; }
+  .tm-web .tm-inner { padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); gap: calc(18px * var(--k-dn, 1)); }
+  .tm-web .tm-left { flex-direction: column; align-items: stretch; padding: 0 calc(12px * var(--k-dn, 1)); }
+  .tm-overlay.tm-web .tm-left > *, .tm-overlay.tm-web .tm-left > .tm-meet { width: 100%; flex: none; }   /* a column: no 320px tall basis */
+  .tm-web .tm-left .nu-tlrow { width: 100%; }
+  .tm-web .tm-left .tm-xrow { justify-content: flex-start; flex-wrap: wrap; }
+  .tm-web .tm-right { padding-left: calc(12px * var(--k-dn, 1)); padding-right: calc(12px * var(--k-dn, 1)); }
+  .tm-web .tm-row::before { display: none; }   /* the game arrow has no room at the left edge of a phone */
+  .tm-web .tm-row:hover { transform: none; }   /* a tap is not a hover */
+}
+
+/* ---------- the quiet "Get the Mac app" note at the end of the list ---------- */
+.wt-mac {
+  display: flex; align-items: center; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); margin-top: 8px; padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1));
+  font-size: calc(12.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent);
+  border: 1px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: opacity .25s ease, transform .25s cubic-bezier(.2, .9, .3, 1);
+  animation: wt-note .5s .4s cubic-bezier(.2, .9, .3, 1) both;
+}
+@keyframes wt-note { from { opacity: 0; transform: translateY(6px); } }
+.wt-mac.out { opacity: 0; transform: translateY(6px) scale(.98); }
+.wt-mac-i { flex: none; opacity: .75; }
+.wt-mac-t { flex: 1 1 260px; min-width: 0; line-height: 1.4; }
+.wt-mac-a {
+  flex: none; font-weight: 750; color: var(--k-acc-t, #F49BBE); text-decoration: none; padding: calc(5px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)); border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); transition: background .15s ease, transform .1s ease;
+}
+.wt-mac-a:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent); }
+.wt-mac-a:active { transform: scale(.96); }
+.wt-mac-x { flex: none; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; border: 0; cursor: pointer; background: transparent; color: inherit; opacity: .7; transition: opacity .15s ease, background .15s ease; }
+.wt-mac-x:hover { opacity: 1; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-overlay.tm-docked.tm-web, .tm-web .tm-inner, .wt-mac { animation: none; }
+  .tm-overlay.tm-docked.tm-web, .tm-web .tm-scroll { scroll-behavior: auto; }
+}

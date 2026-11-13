@@ -1,0 +1,64 @@
+/* Mouse trail (V1.43, views/Trail.tsx, views/MouseTrail.tsx, core/trail.ts).
+   The layer: one fixed canvas over the list. It never takes a click (pointer-events: none) and sits under pop-ups,
+   Add task and Settings. */
+.tm-trail { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 7; pointer-events: none; display: block; contain: strict; }
+.tm-docked .tm-trail { z-index: 3; }
+
+/* Settings: the pad to try it on */
+.mt-sec { gap: calc(12px * var(--k-dn, 1)); }
+.mt-pad {
+  position: relative; display: grid; gap: calc(8px * var(--k-dn, 1)); padding: calc(16px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)) calc(30px * var(--k-dn, 1));
+  border-radius: calc(18px * var(--k-rd, 1)); overflow: hidden; cursor: crosshair; user-select: none; -webkit-user-select: none;
+  background: radial-gradient(120% 140% at 50% 0%, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent), transparent 70%), color-mix(in srgb, var(--k-base, #0E0A0D) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+}
+.mt-pad-c { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: block; }
+.mt-prow {
+  position: relative; display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); padding: calc(11px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1));
+  border-radius: calc(14px * var(--k-rd, 1)); font-size: calc(14px * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+  transition: background .2s ease, transform .2s cubic-bezier(.2,.9,.3,1), border-color .2s ease;
+}
+.mt-prow:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); transform: translateX(4px); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); }
+.mt-prow.p1 { border-color: color-mix(in srgb, var(--k-bad, #FF3C3C) 45%, transparent); }
+.mt-prow > span:last-child { position: relative; z-index: 1; }
+.mt-ptick { position: relative; z-index: 1; width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(40% * var(--k-ia, 1))), transparent); }
+.mt-pad.glow .mt-prow:hover .tm-fx::before { opacity: 1; }
+.mt-pad.glow .mt-prow:hover .tm-fx::after { animation: tm-shine .55s ease-out; }
+.mt-pad.off .tm-fx, .mt-pad.fx .tm-fx::before { display: none; }
+.mt-hint { position: absolute; left: 0; right: 0; bottom: calc(8px * var(--k-dn, 1)); text-align: center; pointer-events: none; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; letter-spacing: .04em;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); transition: opacity .4s ease; }
+.mt-hint.gone { opacity: 0; }
+
+/* the effects */
+.mt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: calc(8px * var(--k-dn, 1)); }
+.mt-tile { width: 100%; }
+.mt-thumb { position: relative; display: block; width: 100%; height: 50px; border-radius: calc(10px * var(--k-rd, 1)); overflow: hidden;
+  background: color-mix(in srgb, var(--k-base, #0E0A0D) 82%, transparent); }
+.mt-thumb canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.mt-thumb-glow i { position: absolute; left: 14%; right: 14%; height: 15px; border-radius: calc(6px * var(--k-rd, 1)); top: 9px;
+  background: radial-gradient(60px circle at 62% 50%, color-mix(in srgb, var(--gc, var(--k-fg, #FFFFFF)) 34%, transparent), color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent) 70%);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); }
+.mt-thumb-glow i + i { top: 28px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); }
+.mt-thumb-off { display: grid; place-items: center; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.mt-what { min-height: 1.45em; }
+
+/* colour, size, intensity, burst */
+.mt-tune { display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.mt-line { display: flex; flex-wrap: wrap; align-items: center; gap: calc(10px * var(--k-dn, 1)); }
+.mt-swatches { display: flex; flex-wrap: wrap; gap: calc(7px * var(--k-dn, 1)); }
+.mt-sw { all: unset; box-sizing: border-box; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; position: relative;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-base, #000000) 25%, transparent), 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) 18%, transparent); transition: transform .12s ease, box-shadow .12s ease; }
+.mt-sw:hover { transform: scale(1.12); }
+.mt-sw.on { box-shadow: 0 0 0 2px var(--k-base, #0E0A0D), 0 0 0 4px var(--k-acc, #EC4E86); }
+.mt-sw:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 3px; }
+.mt-sw-multi { background: conic-gradient(var(--k-acc, #FF3B6B), var(--k-warn, #FFC93C), var(--k-ok-t, #7CFF6B), var(--k-info, #3CD6FF), var(--k-acc2-t, #A46BFF), var(--k-acc, #FF3B6B)); }
+.mt-sw-wheel { background: conic-gradient(from 90deg, var(--k-bad, #FF0000), var(--k-warn, #FFFF00), var(--k-ok, #00FF00), var(--k-info, #00FFFF), var(--k-info, #0000FF), var(--k-acc2, #FF00FF), var(--k-bad, #FF0000)); }
+.mt-sw-wheel::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: var(--k-base, #0E0A0D); }
+.mt-sw-wheel.open { box-shadow: 0 0 0 2px var(--k-base, #0E0A0D), 0 0 0 4px var(--k-acc, #EC4E86); }
+.mt-wheel { padding: calc(4px * var(--k-dn, 1)) 0; }
+.mt-reset { padding: 0 calc(12px * var(--k-dn, 1)); margin-left: auto; }
+.mt-sec .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .tm-trail { display: none; } }

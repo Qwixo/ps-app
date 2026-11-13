@@ -1,0 +1,5 @@
+/* PS GOS touch polish, one file per area (each owned by its own session). */
+@import "./list.css";
+@import "./boards.css";
+@import "./panels.css";
+@import "./inbox.css";

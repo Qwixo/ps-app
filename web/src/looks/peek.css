@@ -1,0 +1,96 @@
+/* Looks preview highlight (V1.40, looks/peek.ts). While a preview runs <html data-pv="<part>"> is set: the part that
+   changes stays at full strength and everything that does not change steps back, so it is clear what you are seeing.
+   Looks, accent, text and spacing change everything, so nothing steps back for those. */
+.tm-overlay .tm-side, .tm-overlay .tm-tr, .tm-overlay .tm-head, .tm-overlay .tm-sec, .tm-overlay .tm-row, .tm-overlay .tm-sec-h,
+.tm-overlay .tm-rail, .tm-overlay .tm-glass-wrap, .tm-overlay .tm-empty { transition: opacity .28s ease; }
+
+/* the screen behind the list, and rain: the whole list steps back */
+html[data-pv="bg"] .tm-overlay .tm-side, html[data-pv="bg"] .tm-overlay .tm-tr, html[data-pv="bg"] .tm-overlay .tm-head,
+html[data-pv="bg"] .tm-overlay .tm-sec, html[data-pv="bg"] .tm-overlay .tm-rail, html[data-pv="bg"] .tm-overlay .tm-glass-wrap,
+html[data-pv="bg"] .tm-overlay .tm-empty,
+html[data-pv="rain"] .tm-overlay .tm-side, html[data-pv="rain"] .tm-overlay .tm-tr, html[data-pv="rain"] .tm-overlay .tm-head,
+html[data-pv="rain"] .tm-overlay .tm-sec, html[data-pv="rain"] .tm-overlay .tm-rail, html[data-pv="rain"] .tm-overlay .tm-glass-wrap,
+html[data-pv="rain"] .tm-overlay .tm-empty { opacity: .28; }
+
+/* the Priority 1 outline: only the Priority 1 group stays */
+html[data-pv="outline"] .tm-overlay .tm-side, html[data-pv="outline"] .tm-overlay .tm-tr, html[data-pv="outline"] .tm-overlay .tm-head,
+html[data-pv="outline"] .tm-overlay .tm-sec:not(.tm-sec-p1), html[data-pv="outline"] .tm-overlay .tm-rail,
+html[data-pv="outline"] .tm-overlay .tm-glass-wrap, html[data-pv="outline"] .tm-overlay .tm-empty { opacity: .28; }
+
+/* Working on: only the working task stays */
+html[data-pv="work"] .tm-overlay .tm-side, html[data-pv="work"] .tm-overlay .tm-tr, html[data-pv="work"] .tm-overlay .tm-head,
+html[data-pv="work"] .tm-overlay .tm-sec-h, html[data-pv="work"] .tm-overlay .tm-row:not(.working), html[data-pv="work"] .tm-overlay .tm-rail,
+html[data-pv="work"] .tm-overlay .tm-glass-wrap, html[data-pv="work"] .tm-overlay .tm-empty, html[data-pv="work"] .tm-overlay .tm-p1-frame:not(.mini) { opacity: .3; }
+
+/* the Overdue card (core/overduelook.ts, V1.44): only the card stays. The side panels sit in Edit mode slots that are
+   display: contents (an opacity on them paints nothing), so each panel steps back itself; a filter, because some
+   panels' entry animation holds their own opacity. */
+html[data-pv="overdue"] .tm-overlay .tm-side > :not(.ed-slot):not(.tm-overdue), html[data-pv="overdue"] .tm-overlay .tm-side > .ed-slot > :not(.tm-overdue),
+html[data-pv="overdue"] .tm-overlay :is(.tm-mn, .tm-meet, .tm-tl, .tm-ckdock, .tm-mail, .tm-undo):not(.tm-side *) { filter: opacity(.28); }
+html[data-pv="overdue"] .tm-overlay .tm-tr, html[data-pv="overdue"] .tm-overlay .tm-head, html[data-pv="overdue"] .tm-overlay .tm-sec,
+html[data-pv="overdue"] .tm-overlay .tm-rail, html[data-pv="overdue"] .tm-overlay .tm-glass-wrap, html[data-pv="overdue"] .tm-overlay .tm-empty { opacity: .28; }
+
+/* the chip: what it changes, and a sentence when the preview had to stage something */
+.ms-peek-chip.has-note { flex-direction: column; align-items: center; gap: calc(4px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1)); white-space: normal; max-width: min(620px, calc(100vw - 40px)); text-align: center; }
+.ms-peek-note { font-weight: 550; font-size: .92em; opacity: .85; }
+
+/* a colour background (core/bgcolour.ts): one plain layer behind everything, fading with the glass slider */
+.tm-bgcolour { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: var(--bgc); opacity: var(--tm-bgfade, 1); animation: tm-bgc-in .6s ease-out both; }
+@keyframes tm-bgc-in { from { opacity: 0; } }
+.tm-overlay.scr-open .tm-bgcolour { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .tm-bgcolour { animation: none; } }
+
+/* Settings > Looks (V1.40): the one plain line under each setting saying exactly what it changes */
+.ms-changes, .ap-changes { margin: 0; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; font-weight: 600; max-width: 76ch;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(82% * var(--k-ia, 1))), transparent); }
+.ap-card-h .ap-changes { font-size: calc(12.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(82% * var(--k-ia, 1))), transparent); }
+
+/* colour background tiles */
+.ms-colour-sample { position: absolute; inset: 0; border-radius: inherit; }
+.ms-colour-own .ms-colour-row { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); flex-wrap: wrap; }
+.ms-colour-dot { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) 25%, transparent); transition: background .15s ease; }
+.ms-colour-dot.on { box-shadow: 0 0 0 2px var(--k-acc, #EC4E86), inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) 25%, transparent); }
+.ms-colour-hex { font-size: calc(13px * var(--k-fs, 1)); color: var(--k-fg, #FFFFFF); min-width: 7ch; }
+.ms-colour-own .ms-peek-btn.ms-colour-peek { position: static; }
+.ms-colour-use { border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent);
+  color: var(--k-fg, #FFFFFF); font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 700; padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; }
+.ms-colour-use:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 32%, transparent); }
+
+/* rain tiles: a still drawing of each kind (nothing moves in Settings) */
+.ms-rain-sample { position: absolute; /* k-keep */ inset: 0; /* k-keep */ border-radius: inherit; /* k-keep */ overflow: hidden; /* k-keep */ background: linear-gradient(180deg, #1A2230, #0E141D); /* k-keep */ }
+.ms-rain-sample i { position: absolute; /* k-keep */ inset: 0; /* k-keep */ }
+.rs-off i { background: none; /* k-keep */ }
+.rs-drizzle i { background: repeating-linear-gradient(100deg, transparent 0 13px, rgba(214, 226, 242, .35) 13px 14px, transparent 14px 31px); /* k-keep */ -webkit-mask: linear-gradient(180deg, #000 0 30%, transparent 30% 45%, #000 45% 75%, transparent 75%); /* k-keep */ mask: linear-gradient(180deg, #000 0 30%, transparent 30% 45%, #000 45% 75%, transparent 75%); /* k-keep */ }
+.rs-steady i { background: repeating-linear-gradient(92deg, transparent 0 6px, rgba(214, 226, 242, .45) 6px 7px, transparent 7px 13px); /* k-keep */ -webkit-mask: repeating-linear-gradient(180deg, #000 0 9px, transparent 9px 14px); /* k-keep */ mask: repeating-linear-gradient(180deg, #000 0 9px, transparent 9px 14px); /* k-keep */ }
+.rs-windy i { background: repeating-linear-gradient(115deg, transparent 0 6px, rgba(214, 226, 242, .45) 6px 7px, transparent 7px 13px); /* k-keep */ -webkit-mask: repeating-linear-gradient(180deg, #000 0 10px, transparent 10px 15px); /* k-keep */ mask: repeating-linear-gradient(180deg, #000 0 10px, transparent 10px 15px); /* k-keep */ }
+.rs-storm { background: radial-gradient(90% 60% at 60% 0%, rgba(200, 215, 255, .35), transparent 70%), linear-gradient(180deg, #1A2230, #0B1018); /* k-keep */ }
+.rs-storm i { background: repeating-linear-gradient(98deg, transparent 0 3px, rgba(224, 234, 248, .55) 3px 4.2px, transparent 4.2px 8px); /* k-keep */ -webkit-mask: repeating-linear-gradient(180deg, #000 0 14px, transparent 14px 17px); /* k-keep */ mask: repeating-linear-gradient(180deg, #000 0 14px, transparent 14px 17px); /* k-keep */ }
+.rs-glass i { background:
+  radial-gradient(circle at 20% 30%, rgba(214, 226, 242, .55) 0 3px, transparent 4px), radial-gradient(circle at 62% 22%, rgba(214, 226, 242, .5) 0 2px, transparent 3px),
+  radial-gradient(circle at 78% 64%, rgba(214, 226, 242, .6) 0 4px, transparent 5px), radial-gradient(circle at 38% 72%, rgba(214, 226, 242, .45) 0 2px, transparent 3px),
+  linear-gradient(180deg, transparent 0 40%, rgba(214, 226, 242, .3) 40% 64%, transparent 64%) 78% 0 / 2px 100% no-repeat; /* k-keep */ }
+
+/* the picker's two sliders draw their own colour tracks (like the accent's Any colour slider) */
+.tm-pop-range.ms-hue, .tm-pop-range.ms-shade { -webkit-appearance: none; /* k-keep */ appearance: none; /* k-keep */ height: 12px; /* k-keep */ border-radius: 99px; /* k-keep */ outline: none; /* k-keep */ cursor: pointer; /* k-keep */ }
+.tm-pop-range.ms-hue { background: linear-gradient(90deg, hsl(0 55% 45%), hsl(60 55% 45%), hsl(120 55% 45%), hsl(180 55% 45%), hsl(240 55% 45%), hsl(300 55% 45%), hsl(359 55% 45%)); /* k-keep */ }
+.tm-pop-range.ms-shade { background: linear-gradient(90deg, hsl(var(--hue, 260) 55% 12%), hsl(var(--hue, 260) 55% 50%), hsl(var(--hue, 260) 55% 88%)); /* k-keep */ }
+.tm-pop-range.ms-hue::-webkit-slider-thumb, .tm-pop-range.ms-shade::-webkit-slider-thumb { -webkit-appearance: none; /* k-keep */ width: 20px; /* k-keep */ height: 20px; /* k-keep */ border-radius: 50%; /* k-keep */
+  background: #FFFFFF; /* k-keep */ box-shadow: 0 0 0 2px rgba(0, 0, 0, .35), 0 3px 8px rgba(0, 0, 0, .4); /* k-keep */ }
+
+/* a background video waits, invisible, until it has jumped to where it would be (core/bgplayhead.ts), then fades in */
+.tm-bgvideo.wait { visibility: hidden; }
+.tm-bgvideo:not(.wait):not(.tm-bgvideo-sample) { animation: tm-bgv-in .22s ease-out; }
+@keyframes tm-bgv-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tm-bgvideo:not(.wait) { animation: none; } }
+
+/* V1.43: the Outline and Background tiles follow your Priority 1 colour, as the real group does (taskmap.css .p1c). */
+.tm-overlay.p1c .ms-tile .tm-p1-frame.mini:is(.p1d-red, .p1d-purple, .p1d-gold) { border-color: var(--p1acc); box-shadow: 0 0 8px rgba(var(--p1glow), .55), inset 0 0 6px rgba(var(--p1glow), .2); }
+.tm-overlay.p1c .ms-tile .tm-p1-frame.mini:is(.p1d-crown, .p1d-radar) { border-color: var(--p1acc); box-shadow: 0 0 9px rgba(var(--p1glow), .5); }
+.tm-overlay.p1c .ms-tile .tm-p1-frame.mini:is(.p1d-red-glisten, .p1d-white-glisten, .p1d-rainbow, .p1d-glitch, .p1d-neon) { box-shadow: 0 0 9px rgba(var(--p1glow), .5); }
+.tm-overlay.p1c .ms-tile .tm-p1-frame.mini:is(.p1d-red-glisten, .p1d-white-glisten) .p1-ring { background: var(--p1acc); }
+
+/* V1.43: "How much rain" has a picture that follows the slider: one layer of drops fades in, then a second between them. */
+.ms-rain-sample.ms-rain-live { position: relative; /* k-keep */ display: block; width: 100%; max-width: 260px; height: 56px; margin: 4px 0 8px; border-radius: calc(10px * var(--k-rd, 1)); }
+.ms-rain-live > i { opacity: var(--ra, 1); transition: opacity .15s linear; }
+.ms-rain-live > i.b { opacity: var(--rb, 0); transform: translate(5px, 6px); }
+@media (prefers-reduced-motion: reduce) { .ms-rain-live > i { transition: none; } }

@@ -1,0 +1,5 @@
+{
+  "v": 1,
+  "about": "PS starter packs for alarm playlists (V1.47). Empty on purpose: put audio files the developer has the right to share in this folder and list them here, then release. Shape: {\"packs\": [{\"id\": \"morning-1\", \"name\": \"Morning talks\", \"note\": \"one line\", \"files\": [{\"file\": \"morning-1/talk-one.mp3\", \"name\": \"Talk one\", \"secs\": 600}]}]}. They ship inside every PS build (Mac, phone, website): mind the app size.",
+  "packs": []
+}

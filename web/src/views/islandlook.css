@@ -1,0 +1,181 @@
+/* The Dynamic Island's look editor (views/IslandLook.tsx), inside the island menu (.tm-isl-menu). */
+.tm-isl-menu { transition: width .38s cubic-bezier(.22, 1.1, .36, 1), left .38s cubic-bezier(.22, 1.1, .36, 1); }
+.tm-isl-menu.il-editing { width: 340px; }
+.tm-isl-row { position: relative; display: flex; align-items: center; }
+.tm-isl-row > .tm-isl-opt { flex: 1; min-width: 0; padding-right: calc(64px * var(--k-dn, 1)); }
+.il-editbtn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: calc(4px * var(--k-dn, 1)); padding: calc(5px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1));
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent);
+  font: 700 calc(11.5px * var(--k-fs, 1))/1 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif); cursor: pointer; transition: background .18s ease, border-color .18s ease, transform .18s ease; }
+.il-editbtn:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); }
+.il-editbtn:active { transform: translateY(-50%) scale(.94); }
+
+.il-ed { animation: ilIn .34s cubic-bezier(.22, 1.1, .36, 1); }
+.il-menu-main { animation: ilBack .3s cubic-bezier(.22, 1.1, .36, 1); }
+@keyframes ilIn { from { opacity: 0; transform: translateX(14px); } }
+@keyframes ilBack { from { opacity: 0; transform: translateX(-14px); } }
+.il-ed-h { display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: 0 0 calc(8px * var(--k-dn, 1)); }
+.il-back { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); color: inherit; cursor: pointer; transition: background .18s ease, transform .18s ease; }
+.il-back:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+.il-back:active { transform: scale(.9); }
+.il-ed-t { flex: 1; font-size: calc(14px * var(--k-fs, 1)); font-weight: 800; letter-spacing: -.01em; }
+.il-reset { border: 0; background: none; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); font-family: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; line-height: 1; padding: calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(8px * var(--k-rd, 1)); cursor: pointer; }
+.il-reset:hover:not(:disabled) { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); }
+.il-reset:disabled { opacity: .35; cursor: default; }
+
+/* The preview: a strip of screen, the menu bar, the camera notch and the island, scaled down. */
+.il-stage { position: relative; height: 62px; margin: 0 0 10px; border-radius: 13px; overflow: hidden; cursor: default;
+  background: linear-gradient(135deg, #5c8cdb 0%, #9a7fd0 48%, #ed9e7a 100%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+  transition: height .42s cubic-bezier(.22, 1.15, .36, 1); }
+.il-stage.open { height: 126px; }
+.il-scale { position: absolute; left: 50%; top: 0; height: 190px; margin-left: -158.4px; transform-origin: 0 0; }
+.il-bar { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 12px;
+  background: rgba(246, 246, 248, .9); color: #1b1b1f; font: 500 13px/1 -apple-system, BlinkMacSystemFont, sans-serif; white-space: nowrap; }
+.il-cam { position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: #000; border-radius: 0 0 11px 11px; z-index: 2; }
+.il-notch-svg { position: absolute; left: 0; top: 0; overflow: visible; z-index: 1; }
+.il-np { fill: #000; transition: stroke .3s ease, filter .3s ease; }
+.il-np.halo { stroke: var(--glow); stroke-width: 1.6px; filter: drop-shadow(0 0 4px var(--glow)) drop-shadow(0 0 9px var(--glow)); }
+.il-np.rim { stroke: var(--acc); stroke-opacity: .55; stroke-width: 1.1px; }
+
+.il-pill { position: absolute; left: 50%; z-index: 3; width: 330px; height: 34px; margin-left: -165px; border-radius: 17px; overflow: hidden; background: var(--bg); color: var(--fg);
+  transition: width .42s cubic-bezier(.22, 1.15, .36, 1), height .42s cubic-bezier(.22, 1.15, .36, 1), margin .42s cubic-bezier(.22, 1.15, .36, 1),
+    border-radius .42s ease, background .35s ease, box-shadow .35s ease, opacity .3s ease, translate .3s ease; }
+.il-pill.compact { width: 270px; height: 28px; margin-left: -135px; border-radius: 14px; }
+.il-pill.open { width: 400px; height: 118px; margin-left: -200px; border-radius: 24px; box-shadow: 0 8px 18px rgba(0, 0, 0, .35); }
+.il-pill.compact.open { width: 380px; margin-left: -190px; }
+.il-pill.s-gradient { background: linear-gradient(90deg, var(--bg), var(--bg2)); }
+.il-pill.s-glass { background: var(--glassbg) linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 50%);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5); backdrop-filter: blur(14px) saturate(1.5); box-shadow: inset 0 0 0 .8px rgba(255, 255, 255, .24); }
+.il-pill.s-outline { box-shadow: inset 0 0 0 1.5px var(--edge); }
+.il-pill.s-glow { overflow: visible; box-shadow: 0 0 10px var(--edge), inset 0 0 0 1px var(--edge); }
+.il-pill.s-glow > div { border-radius: inherit; overflow: hidden; }
+.il-row { position: absolute; left: 0; right: 0; top: 0; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 12px; box-sizing: border-box;
+  font: 600 12.5px/1 -apple-system, BlinkMacSystemFont, sans-serif; transition: opacity .2s ease; }
+.il-pill.compact .il-row { height: 28px; gap: 6px; padding: 0 10px; font-size: 11.5px; }
+.il-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
+.il-b { display: inline-flex; align-items: center; gap: 3px; font-weight: 850; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.il-more { font-size: 11px; font-weight: 700; }
+.il-ring { flex: none; display: block; box-sizing: border-box; border: 1.6px solid; border-radius: 50%; }
+.il-scope { flex: none; }
+.il-open { position: absolute; left: 0; right: 0; top: 0; padding: 10px 16px; opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+.il-pill.open .il-row, .il-nc.open .il-drop, .il-nc.open .il-slim { opacity: 0; }
+.il-pill.open .il-open, .il-nc.open .il-nopen { opacity: 1; transition: opacity .3s ease .1s; }
+.il-badges { display: flex; gap: 8px; margin-bottom: 6px; }
+.il-badges > span { display: inline-flex; padding: 5px 9px; border-radius: 99px; }
+.il-badges .il-b { font-size: 12px; }
+.il-orow { display: flex; align-items: center; gap: 11px; height: 32px; font: 600 13.5px/1.15 -apple-system, BlinkMacSystemFont, sans-serif; white-space: nowrap; }
+.il-orow > span { overflow: hidden; text-overflow: ellipsis; }
+.il-orow em { display: block; font-style: normal; font-size: 9.5px; font-weight: 850; letter-spacing: .08em; }
+
+.il-nc { position: absolute; inset: 0; z-index: 3; color: var(--fg); }
+.il-drop { position: absolute; left: 50%; transform: translateX(-50%); height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 12px; box-sizing: border-box;
+  font: 600 12px/1 -apple-system, BlinkMacSystemFont, sans-serif; transition: opacity .2s ease; }
+.il-slim { position: absolute; left: 50%; top: 0; transform: translateX(-50%); display: flex; align-items: center; justify-content: space-between; padding: 0 9px; box-sizing: border-box;
+  transition: opacity .2s ease; }
+.il-nopen { position: absolute; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity .15s ease; }
+.il-nopen .il-open { position: static; opacity: 1; }
+
+/* The grab line (V1.36, Island.swift IslandGrip): a short grey line at the top centre of the island, its greys from
+   core/islandlook.ts gripTones. Brighter and a touch wider on hover; the click target is larger than the line. A click
+   hides the preview island for 5 seconds (.il-stage.away), sliding up and fading, then it comes back the same way. */
+.il-grip { position: absolute; left: 50%; z-index: 4; width: 32px; height: 2.5px; margin: 0 0 0 -16px; padding: 0; border: 0; border-radius: 99px;
+  background: var(--grip); cursor: pointer; -webkit-appearance: none; appearance: none;
+  transition: background .16s ease, width .16s ease, margin .16s ease, opacity .2s ease; }
+.il-grip::before { content: ""; position: absolute; inset: -5px -12px; }
+.il-grip:hover, .il-grip:focus-visible { width: 38px; margin-left: -19px; background: var(--grip-hi); outline: none; }
+.il-grip.off { opacity: 0; pointer-events: none; }
+.il-notch-svg, .il-nc { transition: opacity .3s ease, translate .3s ease; }
+.il-stage.away :is(.il-pill, .il-notch-svg, .il-nc) { opacity: 0; translate: 0 -8px; pointer-events: none; }
+
+.il-note { margin: -2px 2px 10px; padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-warn, #FFD21F) 12%, transparent); color: var(--k-warn-t, #FFE27A); font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 600; line-height: 1.35; }
+
+/* The looks, as chips with a little picture each. */
+.il-styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(6px * var(--k-dn, 1)); }
+.il-style { display: flex; flex-direction: column; align-items: center; gap: calc(5px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border: 0; border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent);
+  color: inherit; font-family: inherit; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 700; line-height: 1; cursor: pointer; transition: background .18s ease, box-shadow .18s ease, transform .18s ease; }
+.il-style:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.il-style:active { transform: scale(.96); }
+.il-style.sel { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(13% * var(--k-ia, 1))), transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.il-sw-pill, .il-sw-notch { position: relative; display: block; width: 48px; height: 26px; border-radius: 7px; overflow: hidden;
+  background: linear-gradient(135deg, #5c8cdb, #ed9e7a); }
+.il-sw-pill b { position: absolute; left: 7px; right: 7px; top: 8px; height: 10px; border-radius: 99px; background: var(--bg); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .25); transition: background .3s ease; }
+.il-sw-pill.s-gradient b { background: linear-gradient(90deg, var(--bg), var(--bg2)); }
+.il-sw-pill.s-glass b { background: var(--glassbg); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); box-shadow: inset 0 0 0 .6px rgba(255, 255, 255, .5); }
+.il-sw-pill.s-outline b { box-shadow: inset 0 0 0 1.3px var(--edge); }
+.il-sw-pill.s-glow b { box-shadow: 0 0 6px var(--edge), inset 0 0 0 1px var(--edge); }
+.il-sw-notch::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: rgba(246, 246, 248, .85); }
+.il-sw-notch b { position: absolute; left: 50%; top: 0; width: 16px; height: 6px; margin-left: -8px; background: #000; border-radius: 0 0 3px 3px; }
+.il-sw-notch.s-drop b::after { content: ""; position: absolute; left: -7px; top: 5px; width: 30px; height: 7px; border-radius: 99px; background: var(--nfill, #000);
+  box-shadow: inset 0 3px 2px -1px #000; }
+.il-sw-notch.s-slim b { width: 26px; margin-left: -13px; border-radius: 0 0 4px 4px; background: linear-gradient(90deg, var(--nfill, #000) 18%, #000 30% 70%, var(--nfill, #000) 82%); }
+.il-sw-notch.s-halo b { box-shadow: 0 0 0 1px var(--glow), 0 0 6px var(--glow); }
+.il-hint { margin: 7px 2px 10px; min-height: 15px; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+
+.il-sec { padding: calc(10px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.il-sec em { display: block; margin-top: 3px; font-style: normal; font-weight: 600; font-size: calc(11px * var(--k-fs, 1)); letter-spacing: 0; text-transform: none; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+/* Which colour the picker edits: Background or Accent, each with a dot of its colour (empty: the look's own). */
+.il-seg.il-tgt { display: flex; margin: 0 calc(2px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.il-seg.il-tgt button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: calc(6px * var(--k-dn, 1)); }
+.il-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 1.2px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.il-cols { display: grid; grid-template-columns: repeat(8, 1fr); gap: calc(7px * var(--k-dn, 1)); justify-items: center; padding: 0 calc(2px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.il-cols button { width: 28px; height: 28px; padding: 0; border-radius: 50%; cursor: pointer; background: var(--sw); border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  transition: transform .16s ease, box-shadow .2s ease, border-color .2s ease; }
+.il-cols button:hover { transform: scale(1.1); }
+.il-cols button:active { transform: scale(.92); }
+.il-cols button.sel { border-color: var(--k-fg, #FFFFFF); box-shadow: 0 0 0 2px var(--k-surface, #161016), 0 0 0 4px var(--k-fg, #FFFFFF); }
+.il-cols .il-auto { background: var(--k-surface, #241C24) linear-gradient(135deg, transparent 46%, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent) 46% 54%, transparent 54%); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); }
+.il-custom { display: grid; grid-template-columns: auto minmax(0, 1fr) 76px; align-items: center; gap: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); padding: calc(2px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.il-l { font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+.il-range { -webkit-appearance: none; appearance: none; width: 100%; height: 12px; margin: 0; border-radius: calc(99px * var(--k-rd, 1)); cursor: pointer; outline: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(15% * var(--k-ia, 1))), transparent); }
+.il-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00); }
+.il-shade { background: linear-gradient(90deg, var(--a), var(--b), var(--c)); }
+.il-range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--sw); border: 3px solid var(--k-fg, #FFFFFF); box-shadow: 0 1px 6px rgba(0, 0, 0, .5); cursor: grab; }
+.il-range:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(15% * var(--k-ia, 1))), transparent), 0 0 0 2px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+.il-hex { width: 100%; box-sizing: border-box; padding: calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); color: inherit;
+  font: 600 calc(12px * var(--k-fs, 1))/1.2 var(--k-mono, ui-monospace, SFMono-Regular, Menlo, monospace); outline: none; }
+.il-hex:focus { border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.il-now { justify-self: center; width: 22px; height: 22px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent); transition: background .2s ease; }
+
+.il-opts { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)); border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.il-seg { display: inline-flex; padding: calc(2px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.il-seg button { border: 0; padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(8px * var(--k-rd, 1)); background: none; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); font-family: inherit; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 700; line-height: 1; cursor: pointer; transition: background .2s ease, color .2s ease; }
+.il-seg button.sel { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(90% * var(--k-ia, 1))), transparent); color: var(--k-surface, #17121A); }
+.il-sw { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)); border: 0; background: none; color: inherit;
+  font-family: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; line-height: 1.2; cursor: pointer; text-align: left; }
+.il-sw i { flex: none; position: relative; width: 34px; height: 20px; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); transition: background .2s ease; }
+.il-sw i b { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--k-fg, #FFFFFF); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: transform .28s cubic-bezier(.22, 1.3, .36, 1); }
+.il-sw.on i { background: var(--k-acc, #EC4E86); }
+.il-sw.on i b { transform: translateX(14px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .il-ed, .il-menu-main { animation: none; }
+  .il-stage, .il-pill, .tm-isl-menu { transition: none; }
+  .il-stage.away :is(.il-pill, .il-notch-svg, .il-nc) { translate: none; }
+}
+
+/* The light Tab list. */
+.tm-light-on .il-editbtn { border-color: rgba(0, 0, 0, .2); background: rgba(0, 0, 0, .04); color: rgba(0, 0, 0, .75); }
+.tm-light-on .il-editbtn:hover { background: rgba(0, 0, 0, .08); color: #000; }
+.tm-light-on :is(.il-back, .il-style, .il-seg) { background: rgba(0, 0, 0, .05); }
+.tm-light-on .il-style.sel { background: rgba(0, 0, 0, .07); box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, .55); }
+.tm-light-on :is(.il-hint, .il-sec, .il-sec em, .il-l, .il-reset) { color: rgba(0, 0, 0, .55); }
+.tm-light-on :is(.il-sec, .il-opts) { border-top-color: rgba(0, 0, 0, .08); }
+.tm-light-on .il-seg button { color: rgba(0, 0, 0, .65); }
+.tm-light-on .il-seg button.sel { background: #17121a; color: #fff; }
+.tm-light-on .il-hex { border-color: rgba(0, 0, 0, .18); background: rgba(0, 0, 0, .03); }
+.tm-light-on .il-note { color: #7a5a00; background: rgba(255, 190, 0, .16); }
+.tm-light-on .il-cols button.sel { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #17121a; }
+.tm-light-on .il-cols button { border-color: rgba(0, 0, 0, .14); }
+
+/* The Notebook looks (views/notebook.css): the editor takes the page's own inks, light paper or chalkboard. */
+html[data-nb] .il-editbtn { border-color: var(--nb-ink-3); background: transparent; color: var(--nb-ink); }
+html[data-nb] .il-editbtn:hover { background: var(--nb-hi); }
+html[data-nb] :is(.il-back, .il-style, .il-seg) { background: var(--nb-hi); color: var(--nb-ink); }
+html[data-nb] .il-style.sel { box-shadow: inset 0 0 0 1.5px var(--nb-ink-2); }
+html[data-nb] :is(.il-hint, .il-sec, .il-sec em, .il-l, .il-reset, .il-seg button) { color: var(--nb-ink-2); }
+html[data-nb] :is(.il-sec, .il-opts) { border-top-color: var(--nb-ink-4); }
+html[data-nb] .il-seg button.sel { background: var(--nb-ink); color: var(--nb-card); }
+html[data-nb] .il-hex { background: transparent; color: var(--nb-ink); border-color: var(--nb-ink-3); }
+html[data-nb] .il-cols button { border-color: var(--nb-ink-3); }
+html[data-nb] .il-cols button.sel { box-shadow: 0 0 0 2px var(--nb-card), 0 0 0 4px var(--nb-ink); }
+html[data-nb] .il-cols .il-auto { background: var(--nb-paper) linear-gradient(135deg, transparent 46%, var(--nb-ink-2) 46% 54%, transparent 54%); }
+html[data-nb] .il-ed-t { font-family: var(--nb-hand); font-weight: 400; font-size: 20px; }

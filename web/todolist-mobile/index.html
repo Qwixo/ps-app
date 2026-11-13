@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#0D0A0E" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="PS app" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>PS app</title>
+    <!--psm-head: scripts/postbuild.mjs puts the manifest and icons here (they live at /todolist-mobile/, outside the build)-->
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>PS app needs JavaScript to decrypt your list on this phone.</noscript>
+    <script type="module" src="/src/mobile/main.tsx"></script>
+  </body>
+</html>

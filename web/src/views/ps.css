@@ -1,0 +1,26 @@
+/* PS open pill in the website top bar: desktop only (PS is a Mac app). */
+@media (max-width: 760px) { .cv-psopen { display: none; } }
+
+/* PS Mac app: Tab switch, overlay controls (top right), locked card, unlock screen, banner. */
+.ps-tab { gap: calc(6px * var(--k-dn, 1)); }
+.ps-tab-key { font: 700 calc(11px * var(--k-fs, 1))/1 var(--k-mono, ui-monospace, SFMono-Regular, Menlo, monospace); padding: calc(3px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(6px * var(--k-rd, 1)); border: 1.5px solid currentColor; }
+.btn.ps-tab:not(.on) { color: var(--muted); }
+.btn.ps-tab.on { color: var(--pink-d); }
+.ps-ovl-ctl { position: fixed; top: 22px; right: 26px; z-index: 95; display: flex; gap: calc(10px * var(--k-dn, 1)); }
+.ps-ovl-btn { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(9px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer;
+  font: 650 calc(14px * var(--k-fs, 1))/1 inherit; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent); }
+.ps-ovl-btn:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); }
+.ps-ovl-btn.ps-tab:not(.on) { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.ps-locked { display: grid; gap: calc(14px * var(--k-dn, 1)); justify-items: start; margin-top: 12vh; padding: calc(28px * var(--k-dn, 1)); border-radius: calc(24px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); width: min(420px, 100%); }
+.ps-locked-t { margin: 0; font-size: calc(40px * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.03em; color: var(--k-fg, #FFFFFF); }
+.ps-locked-acts { display: flex; flex-wrap: wrap; gap: calc(10px * var(--k-dn, 1)); margin-top: 4px; }
+.ps-locked-upd { justify-self: stretch; min-width: 280px; margin-top: 2px; }   /* the update row on a signed out list (6 Nov 2026) */
+.ps-ovl-btn.primary { background: linear-gradient(180deg, var(--k-acc-t, #F472A8), var(--k-acc, #EC4E86)); border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); }
+.ps-ovl-btn.primary:hover { background: linear-gradient(180deg, var(--k-acc-t, #F78DB9), var(--k-acc, #F06A9A)); }
+.ps-unlock { display: grid; gap: calc(14px * var(--k-dn, 1)); justify-items: start; }
+.ps-banner { justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
+
+.ps-ovl-ctl.inline { position: static; }
+/* PS's floating list: macOS already blurs what is behind the window, so skip the page's own blur. */
+.ps-overlay .tm-overlay { backdrop-filter: none; -webkit-backdrop-filter: none; }

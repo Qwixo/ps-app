@@ -1,0 +1,169 @@
+/* The welcome tour (views/Welcome.tsx, G Squad): the What's new card's look (whatsnew.css .wn-card), a little wider,
+   with a progress bar, one page per feature that slides in from the side it was asked for, a big On and Off switch
+   and a summary with small switches. Only transform and opacity ever animate. */
+.wt-layer { position: fixed; inset: 0; z-index: 2147483100; display: grid; place-items: center; padding: calc(16px * var(--k-dn, 1)); box-sizing: border-box; pointer-events: auto;
+  font-family: var(--k-font, "Inter Variable", Inter, system-ui, -apple-system, sans-serif); }
+.wt-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--k-base, #0B070A) 62%, transparent); animation: wn-fade .32s ease both; }
+.wt-card.wn-card { width: min(540px, 100%); overflow: hidden; gap: calc(14px * var(--k-dn, 1)); padding: calc(20px * var(--k-dn, 1)) calc(24px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); }
+.wt-layer.out .wt-dim { animation: wn-unfade .26s ease both; }
+.wt-layer.out .wt-card { animation: wn-sink .26s cubic-bezier(.4, 0, .7, .2) both; }
+
+/* Progress: a bar that grows (scaleX, never width) and "35% done", "12 left". */
+.wt-prog { display: grid; gap: calc(6px * var(--k-dn, 1)); animation: wn-text .4s .05s cubic-bezier(.2, .9, .3, 1) both; }
+.wt-bar { position: relative; height: 6px; border-radius: calc(99px * var(--k-rd, 1)); overflow: hidden; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.wt-bar i { position: absolute; inset: 0; transform-origin: 0 50%; border-radius: inherit;
+  background: linear-gradient(90deg, var(--k-acc, #EC4E86), var(--k-acc-t, #FF9CC0)); box-shadow: 0 0 14px color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent);
+  transition: transform .55s cubic-bezier(.2, 1, .3, 1); }
+.wt-prog-t { display: flex; justify-content: space-between; font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.wt-prog-t b { font-weight: 750; color: var(--k-acc-t, #FF9CC0); }
+
+/* The page: each step is a new element that slides in (forwards from the right, back from the left). */
+.wt-stage { position: relative; min-height: calc(286px * var(--k-dn, 1)); display: grid; }
+.wt-card.intro .wt-stage { min-height: 0; }
+.wt-page { display: grid; align-content: start; animation: wt-in-fwd .42s cubic-bezier(.2, 1.05, .3, 1) both; }
+.wt-page.back { animation-name: wt-in-back; }
+.wt-intro, .wt-feat, .wt-sum { display: grid; gap: calc(10px * var(--k-dn, 1)); align-content: start; }
+.wt-intro { justify-items: start; padding-top: calc(4px * var(--k-dn, 1)); }
+.wt-orb { width: 52px; height: 52px; border-radius: calc(99px * var(--k-rd, 1)); display: grid; place-items: center; color: var(--k-acc-t, #FF9CC0);
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent);
+  animation: wn-pop .55s .08s cubic-bezier(.3, 1.6, .5, 1) both; }
+.wt-h { margin: 0; font-size: calc(22px * var(--k-fs, 1)); line-height: 1.2; font-weight: 820; letter-spacing: -.015em; animation: wn-text .45s .08s cubic-bezier(.2, .9, .3, 1) both; }
+.wt-body { margin: 0; font-size: calc(14px * var(--k-fs, 1)); line-height: 1.55; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(84% * var(--k-ia, 1))), transparent);
+  animation: wn-text .45s .14s cubic-bezier(.2, .9, .3, 1) both; }
+
+/* What it is, what it does, how it helps: three soft rows that come in one after the other. */
+.wt-rows { margin: calc(2px * var(--k-dn, 1)) 0 0; display: grid; gap: calc(8px * var(--k-dn, 1)); }
+.wt-rows > div { display: grid; gap: calc(2px * var(--k-dn, 1)); padding: calc(9px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent);
+  animation: wn-item .45s calc(.12s + var(--i, 0) * .07s) cubic-bezier(.2, 1.1, .35, 1) both; }
+.wt-rows dt { font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .05em; text-transform: uppercase; color: var(--k-acc-t, #FF9CC0); }
+.wt-rows dd { margin: 0; font-size: calc(13.5px * var(--k-fs, 1)); line-height: 1.5; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(88% * var(--k-ia, 1))), transparent); }
+
+/* The big switch: Off, a knob that slides, On. */
+.wt-sw-row { display: grid; justify-items: start; gap: calc(6px * var(--k-dn, 1)); padding-top: calc(4px * var(--k-dn, 1)); animation: wn-item .45s .34s cubic-bezier(.2, 1.1, .35, 1) both; }
+.wt-sw { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  font-size: calc(13px * var(--k-fs, 1)); font-weight: 750; }
+.wt-sw-l { transition: opacity .2s ease, color .2s ease; opacity: .45; }
+.wt-sw:not(.on) .wt-sw-l:first-child, .wt-sw.on .wt-sw-l:last-child { opacity: 1; }
+.wt-sw.on .wt-sw-l:last-child { color: var(--k-acc-t, #FF9CC0); }
+.wt-sw-k { position: relative; width: 52px; height: 30px; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); overflow: hidden; }
+.wt-sw-k::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(135deg, var(--k-acc, #EC4E86), var(--k-acc, #C8366B));
+  opacity: 0; transition: opacity .25s ease; }
+.wt-sw-k i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: calc(99px * var(--k-rd, 1)); background: var(--k-fg, #FFFFFF); box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
+  transition: transform .32s cubic-bezier(.3, 1.5, .5, 1); }
+.wt-sw.on .wt-sw-k::before { opacity: 1; }
+.wt-sw.on .wt-sw-k i { transform: translateX(22px); }
+.wt-sw:active .wt-sw-k i { transform: scaleX(1.15); }
+.wt-sw.on:active .wt-sw-k i { transform: translateX(19px) scaleX(1.15); }
+.wt-sw:focus-visible { outline: 2px solid color-mix(in srgb, var(--k-acc-t, #FF9CC0) 70%, transparent); outline-offset: 2px; }
+.wt-note, .wt-info { margin: 0; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.wt-info { padding-top: calc(4px * var(--k-dn, 1)); font-weight: 650; animation: wn-item .45s .34s cubic-bezier(.2, 1.1, .35, 1) both; }
+
+/* Buttons: Back and Skip quiet on the left, the main one on the right. */
+.wt-foot { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding-top: calc(4px * var(--k-dn, 1)); }
+.wt-gap { flex: 1; }
+.wt-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(9px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1));
+  border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 760; transition: transform .18s cubic-bezier(.3, 1.5, .5, 1), opacity .2s ease, background-color .2s ease; }
+.wt-btn.ghost { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(74% * var(--k-ia, 1))), transparent); }
+.wt-btn.ghost:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.wt-btn.go { padding-inline: calc(24px * var(--k-dn, 1)); color: var(--k-on-acc, #FFFFFF); background: linear-gradient(135deg, var(--k-acc, #EC4E86), var(--k-acc, #C8366B));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--k-acc, #C8366B) 40%, transparent); }
+.wt-btn:hover:not(:disabled) { transform: translateY(-1px) scale(1.03); }
+.wt-btn:active:not(:disabled) { transform: scale(.95); }
+.wt-btn:disabled { cursor: default; opacity: .5; }
+.wt-btn.go:disabled { opacity: 1; }
+.wt-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--k-acc-t, #FF9CC0) 70%, transparent); outline-offset: 3px; }
+.wt-btn.create.created, .wt-btn.create.out { background: linear-gradient(135deg, var(--k-ok, #2FB872), var(--k-ok, #1E9A5B)); box-shadow: 0 10px 26px color-mix(in srgb, var(--k-ok, #2FB872) 40%, transparent); animation: wt-done .5s cubic-bezier(.3, 1.6, .5, 1) both; }
+.wt-spin { width: 14px; height: 14px; border-radius: calc(99px * var(--k-rd, 1)); border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent); border-top-color: var(--k-fg, #FFFFFF); animation: wt-spin .7s linear infinite; }
+.wt-tick path { stroke-dasharray: 20; stroke-dashoffset: 20; animation: wt-draw .4s .05s ease-out forwards; }
+
+/* Settings, General: the entry (What's new's look, .wn-entry). */
+.wt-entry { margin-top: calc(6px * var(--k-dn, 1)); }
+
+@keyframes wt-in-fwd { from { opacity: 0; transform: translate3d(34px, 0, 0); } }
+@keyframes wt-in-back { from { opacity: 0; transform: translate3d(-34px, 0, 0); } }
+@keyframes wt-spin { to { transform: rotate(360deg); } }
+@keyframes wt-draw { to { stroke-dashoffset: 0; } }
+@keyframes wt-done { 0% { transform: scale(.9); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .wt-dim, .wt-page, .wt-orb, .wt-h, .wt-body, .wt-rows > div, .wt-sw-row, .wt-info, .wt-sec, .wt-prog, .wt-layer.out .wt-dim, .wt-layer.out .wt-card, .wt-btn.create { animation: none; }
+  .wt-bar i, .wt-sw-k i, .wt-sw-k::before, .wt-btn { transition: none; }
+  .wt-tick path { animation: none; stroke-dashoffset: 0; }
+}
+
+/* V1.40 setup menu: two columns (the card, and the drawing of where it lives), wider. */
+.wt-card.wn-card.two { width: min(940px, 100%); }
+.wt-card.wn-card.sum { width: min(720px, 100%); }
+.wt-body-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(20px * var(--k-dn, 1)); align-items: start; min-height: 0; }
+.wt-card.two .wt-body-grid { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+.wt-stage { max-height: calc(100vh - 200px); overflow: auto; overscroll-behavior: contain; padding-right: calc(2px * var(--k-dn, 1)); }
+.wt-side { display: grid; gap: calc(8px * var(--k-dn, 1)); position: sticky; top: 0; animation: wn-item .5s .1s cubic-bezier(.2, 1.1, .35, 1) both; }
+.wt-where { margin: 0; display: grid; gap: calc(2px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); }
+.wt-where b { font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .05em; text-transform: uppercase; color: var(--k-acc-t, #FF9CC0); }
+.wt-prog-t { align-items: center; gap: calc(10px * var(--k-dn, 1)); }
+.wt-prog-t span { margin-left: auto; }
+.wt-end { all: unset; cursor: pointer; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 650; text-decoration: underline; text-underline-offset: 2px;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.wt-end:hover { color: var(--k-acc-t, #FF9CC0); }
+/* The If on / If off row that matches the switch lights up. */
+.wt-rows > div { transition: box-shadow .25s ease, background-color .25s ease; }
+.wt-rows > div.hl { background: color-mix(in srgb, var(--k-acc, #EC4E86) min(100%, calc(12% * var(--k-ia, 1))), transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); }
+
+/* A Mac permission, given right here. */
+.wt-perm { display: grid; gap: calc(8px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-info, #60A5FA) min(100%, calc(9% * var(--k-ia, 1))), transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-info, #60A5FA) 32%, transparent);
+  animation: wn-item .45s .3s cubic-bezier(.2, 1.1, .35, 1) both; }
+.wt-perm.done { background: color-mix(in srgb, var(--k-ok, #34D399) min(100%, calc(10% * var(--k-ia, 1))), transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-ok, #34D399) 40%, transparent); }
+.wt-perm-h { font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 780; }
+.wt-perm dl { margin: 0; display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.wt-perm dt { font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .05em; text-transform: uppercase; color: var(--k-info, #60A5FA); }
+.wt-perm dd { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(86% * var(--k-ia, 1))), transparent); }
+.wt-perm-foot { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); flex-wrap: wrap; }
+.wt-perm-st { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; }
+.wt-perm-st.done { color: var(--k-ok, #34D399); }
+.wt-perm-st.waiting { color: var(--k-warn, #FBBF24); }
+.wt-perm-st.denied, .wt-perm-st.missing { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.wt-warn { margin: 0; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.45; color: var(--k-warn, #FBBF24); }
+.wt-btn.sm { padding: calc(7px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); }
+.wt-btn.danger { color: var(--k-bad, #FF5A5A); }
+
+/* The summary: every choice by section; a click goes back to its card. */
+.wt-list { display: grid; gap: calc(10px * var(--k-dn, 1)); max-height: calc(340px * var(--k-dn, 1)); overflow: auto; padding-right: calc(4px * var(--k-dn, 1)); }
+.wt-sec { display: grid; grid-template-columns: 1fr 1fr; gap: calc(4px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); animation: wn-item .4s .1s cubic-bezier(.2, 1.1, .35, 1) both; }
+.wt-sec h3 { grid-column: 1 / -1; margin: 0; font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--k-acc-t, #FF9CC0); }
+.wt-li { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: baseline; gap: calc(6px * var(--k-dn, 1)); min-width: 0; padding: calc(5px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1));
+  border-radius: calc(10px * var(--k-rd, 1)); font-size: calc(12.5px * var(--k-fs, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent);
+  transition: background-color .2s ease; }
+.wt-li:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.wt-li span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wt-li b { flex: none; font-weight: 720; max-width: 50%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wt-li em { flex: none; font-style: normal; font-size: calc(10px * var(--k-fs, 1)); font-weight: 750; color: var(--k-acc-t, #FF9CC0); }
+.wt-li.moved b { color: var(--k-acc-t, #FF9CC0); }
+/* Example tasks: delete them all (with Undo), or keep them. */
+.wt-ex { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); flex-wrap: wrap; padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.wt-ex > span { flex: 1; min-width: 180px; display: grid; gap: calc(1px * var(--k-dn, 1)); }
+.wt-ex b { font-size: calc(13px * var(--k-fs, 1)); font-weight: 750; }
+.wt-ex em { font-style: normal; font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(64% * var(--k-ia, 1))), transparent); }
+
+.wt-layer { transition: none; }
+.wt-layer .wt-dim { transition: opacity .35s ease; }
+
+@media (max-width: 760px) {
+  .wt-card.two .wt-body-grid { grid-template-columns: minmax(0, 1fr); }
+  .wt-side { position: static; order: -1; }
+  .wt-sec { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .wt-side, .wt-perm, .wt-sec { animation: none; } .wt-rows > div { transition: none; } }
+
+
+/* V1.43: an optional permission in a shorter box; G Squad's sharing switches; the Appearance card's button. */
+.wt-perm.compact { gap: calc(6px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.wt-perm.compact dl { gap: calc(4px * var(--k-dn, 1)); }
+.wt-share { border-radius: calc(14px * var(--k-rd, 1)); padding: calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent);
+  animation: wn-item .45s .26s cubic-bezier(.2, 1.1, .35, 1) both; }
+.wt-share .gs-share { padding-top: 0; }
+.wt-open-row { display: flex; animation: wn-item .45s .26s cubic-bezier(.2, 1.1, .35, 1) both; }
+.wt-open { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
+@media (prefers-reduced-motion: reduce) { .wt-share, .wt-open-row { animation: none; } }

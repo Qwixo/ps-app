@@ -1,0 +1,239 @@
+/* Tab list, top left: time zone clocks, the next clock change, and each zone's pop-out card (with its converter). */
+.tm-clocks {
+  --ck: 1;
+  position: absolute; left: 24px; top: 20px; z-index: 2; width: calc(300px * var(--ck)); max-height: calc(100vh - 40px);
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  display: grid; gap: calc(12px * var(--ck)); padding: calc(14px * var(--ck)) calc(16px * var(--ck));
+  border-radius: calc(18px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, .6); contain: layout paint;
+}
+.tm-clocks::-webkit-scrollbar { display: none; }
+.tm-panel-h { font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); }
+.tm-ck-head { display: flex; align-items: center; justify-content: space-between; gap: calc(10px * var(--k-dn, 1)); }
+.tm-ck-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(10px * var(--ck)); }
+.tm-ck {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: calc(10px * var(--ck)); align-items: center;
+}
+.tm-ck-face { grid-row: 1 / span 2; width: calc(56px * var(--ck)); height: calc(56px * var(--ck)); overflow: visible; }   /* bigger (the developer, 18 Oct 2026) */
+.tm-ck-face .ck-rim { fill: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); stroke-width: 1.1; }
+.tm-ck.you .ck-rim { stroke: var(--k-acc, #EC4E86); fill: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); }
+.tm-ck-face .ck-mark { stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); stroke-width: 1.1; stroke-linecap: round; }
+.tm-ck-face line.ck-h, .tm-ck-face line.ck-m, .tm-ck-face line.ck-s { transform-box: view-box; transform-origin: 0 0; stroke-linecap: round; }   /* turn around the hands group's 0,0, the face's centre (V1.47) */
+.tm-ck-face .ck-h { stroke: var(--k-fg, #FFFFFF); stroke-width: 2.6; }
+.tm-ck-face .ck-m { stroke: var(--k-fg, #FFFFFF); stroke-width: 1.7; }
+.tm-ck-face .ck-s { stroke: var(--k-acc, #EC4E86); stroke-width: .9; transition: transform .28s cubic-bezier(.4, 2.2, .5, 1); }
+.tm-ck-face .ck-dot { fill: var(--k-acc, #EC4E86); }
+.tm-ck-n { font-size: calc(calc(13.5px * var(--ck)) * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm-ck.you .tm-ck-n { color: var(--k-acc-t, #F49BBE); }
+.tm-ck-t { grid-column: 3; grid-row: 1 / span 2; white-space: nowrap; font-size: calc(calc(22px * var(--ck)) * var(--k-fs, 1)); font-weight: 800; letter-spacing: -.01em; }
+.tm-ck-g { grid-column: 2; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: calc(calc(12.5px * var(--ck)) * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+
+.tm-dst { display: grid; gap: calc(6px * var(--k-dn, 1)); padding-top: calc(10px * var(--ck)); border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.tm-dst p { margin: 0; font-size: calc(calc(13px * var(--ck)) * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); }
+.tm-dst b { color: var(--k-fg, #FFFFFF); }
+.tm-dst-list { display: flex; flex-wrap: wrap; gap: calc(4px * var(--k-dn, 1)); margin-top: 4px; }
+.tm-dst-gap { display: inline-block; padding: calc(1px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); color: var(--k-acc-t, #F7A8C8); font-weight: 700; font-size: .95em; }
+.tm-dst-note { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent) !important; }
+
+/* the clock pill, and the panel that loops out of it on hover */
+.tm-ckdock { position: relative; display: grid; justify-items: start; gap: calc(8px * var(--k-dn, 1)); min-height: 0; }
+.tm-ckpill {
+  display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: default;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); font-size: calc(12.5px * var(--k-fs, 1)); white-space: nowrap;
+  transition: background .15s ease;
+}
+.tm-ckpill b { font-size: calc(14px * var(--k-fs, 1)); }
+.tm-ckpill span { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tm-ckdock.open .tm-ckpill { background: color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 50%, transparent); }
+.tm-ckdock .tm-clocks { transform-origin: 24px 0; animation: tm-loop .34s cubic-bezier(.18,1.25,.4,1) both; }
+@keyframes tm-loop {
+  from { opacity: 0; transform: scale(.55) rotate(-4deg); clip-path: circle(12% at 24px 0); }
+  60% { opacity: 1; }
+  to { opacity: 1; transform: none; clip-path: circle(150% at 24px 0); }
+}
+@media (max-width: 760px) { .tm-ckdock { display: none; } }
+@media (prefers-reduced-motion: reduce) { .tm-ckdock .tm-clocks { animation: none; } }
+
+/* hover a zone: its clock pops out to the right, then yours slides out next to it */
+.tm-ck { border-radius: calc(12px * var(--k-rd, 1)); margin: 0 -6px; padding: calc(2px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); transition: background .15s ease; }
+.tm-ck:not(.you):hover, .tm-ck.active { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); cursor: default; }
+.tm-cmp {
+  position: absolute; left: calc(100% + 14px); z-index: 5;
+  display: flex; align-items: flex-start; gap: calc(22px * var(--k-dn, 1)); padding: calc(24px * var(--k-dn, 1)) calc(28px * var(--k-dn, 1)); border-radius: calc(28px * var(--k-rd, 1));
+  background: var(--k-surface, #1B1219); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .75), 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent);
+  transform-origin: 0 0; animation: tm-cmp-in .32s cubic-bezier(.18,1.3,.4,1) backwards;
+}
+@keyframes tm-cmp-in { from { opacity: 0; transform: scale(.6) translateX(-18px); } 45% { opacity: 1; } }
+.tm-cmp-side { display: grid; justify-items: center; gap: calc(6px * var(--k-dn, 1)); min-width: 230px; }
+.tm-cmp-side.you { animation: tm-cmp-slide .34s cubic-bezier(.18,1.3,.4,1) .09s backwards; }
+.tm-cmp-gap { display: grid; justify-items: center; gap: calc(2px * var(--k-dn, 1)); color: var(--k-acc-t, #F7A8C8); animation: tm-cmp-slide .3s ease .05s backwards; }
+@keyframes tm-cmp-slide { from { opacity: 0; transform: translateX(-26px) scale(.8); } }
+.tm-cmp-gap b { font-size: calc(38px * var(--k-fs, 1)); font-weight: 850; color: var(--k-fg, #FFFFFF); }
+.tm-cmp-gap span { font-size: calc(15px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .03em; white-space: nowrap; }
+.tm-cmp-face { width: 210px; height: 210px; overflow: visible; filter: drop-shadow(0 10px 26px rgba(0, 0, 0, .45)); }
+.tm-cmp-face .ck-rim { fill: var(--k-base, #120B10); stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); stroke-width: .8; }
+.tm-cmp-side.you .ck-rim { stroke: var(--k-acc, #EC4E86); fill: var(--k-surface, #2A0F1E); }
+.tm-cmp-face .ck-mark { stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); stroke-width: .7; stroke-linecap: round; }
+.tm-cmp-face line.ck-h, .tm-cmp-face line.ck-m, .tm-cmp-face line.ck-s { transform-box: view-box; transform-origin: 0 0; stroke-linecap: round; }   /* turn around the hands group's 0,0, the face's centre (V1.47) */
+.tm-cmp-face .ck-h { stroke: var(--k-fg, #FFFFFF); stroke-width: 1.8; }
+.tm-cmp-face .ck-m { stroke: var(--k-fg, #FFFFFF); stroke-width: 1.1; }
+.tm-cmp-face .ck-s { stroke: var(--k-acc, #FF5A93); stroke-width: .5; transition: transform .28s cubic-bezier(.4, 2.2, .5, 1); }
+.tm-cmp-face .ck-dot { fill: var(--k-acc, #EC4E86); }
+.tm-cmp-n { margin-top: 8px; font-size: calc(16px * var(--k-fs, 1)); font-weight: 750; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); white-space: nowrap; }
+.tm-cmp-side.you .tm-cmp-n { color: var(--k-acc-t, #F49BBE); }
+.tm-cmp-t { font-size: calc(40px * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.01em; white-space: nowrap; }
+.tm-cmp-d { font-size: calc(15px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .tm-cmp, .tm-cmp-side.you, .tm-cmp-gap { animation: none; } }
+
+/* numbers on the big faces */
+.tm-cmp-face .ck-num { font-size: calc(4.5px * var(--k-fs, 1)); font-weight: 800; fill: var(--k-fg, #FFFFFF); font-family: inherit; font-variant-numeric: tabular-nums; }
+.tm-cmp-side.you .ck-num { fill: var(--k-fg, #FFE4EE); }
+/* a bridge over the gap, so the mouse can travel from the row onto the card */
+.tm-cmp::before { content: ""; position: absolute; right: 100%; top: 0; bottom: 0; width: 18px; }
+/* hover a clock: it grows, and the clients in that zone appear underneath */
+.tm-cmp-side { padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); transition: transform .22s cubic-bezier(.2,.9,.3,1), background .2s ease; cursor: default; }
+.tm-cmp-side:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); }
+.tm-cmp-side .tm-cmp-face { transition: transform .25s cubic-bezier(.2,.9,.3,1); }
+.tm-cmp-side:hover .tm-cmp-face { transform: scale(1.03); }
+.tm-cmp-gap { align-self: center; }
+/* the clients card: a separate small pop-up under the clock you are pointing at */
+.tm-cmp-side.hot { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); }
+.tm-cmp-sub {
+  position: absolute; top: calc(100% + 10px); min-width: 320px; max-width: 480px; z-index: 6;
+  display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1));
+  background: var(--k-surface, #1B1219); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .75); transform-origin: top center;
+  animation: tm-sub-in .26s cubic-bezier(.18,1.25,.4,1) .08s backwards;
+}
+.tm-cmp-sub.zone { left: 0; }
+.tm-cmp-sub.home { right: 0; }
+.tm-cmp-sub::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 12px; }  /* bridge from the card */
+@keyframes tm-sub-in { from { opacity: 0; transform: translateY(-8px) scale(.94); } }
+.tm-cmp-sub ul { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(6px * var(--k-dn, 1)); max-height: 260px; overflow-y: auto; scrollbar-width: thin; }
+.tm-cmp-sub li { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent);
+  font-size: calc(17px * var(--k-fs, 1)); font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.tm-cmp-sub li .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--k-acc, #EC4E86); box-shadow: 0 0 8px color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); }
+.tm-cmp-sub p { margin: 0; font-size: calc(15px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(65% * var(--k-ia, 1))), transparent); }
+/* The pop-up always stays on screen: TimeZones.tsx measures it (with the clients card under it)
+   and moves it up, or scales the whole card down a little on a small screen. */
+.tm-cmp { transform: scale(var(--fit, 1)); }
+.tm-cmp-face .ck-mark.min { stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent); stroke-width: .35; }
+/* While the clocks are open, their column sits above the task list, so the big pop-up is never
+   drawn under a row. */
+.tm-left:has(.tm-ckdock.open) { z-index: 30; }
+/* The big pop-up gets its own solid layer, so the task rows (which have layers of their own) can
+   never show through it. */
+.tm-overlay .tm-left .tm-cmp, .tm-overlay .tm-left .tm-cmp-sub { background: var(--k-surface, #1B1219); will-change: transform; isolation: isolate; }
+
+/* V1.36: the card's two clocks sit in their own row (the clients card hangs under them), and each
+   zone's converter sits on the right of the card, sliding out after your clock. */
+.tm-cmp-clocks { position: relative; display: flex; align-items: flex-start; gap: calc(22px * var(--k-dn, 1)); align-self: stretch; }
+.tm-cmp-clocks > .tm-cmp-sub { top: calc(100% + calc(24px * var(--k-dn, 1)) + 10px); }
+.tm-cv {
+  display: grid; align-content: start; gap: calc(10px * var(--k-dn, 1)); width: 276px; align-self: stretch;
+  padding-left: calc(22px * var(--k-dn, 1)); border-left: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+  animation: tm-cmp-slide .36s cubic-bezier(.18,1.3,.4,1) .16s backwards;
+}
+.tm-cv-head { display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--k-dn, 1)); min-height: 24px; margin-top: 2px; }
+.tm-cv-head .tm-panel-h { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the time box: big, with the zone's short name inside on the right */
+.tm-cv-in {
+  position: relative; display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); cursor: text;
+  border-radius: calc(16px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+  transition: border-color .18s ease, box-shadow .22s ease, background .18s ease;
+}
+.tm-cv-in:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.tm-cv-in:focus-within { border-color: var(--k-acc, #EC4E86); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); }
+.tm-cv-in.bad:focus-within { border-color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.tm-cv-in input {
+  flex: 1; min-width: 0; font: inherit; font-size: calc(26px * var(--k-fs, 1)); font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums;
+  color: var(--k-fg, #FFFFFF); background: transparent; border: 0; padding: 0; outline: none; caret-color: var(--k-acc, #EC4E86);
+}
+.tm-cv-in input::placeholder { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(28% * var(--k-ia, 1))), transparent); }
+.tm-cv-zone {
+  flex: none; padding: calc(3px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); border-radius: 999px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .08em;
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent); color: var(--k-acc-t, #F7A8C8);
+}
+/* the day: arrows either side, click the day itself for a calendar */
+.tm-cv-day { display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); }
+.tm-cv-step, .tm-cv-today {
+  flex: none; display: grid; place-items: center; height: 30px; border-radius: 999px; cursor: pointer; font: inherit; color: var(--k-fg, #FFFFFF);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, transform .2s cubic-bezier(.2,.9,.3,1), border-color .15s ease;
+}
+.tm-cv-step { width: 30px; padding: 0; }
+.tm-cv-step:hover, .tm-cv-today:hover { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); }
+.tm-cv-step:active { transform: scale(.9); }
+.tm-cv-today { height: 24px; padding: 0 calc(10px * var(--k-dn, 1)); font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 750; animation: tm-cv-pop .24s cubic-bezier(.2,.9,.3,1); }
+.tm-cv-date { position: relative; flex: 1; min-width: 0; display: grid; place-items: center; height: 30px; border-radius: calc(10px * var(--k-rd, 1)); cursor: pointer; transition: background .15s ease; }
+.tm-cv-date:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); }
+.tm-cv-date-l { display: inline-flex; align-items: baseline; gap: calc(6px * var(--k-dn, 1)); white-space: nowrap; animation: tm-cv-pop .22s cubic-bezier(.2,.9,.3,1); }
+.tm-cv-date-l b { font-size: calc(14px * var(--k-fs, 1)); font-weight: 750; }
+.tm-cv-date-l em { font-style: normal; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 700; color: var(--k-acc-t, #F7A8C8); }
+.tm-cv-date input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; color-scheme: dark; }
+/* the answer */
+.tm-cv-out { display: grid; gap: calc(6px * var(--k-dn, 1)); padding-top: calc(10px * var(--k-dn, 1)); border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); }
+.tm-cv-hint { margin: 0; font-size: calc(13.5px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.tm-cv-hint b { color: var(--k-fg, #FFFFFF); font-weight: 700; }
+.tm-cv-hint.bad { animation: tm-cv-pop .22s ease; }
+.tm-cv-src { font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); animation: tm-cv-pop .2s ease; }
+.tm-cv-hit {
+  display: grid; gap: calc(2px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent);
+  animation: tm-cv-pop .26s cubic-bezier(.2,.9,.3,1);
+}
+.tm-cv-t { font-size: calc(24px * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.01em; white-space: nowrap; }
+.tm-cv-hit.big .tm-cv-t { font-size: calc(34px * var(--k-fs, 1)); }
+.tm-cv-d { display: flex; flex-wrap: wrap; align-items: center; gap: calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); font-size: calc(13.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); }
+.tm-cv-tag { font-style: normal; padding: calc(1px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: 999px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; background: var(--k-acc, #EC4E86); color: var(--k-fg, #FFFFFF); }
+.tm-cv-tag.same { font-weight: 700; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.tm-cv-note { margin: 0; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; color: var(--k-acc-t, #F7A8C8); animation: tm-cv-pop .22s ease; }
+.tm-cv-which { margin-top: 2px; font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+@keyframes tm-cv-pop { from { opacity: 0; transform: translateY(5px) scale(.97); } }
+@media (prefers-reduced-motion: reduce) { .tm-cv, .tm-cv-hit, .tm-cv-src, .tm-cv-note, .tm-cv-date-l, .tm-cv-today, .tm-cv-hint.bad { animation: none; } }
+/* the phone: a finger dragged up or down the time box moves the time, so the box keeps the gesture */
+.tm-cv-in { touch-action: pan-x; }
+
+/* V1.47 (a friend's Mac with a "Larger text" display): your own clock reads "You" with your city under it, like
+   the other rows, instead of "You · Dubai (..." cut short, and the gap line never wraps. When the side column
+   has narrowed (a page under 1430 px: the column is 21% of it, 240 to 300 px) the faces and times get a little
+   smaller, so the names keep their room. */
+.tm-ck.you .tm-ck-g { color: color-mix(in srgb, var(--k-acc-t, #F49BBE) 80%, transparent); }
+@media (max-width: 1430px) {
+  .tm-left .tm-ck { column-gap: calc(8px * var(--ck)); }
+  .tm-left .tm-ck-face { width: calc(46px * var(--ck)); height: calc(46px * var(--ck)); }
+  .tm-left .tm-ck-t { font-size: calc(calc(19px * var(--ck)) * var(--k-fs, 1)); }
+  .tm-left .tm-ck-n { font-size: calc(calc(13px * var(--ck)) * var(--k-fs, 1)); }
+  .tm-left .tm-ck-g { font-size: calc(calc(12px * var(--ck)) * var(--k-fs, 1)); }
+}
+/* V1.47: a small page (a website window, or a Mac screen under 1024 x 640 points even after PS's zoom): the card
+   keeps its two clocks, the gap and the converter side by side but smaller, before TimeZones.tsx has to scale the
+   whole card down. Its clients card hangs under it as always, so the two never meet. */
+@media (max-width: 1240px), (max-height: 760px) {
+  .tm-cmp { gap: calc(16px * var(--k-dn, 1)); padding: calc(18px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)); }
+  .tm-cmp-clocks { gap: calc(14px * var(--k-dn, 1)); }
+  .tm-cmp-side { min-width: 170px; }
+  .tm-cmp-face { width: 160px; height: 160px; }
+  .tm-cmp-t { font-size: calc(30px * var(--k-fs, 1)); }
+  .tm-cmp-n { font-size: calc(14px * var(--k-fs, 1)); }
+  .tm-cmp-gap b { font-size: calc(30px * var(--k-fs, 1)); }
+  .tm-cmp-gap span { font-size: calc(13px * var(--k-fs, 1)); }
+  .tm-cv { width: 236px; padding-left: calc(16px * var(--k-dn, 1)); }
+  .tm-cv-in input { font-size: calc(22px * var(--k-fs, 1)); }
+  .tm-cmp-sub { min-width: 280px; }
+  .tm-cmp-sub li { font-size: calc(15px * var(--k-fs, 1)); }
+}
+/* V1.47: Create event, under the converted time (and a small one on each client in the clients card). */
+.tm-cv-ev {
+  justify-self: start; display: inline-flex; align-items: center; gap: calc(7px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: 999px;
+  font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; color: var(--k-fg, #FFFFFF); text-decoration: none; white-space: nowrap; cursor: pointer;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, border-color .15s ease, transform .2s cubic-bezier(.2,.9,.3,1); animation: tm-cv-pop .24s cubic-bezier(.2,.9,.3,1);
+}
+.tm-cv-ev:hover, .tm-cv-ev:focus-visible { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); outline: none; }
+.tm-cv-ev:active { transform: scale(.95); }
+.tm-cv-ev.sm { flex: none; margin-left: auto; padding: 0; width: 28px; height: 28px; justify-content: center; }
+.tm-cv-evs { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); }
+@media (prefers-reduced-motion: reduce) { .tm-cv-ev { animation: none; } }

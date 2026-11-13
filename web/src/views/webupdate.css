@@ -1,0 +1,8 @@
+/* The website's "New version, Reload" note (WebUpdateNote.tsx): quiet, never a pop up. */
+.wu-note { border: 0; cursor: pointer; color: var(--pink-d); background: var(--soft); animation: wu-in .32s cubic-bezier(.2, .9, .3, 1) both; }
+.wu-note.must { color: var(--warn); background: var(--warn-bg); }
+.wu-note:disabled { opacity: .7; cursor: default; }
+.wu-banner { justify-content: space-between; margin: 12px 0 0; }
+.wu-banner .btn { flex: none; }
+@keyframes wu-in { from { opacity: 0; transform: translateY(-3px) scale(.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .wu-note { animation: none; } }

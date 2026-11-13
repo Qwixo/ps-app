@@ -1,0 +1,11 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.jks
+*.keystore
+keystore.properties
+app/src/main/assets/client/
+release/
+.kotlin/
+.claude/settings.local.json

@@ -1,0 +1,329 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>PS app update</title>
+<!--
+  PS's update card and install screen (Sources/UpdateUI.swift). Built into the app, so it works even
+  when the web files are broken or missing. No network, no data: it only shows what PS hands it.
+  Every animation moves only transform and opacity (the GPU composites them, so they stay smooth at
+  120 Hz and nothing around them is redrawn). The self test checks both: it lists every running
+  animation's properties and compares frames pixel by pixel outside the elements marked data-anim.
+-->
+<style>
+  :root {
+    --pink: #EC4E86; --deep: #C8366B; --ink: #F6F1F4; --mute: rgba(246, 241, 244, .62);
+    --card: rgba(26, 22, 28, .94); --line: rgba(255, 255, 255, .08);
+    --ease: cubic-bezier(.2, .8, .2, 1); --out: cubic-bezier(.4, 0, 1, 1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: transparent; color: var(--ink); font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    -webkit-font-smoothing: antialiased; overflow: hidden; user-select: none; -webkit-user-select: none; cursor: default; }
+  button { font: inherit; border: 0; cursor: pointer; }
+  .hidden { display: none !important; }
+
+  /* ---------- the floating card ---------- */
+  /* --nh: the height of the update's notes (V1.40), set by offer() while the card is hidden, so it never jumps. */
+  #card { position: absolute; left: 20px; top: 14px; width: 360px; height: calc(118px + var(--nh, 0px)); border-radius: 18px;
+    background: var(--card); box-shadow: 0 0 0 .5px rgba(255,255,255,.12) inset, 0 14px 34px rgba(0,0,0,.42);
+    opacity: 0; transform: translateY(-14px) scale(.97); transition: opacity .32s var(--out), transform .32s var(--out); will-change: transform, opacity; }
+  #card.on { opacity: 1; transform: none; transition: opacity .42s var(--ease), transform .52s var(--ease); }
+  .ic { position: absolute; left: 16px; top: 18px; width: 40px; height: 40px; }
+  .ic .disc { position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(145deg, var(--pink), var(--deep)); box-shadow: 0 4px 14px rgba(236,78,134,.35); }
+  .ic svg { position: absolute; inset: 0; width: 40px; height: 40px; transition: opacity .25s, transform .35s var(--ease); }
+  .ic .ring { position: absolute; inset: -4px; opacity: 0; transition: opacity .3s; }
+  .ic .ring svg { width: 48px; height: 48px; inset: 0; animation: spin 1s linear infinite; }
+  #card.busy .ic .ring { opacity: 1; }
+  #card.drive .ic .arrow { animation: bob 1.4s var(--ease) infinite; }
+  .ic .check { opacity: 0; transform: scale(.4) rotate(-12deg); }
+  #card.done .ic .check { opacity: 1; transform: none; transition-delay: .08s; }
+  #card.done .ic .arrow, #card.err .ic .arrow { opacity: 0; transform: scale(.6); }
+  .ic .bang { opacity: 0; transform: scale(.4); }
+  #card.err .ic .bang { opacity: 1; transform: none; }
+  #card.err .ic .disc { background: linear-gradient(145deg, #F2994A, #D9534F); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(2px); } }
+
+  .tx { position: absolute; left: 70px; right: 16px; top: 17px; height: 40px; }
+  .swap { position: absolute; left: 0; right: 0; transition: opacity .22s, transform .3s var(--ease); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .swap.out { opacity: 0; transform: translateY(-5px); }
+  .swap.in0 { opacity: 0; transform: translateY(5px); transition: none; }
+  .t1 { top: 0; font-weight: 600; font-size: 14px; letter-spacing: -.1px; }
+  .t2 { top: 21px; color: var(--mute); font-size: 12px; }
+  .kw { color: var(--mute); font-weight: 500; }
+
+  .row { position: absolute; left: 70px; right: 16px; top: calc(70px + var(--nh, 0px)); height: 32px; transition: opacity .25s, transform .35s var(--ease); }
+  /* The update's approved notes (V1.40): plain lines under the title, text only. */
+  .notes { position: absolute; left: 70px; right: 16px; top: 64px; list-style: none; color: rgba(246, 241, 244, .86); font-size: 12px; line-height: 1.4; }
+  .notes li { position: relative; padding-left: 12px; margin-bottom: 4px; }
+  .notes li::before { content: ""; position: absolute; left: 0; top: 7px; width: 4px; height: 4px; border-radius: 50%; background: var(--pink); }
+  .notes:empty { display: none; }
+  /* V1.52: an update across several versions lists each version's notes under its name, newest first; the list
+     scrolls smoothly inside the card when it is long. */
+  .notes.grouped { max-height: 250px; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; padding-right: 4px; }
+  .notes.grouped::-webkit-scrollbar { width: 4px; } .notes.grouped::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 2px; }
+  .notes li.ver { padding-left: 0; margin: 8px 0 3px; font-weight: 650; font-size: 12px; color: var(--pink); }
+  .notes li.ver:first-child { margin-top: 0; }
+  .notes li.ver::before { display: none; }
+  #setuprow { left: 16px; display: flex; justify-content: flex-end; white-space: nowrap; }
+  #setuprow .btn.go { padding: 0 12px; }
+  .row.off { opacity: 0; transform: translateY(6px); pointer-events: none; }
+  .btn { height: 30px; padding: 0 14px; border-radius: 9px; background: rgba(255,255,255,.08); color: var(--ink); transition: transform .12s, opacity .2s; }
+  .btn:active { transform: scale(.96); }
+  .btn.go { background: linear-gradient(145deg, var(--pink), var(--deep)); font-weight: 600; box-shadow: 0 3px 10px rgba(236,78,134,.3); }
+  .row .btn + .btn { margin-left: 8px; }
+
+  .bar { position: absolute; left: 0; right: 0; top: 9px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.09); overflow: hidden; }
+  .fill { position: absolute; inset: 0; border-radius: 3px; background: linear-gradient(90deg, var(--pink), #FF8DB5); transform-origin: 0 50%; transform: scaleX(0); transition: transform .18s linear; will-change: transform; }
+  .sheen { position: absolute; top: 0; bottom: 0; width: 40%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); opacity: 0; transform: translateX(-100%); }
+  .bar.wait .sheen { opacity: 1; animation: sheen 1.25s var(--ease) infinite; }
+  @keyframes sheen { to { transform: translateX(260%); } }
+  .bytes { position: absolute; right: 0; top: 18px; font-size: 11px; color: var(--mute); font-variant-numeric: tabular-nums; }
+
+  /* ---------- the install screen ---------- */
+  body.install { background: #141116; }
+  #inst { position: absolute; inset: 0; overflow: hidden; }
+  .glow { position: absolute; width: 520px; height: 520px; left: 20px; top: -260px; border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(236,78,134,.28), rgba(236,78,134,0)); }
+  .page { position: absolute; inset: 0; padding: 54px 56px 0; transition: opacity .35s, transform .5s var(--ease); }
+  .page.away { opacity: 0; transform: translateX(-36px); pointer-events: none; }
+  .page.later { opacity: 0; transform: translateX(36px); pointer-events: none; }
+  .logo { width: 64px; height: 64px; border-radius: 18px; background: linear-gradient(145deg, var(--pink), var(--deep)); box-shadow: 0 10px 30px rgba(236,78,134,.38);
+    display: grid; place-items: center; font: 700 26px -apple-system; letter-spacing: -1px; animation: pop .7s var(--ease) both; }
+  @keyframes pop { from { opacity: 0; transform: scale(.7) translateY(8px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -.4px; margin-top: 22px; }
+  .lead { color: var(--mute); font-size: 14px; margin-top: 6px; }
+  .big { height: 38px; padding: 0 22px; border-radius: 11px; font-size: 14px; margin-top: 28px; }
+  .steps { list-style: none; margin-top: 28px; }
+  .steps li { position: relative; height: 50px; padding-left: 34px; }
+  .dot { position: absolute; left: 0; top: 2px; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255,255,255,.22) inset; }
+  .dot i { position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(145deg, var(--pink), var(--deep)); opacity: 0; transform: scale(.3); transition: opacity .3s, transform .45s var(--ease); }
+  .dot svg { position: absolute; inset: 0; opacity: 0; transform: scale(.5); transition: opacity .25s .1s, transform .4s .1s var(--ease); }
+  .dot .ring { position: absolute; inset: -3px; opacity: 0; transition: opacity .3s; }
+  .dot .ring svg { opacity: 1; transform: none; width: 26px; height: 26px; animation: spin 1s linear infinite; }
+  li.now .dot .ring { opacity: 1; }
+  li.done .dot i, li.done .dot svg { opacity: 1; transform: none; }
+  .st { font-size: 14px; font-weight: 500; transition: opacity .3s; opacity: .5; }
+  li.now .st, li.done .st { opacity: 1; }
+  .sd { position: absolute; left: 34px; right: 0; top: 22px; font-size: 12px; color: var(--mute); }
+  .steps .bar { left: 300px; right: 0; top: 8px; }
+  .steps li:not(.now) .bar { opacity: 0; }
+  .steps .bar { transition: opacity .3s; }
+  .perm { position: relative; height: 82px; margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.05); box-shadow: 0 0 0 .5px var(--line) inset; }
+  .perm .pn { font-weight: 600; font-size: 14px; }
+  .perm .pw { color: var(--mute); font-size: 12px; margin-top: 4px; width: 300px; }
+  .perm .btn { position: absolute; right: 16px; top: 24px; }
+  .perm .ok { position: absolute; right: 22px; top: 26px; width: 26px; height: 26px; opacity: 0; transform: scale(.4); transition: opacity .25s, transform .45s var(--ease); }
+  .perm.granted .ok { opacity: 1; transform: none; }
+  .perm.granted .btn { opacity: 0; pointer-events: none; }
+  .foot { position: absolute; left: 56px; right: 56px; bottom: 34px; height: 38px; }
+  .foot .big { margin-top: 0; }
+  /* "Where should your list live?" (V1.44 local first) */
+  #pStore .opt { position: relative; display: block; padding: 13px 16px 13px 46px; border-radius: 14px; margin-top: 12px; cursor: pointer; outline: none;
+    background: rgba(255,255,255,.04); box-shadow: 0 0 0 .5px rgba(255,255,255,.12) inset; transition: box-shadow .2s, background .2s; }
+  #pStore .opt:hover { background: rgba(255,255,255,.06); }
+  #pStore .opt:focus-visible { box-shadow: 0 0 0 2px rgba(236,78,134,.6) inset; }
+  #pStore .opt.sel { box-shadow: 0 0 0 1.5px #EC4E86 inset; }
+  #pStore .opt .radio { position: absolute; left: 16px; top: 15px; width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255,255,255,.3) inset; }
+  #pStore .opt .radio::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: #EC4E86; transform: scale(0); transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+  #pStore .opt.sel .radio::after { transform: scale(1); }
+  #pStore .opt b { font-size: 14px; font-weight: 600; }
+  #pStore .opt p { color: var(--mute); font-size: 12px; line-height: 1.45; margin-top: 3px; }
+  .foot .note { position: absolute; left: 150px; right: 0; top: 2px; font-size: 12px; color: var(--mute); }
+  .alldone { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; opacity: 0; transform: scale(.96); transition: opacity .4s, transform .6s var(--ease); pointer-events: none; }
+  .alldone.on { opacity: 1; transform: none; }
+  .alldone .logo { margin: 0 auto; }
+  /* The name field (V1.36): what the app is called in Applications, Finder and Launchpad. */
+  .nmf { display: block; margin-top: 22px; width: 340px; }
+  .nmf span { display: block; font-size: 12px; color: var(--mute); margin-bottom: 6px; }
+  .nmf input { width: 100%; height: 36px; padding: 0 12px; border-radius: 10px; border: 0; outline: 0; font: 500 14px -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--ink); background: rgba(255,255,255,.07); box-shadow: 0 0 0 1px var(--line) inset; user-select: text; -webkit-user-select: text; cursor: text; }
+  .nmf input:focus { box-shadow: 0 0 0 1.5px var(--pink) inset; }
+  .nme { height: 16px; margin-top: 6px; font-size: 12px; color: #F2857E; opacity: 0; transform: translateY(-3px); transition: opacity .2s, transform .3s var(--ease); }
+  .nme.on { opacity: 1; transform: none; }
+  #pWelcome .big { margin-top: 14px; }
+</style>
+</head>
+<body>
+<div id="card" data-anim>
+  <div class="ic">
+    <div class="disc"></div>
+    <div class="ring"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="2"/><path d="M24 2a22 22 0 0 1 22 22" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></div>
+    <svg class="arrow" viewBox="0 0 40 40"><path d="M20 11v15m-6-6 6 6 6-6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <svg class="check" viewBox="0 0 40 40"><path d="m12.5 20.5 5 5 10-11" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <svg class="bang" viewBox="0 0 40 40"><path d="M20 12v10" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="20" cy="27.5" r="1.7" fill="#fff"/></svg>
+  </div>
+  <div class="tx">
+    <div class="swap t1" id="t1a"></div><div class="swap t1 out" id="t1b"></div>
+    <div class="swap t2" id="t2a"></div><div class="swap t2 out" id="t2b"></div>
+  </div>
+  <ul class="notes" id="notes"></ul>
+  <div class="row" id="ask"><button class="btn go" data-id="install">Update now</button><button class="btn" data-id="later">Later</button></div>
+  <div class="row off" id="setuprow"><button class="btn go" data-id="setup">See what's new and set it up</button><button class="btn" data-id="notnow">Not now</button></div>
+  <div class="row off" id="okrow"><button class="btn" data-id="ok">OK</button></div>
+  <div class="row off" id="prog"><div class="bar" id="bar"><div class="fill" id="fill"></div><div class="sheen"></div></div><div class="bytes" id="bytes"></div></div>
+</div>
+
+<div id="inst" class="hidden">
+  <div class="glow"></div>
+  <section class="page" id="pWelcome" data-anim>
+    <div class="logo">PS</div>
+    <h1 id="wTitle">Install <span class="nm">PS app</span></h1>
+    <p class="lead" id="wLead">Everything it needs on this Mac, in about a minute.</p>
+    <label class="nmf"><span>Call it</span><input id="wName" maxlength="60" spellcheck="false" autocomplete="off" autocorrect="off" value="PS app"></label>
+    <div class="nme" id="wNameErr" role="alert"></div>
+    <button class="btn go big" data-id="start" id="wGo">Install</button>
+  </section>
+  <section class="page later" id="pSteps" data-anim>
+    <h1 style="margin-top:0">Installing <span class="nm">PS app</span></h1>
+    <ul class="steps">
+      <li id="sCopy"><span class="dot"><i></i><span class="ring"><svg viewBox="0 0 26 26"><path d="M13 2a11 11 0 0 1 11 11" fill="none" stroke="#EC4E86" stroke-width="2" stroke-linecap="round"/></svg></span><svg viewBox="0 0 20 20"><path d="m6 10.5 2.8 2.8L14.5 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="st">Copy to Applications</span><div class="bar"><div class="fill"></div></div><div class="sd"></div></li>
+      <li id="sBg"><span class="dot"><i></i><span class="ring"><svg viewBox="0 0 26 26"><path d="M13 2a11 11 0 0 1 11 11" fill="none" stroke="#EC4E86" stroke-width="2" stroke-linecap="round"/></svg></span><svg viewBox="0 0 20 20"><path d="m6 10.5 2.8 2.8L14.5 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="st">Get your list ready</span><div class="bar"><div class="fill"></div></div><div class="sd"></div></li>
+      <li id="sPerm"><span class="dot"><i></i><span class="ring"><svg viewBox="0 0 26 26"><path d="M13 2a11 11 0 0 1 11 11" fill="none" stroke="#EC4E86" stroke-width="2" stroke-linecap="round"/></svg></span><svg viewBox="0 0 20 20"><path d="m6 10.5 2.8 2.8L14.5 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="st">Permissions</span><div class="sd"></div></li>
+      <li id="sOpen"><span class="dot"><i></i><span class="ring"><svg viewBox="0 0 26 26"><path d="M13 2a11 11 0 0 1 11 11" fill="none" stroke="#EC4E86" stroke-width="2" stroke-linecap="round"/></svg></span><svg viewBox="0 0 20 20"><path d="m6 10.5 2.8 2.8L14.5 7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="st">Open <span class="nm">PS app</span></span><div class="sd"></div></li>
+    </ul>
+  </section>
+  <section class="page later" id="pPerms" data-anim>
+    <h1 style="margin-top:0">Two switches in System Settings</h1>
+    <p class="lead" id="permLead">Turn <span class="nm">PS app</span><span id="permHint"> (macOS may list it as PS app)</span> on in each, then come back here. The ticks appear by themselves.</p>
+    <div id="perms"></div>
+    <div class="foot"><button class="btn go big" data-id="finish" id="permGo">Open</button><div class="note" id="permNote"></div></div>
+  </section>
+  <!-- Local first (V1.44): asked once, on a Mac that never used PS. The page opens on the same choice. -->
+  <section class="page later" id="pStore" data-anim>
+    <h1 style="margin-top:0">Where should your list live?</h1>
+    <p class="lead">You can change this later, and nothing is lost when you do.</p>
+    <div class="opt sel" data-store="local" role="radio" aria-checked="true" tabindex="0"><span class="radio"></span><b>Keep everything on this Mac</b>
+      <p>No account and no Supabase. Your list is encrypted and stays on this Mac. Everything that does not need a server works.</p></div>
+    <div class="opt" data-store="sync" role="radio" aria-checked="false" tabindex="0"><span class="radio"></span><b>Sync with your own Supabase</b>
+      <p>Your list on your phone and your other Macs too. PS sets up a free Supabase project of your own in about two minutes. In a project that already holds your own app, PS stays in its own separate part and never touches your tables, functions or users.</p></div>
+    <div class="foot"><button class="btn go big" data-id="finish">Open</button></div>
+  </section>
+  <div class="alldone" id="pDone" data-anim><div><div class="logo">PS</div><h1>All set</h1><p class="lead">Opening <span class="nm">PS app</span>…</p></div></div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const send = (o) => { try { webkit.messageHandlers.up.postMessage(JSON.stringify(o)); } catch (e) {} };
+  // The Install click carries the name typed on the welcome page (V1.36); PS checks it and says what is wrong.
+  // Local first (V1.44): on a Mac that never used PS, Open on the permissions page first asks where the list lives;
+  // the last Open carries the answer ("local" or "sync") and PS opens on it.
+  let askStore = false, store = 'local';
+  const click = (id) => {
+    if (id === 'finish' && askStore && !$('pStore').classList.contains('on')) { $('pStore').classList.add('on'); window.__up.page('pStore'); return; }
+    send(id === 'start' ? { type: 'click', id, name: $('wName').value } : id === 'finish' && askStore ? { type: 'click', id, store } : { type: 'click', id });
+  };
+  document.addEventListener('click', (e) => {
+    const o = e.target.closest('[data-store]');
+    if (o) { store = o.dataset.store; document.querySelectorAll('#pStore .opt').forEach((x) => { x.classList.toggle('sel', x === o); x.setAttribute('aria-checked', String(x === o)); }); return; }
+    const b = e.target.closest('[data-id]'); if (b) click(b.dataset.id);
+  });
+  document.addEventListener('keydown', (e) => { const o = e.target.closest && e.target.closest('[data-store]'); if (o && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); o.click(); } });
+  // Every place that names the app follows the field as it is typed in.
+  const named = (n) => {
+    const s = n.trim() || '…';
+    document.querySelectorAll('.nm').forEach((e) => { e.textContent = s; });
+    $('permHint').hidden = s === 'PS app';   // macOS's own lists read the app's built in name (V1.49: PS app)
+  };
+  $('wName').addEventListener('input', () => { named($('wName').value); $('wNameErr').classList.remove('on'); });
+  $('wName').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); click('start'); } });
+
+  // Two stacked lines per text: the new words fade up while the old ones fade out (no reflow).
+  const shown = { t1: 'a', t2: 'a' };
+  function text(k, s) {
+    const cur = $(k + shown[k]), next = $(k + (shown[k] === 'a' ? 'b' : 'a'));
+    if (cur.textContent === s) return;
+    // "V1.07 · Wisdom": the keyword a little softer than the number (text nodes only, no HTML).
+    next.textContent = '';
+    const m = /^(.*?V\d+\.\d{2})( · [A-Za-z]+)(.*)$/.exec(s);
+    if (m) { const kw = document.createElement('span'); kw.className = 'kw'; kw.textContent = m[2]; next.append(m[1], kw, m[3]); }
+    else next.textContent = s;
+    next.className = 'swap ' + k + ' in0';
+    void next.offsetWidth;
+    next.className = 'swap ' + k;
+    cur.className = 'swap ' + k + ' out';
+    shown[k] = shown[k] === 'a' ? 'b' : 'a';
+  }
+  function row(id) { for (const r of ['ask', 'okrow', 'prog', 'setuprow']) $(r).classList.toggle('off', r !== id); }
+  // The notes (text only, never HTML) and the card's height with them; PS sizes its window to match (V1.40).
+  // V1.52: `groups` is [{title: "V1.51 · Healing", notes: [...]}] for an update across versions (newest first); a plain list
+  // stays as it was. At most 20 groups of 6 lines, every line cut to 220 characters, all of it text.
+  function notes(list, groups) {
+    const ul = $('notes');
+    const lines = (a) => (Array.isArray(a) ? a : []).filter((n) => typeof n === 'string' && n.trim()).slice(0, 6);
+    const li = (t, c) => { const e = document.createElement('li'); if (c) e.className = c; e.textContent = t.trim().slice(0, 220); return e; };
+    const gs = (Array.isArray(groups) ? groups : []).slice(0, 20).filter((g) => g && typeof g.title === 'string' && lines(g.notes).length);
+    ul.classList.toggle('grouped', gs.length > 1);
+    ul.scrollTop = 0;
+    ul.replaceChildren(...(gs.length > 1 ? gs.flatMap((g) => [li(g.title, 'ver'), ...lines(g.notes).map((n) => li(n))]) : lines(list).map((n) => li(n))));
+    const nh = ul.children.length ? Math.ceil(ul.getBoundingClientRect().height) + 8 : 0;
+    card.style.setProperty('--nh', nh + 'px');
+    send({ type: 'size', h: 118 + nh + 32 });
+  }
+  const card = $('card');
+  function state(c) { card.classList.remove('busy', 'drive', 'done', 'err'); if (c) card.classList.add(c); }
+
+  window.__up = {
+    show() { requestAnimationFrame(() => card.classList.add('on')); },
+    hide() { card.classList.remove('on'); },
+    offer(o) { state(''); notes(o.notes, o.groups); text('t1', o.title); text('t2', o.sub || ''); row('ask'); this.show(); },
+    // After an update, the first launch offers the new setup menu (V1.40, Sources/UpdateNudge.swift SetupOffer).
+    setup(o) { state('done'); notes([]); text('t1', o.title); text('t2', o.sub || ''); $('fill').style.transform = 'scaleX(1)'; row('setuprow'); this.show(); },
+    // phase: "drive" (Drive is fetching it), "read" (bytes known), "busy" (checking, installing)
+    progress(o) {
+      text('t1', o.title); if (o.sub != null) text('t2', o.sub);
+      state(o.phase === 'busy' ? 'busy' : o.phase === 'drive' ? 'drive' : '');
+      row('prog');
+      $('bar').classList.toggle('wait', o.frac == null);
+      if (o.frac != null) $('fill').style.transform = 'scaleX(' + Math.max(0, Math.min(1, o.frac)).toFixed(4) + ')';
+      $('bytes').textContent = o.detail || '';
+      this.show();
+    },
+    done(o) { state('done'); text('t1', o.title); text('t2', o.sub || ''); $('fill').style.transform = 'scaleX(1)'; row(o.ok ? 'okrow' : 'prog'); $('bar').classList.remove('wait'); this.show(); },
+    error(o) { state('err'); text('t1', o.title); text('t2', o.sub || ''); row('okrow'); this.show(); },
+
+    // ---------- the install screen ----------
+    install() { document.body.classList.add('install'); card.classList.add('hidden'); $('inst').classList.remove('hidden'); },
+    // PS opened outside Applications (Downloads, the desktop): the same steps, worded as a move.
+    moving() {
+      $('wTitle').replaceChildren('Move ', Object.assign(document.createElement('span'), { className: 'nm', textContent: $('wName').value }), ' to Applications');
+      $('wLead').textContent = 'It keeps itself up to date from your Applications folder. One click and it is there.';
+      $('wGo').textContent = 'Move to Applications';
+    },
+    // The name field (V1.36): PS fills it (the name it already has on this Mac, or the public default), and
+    // says in plain words when a typed name cannot be used. Text only, never HTML.
+    name(n, max) { const f = $('wName'); if (max) f.maxLength = max; f.value = n; named(n); },
+    nameError(msg) { const e = $('wNameErr'); e.textContent = msg; e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); },
+    askStore(on) { askStore = !!on; $('permGo').textContent = askStore ? 'Next' : 'Open'; },
+    page(p) {
+      const order = ['pWelcome', 'pSteps', 'pPerms', 'pStore'];
+      order.forEach((id, i) => { const el = $(id); el.classList.toggle('away', i < order.indexOf(p)); el.classList.toggle('later', i > order.indexOf(p)); });
+      if (p === 'pDone') { order.forEach((id) => $(id).classList.add('away')); $('pDone').classList.add('on'); }
+    },
+    step(id, st, frac, detail) {
+      const li = $(id);
+      li.classList.toggle('now', st === 'now'); li.classList.toggle('done', st === 'done');
+      if (frac != null) li.querySelector('.fill') && (li.querySelector('.fill').style.transform = 'scaleX(' + Math.max(0, Math.min(1, frac)).toFixed(4) + ')');
+      if (detail != null) li.querySelector('.sd').textContent = detail;
+    },
+    perms(list, note) {
+      const box = $('perms');
+      if (!box.children.length) {
+        box.innerHTML = list.map((p) => '<div class="perm" id="perm-' + p.id + '"><div class="pn"></div><div class="pw"></div><button class="btn" data-id="open:' + p.id + '">Open Settings</button>' +
+          '<svg class="ok" viewBox="0 0 26 26"><circle cx="13" cy="13" r="13" fill="#3BB273"/><path d="m8 13.5 3.3 3.3L18.5 9.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>').join('');
+      }
+      for (const p of list) {
+        const el = $('perm-' + p.id); if (!el) continue;
+        el.querySelector('.pn').textContent = p.name; el.querySelector('.pw').textContent = p.why;
+        el.classList.toggle('granted', !!p.granted);
+      }
+      $('permNote').textContent = note || '';
+    },
+  };
+  send({ type: 'ready' });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+/* Exercise pictures (ExPic.tsx, V1.40). One stick figure drawn in the Fitness look's own colours: ink for the
+   body, a soft wash of the accent for the muscles it works, quiet lines for the equipment. Works in every look
+   (volt, chalk, pulse) light and dark because it only uses the --f-* tokens. Only transform and opacity animate. */
+.fit {
+  --xp-ink: var(--f-ink);
+  --xp-eq: color-mix(in srgb, var(--f-ink) 42%, transparent);
+  --xp-eq-fill: color-mix(in srgb, var(--f-ink) 10%, transparent);
+  --xp-hi: var(--f-accent);
+  --xp-hi-o: .62;
+  --xp-hi-line: transparent;
+  --xp-bg: var(--f-surface-2);
+}
+/* Chalk's accent is black on white: light the muscles in its safety yellow with a thin black edge instead. */
+.fit[data-fit-style="chalk"] { --xp-hi: #FFE500; --xp-hi-o: 1; --xp-hi-line: #000000; --xp-eq: #6A6A6A; --xp-eq-fill: #EDEDE8; }
+.fit[data-fit-style="chalk"][data-fit-theme="dark"] { --xp-hi: #FFE500; --xp-hi-o: .9; --xp-hi-line: transparent; --xp-eq: #9A9A9A; --xp-eq-fill: #262626; }
+.fit[data-fit-style="volt"][data-fit-theme="light"] { --xp-hi: #F2B90C; --xp-hi-o: .75; }
+.fit[data-fit-style="pulse"][data-fit-theme="light"] { --xp-hi: #2F7BFF; --xp-hi-o: .5; }
+
+.xp { display: block; width: 100%; height: 100%; overflow: hidden; }
+.xp line, .xp polyline { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.xp .xp-fl { stroke: var(--xp-eq); stroke-width: 1; opacity: .7; }
+.xp .xp-eq { stroke: var(--xp-eq); stroke-width: 1.4; }
+.xp .xp-rail { stroke: var(--xp-eq); stroke-width: .9; stroke-dasharray: 2 1.6; }
+.xp .xp-pad { stroke: var(--xp-eq); stroke-width: 3.4; }
+.xp .xp-box { fill: var(--xp-eq-fill); stroke: var(--xp-eq); stroke-width: 1; }
+.xp .xp-stack rect { fill: var(--xp-eq-fill); stroke: var(--xp-eq); stroke-width: 1; }
+.xp .xp-stack line { stroke: var(--xp-eq); stroke-width: .6; }
+.xp .xp-pul { fill: var(--xp-bg); stroke: var(--xp-eq); stroke-width: 1; }
+.xp .xp-cab { stroke: var(--xp-eq); stroke-width: .7; }
+.xp .xp-lev { stroke: var(--xp-eq); stroke-width: 2; }
+.xp .xp-roll { fill: var(--xp-eq-fill); stroke: var(--xp-eq); stroke-width: 1.2; }
+.xp .xp-m ellipse { fill: var(--xp-hi); opacity: var(--xp-hi-o); stroke: var(--xp-hi-line); stroke-width: .6; }
+.xp .xp-b { stroke: var(--xp-ink); stroke-width: 3.4; }
+.xp .xp-b .xp-far { opacity: .38; }
+.xp .xp-hd { fill: var(--xp-ink); stroke: none; }
+.xp .xp-ghost { opacity: .2; }
+.xp .xp-ghost .xp-b { stroke-width: 2.6; }
+.xp .xp-w circle, .xp .xp-w rect { fill: var(--xp-bg); stroke: var(--xp-ink); stroke-width: 1.3; }
+.xp .xp-w .xp-hole { fill: var(--xp-ink); stroke: none; }
+.xp .xp-w .xp-wl { stroke: var(--xp-ink); stroke-width: 1.4; }
+.xp .xp-wbar { stroke: var(--xp-ink); stroke-width: 1.6; }
+.xp.xp-none .xp-b { stroke: var(--f-ink-3); stroke-width: 3; }
+.xp.xp-none .xp-hd { fill: var(--f-ink-3); }
+
+/* The small picture: a soft tile, it lifts a touch on hover, presses in on tap. */
+.xp-thumb { all: unset; box-sizing: border-box; flex: none; display: inline-grid; place-items: center; padding: calc(3px * var(--k-dn, 1)); border-radius: var(--f-r-s, 12px);
+  background: var(--xp-bg); border: var(--f-line-w, 1px) solid var(--f-line); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform var(--f-fast, .18s) var(--f-spring, ease), box-shadow var(--f-fast, .18s) ease; }
+.xp-thumb:hover { transform: translateY(-1px) scale(1.04); box-shadow: var(--f-glow); }
+.xp-thumb:active { transform: scale(.94); }
+.xp-thumb:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+.xp-thumb.none { cursor: default; }
+/* Lists style every button in them as a big row; the picture keeps its own small tile. */
+.fit .xp-thumb.xp-thumb { flex: none; display: inline-grid; flex-direction: row; min-height: 0; min-width: 0; padding: calc(3px * var(--k-dn, 1)); gap: 0; text-align: center;
+  border-radius: var(--f-r-s, 12px); background: var(--xp-bg); border: var(--f-line-w, 1px) solid var(--f-line); }
+span.xp-thumb { cursor: inherit; }
+
+/* The big card: the figure doing the rep, what it works, the tip. Grows from the middle, fades out. */
+.xp-card { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: calc(16px * var(--k-dn, 1)); font-family: var(--f-font); color: var(--f-ink); }
+.xp-card-bg { position: absolute; inset: 0; background: var(--f-bg); opacity: .82; animation: xp-fade .26s ease both; }
+.xp-card-in { position: relative; width: min(420px, 100%); max-height: calc(100% - 8px); overflow-y: auto; box-sizing: border-box; padding: calc(20px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1));
+  border-radius: var(--f-r, 22px); background: var(--f-surface); border: var(--f-line-w, 1px) solid var(--f-line); box-shadow: var(--f-shadow);
+  animation: xp-in .34s var(--f-ease, ease) both; }
+.xp-card.out .xp-card-bg { animation: xp-fade-out .22s ease forwards; }
+.xp-card.out .xp-card-in { animation: xp-out .22s ease forwards; }
+.xp-card-x { all: unset; position: absolute; top: 10px; right: 10px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 999px; cursor: pointer;
+  background: var(--f-surface-2); color: var(--f-ink); transition: transform var(--f-fast, .18s) var(--f-spring, ease); }
+.xp-card-x:active { transform: scale(.9); }
+.xp-card-x:focus-visible { outline: 3px solid var(--f-accent); outline-offset: 2px; }
+.xp-card-h { margin: 2px 52px 4px 2px; font: var(--f-title-w, 800) calc(22px * var(--k-fs, 1))/1.15 var(--f-font); letter-spacing: -.02em; }
+.xp-card-like { margin: 0 0 6px 2px; font-size: calc(14px * var(--k-fs, 1)); color: var(--f-ink-2); }
+.xp-card-art { margin: 10px 0 12px; border-radius: var(--f-r-s, 14px); background: var(--xp-bg); border: var(--f-line-w, 1px) solid var(--f-line); padding: calc(10px * var(--k-dn, 1)); aspect-ratio: 10 / 9; box-sizing: border-box; }
+.xp-card-two { display: grid; grid-template-columns: 1fr 1fr; gap: calc(10px * var(--k-dn, 1)); }
+.xp-card-two figure { margin: 0; }
+.xp-card-two .xp-card-art { margin: 10px 0 4px; padding: calc(6px * var(--k-dn, 1)); }
+.xp-card-two figcaption { text-align: center; font-size: calc(13px * var(--k-fs, 1)); font-weight: 650; color: var(--f-ink-2); }
+.xp-card-mus { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); margin: 0 2px 6px; font-size: calc(15px * var(--k-fs, 1)); font-weight: 650; color: var(--f-ink); }
+.xp-dot { width: 12px; height: 12px; flex: none; border-radius: 999px; background: var(--xp-hi); opacity: var(--xp-hi-o); box-shadow: 0 0 0 1px var(--xp-hi-line); }
+.xp-card-cue { margin: 0 2px; font-size: calc(15px * var(--k-fs, 1)); line-height: 1.45; color: var(--f-ink-2); }
+@keyframes xp-fade { from { opacity: 0; } }
+@keyframes xp-fade-out { to { opacity: 0; } }
+@keyframes xp-in { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+@keyframes xp-out { to { opacity: 0; transform: translateY(8px) scale(.97); } }
+@media (prefers-reduced-motion: reduce) {
+  .xp-card-bg, .xp-card-in, .xp-card.out .xp-card-bg, .xp-card.out .xp-card-in { animation-duration: .01s !important; }
+  .xp-thumb, .xp-thumb:hover, .xp-thumb:active { transition: none; transform: none; }
+}

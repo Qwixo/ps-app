@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PS GOS: the developer's PS on his GrapheneOS Pixel. No Google services, no VpnService, no network setting
+     changes: all traffic goes through whatever VPN the phone runs (your VPN). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- V1.55: only to scan the code on a Mac and sign in (the in-page scanner, src/mobile/Scan.tsx). Asked the first time
+         Scan the code on your Mac is tapped; frames stay on the phone. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Fitness rest timer: the rest ends on the second through Doze. Granted at install for a timer
+         (no "Alarms and reminders" switch to find); it also makes the 10 minute call alerts exact. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Fitness rest timer: the strong buzz when a rest is over (always, even on silent). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- The gym ring (Gym.kt): its Acknowledge card over the lock screen, like an alarm clock. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- The rule book's nuke starts the system uninstall of PS (GrapheneOS asks first). -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <!-- Only to name the apps in screen time and to find YouTube and Netflix: PS never touches Signal or 1Password. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+
+    <application
+        android:name=".GosApp"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/no_backup"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PS"
+        android:networkSecurityConfig="@xml/network_security"
+        android:enableOnBackInvokedCallback="true"
+        tools:targetApi="36">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize|stateUnchanged"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density"
+            android:theme="@style/Theme.PS">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- What is left after the rule book's nuke (Nuke.kt): asks for the uninstall each time PS opens. -->
+        <activity
+            android:name=".GoneActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.PS" />
+
+        <!-- "Are you sure": a full screen card over YouTube or Netflix. -->
+        <activity
+            android:name=".AysActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.cincee.ps.gos.ays"
+            android:launchMode="singleInstance"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.PS.Ays" />
+
+        <service
+            android:name=".PsTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_ps_tile"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.ACTIVE_TILE" android:value="false" />
+        </service>
+
+        <!-- Runs only while the bubble or "Are you sure" is on: watches which app is in front. -->
+        <service
+            android:name=".WatchService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Shows the floating to-do bubble and the 'Are you sure' pause before YouTube and Netflix." />
+        </service>
+
+        <!-- Fitness: the countdown between sets, only while a rest runs (Fitness.kt). -->
+        <service
+            android:name=".RestService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Gym rest timer between sets: a live countdown on the lock screen until the next set." />
+        </service>
+        <receiver android:name=".RestAlarm" android:exported="false" />
+
+        <!-- The gym reminder (Gym.kt): the ring, from 16 minutes before gym time until Acknowledge, Later or 10 minutes. -->
+        <service
+            android:name=".GymRingService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Gym alarm: rings 16 minutes before the gym time the developer set, for up to 10 minutes or until he taps Acknowledge or Later." />
+        </service>
+        <activity
+            android:name=".GymRingActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.cincee.ps.gos.gym"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.PS" />
+        <receiver android:name=".GymAlarm" android:exported="false" />
+
+        <!-- Sleep mode (Sleep.kt): the clock over the lock screen like an alarm clock, its alarms, and a quiet
+             service for the night that hears the power button and plays the ring. -->
+        <service
+            android:name=".SleepService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Sleep mode: a bedside clock over the lock screen and the alarms you set, from going to sleep until Wake up." />
+        </service>
+        <activity
+            android:name=".SleepActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.cincee.ps.gos.sleep"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:screenOrientation="unspecified"
+            android:theme="@style/Theme.PS" />
+        <receiver android:name=".SleepAlarm" android:exported="false" />
+        <receiver android:name=".SleepAction" android:exported="false" />
+        <receiver android:name=".GymAction" android:exported="false" />
+        <receiver android:name=".RestAction" android:exported="false" />
+
+        <!-- The Annoying 15 min reminder (Remind.kt): its one alarm, its buttons, and the clock or zone changing. -->
+        <receiver android:name=".RemAlarm" android:exported="false" />
+        <receiver android:name=".RemAction" android:exported="false" />
+        <receiver android:name=".RemTime" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- The Soundboard (Soundboard.kt, V1.47): a timed play rings through this service, its one alarm, and Stop. -->
+        <service
+            android:name=".SbRingService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Soundboard timed play: plays the sound or video the developer set for a time of day, until its end, Stop, or 10 minutes for a loop." />
+        </service>
+        <receiver android:name=".SbAlarm" android:exported="false" />
+        <receiver android:name=".SbAction" android:exported="false" />
+
+        <receiver android:name=".PsWidget" android:exported="true" android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ps_widget" />
+        </receiver>
+
+        <receiver android:name=".Receivers$Alarm" android:exported="false" />
+        <receiver android:name=".Receivers$RemindAlarm" android:exported="false" />
+        <receiver android:name=".Receivers$CardAction" android:exported="false" />
+        <receiver android:name=".Receivers$Installed" android:exported="false" />
+        <receiver android:name=".Receivers$Boot" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- WorkManager starts itself from our Application instead of its own provider. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data android:name="androidx.work.WorkManagerInitializer" android:value="androidx.startup" tools:node="remove" />
+        </provider>
+    </application>
+</manifest>

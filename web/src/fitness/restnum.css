@@ -1,0 +1,15 @@
+/* A rest time you can type (V1.47, src/fitness/RestNum.tsx): the big number is a button, a tap makes it a text box. */
+.fit .rn { font: inherit; color: inherit; }
+.fit .rn-btn { display: inline-flex; flex-direction: column; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(2px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border: 1px dashed transparent; border-radius: calc(14px * var(--k-rd, 1)); background: transparent; cursor: text; transition: border-color var(--f-fast) ease, background-color var(--f-fast) ease; }
+.fit .rn-btn:hover, .fit .rn-btn:focus-visible { border-color: color-mix(in srgb, var(--f-accent) 55%, transparent); background: color-mix(in srgb, var(--f-accent) 8%, transparent); }
+.fit .rn-bad { animation: rn-shake .32s ease both; }
+@keyframes rn-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+.fit .rn-edit { display: inline-flex; flex-direction: column; align-items: center; gap: calc(4px * var(--k-dn, 1)); }
+.fit .rn-in { width: 4.2ch; min-width: 0; font: inherit; font-weight: 800; text-align: center; color: var(--f-ink); background: color-mix(in srgb, var(--f-accent) 10%, transparent); border: 2px solid var(--f-accent); border-radius: calc(14px * var(--k-rd, 1)); padding: 0 calc(6px * var(--k-dn, 1)); outline: none; }
+.fit .rn-hint { max-width: 9.5em; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; line-height: 1.25; text-align: center; color: var(--f-ink-2); }
+@media (prefers-reduced-motion: reduce) { .fit .rn-bad { animation: none; } }
+/* where it sits: Settings (48 px like before), the gym's rest chip (between -15 s and +15 s), Programs (its own size) */
+.fit .fs-step-v .rn-in { font-size: calc(32px * var(--k-fs, 1)); width: 4ch; padding: 0 calc(4px * var(--k-dn, 1)); }
+.fit .fg-restchip-own { grid-template-columns: 1fr auto 1fr; align-items: center; }
+.fit .fg-restchip-num b, .fit .fg-restchip-num .rn-in { font-size: calc(24px * var(--k-fs, 1)); font-weight: 800; }
+.fit .fg-restchip-num .rn-hint { display: none; }

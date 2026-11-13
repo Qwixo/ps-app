@@ -1,0 +1,226 @@
+/* The mobile web app (cincee.com/todolist-mobile): the Add to Home Screen guide, Connect your project, the line
+   under the sign in screen, and the few places a browser differs from the PS GOS shell. The phone home itself is
+   PS GOS's own CSS (src/gos/), switched on by the same html.gos class. Everything here is under html.mweb. */
+html.mweb {
+  --psm-bg: #0D0A0E;
+  --psm-card: color-mix(in srgb, #FFFFFF 6%, transparent);
+  --psm-line: color-mix(in srgb, #FFFFFF 11%, transparent);
+  --psm-ink: #FFFFFF;
+  --psm-dim: color-mix(in srgb, #FFFFFF 64%, transparent);
+  --psm-acc: #EC4E86;
+  --psm-acc2: #8B5CF6;
+  --psm-ease: cubic-bezier(.22, 1, .36, 1);
+  /* The notch or Dynamic Island and the home bar (the phone home uses the same, as --gos-top / --gos-bottom). */
+  --psm-top: env(safe-area-inset-top, 0px);
+  --psm-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--psm-bg);
+  /* No grey flash on taps, no rubber band behind the app, text that never zooms on rotate. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html.mweb body { background: var(--psm-bg); min-height: 100dvh; }
+/* The guide and Connect pages draw their own safe areas; the dock's room is not needed there. */
+html.mweb body:has(.psm-page) #root { padding: 0; }
+/* iPhone zooms into any field under 16 px when it is focused: never on the phone app. */
+html.mweb input, html.mweb textarea, html.mweb select { font-size: max(16px, 1em); }
+
+.psm-page {
+  min-height: 100dvh; box-sizing: border-box; color: var(--psm-ink);
+  font: 400 16px/1.45 var(--k-font, "Inter Variable", Inter, system-ui, -apple-system, sans-serif);
+  padding: calc(var(--psm-top) + 28px) max(18px, env(safe-area-inset-right, 0px)) calc(var(--psm-bottom) + 28px) max(18px, env(safe-area-inset-left, 0px));
+  display: flex; flex-direction: column; gap: 18px; max-width: 520px; margin: 0 auto;
+  background:
+    radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--psm-acc) 26%, transparent), transparent 70%),
+    radial-gradient(90% 50% at 100% 0%, color-mix(in srgb, var(--psm-acc2) 18%, transparent), transparent 70%);
+  -webkit-user-select: none; user-select: none;
+}
+.psm-splash { position: fixed; inset: 0; display: grid; place-items: center; background: var(--psm-bg); animation: psm-in .4s var(--psm-ease) both .15s; }
+.psm-in { animation: psm-in .6s var(--psm-ease) both; animation-delay: var(--d, 0ms); }
+@keyframes psm-in { from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.985); } }
+
+.psm-hero { display: grid; justify-items: center; text-align: center; gap: 10px; padding-top: 18px; }
+.psm-hero h1 { margin: 6px 0 0; font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+.psm-hero p { margin: 0; color: var(--psm-dim); max-width: 34ch; }
+.psm-mark {
+  display: grid; place-items: center; color: #FFFFFF; border-radius: 26%;
+  background: linear-gradient(145deg, #F46A9B 0%, var(--psm-acc) 42%, #7C3AED 100%);
+  box-shadow: 0 18px 40px -14px color-mix(in srgb, var(--psm-acc) 75%, transparent), inset 0 1px 0 color-mix(in srgb, #FFFFFF 35%, transparent);
+  animation: psm-float 5s ease-in-out infinite;
+}
+@keyframes psm-float { 50% { transform: translate3d(0, -3px, 0); } }
+
+.psm-card { background: var(--psm-card); border: 1px solid var(--psm-line); border-radius: 22px; padding: 18px; display: grid; gap: 12px; }
+.psm-card h2 { margin: 0; font-size: 19px; font-weight: 750; letter-spacing: -.01em; }
+.psm-card p { margin: 0; color: var(--psm-dim); }
+.psm-addr { font: 700 18px/1.3 ui-monospace, "SF Mono", Menlo, monospace; color: var(--psm-ink) !important; word-break: break-all; -webkit-user-select: all; user-select: all; }
+.psm-dim { color: var(--psm-dim); font-size: 14px; }
+
+.psm-steps-big { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.psm-step { display: grid; grid-template-columns: 30px 1fr 40px; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: color-mix(in srgb, #FFFFFF 4%, transparent); }
+.psm-step-n { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 99px; background: color-mix(in srgb, var(--psm-acc) 22%, transparent); color: #FFC2D8; font-weight: 800; font-size: 14px; }
+.psm-step-t { font-size: 15px; line-height: 1.4; }
+.psm-step-t b { font-weight: 700; }
+.psm-step-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: color-mix(in srgb, #FFFFFF 8%, transparent); color: #FFFFFF; }
+/* iPhone: the Share button lives at the bottom of Safari, so a soft arrow points down there on step 1. */
+.psm-guide[data-platform="ios-safari"] .psm-step:first-child .psm-step-ic { animation: psm-nudge 1.8s var(--psm-ease) infinite; }
+@keyframes psm-nudge { 50% { transform: translate3d(0, 4px, 0); box-shadow: 0 0 0 6px color-mix(in srgb, var(--psm-acc) 18%, transparent); } }
+
+.psm-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.psm-steps li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; color: var(--psm-dim); font-size: 15px; }
+.psm-steps li b { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 99px; background: color-mix(in srgb, var(--psm-acc) 22%, transparent); color: #FFC2D8; font-size: 13px; }
+.psm-steps i, .psm-check i { font-style: normal; color: var(--psm-ink); font-weight: 600; }
+.psm-steps u { text-decoration: none; color: var(--psm-ink); font-weight: 600; }
+
+.psm-form { display: grid; gap: 14px; background: var(--psm-card); border: 1px solid var(--psm-line); border-radius: 22px; padding: 16px; }
+.psm-field { display: grid; gap: 6px; }
+.psm-field > span:first-child { font-size: 13px; font-weight: 650; color: var(--psm-dim); letter-spacing: .01em; }
+.psm-input { display: flex; align-items: center; gap: 6px; border-radius: 14px; background: color-mix(in srgb, #000000 35%, transparent); border: 1px solid var(--psm-line); padding: 4px 4px 4px 12px; transition: border-color .2s ease, box-shadow .25s ease; }
+.psm-input:focus-within { border-color: color-mix(in srgb, var(--psm-acc) 70%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--psm-acc) 18%, transparent); }
+.psm-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--psm-ink); padding: 10px 0; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 16px; -webkit-user-select: text; user-select: text; }
+.psm-input input::placeholder { color: color-mix(in srgb, #FFFFFF 30%, transparent); }
+.psm-paste { flex: none; border: 0; border-radius: 10px; padding: 9px 12px; background: color-mix(in srgb, #FFFFFF 10%, transparent); color: var(--psm-ink); font-family: inherit; font-weight: 650; font-size: 14px; line-height: 1; }
+.psm-paste:active { transform: scale(.95); }
+.psm-more { justify-self: start; border: 0; background: none; color: var(--psm-dim); font-family: inherit; font-weight: 600; font-size: 14px; line-height: 1; padding: 4px 0; text-decoration: underline; text-underline-offset: 3px; }
+.psm-check { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; font-size: 14px; color: var(--psm-dim); }
+.psm-check input { width: 20px; height: 20px; accent-color: var(--psm-acc); margin: 1px 0 0; }
+.psm-err { margin: 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #FF6B6B 14%, transparent); color: #FFC9C9; font-size: 14px; animation: psm-shake .4s var(--psm-ease); }
+@keyframes psm-shake { 20% { transform: translateX(-5px); } 45% { transform: translateX(4px); } 70% { transform: translateX(-2px); } }
+.psm-fine { margin: 0; font-size: 12.5px; color: color-mix(in srgb, #FFFFFF 48%, transparent); text-align: center; }
+
+.psm-btn {
+  display: block; width: 100%; min-height: 54px; border: 0; border-radius: 16px; color: #FFFFFF; font-family: inherit; font-weight: 750; font-size: 17px; line-height: 1; letter-spacing: .01em;
+  background: linear-gradient(180deg, #F46A9B, var(--psm-acc)); box-shadow: 0 12px 30px -12px color-mix(in srgb, var(--psm-acc) 80%, transparent), inset 0 1px 0 color-mix(in srgb, #FFFFFF 30%, transparent);
+  transition: transform .18s cubic-bezier(.34, 1.36, .5, 1), opacity .2s ease;
+}
+.psm-btn:active { transform: scale(.97); }
+.psm-btn:disabled { opacity: .6; }
+.psm-foot { margin-top: auto; display: grid; justify-items: center; padding-top: 8px; }
+.psm-link { border: 0; background: none; color: var(--psm-dim); font-family: inherit; font-weight: 600; font-size: 15px; line-height: 1; padding: 12px 16px; min-height: 44px; text-decoration: underline; text-underline-offset: 4px; }
+
+/* Under the sign in screen: the project this phone talks to, and Change project. */
+.psm-lockbar {
+  position: fixed; z-index: 40; left: 50%; bottom: calc(var(--psm-bottom) + 10px); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 4px; max-width: calc(100vw - 24px); padding: 2px 4px 2px 14px; border-radius: 99px;
+  background: color-mix(in srgb, var(--k-surface, #1A1418) 88%, transparent); border: 1px solid color-mix(in srgb, #FFFFFF 10%, transparent);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-size: 13px; color: color-mix(in srgb, #FFFFFF 70%, transparent);
+  animation: psm-in .5s var(--psm-ease) both .2s;
+}
+.psm-lockbar-h { font-family: ui-monospace, "SF Mono", Menlo, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.psm-lockbar .psm-link { white-space: nowrap; font-size: 13px; padding: 10px 12px; min-height: 40px; color: #FFC2D8; }
+/* The sign in screen (views/Lock.tsx): clears the project line under it. */
+.psm-signin { padding-bottom: calc(var(--psm-bottom) + 72px); justify-content: center; }
+.psm-signin .psm-link { justify-self: center; }
+.psm-input textarea { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--psm-ink); padding: 10px 0; font: 15px/1.4 ui-monospace, "SF Mono", Menlo, monospace; resize: none; -webkit-user-select: text; user-select: text; }
+
+/* The Vault tab's header: the G Squad mark, still (no float), the size of the website's logo. */
+.psm-brand .psm-mark { animation: none; box-shadow: none; flex: none; }
+
+/* The settings sheet's "How" link looks like its buttons. */
+html.mweb a.gos-btn { text-decoration: none; display: inline-grid; place-items: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .psm-in, .psm-mark, .psm-err, .psm-lockbar, .psm-guide .psm-step .psm-step-ic { animation: none !important; }
+}
+/* Shorter phones (and Safari's own bars): the hero and steps tighten so the guide fits without scrolling. */
+@media (max-height: 880px) {
+  .psm-page { gap: 14px; padding-top: calc(var(--psm-top) + 14px); }
+  .psm-hero { padding-top: 0; gap: 6px; }
+  .psm-hero h1 { font-size: 26px; }
+  .psm-hero p { font-size: 15px; }
+  .psm-guide .psm-mark { zoom: .82; }
+  .psm-step { padding: 9px 10px; }
+  .psm-step-t { font-size: 14.5px; }
+}
+@media (min-width: 700px) {
+  .psm-page { padding-top: calc(var(--psm-top) + 64px); }
+}
+
+/* Link your iPhone by scan (Connect.tsx, Scan.tsx, linkcode.ts). */
+.psm-scan-go { display: grid; gap: 12px; justify-items: stretch; }
+.psm-scan-go .psm-fine { text-wrap: balance; }
+.psm-scan-go .psm-link { justify-self: center; }
+.psm-local { justify-self: center; }
+/* Typing it in: opens under the button, smoothly (a grid row that grows from nothing). */
+.psm-typed { display: grid; grid-template-rows: 1fr; animation: psm-open .5s var(--psm-ease) both; }
+.psm-typed-in { min-height: 0; overflow: hidden; display: grid; gap: 14px; }
+@keyframes psm-open { from { grid-template-rows: 0fr; opacity: 0; } }
+.psm-done { justify-content: center; }
+.psm-tick { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; color: #FFFFFF; margin: 0 auto 6px;
+  background: linear-gradient(145deg, #F46A9B, var(--psm-acc) 45%, #7C3AED); box-shadow: 0 16px 40px -12px color-mix(in srgb, var(--psm-acc) 80%, transparent); animation: psm-pop .55s cubic-bezier(.34, 1.56, .5, 1) both; }
+.psm-tick path { stroke-dasharray: 26; stroke-dashoffset: 26; animation: psm-draw .45s .25s var(--psm-ease) forwards; }
+.psm-done h1, .psm-done p { animation: psm-in .5s .3s var(--psm-ease) both; }
+@keyframes psm-pop { from { transform: scale(.4); opacity: 0; } }
+@keyframes psm-draw { to { stroke-dashoffset: 0; } }
+.psm-linked h2 { margin-top: 0; }
+
+/* The camera screen: a rounded window on the phone's camera, a frame with corner marks and a line that sweeps. */
+.psm-scan { grid-template-rows: 1fr auto auto; align-content: stretch; }
+.psm-scan-view { position: relative; width: 100%; min-height: 0; aspect-ratio: 3 / 4; max-height: 62dvh; justify-self: center; border-radius: 28px; overflow: hidden; background: #000;
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .8), 0 0 0 1px color-mix(in srgb, #FFFFFF 12%, transparent); }
+.psm-scan-view video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.psm-scan-frame { position: absolute; inset: 14% 14%; aspect-ratio: 1; margin: auto; pointer-events: none; animation: psm-breathe 2.4s ease-in-out infinite; }
+.psm-scan-frame i { position: absolute; width: 34px; height: 34px; border: 4px solid #FFFFFF; filter: drop-shadow(0 1px 6px rgba(0, 0, 0, .5)); }
+.psm-scan-frame i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
+.psm-scan-frame i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 14px; }
+.psm-scan-frame i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 14px; }
+.psm-scan-frame i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 14px; }
+.psm-scan-frame b { position: absolute; left: 6%; right: 6%; top: 0; height: 3px; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--psm-acc), transparent); box-shadow: 0 0 18px var(--psm-acc); animation: psm-sweep 2.1s ease-in-out infinite alternate; }
+.psm-scan.hit .psm-scan-frame { animation: none; }
+.psm-scan.hit .psm-scan-frame i { border-color: #5EE0A0; transition: border-color .2s; }
+.psm-scan.hit .psm-scan-frame b { display: none; }
+@keyframes psm-sweep { from { top: 4%; } to { top: 96%; } }
+@keyframes psm-breathe { 50% { transform: scale(.97); } }
+.psm-scan-say { margin: 0; text-align: center; font-size: 17px; font-weight: 600; line-height: 1.35; text-wrap: balance; animation: psm-in .4s var(--psm-ease) both; }
+.psm-scan-say.bad { color: #FFC9C9; font-size: 15px; font-weight: 550; }
+.psm-scan-foot { display: grid; justify-items: center; }
+@media (prefers-reduced-motion: reduce) {
+  .psm-typed, .psm-tick, .psm-tick path, .psm-done h1, .psm-done p, .psm-scan-frame, .psm-scan-frame b, .psm-scan-say { animation: none !important; }
+  .psm-tick path { stroke-dashoffset: 0; }
+}
+
+/* The Add to Home Screen guide's pictures (GuideArt.tsx): a small iPhone scene per step, a finger tap that loops. */
+.psm-step.has-art { grid-template-columns: 28px 1fr 112px; padding: 10px 10px 10px 12px; }
+.psm-step-art { display: block; width: 112px; }
+.psm-art { display: block; width: 112px; height: auto; overflow: visible; }
+.psm-art .a-screen { fill: color-mix(in srgb, #FFFFFF 5%, #0D0A0E); stroke: color-mix(in srgb, #FFFFFF 16%, transparent); stroke-width: 1.4; }
+.psm-art .a-line, .psm-art .a-row { fill: color-mix(in srgb, #FFFFFF 12%, transparent); }
+.psm-art .a-text { fill: color-mix(in srgb, #FFFFFF 55%, transparent); }
+.psm-art .a-bar, .psm-art .a-card { fill: color-mix(in srgb, #FFFFFF 10%, #1A1418); stroke: color-mix(in srgb, #FFFFFF 12%, transparent); stroke-width: .8; }
+.psm-art .a-ico { fill: color-mix(in srgb, #FFFFFF 12%, transparent); }
+.psm-art .a-glyph { fill: none; stroke: #FFFFFF; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.psm-art .a-dots { fill: #FFFFFF; stroke: none; opacity: .75; }
+.psm-art .a-hi { fill: color-mix(in srgb, var(--psm-acc) 38%, transparent); stroke: var(--psm-acc); stroke-width: 1; }
+.psm-art .a-app { fill: var(--psm-acc); }
+.psm-art .a-g { fill: none; stroke: #FFFFFF; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.psm-art .a-dot { fill: #FFFFFF; opacity: 0; animation: psm-fdot 2.8s var(--psm-ease) infinite; animation-delay: calc(var(--n, 1) * .25s); }
+.psm-art .a-ring { fill: none; stroke: #FFFFFF; stroke-width: 1.6; opacity: 0; transform-box: fill-box; transform-origin: center; animation: psm-fring 2.8s ease-out infinite; animation-delay: calc(var(--n, 1) * .25s); }
+.psm-art .a-pulse { animation: psm-fpulse 2.8s ease-in-out infinite; animation-delay: calc(var(--n, 1) * .25s); transform-box: fill-box; transform-origin: center; }
+.psm-art .a-sheet { animation: psm-fsheet 2.8s var(--psm-ease) infinite; animation-delay: calc(var(--n, 1) * .25s); }
+.psm-art .a-new { transform-box: fill-box; transform-origin: center; animation: psm-fnew 2.8s cubic-bezier(.34, 1.56, .5, 1) infinite; }
+.psm-art .a-spark path { fill: #FFFFFF; transform-box: fill-box; transform-origin: center; animation: psm-fspark 2.8s ease-in-out infinite; }
+@keyframes psm-fdot { 0%, 18% { opacity: 0; transform: scale(1.6); } 30% { opacity: .95; transform: scale(1); } 46% { opacity: .95; transform: scale(.8); } 60%, 100% { opacity: 0; } }
+@keyframes psm-fring { 0%, 30% { opacity: 0; transform: scale(.5); } 36% { opacity: .9; } 70%, 100% { opacity: 0; transform: scale(1.7); } }
+@keyframes psm-fpulse { 0%, 28% { opacity: .55; transform: scale(1); } 40% { opacity: 1; transform: scale(1.1); } 55%, 100% { opacity: 1; transform: scale(1); } }
+@keyframes psm-fsheet { 0% { transform: translateY(14px); opacity: 0; } 18%, 85% { transform: none; opacity: 1; } 100% { transform: translateY(14px); opacity: 0; } }
+@keyframes psm-fnew { 0%, 15% { transform: scale(0); opacity: 0; } 35% { transform: scale(1.18); opacity: 1; } 48%, 90% { transform: scale(1); opacity: 1; } 100% { transform: scale(0); opacity: 0; } }
+@keyframes psm-fspark { 0%, 40% { transform: scale(0) rotate(0); opacity: 0; } 55% { transform: scale(1.2) rotate(40deg); opacity: 1; } 75%, 100% { transform: scale(0) rotate(90deg); opacity: 0; } }
+.psm-after { margin-top: 12px !important; font-size: 14px; }
+.psm-after b { color: var(--psm-ink); }
+@media (prefers-reduced-motion: reduce) {
+  .psm-art * { animation: none !important; }
+  .psm-art .a-dot { opacity: 0; } .psm-art .a-ring { opacity: .8; transform: scale(1.1); }
+}
+@media (max-height: 880px) { .psm-step.has-art { padding: 8px 8px 8px 10px; } .psm-step-art, .psm-art { width: 104px; } .psm-step.has-art { grid-template-columns: 26px 1fr 104px; } }
+/* V1.55: signing in from the Mac after the scan (src/mobile/Pair.tsx). */
+.psm-pair { display: grid; justify-items: center; gap: 14px; padding: 24px 16px; text-align: center; }
+.psm-pair-h { margin: 0; font-weight: 700; font-size: 18px; }
+.psm-pair-code { margin: 0; font-size: 44px; font-weight: 800; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.psm-pair-say { margin: 0; color: var(--psm-dim); font-size: 15px; line-height: 1.4; text-wrap: balance; max-width: 34ch; }
+.psm-pair-err { color: #FFC2D8; }
+/* PS GOS borrows the scanner and the pairing screen (src/mobile/ScanSignIn.tsx): the same look, over its sign in. */
+.psm-over {
+  --psm-bg: #0D0A0E; --psm-card: color-mix(in srgb, #FFFFFF 6%, transparent); --psm-line: color-mix(in srgb, #FFFFFF 11%, transparent);
+  --psm-ink: #FFFFFF; --psm-dim: color-mix(in srgb, #FFFFFF 64%, transparent); --psm-acc: #EC4E86; --psm-acc2: #8B5CF6;
+  --psm-ease: cubic-bezier(.22, 1, .36, 1); --psm-top: var(--gos-top, env(safe-area-inset-top, 0px)); --psm-bottom: var(--gos-bottom, env(safe-area-inset-bottom, 0px));
+  position: fixed; inset: 0; z-index: 60; overflow: auto; background: var(--psm-bg);
+}

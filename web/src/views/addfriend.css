@@ -1,0 +1,38 @@
+/* Add friend (V1.44): views/AddFriend.tsx. The theme's own colours (--k-*), like G Squad (gsquad.css). The QR code
+   itself is always black on white with a white edge: cameras read that, whatever the look. */
+.af { display: grid; justify-items: center; gap: calc(14px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) 0 calc(10px * var(--k-dn, 1)); text-align: center; }
+.af-qr { width: min(340px, 82vw, 100%); aspect-ratio: 1; border-radius: calc(20px * var(--k-rd, 1)); background: #FFFFFF; /* k-keep: cameras need dark on white in every look */ display: grid; place-items: center; overflow: hidden;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .28), 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); animation: afIn .4s cubic-bezier(.22, 1.2, .36, 1); }
+.af-qr.wait { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); box-shadow: none; }
+.af-svg { width: 100%; height: 100%; display: block; }
+@keyframes afIn { from { opacity: 0; transform: scale(.94); } }
+.af-say { display: grid; gap: calc(4px * var(--k-dn, 1)); max-width: 380px; }
+.af-say b { font-size: calc(16px * var(--k-fs, 1)); font-weight: 750; }
+.af-say span { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); line-height: 1.45; }
+.af-row, .af-get { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(8px * var(--k-dn, 1)); }
+.af-get a { text-decoration: none; display: inline-flex; align-items: center; }
+.af-small { margin: 0; max-width: 380px; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(58% * var(--k-ia, 1))), transparent); }
+.af-spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 18%, transparent); border-top-color: var(--k-acc, #EC4E86); animation: afSpin .8s linear infinite; justify-self: center; }
+@keyframes afSpin { to { transform: rotate(1turn); } }
+@media (prefers-reduced-motion: reduce) { .af-qr, .af-spin { animation: none; } }
+
+/* The landing page and the join card (website, web app) */
+.af-land .gsl-card { width: min(440px, 100%); box-sizing: border-box; }
+.af-form { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.af-form .gs-field { display: grid; gap: calc(6px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); font-weight: 650; text-align: left; }
+.af-form input { font: inherit; font-weight: 500; padding: calc(11px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); color: inherit; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 18%, transparent); outline: none; }
+.af-form input:focus { border-color: var(--k-acc, #EC4E86); }
+.af-link { justify-self: center; background: none; border: 0; padding: calc(6px * var(--k-dn, 1)); font: inherit; font-weight: 650; color: inherit; opacity: .75; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.af-err { color: var(--k-bad, #FF6B6B) !important; }
+.af-layer { position: fixed; inset: 0; z-index: 2147483200; display: grid; place-items: center; padding: calc(16px * var(--k-dn, 1)); box-sizing: border-box; background: color-mix(in srgb, var(--k-base, #000000) 55%, transparent);
+  color: var(--k-fg, #FFFFFF); font-family: var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif); animation: afFade .2s ease-out; }
+.af-card { width: min(420px, 100%); box-sizing: border-box; background: var(--k-surface, #1F171F); box-shadow: 0 18px 50px rgba(0, 0, 0, .5); }
+.af-card h2 { margin: 0; font-size: calc(20px * var(--k-fs, 1)); }
+.af-card p { margin: 0; }
+@keyframes afFade { from { opacity: 0; } }
+.af-land .af-get { justify-content: flex-start; }
+.af-land .gs-go { justify-self: start; }
+.af-land .af-link { justify-self: start; padding-left: 0; }
+.af-card .af-get { justify-content: flex-start; }
+.af-card > .gs-go { justify-self: start; min-width: 96px; }

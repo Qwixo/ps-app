@@ -1,0 +1,17 @@
+/* Red lightning backgrounds (views/Storm.tsx): a layer of its own behind the whole Tab list.
+   Between strikes nothing moves; a strike is one path and one glow, faded in and out. */
+.tm-storm { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; contain: strict; opacity: var(--tm-bgfade, 1); }   /* fades with the glass slider (V1.34) */
+.tm-storm-flash { position: absolute; inset: 0; opacity: 0; will-change: opacity;
+  background: radial-gradient(70% 55% at var(--fx, 50%) var(--fy, 0%), color-mix(in srgb, var(--k-bad, #FF3232) 55%, transparent), color-mix(in srgb, var(--k-bad, #FF0000) 14%, transparent) 45%, transparent 75%); }
+.tm-storm-flash[data-kind="storm-edges"] { background: radial-gradient(35% 60% at var(--fx, 0%) var(--fy, 40%), color-mix(in srgb, var(--k-bad, #FF2828) 60%, transparent), color-mix(in srgb, var(--k-bad, #FF0000) 12%, transparent) 50%, transparent 80%); }
+.tm-storm-flash[data-kind="storm-sheet"] { background: radial-gradient(120% 80% at var(--fx, 50%) var(--fy, 0%), color-mix(in srgb, var(--k-bad, #FF4646) 45%, transparent), color-mix(in srgb, var(--k-bad, #A00000) 18%, transparent) 55%, transparent 90%); }
+.tm-storm-flash[data-kind="storm-rumble"] { background: radial-gradient(90% 40% at var(--fx, 50%) 100%, color-mix(in srgb, var(--k-bad, #C81E1E) 50%, transparent), color-mix(in srgb, var(--k-bad-bg, #780000) 12%, transparent) 50%, transparent 80%); }
+.tm-storm-flash[data-kind="storm-aimed"] { background: radial-gradient(18% 22% at var(--fx, 50%) var(--fy, 30%), color-mix(in srgb, var(--k-bad, #FF5A5A) 70%, transparent), color-mix(in srgb, var(--k-bad, #FF0000) 15%, transparent) 55%, transparent 80%); }
+.tm-storm-bolt { position: absolute; inset: 0; opacity: 0; overflow: visible; will-change: opacity;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--k-bad, #FF1E1E) 95%, transparent)) drop-shadow(0 0 18px color-mix(in srgb, var(--k-bad, #FF0000) 55%, transparent)); }
+.tm-storm-bolt path { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.tm-storm-bolt .glow { stroke: color-mix(in srgb, var(--k-bad, #FF2828) 85%, transparent); stroke-width: 4; }
+.tm-storm-bolt .core { stroke: var(--k-fg, #FFE1E1); stroke-width: 1.6; }
+.tm-storm-bolt .b.glow { stroke-width: 2.6; }
+.tm-storm-bolt .thin { stroke-width: 1; }
+@media (prefers-reduced-motion: reduce) { .tm-storm { display: none; } }

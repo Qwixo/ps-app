@@ -1,0 +1,30 @@
+/* To-do > quotes */
+.qt-wrap { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.qt-item {
+  position: relative; display: grid; gap: calc(4px * var(--k-dn, 1)); padding: calc(18px * var(--k-dn, 1)) calc(20px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)) calc(52px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pink) 14%, var(--surface)), var(--surface) 70%);
+  border: 1px solid color-mix(in srgb, var(--pink) 22%, var(--line));
+}
+.qt-item.editing { padding-left: calc(20px * var(--k-dn, 1)); }
+.qt-mark { position: absolute; left: 14px; top: 2px; font-size: calc(56px * var(--k-fs, 1)); line-height: 1; font-weight: 800; color: color-mix(in srgb, var(--pink) 70%, transparent); font-family: Georgia, serif; }
+.qt-text {
+  font: inherit; font-size: calc(clamp(17px, 2.2vw, 21px) * var(--k-fs, 1)); font-weight: 650; font-style: italic; line-height: 1.4; letter-spacing: -.01em;
+  color: var(--ink); background: transparent; border: 0; resize: none; field-sizing: content; min-height: 1.4em;
+  border-radius: calc(8px * var(--k-rd, 1)); padding: calc(2px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); margin-left: -6px; overflow-wrap: anywhere;
+}
+.qt-author { font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 650; color: var(--pink-d); background: transparent; border: 0; border-radius: calc(8px * var(--k-rd, 1)); padding: calc(2px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); margin-left: -6px; min-width: 0; flex: 1; }
+.qt-author::placeholder { color: var(--muted); font-weight: 500; }
+.qt-text:hover, .qt-author:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.qt-text:focus, .qt-author:focus { outline: 2px solid var(--pink); background: var(--surface); }
+.qt-foot { display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); }
+.qt-foot .qt-author::before { content: ""; }
+.qt-del { opacity: 0; transition: opacity .2s ease; }
+.qt-item:hover .qt-del, .qt-item:focus-within .qt-del { opacity: 1; }
+@media (hover: none) { .qt-del { opacity: .7; } }
+.qt-add { justify-self: start; }
+.qt-empty {
+  display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); cursor: pointer; font: inherit; color: inherit; text-align: left;
+  background: transparent; border: 1.5px dashed color-mix(in srgb, var(--pink) 35%, var(--line)); transition: background .2s ease;
+}
+.qt-empty:hover { background: var(--blush); }
+.qt-empty .qt-mark { position: static; font-size: calc(36px * var(--k-fs, 1)); height: 24px; }

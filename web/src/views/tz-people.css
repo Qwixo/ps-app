@@ -1,0 +1,232 @@
+/* V1.39, the Time zones screen's people: the Add and Find buttons at the top, the find box, the add form,
+   people on the clients card, Undo, and the card that glides to someone's zone (views/TzPeople.tsx, TimeZones.tsx). */
+.tz-head-b { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); }
+.tz-hbtn {
+  display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border-radius: 999px; cursor: pointer; font: inherit; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, border-color .15s ease, transform .22s cubic-bezier(.2,.9,.3,1);
+}
+.tz-hbtn:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); }
+.tz-hbtn:active { transform: scale(.9); }
+.tz-hbtn.on { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); }
+.tz-hbtn:focus-visible, .tz-btn:focus-visible, .tz-add:focus-visible, .tz-edit:focus-visible, .tz-x:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 2px; }
+
+/* the find box */
+.tz-find { display: grid; gap: calc(8px * var(--k-dn, 1)); animation: tz-drop .3s cubic-bezier(.18,1.25,.4,1); transform-origin: top center; }
+@keyframes tz-drop { from { opacity: 0; transform: translateY(-8px) scale(.96); } }
+.tz-find-in, .tz-zp-in {
+  display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); cursor: text;
+  border-radius: calc(14px * var(--k-rd, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+  transition: border-color .18s ease, box-shadow .22s ease;
+}
+.tz-find-in:focus-within, .tz-zp-in:focus-within, .tz-field > input:focus { border-color: var(--k-acc, #EC4E86); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); }
+.tz-find-in input, .tz-zp-in input, .tz-field > input {
+  flex: 1; min-width: 0; font: inherit; font-size: calc(15px * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF);
+  background: transparent; border: 0; padding: 0; outline: none; caret-color: var(--k-acc, #EC4E86);
+}
+.tz-find-in input::placeholder, .tz-zp-in input::placeholder, .tz-field > input::placeholder { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(38% * var(--k-ia, 1))), transparent); font-weight: 550; }
+.tz-kbd { flex: none; padding: calc(1px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(6px * var(--k-rd, 1)); font: inherit; font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .04em;
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(20% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+.tz-find-hint { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tz-find-list, .tz-zp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(3px * var(--k-dn, 1)); }
+.tz-find-list li {
+  display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: calc(7px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); cursor: pointer;
+  transition: background .14s ease, transform .2s cubic-bezier(.2,.9,.3,1);
+  animation: tz-row-in .28s cubic-bezier(.2,.9,.3,1) calc(var(--i, 0) * 28ms) backwards;
+}
+@keyframes tz-row-in { from { opacity: 0; transform: translateY(-4px); } }
+.tz-find-list li.on { background: color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); }
+.tz-find-list li.on .tz-find-n { color: var(--k-fg, #FFFFFF); }
+.tz-find-list li.none { opacity: .72; }
+.tz-find-n { flex: 1; min-width: 0; display: grid; font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(88% * var(--k-ia, 1))), transparent); overflow-wrap: anywhere; }
+.tz-find-n small { font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(52% * var(--k-ia, 1))), transparent); }
+.tz-find-t { flex: none; display: grid; justify-items: end; }
+.tz-find-t b { font-size: calc(15px * var(--k-fs, 1)); font-weight: 800; }
+.tz-find-t em { font-style: normal; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 650; color: var(--k-acc-t, #F7A8C8); white-space: nowrap; }
+.tz-find-empty { cursor: default !important; justify-content: space-between; flex-wrap: wrap; font-size: calc(13px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(65% * var(--k-ia, 1))), transparent); }
+/* a client is a filled dot, a person added here a ring: easy to tell apart, quietly */
+.tz-who, .tm-cmp-sub li .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.tz-who.client, .tm-cmp-sub li .dot.client { background: var(--k-acc, #EC4E86); box-shadow: 0 0 8px color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); }
+.tz-who.person, .tm-cmp-sub li .dot.person { background: transparent !important; box-shadow: inset 0 0 0 2px var(--k-acc-t, #F7A8C8) !important; }
+
+/* the add or edit form */
+.tz-form {
+  display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 9%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 32%, transparent);
+  animation: tz-drop .3s cubic-bezier(.18,1.25,.4,1); transform-origin: top center;
+}
+.tz-form-h, .tz-sub-h, .tz-spot-h { display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--k-dn, 1)); }
+.tz-x {
+  display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 999px; cursor: pointer; font: inherit; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 0; transition: background .15s ease, transform .2s ease;
+}
+.tz-x:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); transform: rotate(90deg); }
+.tz-field { display: grid; gap: calc(4px * var(--k-dn, 1)); }
+.tz-field-l { font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tz-field > input {
+  padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); transition: border-color .18s ease, box-shadow .22s ease;
+}
+.tz-zp { display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.tz-zp-in { padding-block: calc(7px * var(--k-dn, 1)); }
+.tz-zp-in input { font-size: calc(13.5px * var(--k-fs, 1)); }
+.tz-zp-now { display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); animation: tz-row-in .26s cubic-bezier(.2,.9,.3,1); }
+.tz-zp-now b { font-weight: 750; }
+.tz-zp-now span { font-weight: 800; }
+.tz-zp-now em { font-style: normal; font-weight: 650; color: var(--k-acc-t, #F7A8C8); }
+.tz-zp-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); cursor: pointer;
+  font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 650; transition: background .14s ease; animation: tz-row-in .22s ease backwards;
+}
+.tz-zp-list li.on { background: color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); }
+.tz-zp-list li i { font-style: normal; font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tz-zp-list li.tz-zp-none { cursor: default; font-weight: 550; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.tz-zp-t { flex: none; font-weight: 800; }
+.tz-err { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 650; color: var(--k-acc-t, #F7A8C8); animation: tz-row-in .2s ease; }
+.tz-form-b, .tz-spot-f { display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); }
+.tz-grow { flex: 1; }
+.tz-btn {
+  height: 30px; padding: 0 calc(14px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(13px * var(--k-fs, 1)); font-weight: 750; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent);
+  transition: background .15s ease, border-color .15s ease, transform .2s cubic-bezier(.2,.9,.3,1); white-space: nowrap;
+}
+.tz-btn:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+.tz-btn:active { transform: scale(.94); }
+.tz-btn.go { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); }
+.tz-btn.go:hover { filter: brightness(1.1); }
+.tz-btn.go:disabled { opacity: .6; cursor: default; }
+.tz-btn.bad { color: var(--k-acc-t, #F7A8C8); border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); background: transparent; }
+.tz-btn.bad:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent); }
+.tz-btn.sm { height: 26px; padding: 0 calc(11px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); }
+
+/* Undo after taking someone off */
+.tz-undo {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(10px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1));
+  border-radius: 999px; font-size: calc(13px * var(--k-fs, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(18% * var(--k-ia, 1))), transparent); animation: tz-drop .3s cubic-bezier(.18,1.25,.4,1);
+}
+.tz-undo span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the clients card: Add, a person's pencil, and a person just added popping in */
+.tz-sub-h { min-height: 26px; }
+.tz-add {
+  display: inline-flex; align-items: center; gap: calc(5px * var(--k-dn, 1)); height: 26px; padding: 0 calc(11px * var(--k-dn, 1)) 0 calc(9px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 800;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc, #EC4E86) 24%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent);
+  transition: background .15s ease, transform .2s cubic-bezier(.2,.9,.3,1);
+}
+.tz-add:hover { background: var(--k-acc, #EC4E86); }
+.tz-add:active { transform: scale(.92); }
+.tz-link { padding: 0; border: 0; background: none; font: inherit; font-weight: 750; color: var(--k-acc-t, #F7A8C8); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.tz-li-n { flex: 1; min-width: 0; }
+.tm-cmp-sub li.person { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); }
+.tz-edit {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; margin: -4px -6px -4px 0; border-radius: 999px; cursor: pointer; border: 0; font: inherit;
+  color: var(--k-fg, #FFFFFF); background: transparent; opacity: 0; transition: opacity .15s ease, background .15s ease;
+}
+.tm-cmp-sub li:hover .tz-edit, .tz-edit:focus-visible { opacity: .85; }
+.tz-edit:hover { opacity: 1; background: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); }
+.tm-cmp-sub li.new { animation: tz-new .7s cubic-bezier(.18,1.25,.4,1); }
+@keyframes tz-new {
+  0% { opacity: 0; transform: translateX(-10px) scale(.9); box-shadow: 0 0 0 0 color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); }
+  50% { opacity: 1; box-shadow: 0 0 0 6px color-mix(in srgb, var(--k-acc, #EC4E86) 0%, transparent); }
+}
+
+/* the found row in the list: lights up and sends out a ring */
+.tm-ck { position: relative; }
+.tm-ck.found { background: color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent) !important; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); }
+.tz-ping { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; animation: tz-ping 1.1s cubic-bezier(.2,.8,.3,1) 2; }
+@keyframes tz-ping {
+  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); }
+  to { box-shadow: 0 0 0 14px color-mix(in srgb, var(--k-acc, #EC4E86) 0%, transparent); }
+}
+
+/* the person found: their card */
+.tz-spot {
+  position: absolute; left: calc(100% + 14px); z-index: 5; width: 430px; max-width: calc(100vw - 360px); display: grid; gap: calc(12px * var(--k-dn, 1));
+  padding: calc(20px * var(--k-dn, 1)) calc(22px * var(--k-dn, 1)); border-radius: calc(26px * var(--k-rd, 1)); outline: none;
+  background: var(--k-surface, #1B1219); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF);
+  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .75), 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 18%, transparent);
+  transform-origin: 0 24px; animation: tz-spot-in .42s cubic-bezier(.18,1.3,.4,1) backwards;
+  transition: box-shadow .5s ease;
+}
+.tz-spot::before { content: ""; position: absolute; right: 100%; top: 0; bottom: 0; width: 18px; }   /* bridge from the panel */
+@keyframes tz-spot-in { from { opacity: 0; transform: translateX(-22px) scale(.82) rotate(-1.5deg); filter: blur(4px); } 55% { opacity: 1; filter: none; } }
+.tz-spot.landed { box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .75), 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent), 0 0 40px -10px color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); }
+.tm-overlay .tm-left .tz-spot { background: var(--k-surface, #1B1219); will-change: transform; isolation: isolate; }
+.tz-tag { padding: calc(2px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); border-radius: 999px; font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); color: var(--k-acc-t, #F7A8C8); }
+.tz-tag.person { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); }
+.tz-spot-name { margin: -2px 0 0; font-size: calc(28px * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.015em; line-height: 1.1; overflow-wrap: anywhere; animation: tz-row-in .4s cubic-bezier(.2,.9,.3,1) .08s backwards; }
+.tz-spot-line { margin: -4px 0 0; min-height: 1.4em; font-size: calc(14px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.tz-spot.landed .tz-spot-line { color: var(--k-fg, #FFFFFF); animation: tz-row-in .35s cubic-bezier(.2,.9,.3,1); }
+.tz-spot-mid { display: flex; align-items: center; gap: calc(18px * var(--k-dn, 1)); }
+.tz-spot-face { flex: none; width: 128px; height: 128px; overflow: visible; filter: drop-shadow(0 10px 22px rgba(0, 0, 0, .45)); transition: transform .5s cubic-bezier(.18,1.4,.4,1); }
+.tz-spot.landed .tz-spot-face { transform: scale(1.04); }
+.tz-spot-face .ck-rim { fill: var(--k-base, #120B10); stroke: var(--k-acc, #EC4E86); stroke-width: .8; }
+.tz-spot-face .ck-mark { stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); stroke-width: .7; stroke-linecap: round; }
+.tz-spot-face .ck-mark.min { stroke: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(35% * var(--k-ia, 1))), transparent); stroke-width: .35; }
+.tz-spot-face line.ck-h, .tz-spot-face line.ck-m, .tz-spot-face line.ck-s { transform-box: view-box; transform-origin: 0 0; stroke-linecap: round; }   /* turn around the hands group's 0,0, the face's centre (V1.47) */
+.tz-spot-face .ck-h { stroke: var(--k-fg, #FFFFFF); stroke-width: 1.9; }
+.tz-spot-face .ck-m { stroke: var(--k-fg, #FFFFFF); stroke-width: 1.2; }
+.tz-spot-face .ck-s { stroke: var(--k-acc, #FF5A93); stroke-width: .5; }
+.tz-spot-face .ck-dot { fill: var(--k-acc, #EC4E86); }
+.tz-spot-face .ck-num { font-size: calc(4.6px * var(--k-fs, 1)); font-weight: 800; fill: var(--k-fg, #FFFFFF); font-family: inherit; font-variant-numeric: tabular-nums; }
+.tz-spot-time { display: grid; gap: calc(4px * var(--k-dn, 1)); min-width: 0; }
+.tz-spot-time b { font-size: calc(40px * var(--k-fs, 1)); font-weight: 850; letter-spacing: -.01em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tz-spot-time > span.num { font-size: calc(14px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.tz-spot-time em { font-style: normal; font-weight: 750; color: var(--k-acc-t, #F7A8C8); }
+.tz-gap-chip {
+  justify-self: start; margin-top: 2px; padding: calc(3px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)); border-radius: 999px; font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent);
+  transition: background .3s ease, color .3s ease;
+}
+.tz-gap-chip.in { background: var(--k-acc, #EC4E86); color: var(--k-fg, #FFFFFF); animation: tz-chip .5s cubic-bezier(.18,1.6,.4,1); }
+@keyframes tz-chip { from { transform: scale(.8); } }
+/* the strip of every zone: the hour it is there now, night darker; it glides under the lens */
+.tz-strip-view {
+  position: relative; height: 62px; overflow: hidden; border-radius: calc(14px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, var(--k-base, #000000) 14%, var(--k-base, #000000) 86%, transparent); mask-image: linear-gradient(90deg, transparent, var(--k-base, #000000) 14%, var(--k-base, #000000) 86%, transparent);
+}
+.tz-strip { position: absolute; left: 0; top: 0; bottom: 0; will-change: transform; }
+.tz-cell {
+  position: absolute; top: 6px; width: 44px; height: 30px; margin-left: 1px; display: flex; align-items: baseline; justify-content: center; gap: calc(1px * var(--k-dn, 1)); padding-top: calc(6px * var(--k-dn, 1)); box-sizing: border-box;
+  border-radius: calc(8px * var(--k-rd, 1)); font-size: calc(13px * var(--k-fs, 1)); font-weight: 800;
+}
+.tz-cell i { font-style: normal; font-size: .72em; font-weight: 700; opacity: .7; }
+.tz-cell.day { background: color-mix(in srgb, var(--k-warn-t, #FFD27A) 26%, transparent); color: var(--k-fg, #FFFFFF); }
+.tz-cell.dusk { background: color-mix(in srgb, var(--k-acc2-t, #B57BFF) 22%, transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 85%, transparent); }
+.tz-cell.night { background: color-mix(in srgb, var(--k-info, #2C3A8C) 32%, transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); }
+.tz-pin {
+  position: absolute; top: 40px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: calc(4px * var(--k-dn, 1)); white-space: nowrap;
+  font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .04em; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent);
+}
+.tz-pin i { width: 7px; height: 7px; border-radius: 50%; background: var(--k-fg, #FFFFFF); }
+.tz-pin.you i { background: transparent; box-shadow: inset 0 0 0 2px var(--k-acc-t, #F7A8C8); }
+.tz-pin.them { color: var(--k-fg, #FFFFFF); }
+.tz-pin.them i { background: var(--k-acc, #EC4E86); }
+.tz-pin.them.on i { animation: tz-pin 1.2s cubic-bezier(.2,.8,.3,1) 3; }
+@keyframes tz-pin {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--k-acc, #EC4E86) 80%, transparent); transform: scale(1.5); }
+  100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--k-acc, #EC4E86) 0%, transparent); transform: scale(1); }
+}
+.tz-trail { position: absolute; top: 3px; height: 36px; border-radius: calc(10px * var(--k-rd, 1)); pointer-events: none; background: linear-gradient(90deg, color-mix(in srgb, var(--k-acc, #EC4E86) 10%, transparent), color-mix(in srgb, var(--k-acc, #EC4E86) 28%, transparent)); }
+.tz-lens {
+  position: absolute; left: 50%; top: 2px; width: 50px; height: 38px; transform: translateX(-50%); border-radius: calc(11px * var(--k-rd, 1)); pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--k-acc, #EC4E86), 0 0 18px -2px color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent);
+}
+.tz-spot.landed .tz-lens { animation: tz-lens .6s cubic-bezier(.18,1.6,.4,1); }
+@keyframes tz-lens { 40% { transform: translateX(-50%) scale(1.14); } }
+.tz-spot-zone { display: grid; min-width: 0; font-size: calc(13px * var(--k-fs, 1)); font-weight: 750; }
+.tz-spot-zone small { font-size: calc(11px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tz-find, .tz-form, .tz-undo, .tz-find-list li, .tz-zp-list li, .tz-zp-now, .tz-err, .tm-cmp-sub li.new, .tz-ping, .tz-spot, .tz-spot-name,
+  .tz-spot.landed .tz-spot-line, .tz-gap-chip.in, .tz-pin.them.on i, .tz-spot.landed .tz-lens { animation: none; }
+  .tz-spot-face, .tz-hbtn, .tz-btn, .tz-add, .tz-x, .tz-edit { transition: none; }
+  .tz-spot.landed .tz-spot-face { transform: none; }
+}

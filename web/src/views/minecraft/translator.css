@@ -1,0 +1,94 @@
+/* Minecraft mode, the translator (minecraft/Translator.tsx). Sits in a block panel of the Minecraft mode window
+   (views/minecraft.css). Colours come from the theme variables when mc-theme.css is present (--mcm-*), else the
+   Mac settings ones. Only mcw classes here (mc- is taken by the mail cards). */
+.mcw-tr { display: grid; gap: 14px; color: var(--ink);
+  /* Local names over the theme's tokens (mc-theme.css), so it reads on birch (light) and obsidian (dark) alike. */
+  --ink: var(--mcm-ink, #F6EEF1); --ink-2: var(--mcm-ink, #E4D7DD); --muted: var(--mcm-ink-soft, rgba(255, 255, 255, .7));
+  --line: var(--mcm-panel-lo, rgba(255, 255, 255, .16)); --surface: var(--mcm-panel-hi, rgba(0, 0, 0, .28));
+  --warn: #7A4300; --bad: #9E1C15; --good: #2B6619; --hl: rgba(0, 0, 0, .08); }
+.mcm-theme[data-mcm-theme="dark"] .mcw-tr { --warn: #F0B35A; --bad: #FF9A90; --good: #7FD36A; --hl: rgba(255, 255, 255, .1); }
+@media (prefers-color-scheme: dark) { .mcm-theme:not([data-mcm-theme="light"]) .mcw-tr { --warn: #F0B35A; --bad: #FF9A90; --good: #7FD36A; --hl: rgba(255, 255, 255, .1); } }
+.mcw-tr, .mcw-tr textarea, .mcw-tr button, .mcw-tr select { font-family: var(--mcm-font, inherit); }
+.mcw-card { display: grid; gap: 8px; padding: 14px 16px; border-radius: 2px; background: var(--surface); border: 2px solid var(--line);
+  animation: mcw-in .42s cubic-bezier(.2, .9, .3, 1) both; }
+.mcw-card h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
+.mcw-muted { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin: 0; }
+.mcw-warn { color: var(--warn); font-size: 12.5px; line-height: 1.45; margin: 0; }
+.mcw-bad { color: var(--bad) !important; }
+.mcw-link { appearance: none; border: 0; background: none; padding: 0 2px; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.mcw-link:hover { background: var(--hl); }
+
+/* The model card and its progress bar (stepped, like blocks filling up). */
+.mcw-model-top { display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; }
+.mcw-model-top > div { display: grid; gap: 4px; }
+.mcw-bar { height: 14px; border-radius: 0; background: var(--surface); border: 2px solid var(--line); overflow: hidden; }
+.mcw-bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--mcm-grass, #5fae3c) 0 10px, var(--mcm-grass-lo, #3f7f27) 10px 12px);
+  transition: width .35s ease; }
+.mcw-bar i.mcw-check { background: repeating-linear-gradient(90deg, var(--mcm-gold, #f2c230) 0 10px, var(--mcm-gold-lo, #b88a12) 10px 12px); }
+.mcw-model-ready { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); padding: 2px 2px 0; }
+.mcw-dot { width: 10px; height: 10px; border-radius: 0; background: var(--mcm-grass, #5fae3c); border: 2px solid var(--mcm-grass-lo, #3f7f27); }
+.mcw-sure { display: inline-flex; gap: 8px; align-items: center; color: var(--ink-2); }
+
+/* Languages. */
+.mcw-langs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: end; }
+.mcw-sel { display: grid; gap: 4px; font-size: 12px; font-weight: 650; color: var(--muted); }
+.mcw-sel { position: relative; }
+.mcw-sel select { appearance: none; width: 100%; font-family: var(--mcm-font, inherit); font-size: 14px; cursor: pointer; padding-right: 30px; }
+/* The arrow: a little pixel staircase, drawn in CSS (no picture, nothing to load). */
+.mcw-sel::after { content: ""; position: absolute; right: 14px; bottom: 16px; width: 10px; height: 6px; pointer-events: none; background:
+  linear-gradient(var(--muted), var(--muted)) 0 0 / 10px 2px no-repeat, linear-gradient(var(--muted), var(--muted)) 2px 2px / 6px 2px no-repeat,
+  linear-gradient(var(--muted), var(--muted)) 4px 4px / 2px 2px no-repeat; }
+.mcw-swap { width: 38px; height: 38px; }
+.mcw-swap svg { transition: transform .3s steps(4); }
+.mcw-swap:hover svg { transform: rotate(180deg); }
+
+/* The text box: paste, type or drop a screenshot. */
+.mcw-in { position: relative; border-radius: 0; border: 2px solid var(--line); background: var(--surface); transition: border-color .2s ease, box-shadow .2s ease; }
+.mcw-in.mcw-drag { border-color: var(--mcm-focus, #ffd23a); box-shadow: 0 0 0 3px var(--mcm-focus, #ffd23a); }
+.mcw-in textarea { display: block; width: 100%; min-height: 120px; max-height: 320px; resize: vertical; box-sizing: border-box; padding: 12px 36px 12px 14px; border: 0; outline: 0;
+  background: transparent; color: var(--ink); font: inherit; font-size: 14.5px; line-height: 1.5; }
+.mcw-in textarea::placeholder { color: var(--muted); }
+.mcw-clear { position: absolute; top: 6px; right: 6px; width: 26px !important; height: 26px !important; font-size: 16px; line-height: 1; }
+
+/* Latin Georgian, read: each word can be corrected. */
+.mcw-read-h { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); }
+.mcw-read-h .mcw-muted { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.mcw-geo { margin: 0; white-space: pre-wrap; font-size: 15px; line-height: 1.75; color: var(--ink); }
+.mcw-line { display: inline; }
+.mcw-w { appearance: none; border: 0; padding: 0 1px; margin: 0; font: inherit; color: inherit; cursor: pointer; background: none; border-radius: 3px;
+  border-bottom: 1px solid var(--muted); transition: background .15s ease; }
+.mcw-w:hover { background: var(--hl); }
+.mcw-w.mcw-guess { border-bottom: 1px dashed var(--warn); }
+.mcw-en { color: var(--muted); }
+.mcw-menu { position: fixed; z-index: 50; min-width: 190px; display: grid; gap: 2px; padding: 6px; border-radius: 0; background: var(--mcm-panel, rgb(28, 22, 30)); color: var(--ink);
+  border: 2px solid var(--mcm-edge, #000); box-shadow: 0 12px 30px rgba(0, 0, 0, .5); animation: mcw-in .2s ease both; }
+.mcw-menu-h { padding: 4px 8px 6px; font-size: 12px; color: var(--muted); }
+.mcw-menu button { appearance: none; border: 0; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; padding: 7px 8px; border-radius: 6px;
+  font: inherit; font-size: 14px; color: var(--ink); background: none; text-align: left; }
+.mcw-menu button:hover, .mcw-menu button.on { background: var(--hl); }
+.mcw-menu i { font-style: normal; font-size: 11.5px; color: var(--muted); align-self: center; }
+
+.mcw-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mcw-note { font-size: 12.5px; color: var(--warn); }
+.mcw-spin { display: inline-grid; color: var(--ink); animation: mcw-dig .7s steps(4) infinite; }
+@keyframes mcw-dig { 0% { transform: rotate(0); } 50% { transform: rotate(-35deg); } 100% { transform: rotate(0); } }
+
+.mcw-out-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); }
+.mcw-out-t { margin: 0; white-space: pre-wrap; font-size: 15.5px; line-height: 1.6; color: var(--ink); user-select: text; }
+.mcw-out-lat { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.mcw-out-lat .mcw-muted { grid-column: 1 / -1; }
+.mcw-out-lat p { margin: 0; white-space: pre-wrap; font-size: 13.5px; color: var(--ink-2); user-select: text; }
+
+.mcw-hist summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.mcw-hist ul { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.mcw-hist li button { appearance: none; width: 100%; text-align: left; cursor: pointer; display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; font: inherit;
+  background: var(--surface); border: 2px solid var(--line); color: var(--ink); }
+.mcw-hist li button:hover { filter: brightness(1.05); }
+.mcw-hist b { font-size: 11.5px; color: var(--muted); font-weight: 700; }
+.mcw-hist span { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mcw-swap svg, .mcw-spin { transition: none; animation: none; }
+}
+@keyframes mcw-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.mcw-copy { min-height: 0; padding: 4px 10px; font-size: 12px; }

@@ -1,0 +1,69 @@
+/* Settings > AI task API (views/TaskApi.tsx). Every colour, size and corner reads a look token, like the rest of
+   Settings (the same tokens as telegrambot.css). Motion: opacity and transform only, none with Reduce motion. */
+.api-wrap { --api-soft: var(--gs-soft, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent));
+  --api-line: var(--gs-line, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent));
+  display: grid; gap: calc(14px * var(--k-dn, 1)); min-width: 0; }
+.api-intro { margin: 0; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.5; color: var(--api-soft); max-width: 80ch; }
+.api-intro b { color: var(--k-fg, #FFFFFF); font-weight: 720; }
+.api-soft { margin: 0; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.45; color: var(--api-soft); }
+.api-bad { font-size: calc(12.5px * var(--k-fs, 1)); color: var(--k-bad-t, #FCA5A5); }
+.api-wrap code { font-family: var(--k-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .92em; padding: calc(1px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1));
+  border-radius: calc(6px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 9%, transparent); color: var(--k-fg, #FFFFFF); }
+.api-row, .api-top { display: flex; flex-wrap: wrap; align-items: center; gap: calc(10px * var(--k-dn, 1)); min-width: 0; }
+.api-pill { flex: none; font-size: calc(11px * var(--k-fs, 1)); font-weight: 780; padding: calc(3px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); color: var(--k-fg, #FFFFFF); }
+.api-pill.good { background: color-mix(in srgb, var(--k-ok, #22C55E) 16%, transparent); color: var(--k-ok-t, #86EFAC); }
+.api-pill.bad { background: color-mix(in srgb, var(--k-bad, #EF4444) 16%, transparent); color: var(--k-bad-t, #FCA5A5); }
+.api-url { user-select: all; -webkit-user-select: all; }
+
+/* The switch: a track with a knob that slides. */
+.api-sw { flex: none; position: relative; display: inline-flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: 0; border: 0; background: none; color: var(--k-fg, #FFFFFF);
+  font: inherit; font-size: calc(14px * var(--k-fs, 1)); font-weight: 760; cursor: pointer; }
+.api-sw i { flex: none; position: relative; width: 38px; height: 22px; border-radius: 99px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); transition: background .22s ease; }
+.api-sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--k-fg, #FFFFFF);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: transform .26s cubic-bezier(.22, 1, .36, 1); }
+.api-sw.on i, .api-scope.on .api-sw i { background: var(--k-acc, #EC4E86); }
+.api-sw.on i::after, .api-scope.on .api-sw i::after { transform: translateX(16px); }
+.api-sw.big i { width: 46px; height: 26px; }
+.api-sw.big i::after { width: 20px; height: 20px; }
+.api-sw.big.on i::after { transform: translateX(20px); }
+.api-sw:focus-visible i, .api-scope:focus-visible .api-sw i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent); }
+
+.api-card { display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 4%, transparent); border: 1px solid var(--api-line); min-width: 0; }
+.api-card h4 { margin: 0; font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 760; color: var(--k-fg, #FFFFFF); }
+.api-key { min-width: 0; max-width: 100%; overflow-wrap: anywhere; letter-spacing: .02em; padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) !important; }
+.api-key.shown { user-select: all; -webkit-user-select: all; animation: api-in .3s cubic-bezier(.22, 1, .36, 1) both; }
+
+.api-scopes { display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.api-group { font-size: calc(11px * var(--k-fs, 1)); font-weight: 820; letter-spacing: .12em; text-transform: uppercase; color: var(--api-soft); margin-top: calc(4px * var(--k-dn, 1)); }
+.api-scope { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); text-align: left; padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1));
+  border-radius: calc(12px * var(--k-rd, 1)); border: 1px solid transparent; background: none; color: var(--k-fg, #FFFFFF); font: inherit; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
+.api-scope:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); }
+.api-scope.on { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); }
+.api-sl { display: grid; gap: 2px; min-width: 0; }
+.api-sl b { font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 720; }
+.api-sl em { font-style: normal; font-size: calc(12px * var(--k-fs, 1)); color: var(--api-soft); }
+.api-note { margin: calc(4px * var(--k-dn, 1)) 0 0; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.45; color: var(--k-fg, #FFFFFF);
+  padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-warn, #F59E0B) 10%, transparent); border: 1px solid color-mix(in srgb, var(--k-warn, #F59E0B) 30%, transparent); }
+
+/* The big Copy for AI button. */
+.api-copy { display: flex; align-items: center; gap: calc(14px * var(--k-dn, 1)); width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--k-on-acc, #FFFFFF);
+  padding: calc(16px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1)); border: 0;
+  background: linear-gradient(135deg, var(--k-acc, #EC4E86), color-mix(in srgb, var(--k-acc, #EC4E86) 62%, #6D28D9));
+  box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); transition: transform .2s cubic-bezier(.22, 1, .36, 1), opacity .2s ease; }
+.api-copy:hover:not(:disabled) { transform: translateY(-1px) scale(1.005); }
+.api-copy:active:not(:disabled) { transform: scale(.985); }
+.api-copy:disabled { opacity: .45; cursor: default; }
+.api-copy svg { flex: none; }
+.api-copy span { display: grid; gap: 3px; min-width: 0; }
+.api-copy b { font-size: calc(17px * var(--k-fs, 1)); font-weight: 800; }
+.api-copy em { font-style: normal; font-size: calc(12.5px * var(--k-fs, 1)); opacity: .88; line-height: 1.4; }
+.api-copy.done svg { animation: api-pop .4s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes api-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes api-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.18); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .api-sw i, .api-sw i::after, .api-copy, .api-scope { transition: none; }
+  .api-key.shown, .api-copy.done svg { animation: none; }
+}

@@ -1,0 +1,38 @@
+/* The NEW badge on fresh tasks (views/NewBadge.tsx, V1.33). A small accent pill sitting on the task's top left
+   corner, in every look: the look's own accent with its readable text colour, ringed in the surface colour so it
+   stands off the glass in dark and Light looks alike. Notebook looks draw it as a red ink stamp. */
+.tm-row > .tm-new {
+  position: absolute; z-index: 3; top: calc(-8px * var(--z, 1)); left: calc(14px * var(--z, 1));
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: calc(2px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border: 0; border-radius: 999px; margin: 0;
+  font: inherit; font-size: calc(calc(10px * var(--z, 1)) * var(--k-fs, 1)); font-weight: 850; letter-spacing: .1em; line-height: 1.35;
+  background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF);
+  box-shadow: 0 0 0 1.5px var(--k-surface, #17121A), 0 0 12px color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent);
+  cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  animation: tm-new-in .32s cubic-bezier(.2, 1.4, .4, 1) both;
+  transition: transform .12s ease, filter .12s ease, opacity .12s ease;
+}
+.tm-row > .tm-new:hover { transform: scale(1.08); filter: brightness(1.12); }
+.tm-row > .tm-new:active { transform: scale(.92); }
+.tm-row > .tm-new:focus-visible { outline: 2px solid var(--k-fg, #FFFFFF); outline-offset: 2px; }
+@keyframes tm-new-in { from { opacity: 0; transform: translateY(4px) scale(.6); } }
+@media (prefers-reduced-motion: reduce) { .tm-row > .tm-new { animation: none; transition: none; } }
+/* On the phone a slightly bigger target for a thumb (the pill still looks the same size). */
+html.gos .tm-row > .tm-new { padding: calc(3px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); }
+html.gos .tm-row > .tm-new::after { content: ""; position: absolute; inset: -8px -6px; }
+.tm-new-v { min-width: 6.5em; }
+
+/* Notebook looks: a red ink stamp on the paper, slightly tilted. */
+html[data-nb] .tm-row > .tm-new {
+  background: var(--nb-card); color: var(--nb-accent); border: 1.6px solid var(--nb-accent); border-radius: var(--nb-radius-s);
+  font-family: var(--nb-small); font-weight: 400; letter-spacing: .06em; font-size: calc(14px * var(--z, 1) * var(--nb-fz, 1));
+  padding: 0 calc(6px * var(--z, 1)); box-shadow: none; transform: rotate(-4deg);
+}
+html[data-nb] .tm-row > .tm-new:hover { transform: rotate(-4deg) scale(1.08); filter: none; }
+html[data-nb] .tm-row > .tm-new:active { transform: rotate(-4deg) scale(.92); }
+html[data-nb] .tm-row > .tm-new:focus-visible { outline-color: var(--nb-ink); }
+
+/* The phone's gear sheet (src/gos/GosNewBadges.tsx): the minutes slider and its quick picks. */
+.gos-new-min { display: grid; gap: calc(10px * var(--k-dn, 1)); margin-top: calc(10px * var(--k-dn, 1)); }
+.gos-new-min input[type="range"] { width: 100%; min-height: 32px; accent-color: var(--k-acc, #EC4E86); }
+.gos-new-picks { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); }

@@ -1,0 +1,104 @@
+/* G Squad chat (V1.40): the Chat tab (views/GSquadChat.tsx). Same theme colours as the pop-up (gsquad.css, --k-*). */
+.gc { display: flex; flex-direction: column; min-height: 0; height: min(460px, calc(100vh - 230px)); }
+.gc-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: calc(2px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); }
+.gc-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(2px * var(--k-dn, 1)); }
+/* V1.43, the messenger look: one person's messages in a row are a group. Others' groups: their picture at the bottom
+   left and their name in their colour at the top of the first bubble. Your own: on the right, in the accent. The
+   last bubble of a group has a small tail. */
+.gc-line { position: relative; display: flex; align-items: flex-end; gap: calc(8px * var(--k-dn, 1)); max-width: 100%; animation: gcIn .28s cubic-bezier(.22, 1.1, .36, 1); }
+.gc-line.first { margin-top: 8px; }
+.gc-line.mine { justify-content: flex-end; }
+@keyframes gcIn { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .gc-line { animation: none; } }
+.gc-av { flex: none; width: 30px; display: flex; align-items: flex-end; }
+.gc-col { min-width: 0; max-width: min(78%, 560px); display: flex; flex-direction: column; align-items: flex-start; }
+.gc-line.mine .gc-col { align-items: flex-end; }
+.gc-bubble { position: relative; display: block; max-width: 100%; box-sizing: border-box; padding: calc(7px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border-radius: calc(17px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), var(--k-surface, #17121A)); box-shadow: 0 1px 1.5px rgba(0, 0, 0, .16); }
+.gc-line:not(.mine):not(.first) .gc-bubble { border-top-left-radius: calc(6px * var(--k-rd, 1)); }
+.gc-line:not(.mine):not(.last) .gc-bubble { border-bottom-left-radius: calc(6px * var(--k-rd, 1)); }
+.gc-line.mine:not(.first) .gc-bubble { border-top-right-radius: calc(6px * var(--k-rd, 1)); }
+.gc-line.mine:not(.last) .gc-bubble { border-bottom-right-radius: calc(6px * var(--k-rd, 1)); }
+.gc-line.last:not(.mine) .gc-bubble { border-bottom-left-radius: calc(4px * var(--k-rd, 1)); }
+.gc-line.last.mine .gc-bubble { border-bottom-right-radius: calc(4px * var(--k-rd, 1)); }
+.gc-line.last .gc-bubble::before { content: ""; position: absolute; bottom: 0; width: 9px; height: 13px; background: inherit; }
+.gc-line.last:not(.mine) .gc-bubble::before { left: -6px; clip-path: path("M9 0 C9 6 6 10 0 13 L9 13 Z"); }
+.gc-line.last.mine .gc-bubble::before { right: -6px; clip-path: path("M0 0 C0 6 3 10 9 13 L0 13 Z"); }
+.gc-line.mine .gc-bubble { background: linear-gradient(160deg, color-mix(in srgb, var(--k-acc, #EC4E86) 88%, #FFFFFF), var(--k-acc, #EC4E86)); /* k-keep */ color: var(--k-on-acc, #FFFFFF); }
+.gc-line.mine.last .gc-bubble::before { background: var(--k-acc, #EC4E86); }
+.gc-line.sending .gc-bubble { opacity: .6; }
+.gc-line.failed .gc-bubble { opacity: .75; outline: 1px solid var(--k-bad-t, #FF6B6B); }
+.gc-who { display: block; margin-bottom: 2px; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; color: var(--k-acc-t, #FF7AAB); }
+.gc-who.t1 { color: var(--k-info-t, #8CC4FF); }
+.gc-who.t2 { color: var(--k-ok-t, #5BE3A6); }
+.gc-who.t3 { color: var(--k-warn-t, #FFD166); }
+.gc-who.t4 { color: var(--k-acc2-t, #B69CFF); }
+.gc-who.t5 { color: var(--k-bad-t, #FF8A8A); }
+.gc-who em { font-style: normal; font-weight: 600; opacity: .7; }
+.gc-text { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 500; line-height: 1.38; user-select: text; -webkit-user-select: text; }
+/* Room at the end of the last line for the time, which sits in the bubble's bottom right corner. */
+.gc-pad { display: inline-block; width: 3.4em; height: 1px; }
+.gc-meta { position: absolute; right: 10px; bottom: 5px; font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 600; opacity: .62; white-space: nowrap; }
+.gc-line.mine .gc-meta { opacity: .8; }
+.gc-line.edited .gc-pad { width: 6.6em; }
+.gc-line.sending .gc-pad, .gc-line.failed .gc-pad { width: 5.2em; }
+.gc-day { display: flex; justify-content: center; margin: 10px 0 4px; pointer-events: none; }
+.gc-day span { padding: calc(4px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 82%, transparent);
+  background: color-mix(in srgb, var(--k-surface, #17121A) 78%, transparent); box-shadow: 0 1px 2px rgba(0, 0, 0, .16); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.gc-acts { display: none; gap: calc(4px * var(--k-dn, 1)); padding: calc(3px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) 0; }
+.gc-line.mine:hover .gc-acts, .gc-line.mine:focus-within .gc-acts, .gc-line.failed .gc-acts { display: flex; }
+.gc-act { padding: calc(2px * var(--k-dn, 1)) calc(7px * var(--k-dn, 1)); border: 0; border-radius: calc(99px * var(--k-rd, 1)); background: none; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent);
+  font: 700 calc(11px * var(--k-fs, 1))/1.2 inherit; font-family: inherit; cursor: pointer; }
+.gc-act:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent); }
+.gc-act.bad { color: var(--k-bad-t, #FF8A8A); }
+.gc-about { display: inline-flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); max-width: 100%; padding: calc(3px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(9px * var(--k-rd, 1)); font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 600;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); border-left: 3px solid var(--k-ok, #3DDC84); }
+.gc-about b { font-weight: 800; opacity: .75; }
+.gc-about-x { margin-left: 2px; width: 18px; height: 18px; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); color: inherit; cursor: pointer; line-height: 1; }
+.gc-note, .gc-empty { margin: 10px 6px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); text-align: center; }
+.gc-older { display: block; margin: 6px auto; padding: calc(5px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border: 0; border-radius: calc(99px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 7%, transparent);
+  color: inherit; font: 700 calc(11.5px * var(--k-fs, 1))/1 inherit; font-family: inherit; cursor: pointer; }
+
+.gc-vote { margin: 4px 2px 10px; padding: calc(12px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); animation: gcIn .3s ease-out; }
+.gc-vote p { margin: 0 0 6px; }
+.gc-vote-t { font-weight: 800; font-size: calc(13.5px * var(--k-fs, 1)); line-height: 1.3; }
+.gc-vote-s { font-weight: 700; font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 80%, transparent); }
+.gc-vote-b { font-weight: 550; font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 70%, transparent); }
+.gc-vote-row { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); margin-top: 8px; }
+.gc-vote-row .gs-mini { min-width: 64px; }
+.gc-vote-row .gs-mini.on { box-shadow: 0 0 0 2px var(--k-fg, #FFFFFF); }
+.gc-vote-n { margin-left: auto; font-size: calc(11px * var(--k-fs, 1)); font-weight: 650; opacity: .65; }
+
+.gc-compose { display: flex; flex-direction: column; gap: calc(6px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)) calc(2px * var(--k-dn, 1)); border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 8%, transparent); }
+.gc-compose > .gc-about { align-self: flex-start; }
+.gc-editing { display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 70%, transparent); }
+.gc-row { display: flex; align-items: flex-end; gap: calc(6px * var(--k-dn, 1)); padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(24px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); transition: border-color .2s ease, box-shadow .2s ease; }
+.gc-row:focus-within { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 65%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); }
+.gc-box { flex: 1; min-height: 34px; max-height: 132px; resize: none; box-sizing: border-box; padding: calc(8px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border: 0; border-radius: calc(18px * var(--k-rd, 1)); outline: none; background: none; color: inherit;
+  font: 500 calc(13.5px * var(--k-fs, 1))/1.35 inherit; font-family: inherit; overflow-y: hidden; user-select: text; -webkit-user-select: text; }
+.gc-box::placeholder { color: color-mix(in srgb, var(--k-fg, #FFFFFF) 45%, transparent); }
+.gc-send { flex: none; min-width: 34px; height: 34px; padding: 0 calc(10px * var(--k-dn, 1)); border: 0; border-radius: calc(99px * var(--k-rd, 1)); display: grid; place-items: center; cursor: pointer;
+  background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); font: 750 calc(12px * var(--k-fs, 1))/1 inherit; font-family: inherit;
+  transition: transform .22s cubic-bezier(.34, 1.56, .64, 1), opacity .2s ease; }
+.gc-send:disabled { opacity: .35; cursor: default; transform: scale(.88); }
+.gc-send:active:not(:disabled) { transform: scale(.9); }
+.gc-sound { display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); margin: 8px 4px 0; padding: 0; border: 0; background: none; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 70%, transparent);
+  font: 650 calc(11.5px * var(--k-fs, 1))/1 inherit; font-family: inherit; cursor: pointer; }
+.gc-sound .gs-tog { transform: scale(.8); transform-origin: left center; }
+.gc-foot { margin: 6px 4px 0; font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 600; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 45%, transparent); }
+
+/* The unread badge on the G Squad icon (and the website's chat button): top left, the accent colour. */
+.gc-badge { position: absolute; left: -6px; top: -5px; min-width: 16px; height: 16px; padding: 0 calc(4px * var(--k-dn, 1)); box-sizing: border-box; border-radius: calc(99px * var(--k-rd, 1));
+  display: grid; place-items: center; font: 800 calc(10px * var(--k-fs, 1))/1 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif);
+  color: var(--k-on-acc, #FFFFFF); background: var(--k-acc, #EC4E86); box-shadow: 0 0 0 2px var(--k-surface, #161016); animation: gcPop .35s cubic-bezier(.22, 1.4, .36, 1); }
+@keyframes gcPop { from { transform: scale(.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .gc-badge { animation: none; } }
+
+/* The website: the chat pop-up and the history vote pop-up. */
+.gc-pop .gs-body { overflow: visible; }
+.gc-modal { position: fixed; inset: 0; z-index: 2147483001; display: grid; place-items: center; padding: calc(16px * var(--k-dn, 1)); background: color-mix(in srgb, var(--k-base, #000000) 45%, transparent); animation: gcFade .2s ease-out; }
+@keyframes gcFade { from { opacity: 0; } }
+.gc-modal-card { width: min(460px, 100%); padding: calc(8px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); background: var(--k-surface, #161016); color: var(--k-fg, #FFFFFF);
+  font: calc(13px * var(--k-fs, 1))/1.35 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif); box-shadow: 0 18px 50px rgba(0, 0, 0, .5); }
