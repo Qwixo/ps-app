@@ -131,10 +131,10 @@ select.rm-input option { color: var(--k-surface, #111111); }
 
 /* ---------- the card (the same as the Mac's) ---------- */
 /* The card keeps its own literal colours: it is the Mac card's picture, painted from the reminder's colours (k-keep). */
-.rm-card { --rc-bg: #28121e; /* k-keep */ --rc-acc: #ec4e86; /* k-keep */ --rc-ink: #fff; /* k-keep */ position: relative; /* k-keep */ overflow: hidden; /* k-keep */ box-sizing: border-box; /* k-keep */ max-width: 460px; /* k-keep */ border-radius: 22px; /* k-keep */ padding: 18px 20px; /* k-keep */
+.rm-card { --rc-bg: #28121e; /* k-keep */ --rc-acc: #ec4e86; /* k-keep */ --rc-ink: #fff; /* k-keep */ --rc-sub: #e8dde3; /* k-keep */ --rc-lift: #fff; /* k-keep */ --rc-glow: 22%; /* k-keep */ --rc-pill: #f5a2c0; /* k-keep */ --rc-btn: 13%; /* k-keep */ --rc-on: #fff; /* k-keep */ --rc-field: rgba(0,0,0,.25); /* k-keep */ --rc-ph: #c9bcc3; /* k-keep */ position: relative; /* k-keep */ overflow: hidden; /* k-keep */ box-sizing: border-box; /* k-keep */ max-width: 460px; /* k-keep */ border-radius: 22px; /* k-keep */ padding: 18px 20px; /* k-keep */
   color: var(--rc-ink); /* k-keep */ font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Inter", sans-serif; /* k-keep */
-  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--rc-acc) 22%, transparent), transparent 60%),
-    linear-gradient(165deg, color-mix(in srgb, var(--rc-bg) 92%, #fff 8%), var(--rc-bg) 70%); /* k-keep */
+  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--rc-acc) var(--rc-glow), transparent), transparent 60%),
+    linear-gradient(165deg, color-mix(in srgb, var(--rc-bg) 92%, var(--rc-lift) 8%), var(--rc-bg) 70%); /* k-keep */
   border: 1.5px solid color-mix(in srgb, var(--rc-acc) 60%, transparent); /* k-keep */ box-shadow: 0 18px 44px rgba(0,0,0,.4); /* k-keep */
   animation: rm-pop .5s cubic-bezier(.22, 1, .36, 1) both; /* k-keep */ transition: background .35s ease, border-color .35s ease, color .35s ease; /* k-keep */ }
 @keyframes rm-pop { from { transform: translateY(-10px) scale(.97); /* k-keep */ opacity: .2; /* k-keep */ } }
@@ -142,18 +142,18 @@ select.rm-input option { color: var(--k-surface, #111111); }
   background-size: 200% 100%; /* k-keep */ animation: rm-stripe 4s linear infinite; /* k-keep */ }
 @keyframes rm-stripe { to { background-position: -200% 0; /* k-keep */ } }
 .rm-card-pill { display: inline-flex; /* k-keep */ align-items: center; /* k-keep */ gap: 7px; /* k-keep */ padding: 3px 10px; /* k-keep */ border-radius: 99px; /* k-keep */ font-size: 10.5px; /* k-keep */ font-weight: 850; /* k-keep */ letter-spacing: .14em; /* k-keep */ text-transform: uppercase; /* k-keep */
-  background: color-mix(in srgb, var(--rc-acc) 18%, transparent); /* k-keep */ color: color-mix(in srgb, var(--rc-acc) 55%, var(--rc-ink)); /* k-keep */ }
+  background: color-mix(in srgb, var(--rc-acc) 18%, transparent); /* k-keep */ color: var(--rc-pill); /* k-keep */ }
 .rm-card-pill i { width: 7px; /* k-keep */ height: 7px; /* k-keep */ border-radius: 50%; /* k-keep */ background: var(--rc-acc); /* k-keep */ box-shadow: 0 0 8px var(--rc-acc); /* k-keep */ animation: rm-pulse 1.4s ease-in-out infinite; /* k-keep */ }
 @keyframes rm-pulse { 50% { opacity: .3; /* k-keep */ } }
 .rm-card h3 { margin: 10px 0 14px; /* k-keep */ font-size: 21px; /* k-keep */ font-weight: 850; /* k-keep */ letter-spacing: .01em; /* k-keep */ line-height: 1.2; /* k-keep */ overflow-wrap: anywhere; /* k-keep */ }
 .rm-card-row { display: flex; /* k-keep */ gap: 9px; /* k-keep */ flex-wrap: wrap; /* k-keep */ }
-.rm-card-b { display: inline-block; /* k-keep */ border-radius: 99px; /* k-keep */ padding: 9px 16px; /* k-keep */ font-weight: 700; /* k-keep */ font-size: 13px; /* k-keep */ background: color-mix(in srgb, var(--rc-ink) 13%, transparent); /* k-keep */ cursor: default; /* k-keep */ }
-.rm-card-b.main { cursor: pointer; /* k-keep */ color: #fff; /* k-keep */ background: linear-gradient(180deg, color-mix(in srgb, var(--rc-acc) 80%, #fff), color-mix(in srgb, var(--rc-acc) 85%, #000)); /* k-keep */
+.rm-card-b { display: inline-block; /* k-keep */ border-radius: 99px; /* k-keep */ padding: 9px 16px; /* k-keep */ font-weight: 700; /* k-keep */ font-size: 13px; /* k-keep */ background: color-mix(in srgb, var(--rc-ink) var(--rc-btn), transparent); /* k-keep */ cursor: default; /* k-keep */ }
+.rm-card-b.main { cursor: pointer; /* k-keep */ color: var(--rc-on); /* k-keep */ background: linear-gradient(180deg, color-mix(in srgb, var(--rc-acc) 80%, #fff), color-mix(in srgb, var(--rc-acc) 85%, #000)); /* k-keep */
   box-shadow: 0 8px 20px color-mix(in srgb, var(--rc-acc) 35%, transparent); /* k-keep */ }
 .rm-card-box { margin-top: 14px; /* k-keep */ cursor: pointer; /* k-keep */ animation: rm-fade .3s ease both; /* k-keep */ }
-.rm-card-box small { display: block; /* k-keep */ font-size: 12px; /* k-keep */ opacity: .65; /* k-keep */ margin-bottom: 7px; /* k-keep */ }
+.rm-card-box small { display: block; /* k-keep */ font-size: 12px; /* k-keep */ color: var(--rc-sub); /* k-keep */ margin-bottom: 7px; /* k-keep */ }
 .rm-card-in { display: flex; /* k-keep */ gap: 8px; /* k-keep */ }
-.rm-card-in > span:first-child { flex: 1; /* k-keep */ border: 1px solid color-mix(in srgb, var(--rc-acc) 45%, transparent); /* k-keep */ background: rgba(0,0,0,.25); /* k-keep */ border-radius: 12px; /* k-keep */ padding: 9px 12px; /* k-keep */ font-weight: 600; /* k-keep */ opacity: .55; /* k-keep */ }
+.rm-card-in > span:first-child { flex: 1; /* k-keep */ border: 1px solid color-mix(in srgb, var(--rc-acc) 45%, transparent); /* k-keep */ background: var(--rc-field); /* k-keep */ border-radius: 12px; /* k-keep */ padding: 9px 12px; /* k-keep */ font-weight: 600; /* k-keep */ color: var(--rc-ph); /* k-keep */ }
 
 /* the website's Test: the card at the top centre, over everything */
 .rm-testcard { position: fixed; /* k-keep */ z-index: 2147483000; /* k-keep */ top: 14px; /* k-keep */ left: 50%; /* k-keep */ width: min(460px, calc(100vw - 24px)); /* k-keep */ transform: translateX(-50%); /* k-keep */ cursor: pointer; /* k-keep */ }
@@ -233,12 +233,12 @@ select.rm-input option { color: var(--k-surface, #111111); }
 /* V1.57 alarms: the phone's ring screen in miniature (ps-gos GymRingActivity) */
 .rm-alarm { display: flex; flex-direction: column; align-items: center; gap: calc(6px * var(--k-dn, 1)); margin: 0 auto 12px; width: min(220px, 100%); padding: calc(18px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1));
   background: var(--al-bg); color: var(--al-ink); box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
-.rm-alarm-orb { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; padding: calc(4px * var(--k-dn, 1)); box-sizing: border-box; background: var(--al-acc); color: var(--al-bg);
+.rm-alarm-orb { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; padding: calc(4px * var(--k-dn, 1)); box-sizing: border-box; background: var(--al-acc); color: var(--al-on, var(--al-bg));
   font-size: calc(11px * var(--k-fs, 1)); font-weight: 900; letter-spacing: .12em; text-transform: uppercase; text-align: center; overflow: hidden; line-height: 1.1; animation: rm-alarm-breathe 1.4s ease-in-out infinite; }
 .rm-alarm-time { font-size: calc(34px * var(--k-fs, 1)); font-weight: 900; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.rm-alarm-words { font-size: calc(13px * var(--k-fs, 1)); opacity: .85; text-align: center; overflow-wrap: anywhere; margin-bottom: 6px; }
+.rm-alarm-words { font-size: calc(13px * var(--k-fs, 1)); color: var(--al-sub, var(--al-ink)); text-align: center; overflow-wrap: anywhere; margin-bottom: 6px; }
 .rm-alarm-yes, .rm-alarm-later { width: 100%; box-sizing: border-box; text-align: center; padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; }
-.rm-alarm-yes { background: var(--al-acc); color: var(--al-bg); }
+.rm-alarm-yes { background: var(--al-acc); color: var(--al-on, var(--al-bg)); }
 .rm-alarm-later { border: 1.5px solid var(--al-acc); }
 @keyframes rm-alarm-breathe { 50% { transform: scale(1.06); } }
 @media (prefers-reduced-motion: reduce) { .rm-alarm-orb { animation: none; } }

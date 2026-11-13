@@ -16,6 +16,8 @@ enum Owner {
   /// Test copies never read or write the developer's real settings: PS_SELFTEST_RED=0 makes one a stranger's.
   private static let test = ProcessInfo.processInfo.environment["PS_SELFTEST"] != nil
   private static var testRed = ProcessInfo.processInfo.environment["PS_SELFTEST_RED"] != "0"
+  /// Main thread, when the answer changes (V1.58: the per account rules in BuildRules.swift follow it at once).
+  static var onChange: (() -> Void)?
   /// Called on main the first time the developer is known on this run (his features start then).
   private static var waiting: [() -> Void] = []
 
@@ -34,7 +36,19 @@ enum Owner {
     if v != red {
       if test { testRed = v } else { UserDefaults.standard.set(v, forKey: key) }
       psLog("PS owner: \(v ? "primary account, its own features on" : "not the primary account, its own features stay off")")
+      onChange?()
     }
     if v { let w = waiting; waiting = []; w.forEach { $0() } }
+  }
+}
+
+extension BuildRules {
+  /// Self test only: pretend to be the developer's account (true) or anyone else's (false). nil: who is really signed in.
+  static var testAccount: Bool?
+  /// The rules for whoever is signed in on this Mac now.
+  /// The bundled profile (Profile.swift, V1.58 profiles-158) can only narrow it; self tests (testAccount set) skip it.
+  static var now: Rules {
+    let a = rules(red: testAccount ?? Owner.red)
+    return testAccount != nil ? a : fromProfile(a)
   }
 }

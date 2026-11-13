@@ -69,13 +69,21 @@ SIZE=$(stat -f%z "$OUT")
 # versions shows every skipped one. The developer's approved words only (ps-public.mjs history-json), checked again here; old
 # phones read only the keys they know, so it never breaks them.
 HIST="${PS_HISTORY:-$(node "$CLEAN/scripts/ps-public.mjs" history-json 2>/dev/null || echo '[]')}"
-node -e 'const [code,name,keyword,apk,sha,size,cert,notes,hist]=process.argv.slice(1);
+# V1.58: who made the release ("by", "shared": from ps-version.json) and the channel it is for ("channel", PS_UPDATE_CHANNEL,
+# default gsquad, today's). Phones read only the keys they know, so older ones simply skip them.
+BY=$(node -e 'const v=JSON.parse(process.argv[1]);process.stdout.write(typeof v.by==="string"?v.by:"")' "$V")
+SHARED=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).shared===false?"false":"true")' "$V")
+CHANNEL="${PS_UPDATE_CHANNEL:-gsquad}"
+node -e 'const [code,name,keyword,apk,sha,size,cert,notes,hist,by,shared,channel]=process.argv.slice(1);
 let h=[];try{h=JSON.parse(hist||"[]")}catch{}
 const bad=/[\u2013\u2014<>]/;
-h=(Array.isArray(h)?h:[]).filter(x=>x&&/^\d{1,3}\.\d{1,3}$/.test(String(x.version))&&Array.isArray(x.notes)&&x.notes.length>0&&x.notes.length<=6&&x.notes.every(n=>typeof n==="string"&&n.trim()&&n.length<=220&&!bad.test(n))&&!bad.test(String(x.keyword||""))).slice(0,20).map(x=>({version:String(x.version),keyword:String(x.keyword||""),notes:x.notes.map(n=>n.trim())}));
+h=(Array.isArray(h)?h:[]).filter(x=>x&&/^\d{1,3}\.\d{1,3}$/.test(String(x.version))&&Array.isArray(x.notes)&&x.notes.length>0&&x.notes.length<=6&&x.notes.every(n=>typeof n==="string"&&n.trim()&&n.length<=220&&!bad.test(n))&&!bad.test(String(x.keyword||""))).slice(0,20).map(x=>({version:String(x.version),keyword:String(x.keyword||""),notes:x.notes.map(n=>n.trim()),...(typeof x.by==="string"&&/^[a-z][a-z0-9-]{0,30}$/.test(x.by)?{by:x.by,shared:x.shared!==false}:{})}));
 const o={versionCode:+code,versionName:name,keyword,apk,sha256:sha,size:+size,cert,notes,released:new Date().toISOString()};if(h.length)o.history=h;
+if(!/^[a-z][a-z0-9-]{0,30}$/.test(channel)){console.error("PS_UPDATE_CHANNEL must be gsquad or a profile name");process.exit(1)}
+if(shared==="false"&&channel==="gsquad"){console.error("A private release is never made for the G Squad channel");process.exit(1)}
+o.channel=channel;if(/^[a-z][a-z0-9-]{0,30}$/.test(by)){o.by=by;o.shared=shared!=="false"}
 process.stdout.write(JSON.stringify(o,null,1))' \
-  "$CODE" "$NAME" "$KEYWORD" "$FILE" "$SHA" "$SIZE" "$CERT" "$NOTES" "$HIST" > release/version.json
+  "$CODE" "$NAME" "$KEYWORD" "$FILE" "$SHA" "$SIZE" "$CERT" "$NOTES" "$HIST" "$BY" "$SHARED" "$CHANNEL" > release/version.json
 
 # 6. Staged for the website (only the newest APK; gitignored there) and a copy in Google Drive.
 mkdir -p "$STAGE"

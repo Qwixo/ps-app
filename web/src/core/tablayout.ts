@@ -42,6 +42,7 @@ export const MAX_EXTRA = 120;
 export type SlotInfo = { id: string; label: string; keep?: boolean; red?: boolean; off?: boolean; inner?: string; ps?: boolean; wide?: boolean };
 export const SLOTS: readonly SlotInfo[] = [
   { id: "clocks", label: "Time zones" },
+  { id: "pomodoro", label: "Pomodoro" },   // V1.58: between Time zones and Sentry mode (views/Pomodoro.tsx)
   { id: "sentry", label: "Sentry mode (AI)" },   // V1.48: between Time zones and Timelines
   { id: "timelines", label: "Timelines" },
   { id: "series", label: "Series map" },
@@ -76,7 +77,6 @@ export const SLOTS: readonly SlotInfo[] = [
   // V1.55: the buttons inside a panel that can be dragged out to be buttons of their own (and back in). inner: the
   // panel they live in. They are never a Slot of their own in the list: a copy only exists once dragged out or added.
   { id: "calrefresh", label: "Calendar refresh", inner: "meetings" },
-  { id: "islandsw", label: "Dynamic Island switch", inner: "meetings", ps: true },
   { id: "privacy", label: "Private mode", inner: "meetings" },
 ];
 /** Panels wide enough to get a width handle in the overview (buttons only get the size handle). */
@@ -357,6 +357,25 @@ export function slotStyle(p0: SlotPos, z = 1): Record<string, string> {
     s.top = t; s.maxHeight = `calc(100vh - ${E} - ${t})`;
   }
   return s;
+}
+
+/** V1.58 (the developer, 13 Nov 2026: "put the Pomodoro timer in between the time zones and the AI sentry mode by default"). A
+ *  new button that follows another: on a list nobody rearranged it sits in its place in the column (TaskMap.tsx puts it
+ *  there). On one where its leader was moved in Edit mode, and it was never moved itself, it sits right below the
+ *  leader, the same distance in from the left. Hidden leader, another page, or moved itself: the usual place. */
+export const FOLLOWS: Readonly<Record<string, string>> = { pomodoro: "clocks" };
+export const FOLLOW_GAP = 8;
+export function followStyle(l: TabLayout, id: string): Record<string, string> | null {
+  const lead = FOLLOWS[id];
+  if (!lead || isCopy(id) || l.pos[id] || l.hidden.includes(lead)) return null;
+  const p = l.pos[lead];
+  if (!p || (l.page?.[lead] ?? "main") !== (l.page?.[id] ?? "main")) return null;
+  const z = sizeOf(l, lead), h = Math.round(p.h * z);
+  const s = slotStyle(p, z);
+  const out: Record<string, string> = { left: s.left };
+  if (s.top) out.top = `calc(${s.top} + ${h + FOLLOW_GAP}px)`;
+  else out.bottom = `max(${EDGE}px, calc(${s.bottom} - ${FOLLOW_GAP}px - 40px))`;
+  return out;
 }
 
 /** Kept on screen: never past the margin on any side (a panel larger than the screen sits at the top left). */

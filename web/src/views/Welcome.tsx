@@ -121,7 +121,8 @@ export function WelcomeHost() {
   useEffect(() => { if (req) setAsked(req); }, [req]);
 
   const open = (auto || asked > 0) && listShown && s.status === "unlocked";
-  useEffect(() => { setShowing(open); return () => setShowing(false); }, [open]);
+  // V1.58: the Mac's setup island guides through this menu while it is open (ps-mac Sources/SetupIsland.swift).
+  useEffect(() => { setShowing(open); psPost({ type: "setupIsland", menu: open }); return () => setShowing(false); }, [open]);
   if (!open) return null;
   return <WelcomePanel key={asked} update={viaUpdate || (update && (auto || DEV_W === "update"))} onDone={() => { setAuto(false); setAsked(0); resume = null; viaUpdate = false; }} />;
 }

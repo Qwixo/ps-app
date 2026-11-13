@@ -51,7 +51,7 @@ ok("a page made with the overview's + is a page of panels, kept by the lists' cl
   assert.match(lp, /kind: "panels"/);
 });
 ok("the Meetings panel's three buttons are Inner (they drag out and back in)", () => {
-  for (const k of ["calrefresh", "islandsw", "privacy"]) assert.match(tm, new RegExp(`<Inner kind="${k}">`));
+  for (const k of ["calrefresh", "privacy"]) assert.match(tm, new RegExp(`<Inner kind="${k}">`));
 });
 ok("copies are drawn by CopySlots inside the Edit scope, after the columns", () => {
   const a = tm.indexOf('<Slot id="sleep">'), b = tm.indexOf("<CopySlots />");

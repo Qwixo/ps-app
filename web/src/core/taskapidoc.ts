@@ -6,6 +6,7 @@
 // (ps-mac TaskApi.swift). Pure: no React, no DOM.
 import { API_PORT, BATCH_MAX, LIST_LIMIT_DEF, LIST_LIMIT_MAX, NOTES_MAX, SCOPES, TITLE_MAX, type Scopes } from "./taskapi.ts";
 import { INBOX_MAX } from "./aiinbox.ts";
+import { AI_MSG } from "./aimessage.ts";
 
 export const KEY_SLOT = "{{PS_API_KEY}}";
 
@@ -173,6 +174,17 @@ export function aiGuide(o: { scopes: Scopes; port?: number; today: string }): st
     "Answer: {\"settings\": {\"invertSwipe\": true}}",
     "Change it only when the person asked you to.",
     "",
+    "### POST /v1/island/message  (message)",
+    "Pops a short message from you up on the person's Dynamic Island (the bar at the top of their Mac's screen) and their",
+    "phone, like what you just finished. Fields: text (required, the message, up to " + AI_MSG.textMax + " characters, one or two plain",
+    "sentences), from (your name, like \"Claude Code\", up to " + AI_MSG.fromMax + "), detail (optional longer text, up to " + AI_MSG.detailMax + ", shown when",
+    "they click the message), chat (optional, this chat's id: Claude Code's CLAUDE_CODE_SESSION_ID or Codex's CODEX_THREAD_ID;",
+    "with it PS shows your message instead of its plain \"chat finished\" card). Plain text only: HTML and markdown show as typed.",
+    `  curl -s -X POST ${base}/v1/island/message ${H} ${J} -d '{"from": "Claude Code", "text": "Fixed the login bug, tests pass", "chat": "'"$CLAUDE_CODE_SESSION_ID"'"}'`,
+    "Answer 201: {\"message\": {\"id\": \"...\", \"at\": \"...\"}, \"shown\": true}. When the person chose not to see AI messages:",
+    "200 with \"shown\": false and a note. Nothing to fix then. At most " + AI_MSG.burst + " messages in " + (AI_MSG.burstMs / 60_000) + " minutes: send one at the end of a task,",
+    "never one per step. 429 rate_limited means too many.",
+    "",
     "## Errors",
     "Every error is JSON: {\"error\": {\"code\": \"...\", \"message\": \"...\"}}. Read the message: it says what to change.",
     "- 400 bad_request, bad_field, unknown_field, too_many: fix the request (the field is named in \"field\").",
@@ -185,7 +197,7 @@ export function aiGuide(o: { scopes: Scopes; port?: number; today: string }): st
     "- 409 sentry_checks or sentry_refused: Sentry mode did not start. The message says why; tell the person.",
     "- 413 too_large: the body is over 64 KB.",
     "- 423 locked: PS is open but signed out or locked. Ask the person to unlock PS.",
-    "- 429 rate_limited: too many requests. Wait the seconds in the Retry-After header. Keep to about 1 request a second.",
+    "- 429 rate_limited: too many requests (or messages). Wait the seconds in the Retry-After header. Keep to about 1 request a second.",
     "- 500 internal or 503 not_ready: PS could not answer just now (it may be starting). Wait a few seconds and try once more.",
     "- Connection refused: PS is not running, or the API is switched off in PS Settings. Ask the person.",
     "",
@@ -197,4 +209,36 @@ export function aiGuide(o: { scopes: Scopes; port?: number; today: string }): st
     "  answered 2xx; if one timed out, read the AI Inbox first so you do not add the same task twice.",
   );
   return L.join("\n");
+}
+
+
+/** Settings, AI task API, Connect your AI (V1.58): the short standing instruction an AI saves to its own memory or rules,
+ *  so it sends the person a message at the end of every task. KEY_SLOT is filled by PS on the Mac as it copies; the page
+ *  never has the key. The text goes through a quoted here document, so quotes, $ and ` in the message stay as typed. */
+export function aiConnect(o: { port?: number } = {}): string {
+  const base = `http://127.0.0.1:${o.port ?? API_PORT}`;
+  return [
+    "# PS: message me on my Dynamic Island when you finish",
+    "",
+    "Save this as a standing rule in your own user level memory, so it holds in every chat from now on:",
+    "- Claude Code: add it to ~/.claude/CLAUDE.md",
+    "- Codex: add it to ~/.codex/AGENTS.md",
+    "- Another AI that runs commands on this Mac: its own rules or memory file.",
+    "It holds a private key, so never put it in a project file that goes into git, and never print the key.",
+    "",
+    "## The rule",
+    "At the end of every task, as your last step, send me a one or two line summary to my PS app: what you did and",
+    "anything I must do. Plain words, no markdown, no secrets. One message per task, never one per step. If you are a",
+    "sub agent or helper started by another AI, do not send one. If it fails, carry on and do not retry.",
+    "",
+    "Run this (change only from, text and detail; leave __CHAT__ as it is, it becomes this chat's id):",
+    "",
+    `cat <<'PSMSG' | sed "s/__CHAT__/\${CLAUDE_CODE_SESSION_ID:-\${CODEX_THREAD_ID:-}}/" | curl -s -m 5 -X POST ${base}/v1/island/message -H "Authorization: Bearer ${KEY_SLOT}" -H "Content-Type: application/json" --data-binary @-`,
+    '{"from": "Claude Code", "chat": "__CHAT__", "text": "Fixed the login bug, tests pass", "detail": "Optional: a few more lines."}',
+    "PSMSG",
+    "",
+    `- from: your own name, like "Claude Code" or "Codex". text: up to ${AI_MSG.textMax} characters. detail: optional, up to ${AI_MSG.detailMax}.`,
+    '- It is JSON: write a double quote as \\" and a new line as \\n.',
+    "- It works while the PS app is open on this Mac, with the AI task API and its \"Send you messages\" switch on.",
+  ].join("\n");
 }

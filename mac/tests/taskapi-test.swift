@@ -121,12 +121,36 @@ check(TaskApiCore.cleanScopes(["gym": true])["gym"] == true, "the gym switch can
 check(TaskApiCore.scopeDefaults["settings"] == false && TaskApiCore.cleanScopes(["settings": true])["settings"] == true, "the settings switch (Invert swipe): off unless switched on, heard when on")
 let sentryReq = ok(TaskApiCore.parse(req("POST /v1/sentry/start HTTP/1.1\nHost: localhost\n\(auth)\n")))!
 check(TaskApiCore.answerWait(sentryReq) == 40 && TaskApiCore.answerWait(get!) == 15, "starting Sentry mode may take its checks' time; everything else 15 s")
+// ---------- a message from the AI on the island (V1.58) ----------
+check(TaskApiCore.scopeDefaults["message"] == false && TaskApiCore.cleanScopes(nil)["message"] == false, "the message switch is off unless switched on")
+check(TaskApiCore.cleanScopes(["message": true])["message"] == true, "the message switch can be switched on, so the page hears it")
+check(TaskApiCore.scopeIds.contains("message") && TaskApiCore.scopeIds.count == TaskApiCore.scopeDefaults.count, "every switch has a default")
+let msgBody = "{\"from\":\"Claude Code\",\"text\":\"Fixed the login bug\"}"
+let msgNoKey = ok(TaskApiCore.parse(req("POST /v1/island/message HTTP/1.1\nHost: 127.0.0.1:47836\nContent-Type: application/json\nContent-Length: \(msgBody.utf8.count)\n\n") + Data(msgBody.utf8)))!
+check(status(TaskApiCore.gate(msgNoKey, key: KEY)) == 401, "a message with no key: 401")
+let msgOk = ok(TaskApiCore.parse(req("POST /v1/island/message HTTP/1.1\nHost: 127.0.0.1:47836\n\(auth)Content-Type: application/json\nContent-Length: \(msgBody.utf8.count)\n\n") + Data(msgBody.utf8)))!
+check(TaskApiCore.gate(msgOk, key: KEY) == .pass && (TaskApiCore.jsonBody(msgOk).0 as? [String: Any])?["text"] as? String == "Fixed the login bug", "a message with the key reaches the page with its JSON")
+check(TaskApiCore.answerWait(msgOk) == 15, "a message is answered within the usual 15 s")
+let msgBad = ok(TaskApiCore.parse(req("POST /v1/island/message HTTP/1.1\nHost: localhost\n\(auth)Content-Length: 8\n\n") + Data("{\"text\":".utf8)))!
+if case .reject(let s, _, _) = TaskApiCore.jsonBody(msgBad).1 { check(s == 400, "a message that is not JSON: 400") } else { check(false, "a message that is not JSON: 400") }
+var msgLimit = TaskApiCore.RateLimit()
+var msgWaits = 0
+for _ in 0..<40 { if msgLimit.take(1000) != nil { msgWaits += 1 } }
+check(msgWaits == 10, "40 messages at once: 30 go, 10 wait (the same limit as every request)")
+
 let src = (try? String(contentsOfFile: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "", encoding: .utf8)) ?? ""
 if !src.isEmpty {
   for word in ["sentry:stop", "sentry:end", "sentry:off", "sentry:pause", "sentry:leave", "sentry:unlock", "sentry:disengage"] {
     check(!src.contains("\"\(word)"), "no page message \(word) exists on the Mac")
   }
+  // The message card (AiMessageCard.swift) is wired into the card page, and puts words in as text only.
+  check(src.contains("AiMessageCard.tone].contains(tone)") && src.contains("\\#(AiMessageCard.css)") && src.contains("\\#(AiMessageCard.js)")
+        && src.contains("AiMsg.click(c,t)") && src.contains("AiMsg.made(c)"), "the message card is hooked into the card page")
+  check(src.contains("LOOKSEL={done:['.t-done','.t-ai']"), "the message card takes the AI chat cards' colours")
 } else { check(false, "the Mac's sources were given to the Sentry check") }
+// AiMessageCard's page code never puts anything in as HTML (its icon is a fixed path the page's own svg() draws).
+if let r = src.range(of: "enum AiMessageCard {") { check(!src[r.lowerBound...].prefix(6000).contains("innerHTML"), "the message card never writes HTML") }
+else { check(false, "AiMessageCard.swift is in the sources") }
 
 print("taskapi: \(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

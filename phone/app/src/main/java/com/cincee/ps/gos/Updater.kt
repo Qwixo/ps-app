@@ -24,6 +24,8 @@ import java.security.MessageDigest
  *  3. verify: the SHA-256 must match the manifest AND the APK must be signed by PS's own release
  *     certificate (pinned in the app, and the same as the installed app's). Anything else is thrown away.
  *  4. PackageInstaller session; GrapheneOS asks once ("Update this app?").
+ * V1.58: from the channel this build's profile names (UpdateWhere.route; no profile: the same GitHub channel as before),
+ * and only a note made for that channel.
  */
 object Updater {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -33,7 +35,9 @@ object Updater {
 
     fun set(s: String, extra: JSONObject) {
         val o = JSONObject().put("state", s).put("current", BuildConfig.VERSION_NAME).put("currentKeyword", BuildConfig.KEYWORD)
-        manifest?.let { o.put("version", it.optString("versionName")).put("keyword", it.optString("keyword")).put("size", it.optLong("size")).put("notes", it.optString("notes")).put("history", it.optJSONArray("history") ?: org.json.JSONArray()) }
+        manifest?.let { o.put("version", it.optString("versionName")).put("keyword", it.optString("keyword")).put("size", it.optLong("size")).put("notes", it.optString("notes")).put("history", it.optJSONArray("history") ?: org.json.JSONArray())
+            // V1.58: who made it ("V1.59 by Jan"); only for notes that say so.
+            if (UpdateWhere.byLine(it.optString("by")) != null) o.put("by", it.optString("by")) }
         extra.keys().forEach { o.put(it, extra.get(it)) }
         state = o
         WebHost.post(JSONObject().put("type", "update").put("update", o))
@@ -47,6 +51,11 @@ object Updater {
         // Just "PS": Android's own User-Agent names the Android version and the phone model.
         setRequestProperty("User-Agent", "PS")
     }
+
+    /** V1.58: the channel this build follows, from its own profile (UpdateWhere.route). */
+    @Volatile private var route: UpdateRoute? = null
+    private fun route(c: Context): UpdateRoute = route ?: UpdateWhere.route(try { c.assets.open("profile.json").use { it.readBytes().decodeToString() } } catch (e: Exception) { null }).also { route = it }
+    private fun base(c: Context): String = route(c).base ?: BuildConfig.UPDATE_BASE
 
     // When to look by itself: UpdateClock (unit tested). The note is tiny and on GitHub, not Supabase.
     private fun sp(c: Context) = c.getSharedPreferences("upd", Context.MODE_PRIVATE)
@@ -77,7 +86,7 @@ object Updater {
         job = scope.launch {
             if (manual) set("checking", JSONObject())
             try {
-                val m = fetchNote()
+                val m = fetchNote(c)
                 manifest = m
                 // Stamped only once there is an answer: a failed look is tried again soon (UpdateClock).
                 save(c, UpdateClock.succeeded(System.currentTimeMillis()))
@@ -100,17 +109,22 @@ object Updater {
         }
     }
 
-    /** The note, read whole (no cache anywhere on the way: get() sets useCaches false and no-cache). */
-    private fun fetchNote(): JSONObject {
-        val h = get(UpdateWhere.note())
+    /** The note, read whole (no cache anywhere on the way: get() sets useCaches false and no-cache), from this build's
+     *  channel; a note made for another channel is refused (V1.58). */
+    private fun fetchNote(c: Context): JSONObject {
+        val r = route(c)
+        if (r.kind == "local") throw Exception("This PS app installs its own builds, so it has no updates to look for.")
+        val h = get(UpdateWhere.note(base(c)))
         try {
             if (h.responseCode != 200) throw Exception("No update file found (${h.responseCode}).")
-            return JSONObject(h.inputStream.use { it.readBytes().decodeToString() })
+            val m = JSONObject(h.inputStream.use { it.readBytes().decodeToString() })
+            if (!r.takes(UpdateWhere.noteChannel(m))) throw Exception("That update is for another PS build. Nothing was installed.")
+            return m
         } finally { h.disconnect() }
     }
 
     /** The newest version.json at the tap; null when it cannot be read (offline): then the card's goes in. */
-    private fun freshNote(): JSONObject? = try { fetchNote() } catch (e: Exception) {
+    private fun freshNote(c: Context): JSONObject? = try { fetchNote(c) } catch (e: Exception) {
         Plog.i("update: fresh look at the tap failed: ${e.javaClass.simpleName}"); null
     }
 
@@ -129,14 +143,14 @@ object Updater {
                 set("downloading", JSONObject().put("progress", 0.0))
                 // V1.51 (UpdatePick): version.json read fresh at the tap, so the newest release goes in, never the older
                 // one an earlier look put on the card; the card's number moves on to it (set() reads `manifest`).
-                var m = UpdatePick.choose(card, freshNote())
+                var m = UpdatePick.choose(card, freshNote(c))
                 var round = 0
                 while (true) {
                     manifest = m
                     if (!UpdatePick.newer(m.optInt("versionCode"), BuildConfig.VERSION_CODE)) { set("none", JSONObject()); return@launch }
                     val code = fetchApk(c, apk, m)
                     // The APK against the newest version.json once more: older is refused and the newest fetched (once).
-                    val newest = freshNote()?.takeIf { it.optInt("versionCode") > m.optInt("versionCode") } ?: m
+                    val newest = freshNote(c)?.takeIf { it.optInt("versionCode") > m.optInt("versionCode") } ?: m
                     val stale = UpdatePick.staleProblem(code, newest.optInt("versionCode")) ?: break
                     apk.delete()
                     if (round++ >= 1) throw Exception("$stale Try again.")
@@ -167,7 +181,7 @@ object Updater {
     /** 1. download and 2. verify the APK `m` names; returns the APK's own versionCode. Any mismatch throws. */
     private fun fetchApk(c: Context, apk: File, m: JSONObject): Long {
         set("downloading", JSONObject().put("progress", 0.0))
-        val h = get(UpdateWhere.apk(m.optString("apk")) ?: throw Exception("The update file has a strange name. Not installed."))
+        val h = get(UpdateWhere.apk(m.optString("apk"), base(c)) ?: throw Exception("The update file has a strange name. Not installed."))
         if (h.responseCode != 200) throw Exception("Download failed (${h.responseCode}).")
         val total = h.contentLengthLong.takeIf { it > 0 } ?: m.optLong("size")
         val md = MessageDigest.getInstance("SHA-256")

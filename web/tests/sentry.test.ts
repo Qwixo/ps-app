@@ -144,7 +144,9 @@ ok("Settings search finds each Sentry setting", () => {
 });
 ok("Edit mode knows the AI button, placed between Time zones and Timelines", () => {
   const ids = SLOTS.map((s) => s.id);
-  assert.equal(ids.indexOf("sentry"), ids.indexOf("clocks") + 1);
+  // V1.58 (the developer: "put the Pomodoro timer in between the time zones and the AI sentry mode by default"): Pomodoro sits between.
+  assert.equal(ids.indexOf("pomodoro"), ids.indexOf("clocks") + 1);
+  assert.equal(ids.indexOf("sentry"), ids.indexOf("pomodoro") + 1);
   assert.equal(ids.indexOf("timelines"), ids.indexOf("sentry") + 1);
   assert.ok(!SLOTS.find((s) => s.id === "sentry")!.red, "every account");
   const tm = readFileSync(new URL("../src/views/TaskMap.tsx", import.meta.url), "utf8");

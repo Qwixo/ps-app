@@ -15,14 +15,16 @@ set -euo pipefail
 
 main() {
   local base="https://cincee.com/client/ps/"
-  local pub="Pc6Z49PnFmrf7frRS7d+W2RzpI/bR756v10J8b44/eU="
-  local req='identifier "com.cincee.ps" and certificate root = H"b278d9d09dfed336675cfb367b2f8a3b51896689"'
+  # V1.58: the developer's update key and certificate, and the G Squad ones (the G Squad build comes from GitHub with
+  # its own keys; ps-mac Sources/UpdateCore.swift, UPDATE_GSQUAD_PUBLIC_KEY and PS_CERT_ROOT_GSQUAD).
+  local pubs="Pc6Z49PnFmrf7frRS7d+W2RzpI/bR756v10J8b44/eU= caMPQq7AM4+Ol5Ynh9na7pO/BwTsutaFhLuCu9R3bWE="
+  local req='identifier "com.cincee.ps" and (certificate root = H"c0e302f2ce304d062a50d6ebdaff97d5f7d4b6e6" or certificate root = H"c0e302f2ce304d062a50d6ebdaff97d5f7d4b6e6")'
   local verify_sha="b23b08a9e4876925c5d6e6827bd8c87b795b07e28c5a9c0914435c1243eb1582"
   apps="/Applications"   # global, like tmp: the exit trap cleans up after main returns
   local proto="=https" test="${PS_INSTALL_TEST:-}"
   # Tests only (ps-download/test-install.sh): a local channel, a fake Applications, a test key.
   if [ -n "$test" ]; then
-    base="$PS_INSTALL_TEST_BASE"; apps="$test/Applications"; proto="=https,file"; pub="${PS_INSTALL_TEST_PUB:-$pub}"
+    base="$PS_INSTALL_TEST_BASE"; apps="$test/Applications"; proto="=https,file"; pubs="${PS_INSTALL_TEST_PUB:-$pubs}"
   fi
 
   say() { printf '%s\n' "$*"; }
@@ -60,9 +62,11 @@ main() {
   say "1/4  Checking the signed release note"
   get ps-update.json "$tmp/note.json" && get ps-verify.js "$tmp/verify.js" || fail "could not reach cincee.com"
   [ "$(shasum -a 256 "$tmp/verify.js" | cut -d' ' -f1)" = "$verify_sha" ] || fail "the signature checker is not the expected one"
-  local out build file size sha name
-  out="$(osascript -l JavaScript "$tmp/verify.js" "$tmp/note.json" "$pub" 2>&1)" \
-    || fail "the release note's signature is wrong ($(sed 's/.*Error: //; s/ (-[0-9]*)$//' <<<"$out"))"
+  local out build file size sha name pub good=""
+  for pub in $pubs; do   # either trusted key; the note must be signed by one of them
+    if out="$(osascript -l JavaScript "$tmp/verify.js" "$tmp/note.json" "$pub" 2>&1)"; then good=1; break; fi
+  done
+  [ -n "$good" ] || fail "the release note's signature is wrong ($(sed 's/.*Error: //; s/ (-[0-9]*)$//' <<<"$out"))"
   { read -r build; read -r file; read -r size; read -r sha; read -r name; } <<<"$out"
   say "     Signature good: ${name:-PS} (build $build)"
 

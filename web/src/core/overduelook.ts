@@ -122,5 +122,5 @@ export function overdueSummary(l: OverdueLook): string {
   if (isDefaultOverdue(l)) return "As before: the look's own red.";
   const name = (list: { id: string; label: string }[], c: string | null, none: string) => (c ? list.find((x) => x.id === c)?.label ?? c.toUpperCase() : none);
   const fx = OVERDUE_FX.find((f) => f.id === l.fx)?.label ?? "None";
-  return `${name(OVERDUE_BGS, l.bg, "The developer as before")} card, ${name(OVERDUE_TEXTS, l.text, "automatic")} text, ${fx} effect.`;
+  return `${name(OVERDUE_BGS, l.bg, "Red as before")} card, ${name(OVERDUE_TEXTS, l.text, "automatic")} text, ${fx} effect.`;
 }

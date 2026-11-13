@@ -1692,10 +1692,17 @@ extension SelfTest {
                             var p2 = p; p2.exempt = ["com.example.game"]; k.setPrefsForTest(p2)
                             front = "com.example.game"; idle(600); k.tickForTest()
                             r.append(("exempt-app-never-starts", !k.showing && k.stretch == nil))
-                            front = "org.whispersystems.signal-desktop"; k.tickForTest()
-                            r.append(("protected-app-never-starts", !k.showing && k.stretch == nil))
-                            front = "com.agilebits.onepassword7"; k.tickForTest()
-                            r.append(("onepassword-never-starts", !k.showing && k.stretch == nil))
+                            // V1.58: the per account rules (BuildRules.swift) only open the Tab list and show the
+                            // island over them; the AFK timer never starts there on either account (no time kept).
+                            let wasAccount = BuildRules.testAccount
+                            for (who, red) in [("red", true), ("public", false)] {
+                              BuildRules.testAccount = red
+                              front = "org.whispersystems.signal-desktop"; k.tickForTest()
+                              r.append(("\(who):protected-app-never-starts", !k.showing && k.stretch == nil))
+                              front = "com.agilebits.onepassword7"; k.tickForTest()
+                              r.append(("\(who):onepassword-never-starts", !k.showing && k.stretch == nil))
+                            }
+                            BuildRules.testAccount = wasAccount
                             front = "com.example.editor"; p2.video = true; k.setPrefsForTest(p2); video = true; k.tickForTest()
                             r.append(("video-switch-holds-it", !k.showing && k.stretch == nil))
                             k.handle(["exempt": ["com.example.game", "org.whispersystems.signal-desktop"]])

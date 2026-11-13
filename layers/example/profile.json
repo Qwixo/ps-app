@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "name": "example",
+  "display": "the example layer",
+  "channel": { "kind": "local" },
+  "othersShared": "off",
+  "features": {},
+  "rules": {}
+}

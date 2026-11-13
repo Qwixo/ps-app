@@ -1,0 +1,81 @@
+/* "What is new" walkthrough (views/Walkthrough.tsx, core/walkthrough.ts, V1.58). The same small card as the first use tips
+   and the V1.56 pop-ups (tips.css .tp-card, newpopups.css .np-*), with a picture on top and a small "2 of 8".
+   Nothing here takes the keyboard focus. Motion is still when the person asks for less. */
+.wk-card { width: min(340px, calc(100vw - 24px)); }
+.wk-stage { height: 88px; }
+.wk-count { margin-bottom: calc(4px * var(--k-dn, 1)); font-size: calc(11px * var(--k-fs, 1)); font-weight: 700; letter-spacing: .02em; opacity: .5; }
+.wk-card .np-row { margin-top: calc(12px * var(--k-dn, 1)); }
+
+.wk-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wk-svg text { font-family: inherit; }
+
+/* the island */
+.wk-pill { fill: var(--k-base, #0B0B0E); stroke: color-mix(in srgb, var(--k-fg, #fff) 14%, transparent); stroke-width: 1; }
+.wk-bar { fill: color-mix(in srgb, var(--k-fg, #FFFFFF) 62%, var(--k-base, #000000)); }
+.wk-pill-t { fill: var(--k-fg, #FFFFFF); font-size: calc(9.5px * var(--k-fs, 1)); font-weight: 700; }
+.wk-bubble { fill: color-mix(in srgb, var(--k-acc, #EC4E86) 85%, var(--k-base, #000000)); }
+
+/* 1. the right click menu */
+.wk-cursor { fill: var(--k-fg, #fff); stroke: var(--k-base, #000000); stroke-width: .8; }
+.wk-cursor-menu { transform: translate(84px, 14px); animation: wk-point 3.2s ease-in-out infinite; }
+@keyframes wk-point { 0%, 18% { transform: translate(110px, 40px); } 38%, 100% { transform: translate(84px, 14px); } }
+.wk-menu { animation: wk-menu 3.2s ease-in-out infinite; transform-origin: 140px 8px; }
+@keyframes wk-menu { 0%, 42% { opacity: 0; transform: scale(.9); } 52%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.wk-menu-bg { fill: color-mix(in srgb, var(--k-surface, #16121B) 92%, var(--k-fg, #fff)); stroke: color-mix(in srgb, var(--k-fg, #fff) 16%, transparent); }
+.wk-menu-hi { fill: transparent; }
+.wk-menu-hi.on { fill: var(--k-acc, #EC4E86); }
+.wk-menu-t { fill: var(--k-fg, #fff); font-size: calc(9.5px * var(--k-fs, 1)); font-weight: 650; }
+
+/* 2. the wide settings window */
+.wk-win { fill: color-mix(in srgb, var(--k-fg, #fff) 8%, var(--k-surface, #16121B)); stroke: color-mix(in srgb, var(--k-fg, #fff) 16%, transparent); }
+.wk-side { fill: color-mix(in srgb, var(--k-fg, #fff) 5%, transparent); }
+.wk-side-row { fill: color-mix(in srgb, var(--k-fg, #fff) 18%, transparent); }
+.wk-side-row.on { fill: var(--k-acc, #EC4E86); }
+.wk-cardlet { fill: color-mix(in srgb, var(--k-fg, #fff) 10%, transparent); animation: wk-fade 2.6s ease-in-out infinite; }
+.wk-cardlet:nth-of-type(2n) { animation-delay: .4s; }
+@keyframes wk-fade { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+
+/* 3. into the top bar and the corner */
+.wk-screen { fill: color-mix(in srgb, var(--k-fg, #fff) 7%, transparent); stroke: color-mix(in srgb, var(--k-fg, #fff) 18%, transparent); }
+.wk-strip { fill: var(--k-base, #000000); }
+.wk-notch { fill: var(--k-base, #000000); stroke: color-mix(in srgb, var(--k-fg, #fff) 22%, transparent); stroke-width: .6; }
+.wk-glide { animation: wk-glide 4.2s cubic-bezier(.3, .8, .3, 1) infinite; }
+@keyframes wk-glide {
+  0%, 12% { transform: translate(128px, 40px); }
+  38%, 52% { transform: translate(78px, 5.5px); }
+  78%, 100% { transform: translate(44px, 68px); }
+}
+.wk-corner { fill: none; stroke: var(--k-acc, #EC4E86); stroke-width: 2; stroke-linecap: round; opacity: .8; }
+
+/* 4. Pomodoro */
+.wk-track { fill: none; stroke: color-mix(in srgb, var(--k-fg, #fff) 14%, transparent); stroke-width: 5; }
+.wk-arc { fill: none; stroke: var(--k-acc, #EC4E86); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 170; stroke-dashoffset: 40; animation: wk-arc 4s linear infinite; }
+@keyframes wk-arc { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 170; } }
+.wk-big { fill: var(--k-fg, #fff); font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; }
+
+/* 5. stand up */
+.wk-man { fill: none; stroke: var(--k-ok, #22C55E); stroke-width: 2.4; stroke-linecap: round; animation: wk-stand 2.4s ease-in-out infinite; }
+.wk-man circle { fill: var(--k-ok, #22C55E); }
+@keyframes wk-stand { 0%, 40% { opacity: 0; transform: translate(206px, 26px) scale(.8); } 60%, 100% { opacity: 1; transform: translate(206px, 18px); } }
+.wk-count15 { animation: wk-blink 1s steps(2) infinite; }
+@keyframes wk-blink { 50% { opacity: .5; } }
+
+/* 7. AI messages */
+.wk-term { fill: var(--k-ok, #22C55E); font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; }
+.wk-fly { fill: none; stroke: var(--k-acc, #EC4E86); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 4 5; animation: wk-fly 1s linear infinite; }
+@keyframes wk-fly { to { stroke-dashoffset: -9; } }
+
+/* 8. 1Password and Signal */
+.wk-key { fill: color-mix(in srgb, var(--k-fg, #fff) 10%, transparent); stroke: color-mix(in srgb, var(--k-fg, #fff) 30%, transparent); }
+.wk-key-t { fill: var(--k-fg, #fff); font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; }
+.wk-lock { fill: none; stroke: color-mix(in srgb, var(--k-fg, #fff) 60%, transparent); stroke-width: 3; }
+.wk-lock-b { fill: color-mix(in srgb, var(--k-fg, #fff) 22%, transparent); }
+.wk-ok { fill: none; stroke: var(--k-ok, #22C55E); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wk-cursor-menu, .wk-menu, .wk-cardlet, .wk-glide, .wk-arc, .wk-man, .wk-count15, .wk-fly { animation: none; }
+  .wk-glide { transform: translate(78px, 5.5px); }
+  .wk-menu { opacity: 1; }
+  .wk-man { transform: translate(206px, 18px); }
+}
+.wk-glide .wk-pill { stroke: var(--k-acc, #EC4E86); stroke-width: 1.4; }

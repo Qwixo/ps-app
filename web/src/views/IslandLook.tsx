@@ -1,7 +1,7 @@
 // The Dynamic Island's look editor (the developer, 4 Nov 2026: "add another edit button so I can actually change
 // the colour and the look of that one", plus better versions of Around the notch). Opens from the Edit
 // button beside "Pill below the notch" and "Around the notch" in the island menu (TaskMap.tsx
-// IslandSwitch). A live preview on top, then the looks, the colour (presets, or any colour with the hue
+// views/IslandSettings.tsx since V1.58). A live preview on top, then the looks, the colour (presets, or any colour with the hue
 // and shade sliders or a code) and the options. Every choice is saved at once (a slider on let go), synced
 // like every other setting, and the real island changes with it. The words always read at WCAG AA: the
 // colours come from core/islandlook.ts, the same sums the Mac paints with.

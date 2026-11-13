@@ -55,6 +55,13 @@ final class Sfx {
     "edit-page-remove": [Tone(f: 700, to: 300, dur: 0.16, peak: 0.1, wave: 0, at: 0), Tone(f: 1200, to: 400, dur: 0.14, peak: 0.03, wave: 3, at: 0)],
     "edit-save": [Tone(f: 784, to: nil, dur: 0.18, peak: 0.09, wave: 0, at: 0), Tone(f: 1175, to: nil, dur: 0.22, peak: 0.08, wave: 0, at: 0.07)],
     "edit-switch": [Tone(f: 900, to: 1600, dur: 0.25, peak: 0.05, wave: 3, at: 0), Tone(f: 660, to: nil, dur: 0.16, peak: 0.07, wave: 0, at: 0.1), Tone(f: 990, to: nil, dur: 0.2, peak: 0.06, wave: 0, at: 0.16)],
+    // V1.58 the island's timers (IslandTimers.swift IslandChime; web src/core/islandtimers.ts ISLAND_TONES, the
+    // same numbers): "done" with the green tick (a quick bright rise into a soft bell), "start" as a break or stand-up begins.
+    "island-done": [Tone(f: 783.99, to: nil, dur: 0.16, peak: 0.09, wave: 1, at: 0), Tone(f: 987.77, to: nil, dur: 0.16, peak: 0.09, wave: 1, at: 0.08),
+                    Tone(f: 1174.66, to: nil, dur: 0.18, peak: 0.09, wave: 1, at: 0.16), Tone(f: 1567.98, to: nil, dur: 0.95, peak: 0.1, wave: 0, at: 0.24),
+                    Tone(f: 3135.96, to: nil, dur: 0.3, peak: 0.025, wave: 0, at: 0.25), Tone(f: 392, to: nil, dur: 0.7, peak: 0.04, wave: 0, at: 0.24)],
+    "island-start": [Tone(f: 1174.66, to: 1108.73, dur: 0.38, peak: 0.08, wave: 0, at: 0), Tone(f: 880, to: 830.61, dur: 0.55, peak: 0.08, wave: 0, at: 0.13),
+                     Tone(f: 440, to: nil, dur: 0.5, peak: 0.03, wave: 0, at: 0.13)],
     "edit-reset": [Tone(f: 880, to: 440, dur: 0.3, peak: 0.08, wave: 0, at: 0), Tone(f: 1500, to: 300, dur: 0.28, peak: 0.04, wave: 3, at: 0)],
   ]
 

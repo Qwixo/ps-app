@@ -8,6 +8,7 @@ import { tickHolds } from "../core/updatetick";
 import { tickStore, useTick } from "../updatetick";
 import { catchUp } from "../core/notehistory";
 import { NoteGroups } from "../ui/NoteGroups";
+import { byLine } from "../core/releaseby";
 
 const STEPS = ["Download", "Verify", "Install"] as const;
 
@@ -27,7 +28,8 @@ export function GosUpdateCard() {
   // Repeat taps while it looks do nothing.
   const tickGo = () => { if (tk.phase !== "tick") return; haptic("press"); gosTick.start(u); gos.checkUpdate(); };
   // "V1.07 · Wisdom": the shared PS version and its keyword, the keyword a little softer.
-  const named = (v?: string, k?: string) => <>{v}{k ? <span className="gos-kw"> · {k}</span> : null}</>;
+  // V1.58: "V1.59 by Jan · Harmony" for a release that says who made it.
+  const named = (v?: string, k?: string, by?: string) => <>{v}{byLine(by) ? ` ${byLine(by)}` : null}{k ? <span className="gos-kw"> · {k}</span> : null}</>;
   // Smooth progress: the bar eases towards the reported value instead of jumping.
   const [shown, setShown] = useState(0);
   const target = u.state === "downloading" ? (u.progress ?? 0) : u.state === "verifying" || u.state === "ready" || u.state === "installing" ? 1 : 0;
@@ -49,7 +51,7 @@ export function GosUpdateCard() {
 
   const busy = u.state === "checking" || u.state === "downloading" || u.state === "verifying" || u.state === "installing";
   const stepAt = u.state === "downloading" ? 0 : u.state === "verifying" ? 1 : u.state === "ready" || u.state === "installing" ? 2 : -1;
-  const title = u.state === "available" ? <>Update available · {named(u.version, u.keyword)}</>
+  const title = u.state === "available" ? <>Update available · {named(u.version, u.keyword, u.by)}</>
     : u.state === "downloading" ? <>Downloading {named(u.version, u.keyword)}</>
     : u.state === "verifying" ? "Checking it is really yours"
     : u.state === "ready" ? "Verified. Ready to install"
@@ -61,7 +63,7 @@ export function GosUpdateCard() {
   // V1.52: an update across several versions lists every version newer than this phone's, newest first (the notes
   // field is the newest version's lines, history the earlier ones; with one version the line below is as before).
   const blocks = u.state === "available"
-    ? catchUp([...(u.version && u.notes ? [{ version: u.version, keyword: u.keyword ?? "", notes: u.notes.split("\n").map((n) => n.trim()).filter(Boolean) }] : []), ...(Array.isArray(u.history) ? u.history : [])], u.current, u.version)
+    ? catchUp([...(u.version && u.notes ? [{ version: u.version, keyword: u.keyword ?? "", notes: u.notes.split("\n").map((n) => n.trim()).filter(Boolean), by: u.by }] : []), ...(Array.isArray(u.history) ? u.history : [])], u.current, u.version)
     : [];
   const sub = u.state === "available" ? `${mb(u.size)}${u.notes && blocks.length <= 1 ? ` · ${u.notes}` : ""}`
     : u.state === "downloading" ? `${Math.round(shown * 100)}% of ${mb(u.size)}`

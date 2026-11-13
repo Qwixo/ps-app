@@ -1,0 +1,34 @@
+/* Messages from AIs (views/AiMessage.tsx): the "When an AI chat ends" choice and the Connect your AI box. Every colour,
+   size and corner reads a look token, like the rest of Settings. Motion: opacity and transform only, none with Reduce motion. */
+.am-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); width: 100%; min-width: 0; }
+.am-l { display: grid; gap: calc(2px * var(--k-dn, 1)); min-width: 0; flex: 1 1 220px; font-weight: 600; color: var(--k-fg, #FFFFFF); }
+.am-l em { font-style: normal; font-weight: 400; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.4;
+  color: var(--gs-soft, color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent)); }
+.am-chips { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); }
+.am-chip { font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 650; cursor: pointer; color: var(--k-fg, #FFFFFF);
+  padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent);
+  transition: background .2s ease, border-color .2s ease; }
+.am-chip:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); }
+.am-chip.sel { background: var(--k-acc, #EC4E86); border-color: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.am-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent); }
+
+.am-lead { max-width: 80ch; }
+.am-who { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.45; color: var(--k-fg, #FFFFFF);
+  padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); }
+.am-copy { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--k-fg, #FFFFFF);
+  padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1));
+  border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent);
+  transition: transform .2s cubic-bezier(.22, 1, .36, 1), opacity .2s ease, background .2s ease; }
+.am-copy:hover:not(:disabled) { background: color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); transform: translateY(-1px); }
+.am-copy:active:not(:disabled) { transform: scale(.985); }
+.am-copy:disabled { opacity: .45; cursor: default; }
+.am-copy:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent); }
+.am-copy svg { flex: none; }
+.am-copy span { display: grid; gap: calc(2px * var(--k-dn, 1)); min-width: 0; }
+.am-copy b { font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 780; }
+.am-copy em { font-style: normal; font-size: calc(12px * var(--k-fs, 1)); opacity: .85; line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) {
+  .am-chip, .am-copy { transition: none; }
+}

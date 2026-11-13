@@ -12,6 +12,12 @@
 #   PS_RELEASE_OUT=<folder>  the public channel's staging folder (web/ps-release, which the
 #                            website build copies to cincee.com/client/ps/); also used by tests
 #   PS_RELEASE_DRIVE=<folder> the same, kept for older tests
+# V1.58 (multiple developers): the note also says who made the release ("by", "shared": from dist-ps/ps-version.json,
+# which web/scripts/ps-version.mjs writes) and which channel it is for ("channel"): PS_UPDATE_CHANNEL, default
+# "gsquad" (today's channel, everyone's), or a person's profile name for their own private channel. PS refuses a note
+# made for another channel. A private release is never signed for the G Squad channel. PS_UPDATE_KEY: another
+# signing key file (the G Squad release workflow's own key); default the developer's, as before. PS_FLAVOUR: which build made it
+# ("red", "gsquad", "jan"), written into the note when given.
 # PS.dmg is the same for everyone: PS.app only. No backgrounds and nothing of the developer's (his videos come
 # from his vault after he signs in); release/audit.py checks it.
 set -euo pipefail
@@ -22,7 +28,9 @@ APP="${3:-}"
 MYDRIVE="$HOME/YOUR_SYNC_FOLDER/"
 PS_RELEASE_DRIVE="${PS_RELEASE_OUT:-${PS_RELEASE_DRIVE:-}}"
 OUT="${PS_RELEASE_DRIVE:-$MYDRIVE/PS App}"
-KEY="$HERE/signing/update-ed25519.key"
+KEY="${PS_UPDATE_KEY:-$HERE/signing/update-ed25519.key}"
+CHANNEL="${PS_UPDATE_CHANNEL:-gsquad}"
+[[ "$CHANNEL" =~ ^[a-z][a-z0-9-]{0,30}$ ]] || { echo "publish.sh: PS_UPDATE_CHANNEL must be gsquad or a profile name"; exit 1; }
 
 if [ -z "${PS_RELEASE_DRIVE:-}" ] && [ ! -d "$MYDRIVE" ]; then
   echo "PS updates: Google Drive is not mounted, skipping the Drive update (the release itself is fine)"; exit 0
@@ -46,6 +54,11 @@ SRC="$(node -e 'process.stdout.write(require(process.argv[1]).src)' "$WEB/versio
 VER="$(node -e 'try{process.stdout.write(require(process.argv[1]).version||"")}catch(e){}' "$WEB/ps-version.json")"
 KW="$(node -e 'try{process.stdout.write(require(process.argv[1]).keyword||"")}catch(e){}' "$WEB/ps-version.json")"
 VER="${VER:-${PS_VERSION:-}}"; KW="${KW:-${PS_KEYWORD:-}}"
+# V1.58: who made it ("" for a version from before V1.58) and whether it is shared.
+BY="$(node -e 'try{const v=require(process.argv[1]);process.stdout.write(typeof v.by==="string"&&/^[a-z][a-z0-9-]{0,30}$/.test(v.by)?v.by:"")}catch(e){}' "$WEB/ps-version.json")"
+SHARED="$(node -e 'try{process.stdout.write(require(process.argv[1]).shared===false?"false":"true")}catch(e){process.stdout.write("true")}' "$WEB/ps-version.json")"
+BY="${BY:-${PS_BY:-}}"
+if [ "$SHARED" = false ] && [ "$CHANNEL" = gsquad ]; then echo "publish.sh: V$VER is a private release; it is never signed for the G Squad channel (set PS_UPDATE_CHANNEL)"; exit 1; fi
 WEBNAME="updates/PS-web-$(echo "$BUILT" | tr -cd '0-9').zip"
 (cd "$WEB" && ditto -c -k --norsrc --noextattr --noqtn . "$TMP/web.zip")
 WEBSHA="$("$TOOL" sha256 "$TMP/web.zip")"; WEBSIZE="$(stat -f %z "$TMP/web.zip")"
@@ -69,8 +82,12 @@ fi
 # PS_NOTES: the developer's APPROVED patch notes only, one per line (release.sh passes `ps-public.mjs notes-text`,
 # which prints nothing until he said yes to the exact words). The gear menu shows them under the version.
 node -e '
-  const [kind, made, app, src, built, file, size, sha, ver, kw, notes, history] = process.argv.slice(1);
+  const [kind, made, app, src, built, file, size, sha, ver, kw, notes, history, by, shared, channel, flavour] = process.argv.slice(1);
   const p = { format: 1, kind, made, app: JSON.parse(app), web: { src, built, file, size: Number(size), sha256: sha } };
+  // V1.58: the channel it is for, who made it, and the build that made it.
+  p.channel = channel;
+  if (by) { p.by = by; p.shared = shared !== "false"; }
+  if (/^[a-z][a-z0-9-]{0,30}$/.test(flavour || "")) p.flavour = flavour;
   if (!p.app) delete p.app;
   // Older builds read only the keys they know, so they skip these.
   if (ver) p.name = "V" + ver;
@@ -84,10 +101,11 @@ node -e '
   try { hist = JSON.parse(history || "[]"); } catch { hist = []; }
   const ok = (h) => h && /^\d{1,3}\.\d{1,3}$/.test(String(h.version)) && Array.isArray(h.notes) && h.notes.length > 0 && h.notes.length <= 6
     && h.notes.every((n) => typeof n === "string" && n.trim() && n.length <= 220 && !/[\u2013\u2014<>]/.test(n)) && !/[\u2013\u2014<>]/.test(String(h.keyword || ""));
-  hist = (Array.isArray(hist) ? hist : []).filter(ok).slice(0, 20).map((h) => ({ version: String(h.version), keyword: String(h.keyword || ""), notes: h.notes.map((n) => n.trim()) }));
+  hist = (Array.isArray(hist) ? hist : []).filter(ok).slice(0, 20).map((h) => ({ version: String(h.version), keyword: String(h.keyword || ""), notes: h.notes.map((n) => n.trim()),
+    ...(typeof h.by === "string" && /^[a-z][a-z0-9-]{0,30}$/.test(h.by) ? { by: h.by, shared: h.shared !== false } : {}) }));
   if (hist.length) p.history = hist;
   process.stdout.write(JSON.stringify(p));
-' "$KIND" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$APPJSON" "$SRC" "$BUILT" "$WEBNAME" "$WEBSIZE" "$WEBSHA" "$VER" "$KW" "${PS_NOTES:-}" "${PS_HISTORY:-[]}" > "$TMP/payload.json"
+' "$KIND" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$APPJSON" "$SRC" "$BUILT" "$WEBNAME" "$WEBSIZE" "$WEBSHA" "$VER" "$KW" "${PS_NOTES:-}" "${PS_HISTORY:-[]}" "$BY" "$SHARED" "$CHANNEL" "${PS_FLAVOUR:-}" > "$TMP/payload.json"
 "$TOOL" sign "$KEY" "$TMP/payload.json" "$TMP/ps-update.json"
 "$TOOL" verify "$("$TOOL" pub "$KEY")" "$TMP/ps-update.json" >/dev/null
 
@@ -111,4 +129,4 @@ for f in "$OUT"/updates/PS-*.zip; do
   rel="updates/$(basename "$f")"
   if ! grep -qxF "$rel" <<<"$KEEP" && [ -z "$(find "$f" -mmin -1440)" ]; then rm -f "$f"; fi
 done
-echo "PS updates: $KIND release${VER:+ V$VER}${KW:+ $KW} in $OUT (web $BUILT$([ "$KIND" = app ] && echo ", app $BUILD"))"
+echo "PS updates: $KIND release${VER:+ V$VER}${KW:+ $KW}${BY:+ by $BY} for the $CHANNEL channel in $OUT (web $BUILT$([ "$KIND" = app ] && echo ", app $BUILD"))"

@@ -21,12 +21,14 @@ function useShortcuts() {
   const st = usePsSettings();
   const sc = st?.shortcuts;
   const list: OpenShortcut[] = sc?.list?.length ? sc.list.map(tidy) : legacyList(st?.triggerKey, st?.slashChord);
-  return { ready: !!st, list, custom: !!sc?.custom, labels: sc?.labels, layout: sc?.layout, taken: new Set(sc?.taken ?? []), error: st?.error };
+  // V1.58: one rule per account (the Mac's BuildRules.swift). The developer's: PS never opens over 1Password or Signal.
+  const overProtected = sc?.overProtected !== false;
+  return { ready: !!st, list, custom: !!sc?.custom, labels: sc?.labels, layout: sc?.layout, taken: new Set(sc?.taken ?? []), error: st?.error, overProtected };
 }
 
 /** permission: the Accessibility row on top (off where the page shows it already). */
 export function OpenShortcuts({ permission = true }: { permission?: boolean }) {
-  const { ready, list, custom, labels, layout, taken, error } = useShortcuts();
+  const { ready, list, custom, labels, layout, taken, error, overProtected } = useShortcuts();
   // What is being recorded: a new one (index -1) or a change to one in the list.
   const [rec, setRec] = useState<{ index: number; st: RecState } | null>(null);
   const [kind, setKind] = useState<OpenKind>("hold");
@@ -117,9 +119,9 @@ export function OpenShortcuts({ permission = true }: { permission?: boolean }) {
               </div>
               {recording && <RecBox st={rec!.st} labels={labels} onCancel={stop} />}
               <div className="osc-tags">
-                {worksOverProtected(s)
+                {overProtected && (worksOverProtected(s)
                   ? <span className="osc-tag good">Works over 1Password and Signal</span>
-                  : <span className="osc-tag">Not over 1Password or Signal</span>}
+                  : <span className="osc-tag">Not over 1Password or Signal</span>)}
                 {s.kind === "combo" && taken.has(comboPlace(list, i)) && <span className="osc-tag bad">Another app already uses this combo</span>}
               </div>
               {mine.map((p, n) => <p key={n} className={`osc-msg${p.error ? " bad" : ""}`}>{p.text}</p>)}
@@ -152,13 +154,19 @@ export function OpenShortcuts({ permission = true }: { permission?: boolean }) {
       {error && !note && <p className="osc-msg bad" role="alert">{error}</p>}
 
       <div className="osc-safe">
-        <p className="gs-set-note">
-          <b>Over 1Password and Signal</b> {appName()} never reads a single key, so only shortcuts macOS can match by itself
-          work there: holding Tab or an F key, and combos. Chords and holding a letter or a modifier do not.{" "}
-          {legacyOver ? "Right now: hold Tab." : over.length
-            ? `Right now: ${over.map((s) => describe(s, labels)).join(", ")}.`
-            : "Nothing in your list works there yet: add a combo, or hold Tab or an F key."}
-        </p>
+        {overProtected ? (
+          <p className="gs-set-note">
+            <b>Over 1Password and Signal</b> {appName()} never reads a single key, so only shortcuts macOS can match by itself
+            work there: holding Tab or an F key, and combos. Chords and holding a letter or a modifier do not.{" "}
+            {legacyOver ? "Right now: hold Tab." : over.length
+              ? `Right now: ${over.map((s) => describe(s, labels)).join(", ")}.`
+              : "Nothing in your list works there yet: add a combo, or hold Tab or an F key."}
+          </p>
+        ) : (
+          <p className="gs-set-note">
+            <b>Over 1Password and Signal</b> On your account {appName()} never opens over them, whatever is in this list.
+          </p>
+        )}
         <p className="gs-set-note">
           If a shortcut ever stops working, Open list on the {appName()} pop-up and in the {appName()} menu always opens your list,
           and Reset to Tab is always here.

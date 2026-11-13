@@ -16,11 +16,13 @@ import { appName } from "../core/appname";
 import { useVault } from "../ui/kit";
 import { PRIVATE_LABEL, privateNotesFor } from "../core/privatenotes";
 import { catchUp } from "../core/notehistory";
+import { byLine } from "../core/releaseby";
 import { NoteGroups } from "../ui/NoteGroups";
 
 const STEPS = ["Download", "Verify", "Install"] as const;
 const mb = (n?: number) => (n ? `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)} MB` : "");
-const named = (v?: string, k?: string) => <>{v}{k ? <span className="mu-kw"> · {k}</span> : null}</>;
+// V1.58: "V1.59 by Jan · Harmony" for a release that says who made it.
+const named = (v?: string, k?: string, by?: string) => <>{v}{byLine(by) ? ` ${byLine(by)}` : null}{k ? <span className="mu-kw"> · {k}</span> : null}</>;
 
 /** The bar eases towards what the shell reports (20 times a second at most) instead of jumping. */
 function useEased(target: number) {
@@ -89,7 +91,7 @@ function MacUpdateInner({ menuOpen }: { menuOpen: boolean }) {
     return (
       <button type="button" className="mu-row avail" onClick={() => { sfx.click(); setOpen(true); }} aria-expanded={false}>
         <span className="mu-dot" aria-hidden="true" />
-        <span className="mu-row-t"><b>Update available</b><i aria-hidden="true">·</i><em>{named(u.version, u.keyword)}</em></span>
+        <span className="mu-row-t"><b>Update available</b><i aria-hidden="true">·</i><em>{named(u.version, u.keyword, u.by)}</em></span>
         <svg className="mu-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
       </button>
     );
@@ -143,9 +145,9 @@ export function MacUpdateCard({ u, tick, onLater }: { u: MacUpdate; tick?: TickP
   const mine = u.state === "available" && s.status === "unlocked" ? privateNotesFor(s.docs.values(), u.version, s.red) : [];
   // V1.52: an update across several versions lists every version newer than this Mac's, newest first.
   const blocks = u.state === "available"
-    ? catchUp([...(u.version && u.notes?.length ? [{ version: u.version, keyword: u.keyword ?? "", notes: u.notes }] : []), ...(u.history ?? [])], u.current, u.version)
+    ? catchUp([...(u.version && u.notes?.length ? [{ version: u.version, keyword: u.keyword ?? "", notes: u.notes, by: u.by }] : []), ...(u.history ?? [])], u.current, u.version)
     : [];
-  const title = u.state === "available" ? <>Update available · {named(u.version, u.keyword)}</>
+  const title = u.state === "available" ? <>Update available · {named(u.version, u.keyword, u.by)}</>
     : u.state === "downloading" ? <>Downloading {named(u.version, u.keyword)}</>
     : u.state === "verifying" ? "Checking it is really yours"
     : u.state === "installing" ? "Installing"

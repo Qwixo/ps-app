@@ -14,7 +14,11 @@ let passed = 0;
 function ok(name, cond, more = "") {
   if (cond) { passed++; console.log(`ok - ${name}`); } else { console.log(`FAIL - ${name} ${more}`); process.exit(1); }
 }
-const page = swift.slice(swift.indexOf('private static let page = #"""'), swift.lastIndexOf('"""#'));
+// V1.58: the page takes the AI message card's style and script from AiMessageCard.swift (\#(...) in Swift); filled in here.
+const aiCard = readFileSync(join(here, "..", "Sources", "AiMessageCard.swift"), "utf8");
+const aiRaw = (n) => { const i = aiCard.indexOf('#"""', aiCard.indexOf(n)) + 4; return aiCard.slice(i, aiCard.indexOf('"""#', i)); };
+const page = swift.slice(swift.indexOf('private static let page = #"""'), swift.lastIndexOf('"""#'))
+  .replace("\\#(AiMessageCard.css)", () => aiRaw("static let css")).replace("\\#(AiMessageCard.js)", () => aiRaw("static let js"));
 const script = page.slice(page.indexOf("<script>") + 8, page.lastIndexOf("</script>"));
 let parses = true, why = "";
 try { new Function(script); } catch (e) { parses = false; why = String(e); }

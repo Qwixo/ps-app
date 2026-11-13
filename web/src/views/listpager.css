@@ -134,3 +134,16 @@ html.gos .tl-dots { bottom: 10px; }
 @media (prefers-reduced-motion: reduce) { .tl-dot i, .tl-edge, .tl-plus-big, .tl-card, .tl-plus-fly { transition: none; animation: none; } }
 /* An open danger item (Delete list) stays readable: the red of the task menu's Delete, not the accent */
 .tl-menu .tm-ctx-i.bad.on, .tl-menu .tm-ctx-i.bad:focus { background: var(--k-bad, #B91423); color: var(--k-on-bad, #FFFFFF); }
+
+/* V1.58 smooth page swipe: a page with its own background lands with a soft cross fade of the whole screen (a view
+   transition, views/ListPager.tsx finish); Reduce Motion keeps it, shorter (a fade is not motion). */
+html.pg-turning::view-transition-old(root) { animation: pg-vt-out .3s cubic-bezier(.4, 0, .2, 1) both; }
+html.pg-turning::view-transition-new(root) { animation: pg-vt-in .3s cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes pg-vt-out { to { opacity: 0; } }
+@keyframes pg-vt-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  html.pg-turning::view-transition-old(root), html.pg-turning::view-transition-new(root) { animation-duration: .16s; }
+}
+/* While a swipe moves, the list pages and the list's name get their own layers (opacity and translate only). */
+.tl-pager.moving .tl-page { will-change: opacity; }
+.tm-overlay[data-pgsw] .tl-strip { will-change: opacity, translate; }

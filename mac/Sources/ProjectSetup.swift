@@ -68,7 +68,7 @@ final class ProjectSetup: NSObject, WKScriptMessageHandler, WKNavigationDelegate
   private var caughtToken: String?        // V1.49: copied on the guide's Copy step, waiting for the page's tick to finish
   private var keep = true
   private var orgs: [SBOrg] = []
-  private var working = false
+  private var working = false { didSet { if working != oldValue { SetupIsland.shared.supabaseWorking(working) } } }   // V1.58: the island's loading square
   private var stop = false
   private var retry: (() -> Void)?
   private var finished: PSProject?
@@ -130,6 +130,7 @@ final class ProjectSetup: NSObject, WKScriptMessageHandler, WKNavigationDelegate
   // MARK: window
 
   func show(mode m: Mode) {
+    SetupIsland.shared.supabase(open: true)   // V1.58 setup island: this window's hint
     if working, window != nil { present(); return }
     mode = m
     if window == nil { build() }
@@ -184,6 +185,7 @@ final class ProjectSetup: NSObject, WKScriptMessageHandler, WKNavigationDelegate
   }
 
   func windowWillClose(_ n: Notification) {
+    SetupIsland.shared.supabase(open: false)
     SetupGuide.shared.stop(); caughtToken = nil   // V1.49: the guide goes with the window
     if working { stop = true }
     fromLocal = false
@@ -440,6 +442,7 @@ final class ProjectSetup: NSObject, WKScriptMessageHandler, WKNavigationDelegate
       uc.removeAllUserScripts()
       ProjectSetup.addPageScript(uc)
     }
+    if p != nil { SetupIsland.shared.supabaseLinked() }   // V1.58 setup island: green tick
     window?.close()
     app.hideOverlay(force: true)
     if app.main?.url != nil || changed { app.sendToMain(#"{"type":"lock"}"#) }

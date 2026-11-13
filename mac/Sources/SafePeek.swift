@@ -25,6 +25,11 @@ import Carbon.HIToolbox
 // (Control Option Space) is a hotkey all the time, over every app, so the keyboard tap never reads a combo. Chords and
 // modifier holds need the tap, so they never work over 1Password or Signal. Nobody who never changed the list sees
 // any difference: plain Tab, as before.
+//
+// V1.58 (the developer, 13 Nov 2026): two rules, one per account, in BuildRules.swift. Everyone except the developer: all of the above.
+// The developer's account: never armed over 1Password or Signal (no hold key, no combo, no Esc), and a list left up (pinned,
+// Keep overlay) goes away when one of them comes to the front (TabWatch.protectedChanged). Why friends still could not
+// open PS over Signal before V1.58: see SafePeekCore.swift (a typing flag left over while the list was hidden).
 final class SafePeek {
   static let shared = SafePeek()
   weak var app: App?
@@ -34,6 +39,9 @@ final class SafePeek {
   /// V1.47: the list's combos, hotkey ids 3000 + their place in the list.
   private var comboRefs: [EventHotKeyRef] = []
   private var comboSig = ""
+  /// Lists whose refused combos were already logged (V1.58: on the developer's account the combos are dropped while 1Password or
+  /// Signal is in front and taken back after; a line then would write down when they were used).
+  private var comboLogged: Set<String> = []
   /// V1.47: why each combo could not be registered (its place in the list), for Settings ("taken by another app").
   private(set) var comboTaken: Set<Int> = []
   /// V1.47: Settings is recording a new shortcut: no combo fires (it would close the list mid recording).
@@ -84,7 +92,8 @@ final class SafePeek {
     let w = TabWatch.shared
     return SafePeekCore.Inputs(protectedFront: Protected.front, secureStuck: secureStuck, enabled: w.enabled,
                                triggerKey: w.triggerKey, kept: app.kept, editing: w.editing, appActive: w.appActive,
-                               frontIgnored: w.frontIgnored, held: down, passingOn: passingOn)
+                               frontIgnored: w.frontIgnored, held: down, passingOn: passingOn, shown: app.shown,
+                               tabOverProtected: BuildRules.now.tabOverProtected)
   }
 
   /// Registers or drops the two hotkeys to match the moment. Called on every change that matters.
@@ -96,8 +105,11 @@ final class SafePeek {
     if down { want.insert(downCode) }
     for code in Set(holdRefs.keys).union(testHolds).subtracting(want) { hold(code, on: false) }
     for code in want where holdRefs[code] == nil && !testHolds.contains(code) { hold(code, on: true) }
-    combos(w.customList.map { OpenKeysCore.Plan($0).combos } ?? [], on: w.enabled && !recording)
-    hotkey(&escRef, on: SafePeekCore.wantEsc(protectedFront: Protected.front, secureStuck: secureStuck, shown: app.shown),
+    combos(w.customList.map { OpenKeysCore.Plan($0).combos } ?? [],
+           on: SafePeekCore.wantCombos(enabled: w.enabled, recording: recording, protectedFront: Protected.front,
+                                       tabOverProtected: i.tabOverProtected))
+    hotkey(&escRef, on: SafePeekCore.wantEsc(protectedFront: Protected.front, secureStuck: secureStuck, shown: app.shown,
+                                             tabOverProtected: i.tabOverProtected),
            key: kVK_Escape, id: 2)
     // One line when it arms or drops for Secure Input. Golden rule: never a line for 1Password or Signal coming to
     // the front or going (that would write down WHEN they were used), so those changes are not logged at all.
@@ -126,12 +138,16 @@ final class SafePeek {
     comboTaken = []
     if app?.selfTest == true { testCombos = on ? list.count : 0; return }
     guard on else { return }
+    defer { comboLogged.insert(sig) }
     for (n, c) in list.enumerated() {
       var ref: EventHotKeyRef?
       let st = RegisterEventHotKey(UInt32(c.key), OpenKeysCore.carbonMods(c.mods ?? []), EventHotKeyID(signature: SafePeek.sig, id: UInt32(3000 + n)),
                                    GetEventDispatcherTarget(), 0, &ref)
       if st == noErr, let ref { comboRefs.append(ref) }
-      else { comboTaken.insert(n); psLog("PS safepeek: combo \(n + 1) not registered (\(st)), another app may use it") }
+      else {
+        comboTaken.insert(n)
+        if !comboLogged.contains(sig) { psLog("PS safepeek: combo \(n + 1) not registered (\(st)), another app may use it") }
+      }
     }
   }
 
@@ -194,6 +210,7 @@ final class SafePeek {
   /// of the keys does not close it; the combo again, Tab or Esc puts it away.
   private func combo(_ app: App) {
     if app.shown { if !app.kept { app.hideOverlay() }; return }
+    if Protected.front && !BuildRules.now.tabOverProtected { return }   // The developer's account: never over them (V1.58)
     let a = SafePeekCore.onHold(unlocked: app.vaultUnlocked, locked: TouchLock.cachedLocked,
                                 askingTouchID: TouchLock.isAsking, sleepUp: app.sleepUp)
     lastHold = a
@@ -215,6 +232,7 @@ final class SafePeek {
 
   /// Tab held for the hold time: the same as the keyboard tap does over any other app.
   private func held(_ app: App) {
+    if Protected.front && !BuildRules.now.tabOverProtected { return }   // The developer's account: never over them (V1.58)
     let a = SafePeekCore.onHold(unlocked: app.vaultUnlocked, locked: TouchLock.cachedLocked,
                                 askingTouchID: TouchLock.isAsking, sleepUp: app.sleepUp)
     lastHold = a

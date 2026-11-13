@@ -15,7 +15,7 @@ APP="$(cd "${1:-$HERE/build/PS.app}" && pwd)"
 # Without one: the PS installed in /Applications under whatever name it has (V1.36), else /Applications/PS.app.
 . "$HERE/tools/installed-app.sh"
 DEST="${PS_DIRECT_DEST:-$(ps_installed_app)}"
-REQ='identifier "com.cincee.ps" and certificate root = H"b278d9d09dfed336675cfb367b2f8a3b51896689"'
+REQ='identifier "com.cincee.ps" and certificate root = H"c0e302f2ce304d062a50d6ebdaff97d5f7d4b6e6"'
 SUPPORT="${PS_DIRECT_SUPPORT:-$HOME/Library/Application Support/PS/update}"
 TRASH="${PS_DIRECT_TRASH:-$HOME/.Trash}"
 DIR="$(dirname "$DEST")"

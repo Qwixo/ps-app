@@ -46,6 +46,29 @@ enum RemMath {
     guard let s = (v as? String)?.lowercased(), s.range(of: "^#[0-9a-f]{6}$", options: .regularExpression) != nil else { return def }
     return s
   }
+  // ---------- readable words on any background (V1.58, the same as web core/remind.ts inkFor) ----------
+  static let minContrast = 4.5
+  static func rgb(_ hex: String) -> (Double, Double, Double) {
+    let n = Int(okHex(hex, "#000000").dropFirst(), radix: 16) ?? 0
+    return (Double((n >> 16) & 255), Double((n >> 8) & 255), Double(n & 255))
+  }
+  /// Relative luminance 0 (black) to 1 (white).
+  static func luma(_ hex: String) -> Double {
+    func f(_ c: Double) -> Double { let s = c / 255; return s <= 0.03928 ? s / 12.92 : pow((s + 0.055) / 1.055, 2.4) }
+    let (r, g, b) = rgb(hex)
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+  }
+  /// WCAG contrast ratio, 1 to 21.
+  static func contrast(_ a: String, _ b: String) -> Double {
+    let x = luma(a), y = luma(b)
+    return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+  }
+  /// White or near black, whichever reads better on the background; pure black or white on a middle tone.
+  static func inkFor(_ bg: String) -> String {
+    let w = contrast("#ffffff", bg), d = contrast("#17121a", bg)
+    if max(w, d) >= minContrast { return w > d ? "#ffffff" : "#17121a" }
+    return contrast("#000000", bg) > w ? "#000000" : "#ffffff"
+  }
   /// One line, no control characters, trimmed, at most `max` characters (the page cleaned it already; checked again).
   static func line(_ v: Any?, _ max: Int, _ def: String = "") -> String {
     guard let s = v as? String else { return def }
@@ -72,7 +95,11 @@ enum RemMath {
     i.word = line(o["word"], 30, i.yes)
     i.later = line(o["later"], 40, "Remind me in \(i.snooze) mins")
     i.click = o["click"] as? Bool ?? false
-    i.bg = okHex(o["bg"], "#28121e"); i.accent = okHex(o["accent"], "#ec4e86"); i.ink = okHex(o["ink"], "#ffffff")
+    i.bg = okHex(o["bg"], "#28121e"); i.accent = okHex(o["accent"], "#ec4e86")
+    // V1.58: the words' colour comes from the background when the plan has none, or one that does not read on it (an
+    // old plan, a cached list, an older page's rule): never white on a light card.
+    let ink = okHex(o["ink"], "")
+    i.ink = !ink.isEmpty && contrast(ink, i.bg) >= minContrast ? ink : inkFor(i.bg)
     i.sound = ["none", "soft", "alarm", "own"].contains(o["sound"] as? String ?? "") ? o["sound"] as! String : "none"
     i.vol = max(0.1, min(1, num(o["vol"]) ?? 0.8))
     if let d = o["done"] as? String, d.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil { i.done = d }

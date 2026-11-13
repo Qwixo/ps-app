@@ -17,7 +17,7 @@ export { norm, stem };
 
 /** Where PS is running: on a Mac (the Tab list), the website, or the phone (PS GOS and the iPhone web app). */
 export type Where = "mac" | "web" | "phone";
-export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "mac" | "sync" | "privacy" | "fitness" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
+export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
 /** What a setting opens instead of a row in Settings: a screen of its own. */
 export type Go = "fitness" | "security" | "dnd" | "gsquad" | "sleepSettings" | "phone" | "vault" | "macApp";
 
@@ -79,10 +79,14 @@ export const GROUPS: SetGroup[] = [
   // V1.47 (the developer, 10 Nov 2026: "In the Settings menu, a tab called Tab overlay shortcuts").
   { id: "shortcuts", label: "Tab overlay shortcuts", line: "The keys that open your list: hold, combos, chords", on: ["mac"], icon: "M9 9V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V9" },
   { id: "keys", label: "Keyboard and Tab", line: "Keep the list open, middle click, apps", on: ["mac"], icon: "M3 7h18v10H3zM7 11h.01M11 11h.01M15 11h.01M8 14h8" },
-  { id: "mac", label: "Mac", line: "Island, AFK timer, AirPods, microphone", on: ["mac"], icon: "M4 5h16v11H4zM2 20h20M9 16v4M15 16v4" },
+  // V1.58 (the developer, 13 Nov 2026): the Dynamic Island's own tab, holding its settings themselves (views/IslandSettings.tsx).
+  { id: "island", label: "Dynamic Island", line: "Look, position, full screen, notifications", on: ["mac"], icon: "M3 8h18v8H3zM16.5 12h.01" },
+  { id: "mac", label: "Mac", line: "AFK timer, AirPods, microphone, app name", on: ["mac"], icon: "M4 5h16v11H4zM2 20h20M9 16v4M15 16v4" },
   { id: "sync", label: "Sync and account", line: "Your project, your vault, other devices", icon: "M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4" },
   { id: "privacy", label: "Privacy and sharing", line: "Security, passphrase, who can see what", icon: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9.5 12l2 2 3.5-3.5" },
   { id: "fitness", label: "Fitness", line: "Rest times, sets, week goal, gym reminder", icon: "M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11" },
+  { id: "pomodoro", label: "Pomodoro timer", line: "Work and break times, sounds and the island", on: ["mac", "web"], icon: "M12 21a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM12 6V3.5M9 4.5l3 1.5 3-1.5M12 13.5V10.5M12 13.5l2.2 1.6" },
+  { id: "standup", label: "Stand-up reminders", line: "How often to stand, for how long, and when", on: ["mac"], icon: "M12 5.5a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6zM12 7.5v7M8 10l4-2 4 2M12 14.5l-3 6.5M12 14.5l3 6.5" },
   { id: "sleep", label: "Sleep mode", line: "Sleep mode has its own settings", icon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" },
   // V1.48 Sentry mode (core/sentry.ts): the gear on the AI button opens this group. Every Mac, public and private.
   { id: "sentry", label: "Sentry mode", line: "Lock your Mac and keep AI jobs running", on: ["mac"], icon: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM8.5 12s1.3-2.5 3.5-2.5 3.5 2.5 3.5 2.5-1.3 2.5-3.5 2.5-3.5-2.5-3.5-2.5z" },
@@ -140,7 +144,7 @@ export const SETTINGS: SetEntry[] = [
   { id: "dnd", group: "notify", name: "Do Not Disturb and focus modes", line: "Focus modes, their schedules and who gets through.", go: "dnd", words: ["dnd", "focus", "quiet", "silence", "silent", "mute", "schedule", "deep work", "calls", "do not disturb", "moon", "focus mode", "modes", "sleep focus", "who gets through", "senders", "allow"] },
   { id: "popups", group: "notify", name: "Notification pop-ups", line: "A small pop-up when Claude updates your vault or the calendar refreshes.", words: ["notifications", "alerts", "toast", "popup", "history"] },
   // V1.53: every PS user, and other AI tools too (views/AiDone.tsx, ps-mac Sources/AiDone.swift).
-  { id: "ai-done", group: "notify", name: "AI chat finished cards", line: "A card when a Claude Code, Codex, Gemini or Cursor chat finishes, and how long it stays.", on: MAC, words: ["claude", "claude code", "codex", "openai", "chatgpt", "gemini", "cursor", "ai", "chat", "finished", "done", "hook", "notification", "disappear", "by themselves", "timer", "seconds", "stays", "auto hide"] },
+  { id: "ai-done", group: "notify", name: "AI chat finished cards", line: "The AI's own message or a plain card when a Claude Code, Codex, Gemini or Cursor chat ends.", on: MAC, words: ["claude", "claude code", "codex", "openai", "chatgpt", "gemini", "cursor", "ai", "chat", "finished", "done", "hook", "notification", "disappear", "by themselves", "timer", "seconds", "stays", "auto hide", "message", "messages", "ai messages", "plain"] },
   { id: "card-looks", group: "notify", name: "Card colours and sounds", line: "Each kind of card: its colour, and its sound or none.", on: MAC, more: true, words: ["notification sound", "alert sound", "colour", "color", "cards", "chime"] },
   { id: "meetings", group: "notify", name: "Meetings", line: "Alerts before a meeting, private mode and your notes during a call.", on: MAC, words: ["meeting", "call", "zoom", "calendar", "reminder", "notes", "private", "alert"] },
   { id: "calendar", group: "notify", name: "Meetings from this Mac's Calendar", line: "Show the meetings in the Calendar app on this Mac.", on: MAC, notRed: true, words: ["calendar", "ical", "events", "meetings"] },
@@ -172,7 +176,8 @@ export const SETTINGS: SetEntry[] = [
   { id: "tg-remove", group: "telegram", parent: "telegram-bot", name: "Remove bot", line: "Takes the key off this device and unlinks your Telegram.", words: ["remove", "delete", "disconnect", "forget", "unlink"] },
   { id: "task-api", group: "api", name: "AI task API", line: "Lets an AI like Claude Code or Codex on this Mac add and manage your tasks.", on: ["mac"], words: ["api", "ai", "claude", "claude code", "codex", "gpt", "cursor", "gemini", "agent", "automation", "local", "localhost", "key", "token", "scope", "permissions", "inbox", "ai inbox", "integration", "curl", "http"] },
   { id: "api-key", group: "api", parent: "task-api", name: "API key", line: "The key an AI sends with every request. Show, copy or make a new one.", on: ["mac"], words: ["key", "token", "secret", "regenerate", "new key", "copy key", "show key"] },
-  { id: "api-scopes", group: "api", parent: "task-api", name: "What an AI may do", line: "One switch each: the AI Inbox, all lists, renaming, read, add, edit, tick, delete, reminders, gym.", on: ["mac"], words: ["scopes", "permissions", "allow", "read", "add", "edit", "delete", "tick", "done", "reminders", "rename", "lists", "switches", "sentry", "sentry mode", "lock", "gym"] },
+  { id: "api-scopes", group: "api", parent: "task-api", name: "What an AI may do", line: "One switch each: the AI Inbox, all lists, renaming, read, add, edit, tick, delete, reminders, gym, messages.", on: ["mac"], words: ["message", "messages", "scopes", "permissions", "allow", "read", "add", "edit", "delete", "tick", "done", "reminders", "rename", "lists", "switches", "sentry", "sentry mode", "lock", "gym"] },
+  { id: "api-connect", group: "api", parent: "task-api", name: "Connect your AI", line: "Your AI messages you on the Dynamic Island when it finishes. Copy a rule it saves to its memory.", on: ["mac"], words: ["message", "messages", "island", "dynamic island", "notify", "summary", "end of chat", "finished", "claude.md", "agents.md", "memory", "rules", "connect", "chatgpt"] },
   { id: "api-copy", group: "api", parent: "task-api", name: "Copy for AI", line: "Copies everything an AI needs to use the API: paste it into Claude Code or Codex.", on: ["mac"], words: ["copy", "prompt", "instructions", "docs", "documentation", "paste", "guide", "setup"] },
 
   // ---------- Time and reset ----------
@@ -197,7 +202,7 @@ export const SETTINGS: SetEntry[] = [
   { id: "ignored-apps", group: "keys", name: "Leave the key alone in these apps", line: "Games that use hold Tab for their scoreboard keep it.", on: MAC, more: true, words: ["games", "ignore", "exclude", "scoreboard", "apps", "except"] },
 
   // ---------- Mac ----------
-  { id: "island", group: "mac", name: "Dynamic Island", line: "Its shape or Off, where it sits, how long its line hides it, notifications and full screen.", on: MAC, words: ["island", "notch", "pill", "position", "move", "hide", "dynamic", "notifications", "cards", "pop-ups", "popups", "top right", "corner", "come from", "animation", "full screen", "fullscreen", "top left", "tick", "circle", "side", "left", "right", "off", "turn off", "disable"] },
+  { id: "island", group: "island", name: "Dynamic Island", line: "Its shape or Off, where it sits, how long its line hides it, notifications and full screen.", on: MAC, words: ["island", "notch", "pill", "position", "move", "hide", "dynamic", "notifications", "cards", "pop-ups", "popups", "top right", "corner", "come from", "animation", "full screen", "fullscreen", "top left", "top bar", "black bar", "menu bar", "tick", "circle", "side", "left", "right", "off", "turn off", "disable"] },
   { id: "afk", group: "mac", name: "AFK timer", line: "Counts how long you are away from the keyboard and mouse.", on: MAC, words: ["afk", "away", "idle", "break", "stopwatch", "inactive"] },
   { id: "airpods", group: "mac", name: "AirPods card", line: "Gives the AirPods play button back to Spotify when a tab takes it.", on: MAC, words: ["airpods", "headphones", "spotify", "play", "pause", "media", "button"] },
   { id: "mic", group: "mac", name: "Microphone", line: "The default microphone for every app.", on: MAC, words: ["mic", "microphone", "input", "audio", "voice"] },
@@ -244,6 +249,26 @@ export const SETTINGS: SetEntry[] = [
   { id: "signin-log", group: "privacy", name: "Sign-in log", line: "Every device that signed in, and when.", on: WEB, go: "vault", anchor: "log-h", parent: "vault-safety", words: ["login", "log in", "sign in", "devices", "history"] },
   { id: "claude-access", group: "privacy", name: "Claude access", line: "Claude's own account in client workspaces.", on: WEB, red: true, go: "vault", anchor: "ai-h", parent: "vault-safety", words: ["claude", "ai", "agent", "access"] },
 
+  // ---------- Pomodoro (V1.58, core/pomodoro.ts; the controls are views/SettingsGroups.tsx) ----------
+  { id: "pomo-on", group: "pomodoro", name: "Pomodoro", line: "The Pomodoro button in your Tab list. Off hides it and stops a running timer.", on: NOT_PHONE, words: ["pomodoro", "tomato", "timer", "focus", "work timer", "break timer", "button"] },
+  { id: "pomo-work", group: "pomodoro", name: "Work session", line: "How long you work for in each session.", on: NOT_PHONE, words: ["pomodoro", "work", "session", "length", "minutes", "focus", "timer"] },
+  { id: "pomo-short", group: "pomodoro", name: "Short break", line: "The break after each work session.", on: NOT_PHONE, words: ["pomodoro", "break", "short break", "rest", "minutes"] },
+  { id: "pomo-long", group: "pomodoro", name: "Long break", line: "The longer break after a few work sessions.", on: NOT_PHONE, words: ["pomodoro", "break", "long break", "rest", "minutes"] },
+  { id: "pomo-rounds", group: "pomodoro", name: "Sessions before a long break", line: "How many work sessions come before the long break.", on: NOT_PHONE, words: ["pomodoro", "rounds", "sessions", "cycle", "long break", "how many"] },
+  { id: "pomo-auto", group: "pomodoro", name: "Start the next one by itself", line: "When a session or a break ends, the next one starts on its own. Off, it waits for Start.", on: NOT_PHONE, words: ["pomodoro", "auto start", "automatic", "next session", "continue", "wait"] },
+  { id: "pomo-sound", group: "pomodoro", name: "Pomodoro sound", line: "A soft chime when a break starts and when it ends.", on: NOT_PHONE, words: ["pomodoro", "sound", "chime", "ding", "audio", "quiet", "mute"] },
+  { id: "pomo-clock", group: "pomodoro", name: "Time left on the island while you work", line: "The minutes left beside your task while you work. Breaks always show their countdown.", on: MAC, words: ["pomodoro", "island", "dynamic island", "countdown", "time left", "clock", "notch"] },
+
+  // ---------- Stand-up reminders (V1.58, core/standup.ts; the controls are views/IslandTimersSettings.tsx) ----------
+  { id: "stand-on", group: "standup", name: "Stand-up reminders", line: "The island tells you to stand up now and then, with a 15 second countdown first.", on: MAC, words: ["stand", "stand up", "standing", "sitting", "sit", "posture", "health", "move", "break", "reminder", "desk"] },
+  { id: "stand-every", group: "standup", name: "How often", line: "Minutes between stand-ups. 30 minutes is what the research suggests.", on: MAC, words: ["stand", "interval", "how often", "every", "minutes", "frequency"] },
+  { id: "stand-len", group: "standup", name: "How long to stand", line: "The countdown on the island while you stand. 2 minutes by default.", on: MAC, words: ["stand", "length", "how long", "duration", "minutes"] },
+  { id: "stand-sound", group: "standup", name: "Stand-up sound", line: "A soft chime when it is time to stand and when you are done.", on: MAC, words: ["stand", "sound", "chime", "audio", "quiet", "mute"] },
+  { id: "stand-hours", group: "standup", name: "Only between these times", line: "Stand-ups only come inside these hours. Off, they come whenever PS app is open.", on: MAC, words: ["stand", "hours", "active hours", "work hours", "schedule", "time", "from", "to"] },
+  { id: "stand-test", group: "standup", name: "Try it now", line: "See a stand-up on the island in 15 seconds.", on: MAC, words: ["stand", "test", "try", "preview", "demo", "island"] },
+  { id: "meet-bubble", group: "notify", name: "Next meeting on the island", line: "A bubble beside the island counts down to your next meeting, then shows Join and the time left.", on: MAC, words: ["meeting", "next meeting", "countdown", "island", "dynamic island", "join", "bubble", "calendar", "call"] },
+  { id: "meet-bubble-lead", group: "notify", name: "Show it this long before", line: "How many minutes before a meeting the bubble shows.", on: MAC, parent: "meet-bubble", words: ["meeting", "minutes", "before", "lead", "countdown", "island"] },
+
   // ---------- Fitness (in Fitness, its Settings tab) ----------
   { id: "fitness", group: "fitness", name: "Fitness settings", line: "Rest times, sets, week goal, gym reminder and the Fitness look.", go: "fitness", words: ["gym", "workout", "exercise", "training", "fitness", "nag", "ring time", "gym reminder"] },
   { id: "fit-look", group: "fitness", name: "Fitness look", line: "Volt, Chalk or Pulse.", go: "fitness", parent: "fitness", words: ["gym", "theme", "colour", "color", "chalk", "volt", "pulse", "pick your look", "light and dark"] },
@@ -277,6 +302,8 @@ export const SETTINGS: SetEntry[] = [
   { id: "gs-share", group: "gsquad", name: "What you share", line: "Choose what your squad can see. Anything off is never sent. Task sharing starts off.", words: ["squad", "friends", "share", "sharing", "leaderboard", "privacy", "group", "g squad", "task sharing", "share tasks", "money", "screen time", "working"] },
   // Open source build: PS joins The G Squad by itself unless this is Off (core/offswitches.ts, squad/autoengine.ts).
   { id: "gs-auto-join", group: "gsquad", name: "Join The G Squad automatically", line: "PS app joins The G Squad by itself after you sign in. Off: it never joins unless you press Join.", words: ["squad", "g squad", "join", "auto join", "automatically", "friends", "group", "off"] },
+  // V1.58 multiple developers (views/FromTheSquad.tsx, core/features.ts): other people's shared features, each with a switch.
+  { id: "squad-features", group: "gsquad", name: "From the squad", line: "Features your friends made and shared. Switch each one on or off.", words: ["squad", "g squad", "friends", "features", "shared", "from the squad", "switch", "extras", "add ons", "made by", "developers", "turn on", "turn off"] },
   { id: "gs-money", group: "gsquad", name: "Money you made", line: "Add last month's amount at the top of the Leaderboard. No pop-up asks for it.", go: "gsquad", words: ["money", "income", "earnings", "made", "amount", "last month", "revenue", "leaderboard"] },
   { id: "gs-open", group: "gsquad", name: "Open G Squad", line: "Your squad, the board and the chat.", go: "gsquad", words: ["squad", "friends", "leaderboard", "chat", "board", "rename", "squad name", "my name", "members"] },
 

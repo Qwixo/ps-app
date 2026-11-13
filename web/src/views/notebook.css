@@ -291,12 +291,12 @@ html[data-nb] .p1c-dot {
 html[data-nb] .p1c-dot:hover, html[data-nb] .p1c-dot.open { border-color: var(--nb-ink); transform: scale(1.12); }
 
 /* ---------- cards: menus, pop-ups and small windows ---------- */
-html[data-nb] :is(.tm-pop, .gs-gen, .p1c-menu, .tm-isl-menu, .dnd-menu, .dx-menu, .nt-pop, .fit-pop, .sc-menu, .td-info-pop) {
+html[data-nb] :is(.tm-pop, .gs-gen, .p1c-menu, .tm-isl-menu, .isw, .dnd-menu, .dx-menu, .nt-pop, .fit-pop, .sc-menu, .td-info-pop) {
   background-color: var(--nb-card); background-image: var(--nb-grain); background-size: 180px 180px;
   color: var(--nb-ink); border: 1.5px solid var(--nb-ink-3); border-radius: 6px 10px 8px 12px;
   box-shadow: 0 2px 0 var(--nb-ink-4), 0 22px 50px -14px rgba(0, 0, 0, .55); font-family: var(--nb-small);
 }
-html[data-nb] :is(.tm-pop, .gs-gen, .p1c-menu, .tm-isl-menu, .dnd-menu, .dx-menu, .nt-pop, .fit-pop, .sc-menu) :is(b, strong, h3, h4, .tm-pop-h, .p1c-h) { font-family: var(--nb-hand); font-weight: 400; color: var(--nb-ink); }
+html[data-nb] :is(.tm-pop, .gs-gen, .p1c-menu, .tm-isl-menu, .isw, .dnd-menu, .dx-menu, .nt-pop, .fit-pop, .sc-menu) :is(b, strong, h3, h4, .tm-pop-h, .p1c-h) { font-family: var(--nb-hand); font-weight: 400; color: var(--nb-ink); }
 html[data-nb] :is(.tm-pop-note, .p1c-h em, .p1c-l, .tm-isl-h, .tm-isl-l em) { color: var(--nb-ink-2); font-family: var(--nb-small); }
 html[data-nb] .tm-pop-in, html[data-nb] .p1c-hex {
   background: transparent; color: var(--nb-ink); border: 0; border-bottom: 2px solid var(--nb-ink-3); border-radius: 0; font-family: var(--nb-hand); font-size: 18px;
@@ -464,8 +464,8 @@ html[data-nb] .mac-win .st-switch { color: var(--nb-ink); }
 html[data-nb] :is(.dx-win, .nu-win, .gt-win, .bf-win, .nt-win, .rb) :is(input, textarea, button) { font-family: inherit; }
 
 /* ---------- inside menus and settings windows: everything in ink, rows as paper buttons, switches drawn ---------- */
-html[data-nb] :is(.tm-pop, .gs-gen, .p1c-menu, .tm-isl-menu, .dnd-menu, .dx-menu, .sc-menu, .ms-win, .mac-win) * { color: inherit; text-shadow: none; }
-html[data-nb] :is(.tm-pop, .gs-gen, .p1c-menu, .tm-isl-menu, .dnd-menu, .dx-menu, .sc-menu, .ms-win, .mac-win) :is(em, small, i, .muted, .hint, .tm-pop-note, .mp-l, [class$="-note"], [class$="-sub"], [class$="-d"]) { color: var(--nb-ink-2); }
+html[data-nb] :is(.tm-pop, .gs-gen, .p1c-menu, .tm-isl-menu, .isw, .dnd-menu, .dx-menu, .sc-menu, .ms-win, .mac-win) * { color: inherit; text-shadow: none; }
+html[data-nb] :is(.tm-pop, .gs-gen, .p1c-menu, .tm-isl-menu, .isw, .dnd-menu, .dx-menu, .sc-menu, .ms-win, .mac-win) :is(em, small, i, .muted, .hint, .tm-pop-note, .mp-l, [class$="-note"], [class$="-sub"], [class$="-d"]) { color: var(--nb-ink-2); }
 html[data-nb] :is(.tm-pop, .gs-gen, .ms-win, .mac-win, .dnd-menu) :is(.tm-more-btn, .mu-row, .mp-main, .mp-snd, .tm-ed-chip, .mp-chips button, .tm-hist-btn, .tm-pop-sel) {
   background: var(--nb-btn); color: var(--nb-ink); border: 1.5px solid var(--nb-ink-3); border-radius: 7px 5px 8px 6px; box-shadow: 0 2px 0 var(--nb-ink-4); font-family: var(--nb-small);
 }

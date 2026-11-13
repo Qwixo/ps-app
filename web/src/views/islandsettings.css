@@ -1,0 +1,114 @@
+/* The Dynamic Island's settings window (views/IslandSettings.tsx, V1.58; also its Settings tab page). The developer, 13 Nov 2026: "make it pop up in a
+   bigger settings menu, like a landscape settings menu with everything much neater, instead of the long portrait
+   looking thing". A wide window in the middle of the screen: the sections on the left, that section's rows on the
+   right. The rows themselves keep their own styles (taskmap.css .tm-isl-*, islandhide.css .ih-*, islandcards.css). */
+.isw-back { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; padding: 16px; box-sizing: border-box;
+  background: rgba(0, 0, 0, .36); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: iswFade .24s ease-out; }
+.isw-back.out { animation: iswFadeOut .17s ease-in forwards; }
+.isw { position: relative; display: grid; grid-template-columns: 228px minmax(0, 1fr); width: min(840px, 100%); height: min(560px, 100%); box-sizing: border-box; overflow: hidden; outline: none;
+  border-radius: calc(22px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-surface, #161016) 98%, transparent); color: var(--k-fg, #FFFFFF);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .55), 0 4px 16px rgba(0, 0, 0, .3); font: calc(13px * var(--k-fs, 1))/1.35 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif);
+  animation: iswIn .36s cubic-bezier(.22, 1.15, .36, 1); }
+.isw.out { animation: iswOut .17s ease-in forwards; }
+@keyframes iswFade { from { opacity: 0; } }
+@keyframes iswFadeOut { to { opacity: 0; } }
+@keyframes iswIn { from { opacity: 0; transform: translateY(10px) scale(.95); } }
+@keyframes iswOut { to { opacity: 0; transform: translateY(6px) scale(.97); } }
+
+/* ---------- the sections, on the left ---------- */
+.isw-side { display: flex; flex-direction: column; gap: calc(4px * var(--k-dn, 1)); padding: calc(14px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); overflow-y: auto;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent);
+  border-right: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.isw-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)) 0; }
+.isw-title .tm-isl-h { padding-bottom: calc(4px * var(--k-dn, 1)); }
+.isw-state { flex: none; padding: 2px 9px; border-radius: 999px; font-size: calc(11px * var(--k-fs, 1)); font-weight: 750;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 70%, transparent); }
+.isw-state.on { background: color-mix(in srgb, var(--k-acc, #EC4E86) 26%, transparent); color: var(--k-fg, #FFFFFF); }
+.isw-tab { display: flex; align-items: center; gap: calc(11px * var(--k-dn, 1)); width: 100%; padding: calc(9px * var(--k-dn, 1)); border: 0; border-radius: calc(14px * var(--k-rd, 1));
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .18s ease, box-shadow .18s ease, transform .12s ease; }
+.isw-tab:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); }
+.isw-tab:active { transform: scale(.98); }
+.isw-tab.sel { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(40% * var(--k-ia, 1))), transparent); }
+.isw-tab:focus-visible, .isw-x:focus-visible { outline: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); outline-offset: 2px; }
+.isw-ico { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: calc(10px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+.isw-tab.sel .isw-ico { background: color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); }
+.isw-tab-l { flex: 1; min-width: 0; font-weight: 750; }
+.isw-tab-l em { display: block; font-style: normal; font-weight: 550; font-size: calc(11px * var(--k-fs, 1)); margin-top: 1px;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); }
+
+/* ---------- the section's settings, on the right ---------- */
+.isw-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.isw-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(16px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(22px * var(--k-dn, 1)); }
+.isw-head h3 { margin: 0; font-size: calc(19px * var(--k-fs, 1)); font-weight: 800; letter-spacing: -.01em; }
+.isw-x { flex: none; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: inherit;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); transition: background .18s ease, transform .12s ease; }
+.isw-x:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent); }
+.isw-x:active { transform: scale(.92); }
+.isw-pane { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: calc(8px * var(--k-dn, 1)) calc(22px * var(--k-dn, 1)) calc(22px * var(--k-dn, 1));
+  animation: iswPane .28s cubic-bezier(.22, 1.1, .36, 1); }
+.isl-rows { display: flex; flex-direction: column; gap: calc(12px * var(--k-dn, 1)); }
+@keyframes iswPane { from { opacity: 0; transform: translateY(6px); } }
+
+/* Every row a calm card of its own, with room to breathe (in the old menu they were stacked with thin lines). */
+.isl-rows > .ih-row, .isl-rows > .tm-isl-pos, .isl-rows > .tm-isl-sw {
+  margin: 0; padding: calc(14px * var(--k-dn, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent);
+  border-radius: calc(16px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); }
+.isl-rows > .tm-isl-sw { width: 100%; }
+.isl-rows > .tm-isl-sw:hover:not(:disabled) { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
+
+/* Which cards come out of the island: two columns of kinds, the Pop ups heading across both. */
+.isl-rows .ic-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: calc(22px * var(--k-dn, 1)); row-gap: calc(6px * var(--k-dn, 1)); }
+.isl-rows .ic-head { grid-column: 1 / -1; margin-top: calc(10px * var(--k-dn, 1)); }
+.isl-rows .ic-kind { flex-wrap: nowrap; min-height: 40px; padding: calc(5px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(5px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)); box-sizing: border-box;
+  border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); }
+.isl-rows .ic-name { flex: 1; min-width: 0; line-height: 1.25; }
+
+/* The three shapes side by side, each a card with a bigger picture, its Edit button under the words. */
+.isw-shapes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(10px * var(--k-dn, 1)); }
+.isw-shapes .tm-isl-row { align-items: stretch; }
+.isw-shapes .tm-isl-row > .tm-isl-opt { flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; gap: calc(12px * var(--k-dn, 1));
+  padding: calc(18px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(50px * var(--k-dn, 1)); min-height: 100%; box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); border-radius: calc(16px * var(--k-rd, 1)); }
+.isw-shapes .tm-isl-pic { transform: scale(1.6); margin: 8px 0 10px; }
+.isw-shapes .il-editbtn { top: auto; bottom: 12px; right: auto; left: 50%; transform: translateX(-50%); }
+.isw-shapes .il-editbtn:active { transform: translateX(-50%) scale(.94); }
+.isw-shapes .tm-isl-row:only-child, .isw-shapes .tm-isl-row:has(.tm-isl-pic.off) > .tm-isl-opt { padding-bottom: calc(18px * var(--k-dn, 1)); }
+
+/* The look editor (views/IslandLook.tsx) keeps its own width and preview, centred in the pane. */
+.isl-rows > .il-ed { width: 100%; max-width: 440px; margin: 0 auto; }
+
+/* The island away (right click > Disappear): until when, and Show it now. */
+.isl-rows > .isl-away, .isp > .isl-away { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1));
+  border-radius: calc(16px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); }
+.isl-away-btn { flex: none; height: 30px; padding: 0 calc(13px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750;
+  color: var(--k-fg, #FFFFFF); background: var(--k-acc, #EC4E86); border: 0; transition: transform .12s ease, filter .15s ease; }
+.isl-away-btn:hover { filter: brightness(1.08); }
+.isl-away-btn:active { transform: scale(.96); }
+
+/* Settings, Dynamic Island tab (and the older Mac settings): every section one under the other, with its heading. */
+.isp { display: flex; flex-direction: column; gap: calc(22px * var(--k-dn, 1)); color: var(--k-fg, #FFFFFF);
+  font: calc(13px * var(--k-fs, 1))/1.35 var(--k-font, -apple-system, BlinkMacSystemFont, "Inter", sans-serif); }
+.isp-sec { display: flex; flex-direction: column; gap: calc(10px * var(--k-dn, 1)); }
+.isp-h { margin: 0; font-size: calc(15px * var(--k-fs, 1)); font-weight: 800; letter-spacing: -.01em; }
+.isp-h em { display: block; margin-top: 2px; font-style: normal; font-weight: 550; font-size: calc(11.5px * var(--k-fs, 1));
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(52% * var(--k-ia, 1))), transparent); }
+.isp .isl-rows > .il-ed { margin: 0; }
+
+/* A narrow window: the sections become a row of tabs on top. */
+@media (max-width: 640px) {
+  .isw { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); height: min(640px, 100%); }
+  .isw-side { flex-direction: row; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 9%, transparent); padding: 10px; }
+  .isw-title { display: none; }
+  .isw-tab { width: auto; flex: none; }
+  .isw-tab-l em { display: none; }
+  .isw-shapes { grid-template-columns: 1fr; }
+  .isl-rows .ic-kinds { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .isw-back, .isw, .isw-pane, .isw-back.out, .isw.out { animation: none; }
+  .isw-tab, .isw-x { transition: none; }
+}

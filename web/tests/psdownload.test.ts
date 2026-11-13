@@ -19,8 +19,18 @@ ok("install.sh trusts the same update key and certificate as PS's updater", () =
   const core = new URL("../../mac/Sources/UpdateCore.swift", import.meta.url);
   if (!existsSync(core)) { console.log("   (ps-mac not next to this checkout, skipped)"); return; }
   const swift = readFileSync(core, "utf8");
-  assert.equal(/local pub="([^"]+)"/.exec(sh)?.[1], /UPDATE_PUBLIC_KEY = "([^"]+)"/.exec(swift)?.[1]);
-  assert.equal(/local req='([^']+)'/.exec(sh)?.[1], /PS_REQUIREMENT = #"(.+)"#/.exec(swift)?.[1]);
+  // V1.58: the G Squad channel's keys too (UpdateRoute.gsquad trusts both keys and both certificate roots).
+  const pubs = (/local pubs="([^"]+)"/.exec(sh)?.[1] || "").split(" ");
+  const req = /local req='([^']+)'/.exec(sh)?.[1] || "";
+  for (const k of ["UPDATE_PUBLIC_KEY", "UPDATE_GSQUAD_PUBLIC_KEY"]) {
+    const v = new RegExp(`let ${k} = "([^"]*)"`).exec(swift)?.[1];
+    if (v) assert.ok(pubs.includes(v), `install.sh trusts ${k}`);
+  }
+  for (const k of ["PS_CERT_ROOT_RED", "PS_CERT_ROOT_GSQUAD"]) {
+    const v = new RegExp(`let ${k} = "([^"]*)"`).exec(swift)?.[1];
+    if (v) assert.ok(req.includes(`certificate root = H"${v}"`), `install.sh accepts ${k}`);
+  }
+  assert.ok(req.startsWith('identifier "com.cincee.ps" and '));
 });
 ok("install.sh never uses sudo and only fetches from cincee.com over HTTPS", () => {
   assert.ok(!/\bsudo\b/.test(sh.replace(/^#.*$/gm, "")));

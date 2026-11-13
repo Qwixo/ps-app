@@ -7,6 +7,18 @@
 .ed-slot.ed-moved { display: flex; flex-direction: column; position: fixed; z-index: 4; pointer-events: auto; min-height: 0; }
 /* Hidden wins over moved: a moved panel that was removed, or sits on another page, is never drawn here. */
 .ed-slot.ed-moved.ed-hidden { display: none; }
+/* V1.58 smooth page swipe (views/pagelayer.ts). A main page panel in a column keeps its room while another page shows
+   (invisible, not clickable), so the columns never reflow as pages change and it can slide back in with its page. */
+.ed-slot.ed-hidden.ed-box { display: contents; }
+/* Everything inside, even a part that makes itself visible (New tasks' .nt-slot.show, an open pop-up). Not while it
+   takes part in a swipe ([data-pgp]): then each part shows as it normally would, faded by pagelayer.ts. */
+.ed-slot.ed-hidden.ed-box:not([data-pgp]) * { visibility: hidden !important; }
+/* While a swipe moves: the panels of the pages taking part show (each moved and faded by pagelayer.ts, translate and
+   opacity only, each on its own layer so a frame is only compositing). */
+.tm-overlay[data-pgsw] .ed-slot.ed-hidden[data-pgp] { display: contents; }
+.tm-overlay[data-pgsw] .ed-slot.ed-moved.ed-hidden[data-pgp] { display: flex; }
+.tm-overlay.tm-overlay[data-pgsw] .ed-slot[data-pgp] > * { will-change: translate, opacity; transition: none; }
+.tm-overlay[data-pgsw] .ed-slot.ed-hidden[data-pgp] > * { pointer-events: none; }
 .ed-slot.ed-moved > * { position: relative; left: auto; top: auto; right: auto; bottom: auto; margin: 0; flex: 0 1 auto; min-height: 0; max-width: 100%; }
 .ed-slot.ed-moved > .tm-glass-wrap { transform: none; }
 .ed-slot.ed-moved > .nt-slot { align-self: stretch; }

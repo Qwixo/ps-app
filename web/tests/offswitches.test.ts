@@ -70,10 +70,12 @@ ok("Phone screen time: the page saves nothing and asks for nothing while off; th
   assert.match(rd("../src/gos/PhoneRows.tsx"), /"phone-screen-time": function ScreenTimeRow[\s\S]*?p\?\.screenTime !== false[\s\S]*?setP\(\{ screenTime: v \}\)/);
 });
 
-ok("Dynamic Island: Settings, Mac has Off, the same settings.island.mode as the island menu", () => {
-  const p = rd("../src/views/PsSettings.tsx");
-  assert.match(p, /\{ id: "off", label: "Off" \}/);
-  assert.match(p, /save\(\{ island: \{ \.\.\.prefs, mode: m\.id \} \}\)/);
+ok("Dynamic Island: Settings has Off, the same settings.island.mode as the island settings window", () => {
+  // V1.58: one shared component (views/IslandSettings.tsx) in Settings > Dynamic Island, the window and Mac settings.
+  const p = rd("../src/views/IslandSettings.tsx");
+  assert.match(p, /\{ id: "off", label: "Off", hint: "No island" \}/);
+  assert.match(p, /save\(\{ mode: m\.id \}\)/);
+  assert.match(rd("../src/views/PsSettings.tsx"), /<IslandSettingsPage prefs=\{prefs\} save=\{\(p\) => save\(\{ island: \{ \.\.\.prefs, \.\.\.p \} \}\)\} \/>/);
 });
 
 ok("Claude Code hook: tools start Off and say what On does", () => {

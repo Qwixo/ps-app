@@ -14,7 +14,7 @@ import { saveRemind } from "../core/actions";
 import { HOME_COMMON, DEVICE_TZ, tzLabel } from "../core/tz";
 import {
   REM_COLOURS, REM_LABEL_MAX, REM_MAX, REM_SNOOZE_MAX, REM_SNOOZE_MIN, REM_SOUNDS, REM_TEXT_MAX, ALL_DAYS, FIRST_ID, REPEAT_KINDS, TASK_PILL,
-  addReminder, addAlarm, alarmsOf, alarmText, ALARM_LATER, ALARM_RING_MIN, ALARM_TITLE, ALARM_YES, freshId, inkFor, laterOf, moveReminder, okSnooze, oneLine, patchReminder, pillOf, plainOf, onTasksOf, remPlan, remindOrDefault,
+  addReminder, addAlarm, alarmsOf, alarmText, ALARM_LATER, ALARM_RING_MIN, ALARM_TITLE, ALARM_YES, alarmLook, freshId, laterOf, remLook, moveReminder, okSnooze, oneLine, patchReminder, pillOf, plainOf, onTasksOf, remPlan, remindOrDefault,
   removeReminder, remStatus, repeatOf, repeatPatch, taskQuestion, windowWords, wordOf, yesOf, defaultQuestion, type Reminder, type RemindRec, type PlanItem,
 } from "../core/remind";
 import type { Doc, Todo } from "../core/model";
@@ -463,7 +463,9 @@ function AlarmEditor({ r, red, set, ready }: { r: Reminder; red: boolean; set: (
 
 /** The phone's ring screen as it will look (ps-gos GymRingActivity with the alarm's colours and words). */
 function AlarmScreen({ item }: { item: PlanItem }) {
-  const style = { "--al-bg": item.bg, "--al-acc": item.accent, "--al-ink": item.ink || inkFor(item.bg) } as CSSProperties;
+  // V1.58: every colour from the background and accent (core/remind.ts alarmLook), so a light one reads too.
+  const l = alarmLook(item.bg, item.accent);
+  const style = { "--al-bg": item.bg, "--al-acc": item.accent, "--al-ink": l.ink, "--al-sub": l.sub, "--al-on": l.on } as CSSProperties;
   return (
     <div className="rm-alarm" style={style} aria-label="The ring screen on your phone">
       <span className="rm-alarm-orb">{item.pill}</span>
@@ -486,7 +488,11 @@ function SnoozeBox({ value, save }: { value: number; save: (v: number) => void }
 /** The pop-up as it will look (the Mac's card; the phone shows the same words as a notification). */
 export function RemCard({ item, live }: { item: PlanItem; live?: boolean }) {
   const [box, setBox] = useState(false);
-  const style = { "--rc-bg": item.bg, "--rc-acc": item.accent, "--rc-ink": item.ink || inkFor(item.bg) } as CSSProperties;
+  // V1.58: every colour from the background and accent (core/remind.ts remLook, the same as the Mac's card), so Paper,
+  // white and any light colour read as well as the dark ones.
+  const l = remLook(item.bg, item.accent);
+  const style = { "--rc-bg": item.bg, "--rc-acc": item.accent, "--rc-ink": l.ink, "--rc-sub": l.sub, "--rc-lift": l.lift, "--rc-glow": `${l.glow}%`,
+    "--rc-pill": l.pill, "--rc-btn": `${l.btn}%`, "--rc-on": l.on, "--rc-field": l.field, "--rc-ph": l.ph } as CSSProperties;
   return (
     <div className={`rm-card${live ? " live" : ""}${box ? " box" : ""}`} style={style} key={`${item.bg}${item.accent}`}>
       <span className="rm-card-pill"><i />{item.pill}</span>

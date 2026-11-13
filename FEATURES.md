@@ -73,6 +73,20 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Export my data | An encrypted backup file, and bringing one back in. | Settings, Sync and account. Only when you click it. |
 | What's new | Shows the changes once per version. | Shown once. |
 
+## New in V1.58
+
+- Pomodoro timer: a new button in the Tab overlay. Set your own work and break times, and during a break the island turns into a countdown, then shows a green tick and "Now back to work".
+- Stand-up reminders: PS reminds you to stand up. In the last 15 seconds a small tab on the island counts you down, then the island shows a little man standing for as long as you choose.
+- Next meeting on the island: a small bubble counts down to your next meeting, turns into a Join button in the last 2 minutes, and shows the time left while it runs.
+- Island: drag it into the black bar at the top of the screen and right into the corners, or let it sit in the top bar whenever an app is full screen.
+- Right click the island's grey bar for Settings, or to hide the island until your meeting ends or for a time you pick.
+- Island settings now open in a wider, neater window, and live in their own Dynamic island tab in Settings.
+- Smoother page swipes: the page follows your fingers and settles gently, and buttons no longer jump along and vanish.
+- Tab and the island now work over 1Password and Signal, and a bug that sometimes stopped Tab opening over them is fixed.
+- PS is now built by more than one person: friends can add features with their own AI, every release says who made it, and in Settings, From the squad, you choose which shared features you get.
+- AI messages: Claude Code, Codex and other AIs on your Mac can now send you a short message on the island when they finish, instead of just saying the chat is done. Switch it on and copy the instructions in Settings, AI task API.
+- Setting up PS: the island now pops out of the setup screen and walks you through every step, with a green tick and a chime each time you get one right.
+
 ## New in V1.57
 
 - New: alarms at any time. Your phone rings like an alarm at the times you pick, and you choose what the alarm screen says, just like the 15 minute reminders.

@@ -15,6 +15,9 @@
 // The release's text is the developer's approved public notes for the version (scripts/ps-public.mjs) or nothing: no new words.
 // Nothing here signs anything or changes a check: the Mac verifies the note's Ed25519 signature and every file's
 // SHA-256, the phone the APK's SHA-256 and its pinned signing certificate, wherever the files come from.
+// V1.58 (multiple developers): this repo is the G Squad channel. Only a SHARED release goes up: a private one (ps-version.json
+// "made" says shared: false, or the signed note names another channel) stops here with nothing sent. The plan says who
+// made the release ("by"); the signed note carries it too (ps-mac/release/publish.sh).
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -81,7 +84,11 @@ export function plan(root = process.cwd()) {
   const v = readJson(join(root, "ps-version.json"));
   if (!/^\d+\.\d{2}$/.test(String(v.version))) throw new Error("ps-version.json has no version");
   const keyword = (v.names && v.names[v.version]) || "";
-  return { tag: `v${v.version}`, title: `PS V${v.version}${keyword ? ` · ${keyword}` : ""}`, assets, web, phone, mac: signed.name || null };
+  const made = v.made && v.made[v.version];
+  if (made && made.shared === false) throw new Error(`V${v.version} is a private release by ${made.by}: it never goes to the G Squad channel`);
+  if (signed.channel !== undefined && signed.channel !== "gsquad") throw new Error(`the signed note is for the ${JSON.stringify(signed.channel)} channel, not the G Squad one`);
+  const by = made && typeof made.by === "string" ? made.by : null;
+  return { tag: `v${v.version}`, title: `PS V${v.version}${keyword ? ` · ${keyword}` : ""}`, assets, web, phone, mac: signed.name || null, by };
 }
 
 /** The gh calls for a plan, in order. `run(args, input?)` runs gh (or prints it on a dry run) and returns its output. */
@@ -134,7 +141,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
     const p = plan(root);
     if (cmd === "plan") {
-      console.log(`${REPO} ${p.tag} "${p.title}" (Mac ${p.mac || "?"}, phone ${p.phone || "none"})`);
+      console.log(`${REPO} ${p.tag} "${p.title}" (Mac ${p.mac || "?"}, phone ${p.phone || "none"}${p.by ? `, by ${p.by}` : ""})`);
       for (const a of p.assets) console.log(`  ${a.name}  <-  ${a.from}`);
       console.log(`  branch ${CHANNEL_BRANCH}: web-version.json ${p.web}`);
     } else if (cmd === "publish") {

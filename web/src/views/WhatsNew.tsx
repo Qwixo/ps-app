@@ -24,18 +24,25 @@ import { appName } from "../core/appname";
 import { vaultStore } from "../core/vault";
 import { PRIVATE_LABEL, privateNotesFor } from "../core/privatenotes";
 import { useWelcomeShowing } from "./Welcome";
+import { byLine, listable, madeOfBuild } from "../core/releaseby";
 import { setWhatsNewShowing, useFaceShowing } from "../updateface";
 
 const RAW = typeof __PS_WHATSNEW__ === "object" ? __PS_WHATSNEW__ : { version: "", keyword: "", notes: [], code: "", built: "", history: [] };
+// V1.58: the multiple developers build file (vite.config.ts defines it when the build has one; older builds do not).
+declare const __PS_BUILD__: unknown;
+/** Who made the build this page runs ("V1.59 by Jan"): null for builds from before V1.58. */
+const MADE = madeOfBuild(RAW, typeof __PS_BUILD__ !== "undefined" ? __PS_BUILD__ : null, /^V(\d+\.\d+)$/.exec(__PS_VERSION__.name)?.[1] || "");
 /** This build's approved notes (null: none, so no panel and no menu entry). The version must be the one this
  *  build runs, so notes can never show under another version's name. */
 let bundle: WhatsNew | null = (() => {
   const w = cleanWhatsNew(RAW);
-  return w && __PS_VERSION__.name === `V${w.version}` ? w : null;
+  return w && __PS_VERSION__.name === `V${w.version}` ? { ...w, ...(MADE ? { by: MADE.by } : {}) } : null;
 })();
 const BUILT = RAW.built;
-/** The approved notes of the earlier versions (V1.52), newest first: what a jump across several versions lists. */
-let history: NoteBlock[] = cleanBlocks(RAW.history);
+/** The approved notes of the earlier versions (V1.52), newest first: what a jump across several versions lists.
+ *  V1.58: someone else's private release is never listed (it moved the number and brought nothing here); a private
+ *  build lists its own maker's private ones. */
+let history: NoteBlock[] = cleanBlocks((Array.isArray(RAW.history) ? RAW.history : []).filter((h) => listable(h, MADE && !MADE.shared ? MADE.by : "")));
 
 /** The notes of every version newer than `since` (the one last handled) up to the one this page runs, newest
  *  first, approved ones only (a version without approved notes is simply not there). With no `since` only this
@@ -44,7 +51,7 @@ let history: NoteBlock[] = cleanBlocks(RAW.history);
 export function updateBlocks(since: string | null, back = 0): NoteBlock[] {
   const cur = runningVersion();
   if (!cur) return [];
-  const all = [...(bundle ? [{ version: bundle.version, keyword: bundle.keyword, notes: bundle.notes }] : []), ...history];
+  const all = [...(bundle ? [{ version: bundle.version, keyword: bundle.keyword, notes: bundle.notes, by: bundle.by }] : []), ...history];
   return blocksFor(all, { since, back }, cur);
 }
 const syncedNow = () => { const s = vaultStore.get(); return s.status === "unlocked" ? settingsData(s).whatsNewSeen : undefined; };
@@ -89,7 +96,7 @@ function usePrivate(): string[] {
 function shown(w: WhatsNew | null, mine: string[], earlier = false): WhatsNew | null {
   if (w) return w;
   const version = runningVersion();
-  return (mine.length || earlier) && version ? { version, keyword: __PS_VERSION__.keyword || "", notes: [] } : null;
+  return (mine.length || earlier) && version ? { version, keyword: __PS_VERSION__.keyword || "", notes: [], ...(MADE ? { by: MADE.by } : {}) } : null;
 }
 
 /** True when this version has approved notes, or the developer has private ones (the menu entry shows only then). */
@@ -272,6 +279,7 @@ function WhatsNewPanel({ w, mine, fresh, blocks, since, onDone }: { w: WhatsNew;
               : <h2 id="wn-title" aria-label={`What's new in V${t.version}${t.keyword ? ` ${t.keyword}` : ""}`}>
                   What's new in <b>V{t.version}</b>{t.keyword && <><i aria-hidden="true">·</i><em>{t.keyword}</em></>}
                 </h2>}
+            {!many && byLine(t.by) && <span className="wn-by">V{t.version} {byLine(t.by)}</span>}
           </div>
         </header>
         {many && <NoteGroups blocks={blocks} tall all className="wn-groups" />}

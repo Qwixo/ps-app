@@ -73,6 +73,14 @@ if [ "$VER_NOW" = "$VER_LIVE" ]; then
   exit 1
 fi
 
+# V1.58 (multiple developers): this script makes the release everyone gets (the cincee.com pages and the G Squad channel
+# on GitHub). A private release (ps-version.json "made" says shared: false) goes only to its maker's own channel, which
+# is built with tools/build.mjs after the cut over, never here. So it stops before anything is built.
+if [ "$(node -pe 'const v=JSON.parse(process.argv[1]); v.shared===false?"private":"shared"' "$(node scripts/ps-version.mjs)")" = private ]; then
+  echo "STOP: V$VER_NOW is marked as a private release. This script makes shared releases only (cincee.com and the G Squad channel on GitHub). Nothing was built."
+  exit 1
+fi
+
 # The developer's private notes: no long dashes or HTML, checked before anything is built. The audit reads the same file and
 # refuses a public build or APK holding any of their words.
 node scripts/ps-private.ts check || { echo "STOP: fix the private notes first (node scripts/ps-private.ts show). Nothing was built."; exit 1; }

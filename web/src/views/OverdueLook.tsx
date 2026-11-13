@@ -142,7 +142,7 @@ export function OverdueLookSettings({ preview }: { preview: Preview }) {
       <div className="od-controls">
         <div className="od-part">
           <h4 className="od-h">Card colour</h4>
-          <Swatches label="Card colour" list={OVERDUE_BGS} value={look.bg} auto="The developer, as now" onPick={(c) => set({ bg: c })}
+          <Swatches label="Card colour" list={OVERDUE_BGS} value={look.bg} auto="Red, as now" onPick={(c) => set({ bg: c })}
             wheelOpen={wheel === "bg"} onWheel={() => setWheel((w) => (w === "bg" ? null : "bg"))} />
           {wheel === "bg" && <ColorWheel label="Card colour" value={look.bg ?? "#5a0c14"} onChange={(hex) => set({ bg: hex }, 450)} />}
         </div>

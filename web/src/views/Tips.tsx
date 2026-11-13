@@ -31,7 +31,7 @@ import {
 import { sleepState } from "../sleepmode/engine";
 import { useFaceShowing, useWhatsNewShowing } from "../updateface";
 import { useWelcomeShowing } from "./Welcome";
-import { popupOn, setTipOn } from "./popupstate";
+import { popupOn, setTipOn, walkOn } from "./popupstate";
 import { sentryUp } from "./Sentry";
 import { editingNow } from "./EditMode";
 import { taskMapActions } from "./TaskMap";
@@ -198,7 +198,7 @@ export function TipsHost() {
       if (cur) { if (hidesShowing(block) || (st && !tipsOn(st.tipsShow))) hide(false); return; }
       if (!unlocked || !st) return;
       if (!tipsOn(st.tipsShow)) return;   // Settings, About and updates: "Show first use tips" Off (core/offswitches.ts)
-      if (popupOn()) return;   // a "new in this version" pop-up is up: never two at once
+      if (popupOn() || walkOn()) return;   // a "new in this version" pop-up or the walkthrough is up: never two at once
       // Tips seen here a moment ago count even before the save has come back.
       let seen: TipsSeen = cleanTipsSeen(st.tipsSeen);
       for (const id of shownHere) seen = markSeen(seen, id, shownAt || now);

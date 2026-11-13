@@ -455,35 +455,35 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   // in as CSS custom properties; motion is transform and opacity only.
   private static let page = #"""
   <!doctype html><html><head><meta charset="utf-8"><style>
-  :root{--bg:#28121e;--acc:#ec4e86;--ink:#fff}
+  :root{--bg:#28121e;--acc:#ec4e86;--ink:#fff;--sub:#e8dde3;--lift:#fff;--glow:22%;--pill:#f5a2c0;--btn:13%;--on:#fff;--field:rgba(0,0,0,.28);--ph:#c9bcc3;--hint:#fca5a5}
   html,body{margin:0;background:transparent;overflow:hidden;color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Inter",sans-serif;-webkit-font-smoothing:antialiased;-webkit-user-select:none;cursor:default}
   #card{margin:8px;border-radius:22px;padding:18px 20px 18px;box-sizing:border-box;position:relative;overflow:hidden;
-    background:radial-gradient(120% 90% at 50% 0%,color-mix(in srgb,var(--acc) 22%,transparent),transparent 60%),linear-gradient(165deg,color-mix(in srgb,var(--bg) 92%,#fff 8%),var(--bg) 70%);
+    background:radial-gradient(120% 90% at 50% 0%,color-mix(in srgb,var(--acc) var(--glow),transparent),transparent 60%),linear-gradient(165deg,color-mix(in srgb,var(--bg) 92%,var(--lift) 8%),var(--bg) 70%);
     border:1.5px solid color-mix(in srgb,var(--acc) 60%,transparent);box-shadow:0 18px 44px rgba(0,0,0,.45),0 0 0 1px rgba(0,0,0,.25);transition:opacity .18s ease,transform .18s ease}
   body.in #card{animation:pop .5s cubic-bezier(.22,1,.36,1) both}
   body.out #card{opacity:0;transform:translateY(-8px) scale(.98)}
   @keyframes pop{from{transform:translateY(-10px) scale(.97);opacity:.2}}
   #card::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--acc),color-mix(in srgb,var(--acc) 50%,#fff),var(--acc));background-size:200% 100%;animation:stripe 4s linear infinite}
   @keyframes stripe{to{background-position:-200% 0}}
-  .pill{display:inline-flex;align-items:center;gap:7px;padding:3px 10px;border-radius:99px;font-size:10.5px;font-weight:850;letter-spacing:.14em;text-transform:uppercase;background:color-mix(in srgb,var(--acc) 18%,transparent);color:color-mix(in srgb,var(--acc) 55%,var(--ink))}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:3px 10px;border-radius:99px;font-size:10.5px;font-weight:850;letter-spacing:.14em;text-transform:uppercase;background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--pill)}
   .pill i{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 8px var(--acc);animation:pulse 1.4s ease-in-out infinite}
   .pill em{font-style:normal;opacity:.7}
   @keyframes pulse{50%{opacity:.3}}
   h1{margin:10px 0 14px;font-size:21px;font-weight:850;letter-spacing:.01em;line-height:1.2;overflow-wrap:anywhere}
   .row{display:flex;gap:9px;flex-wrap:wrap}
-  button{border:0;border-radius:99px;padding:9px 16px;font:700 13px -apple-system,sans-serif;color:var(--ink);background:color-mix(in srgb,var(--ink) 13%,transparent);cursor:pointer;transition:background .2s,transform .1s}
+  button{border:0;border-radius:99px;padding:9px 16px;font:700 13px -apple-system,sans-serif;color:var(--ink);background:color-mix(in srgb,var(--ink) var(--btn),transparent);cursor:pointer;transition:background .2s,transform .1s}
   button:active{transform:scale(.97)}
-  button.main{color:#fff;background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 80%,#fff),color-mix(in srgb,var(--acc) 85%,#000));box-shadow:0 8px 20px color-mix(in srgb,var(--acc) 35%,transparent)}
+  button.main{color:var(--on);background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 80%,#fff),color-mix(in srgb,var(--acc) 85%,#000));box-shadow:0 8px 20px color-mix(in srgb,var(--acc) 35%,transparent)}
   #box{display:none;margin-top:14px}
   body.box #box{display:block;animation:fade .25s ease both}
   body.box #yes{display:none}
   @keyframes fade{from{opacity:0}}
-  #box label{display:block;font-size:12px;opacity:.65;margin-bottom:7px}
+  #box label{display:block;font-size:12px;color:var(--sub);margin-bottom:7px}
   .in2{display:flex;gap:8px}
-  #t{flex:1;min-width:0;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--acc) 45%,transparent);background:rgba(0,0,0,.28);color:var(--ink);border-radius:12px;padding:9px 12px;font:600 14px -apple-system,sans-serif;outline:none;-webkit-user-select:text;cursor:text}
+  #t{flex:1;min-width:0;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--acc) 45%,transparent);background:var(--field);color:var(--ink);border-radius:12px;padding:9px 12px;font:600 14px -apple-system,sans-serif;outline:none;-webkit-user-select:text;cursor:text}
   #t:focus{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 22%,transparent)}
-  #t::placeholder{color:color-mix(in srgb,var(--ink) 35%,transparent)}
-  #hint{min-height:16px;margin:6px 0 0;font-size:12px;color:#FCA5A5;opacity:0;transition:opacity .2s}
+  #t::placeholder{color:var(--ph)}
+  #hint{min-height:16px;margin:6px 0 0;font-size:12px;color:var(--hint);opacity:0;transition:opacity .2s}
   body.wrong #hint{opacity:1}
   body.wrong #t{animation:shake .35s}
   @keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
@@ -503,11 +503,63 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   const post = (m) => { try { window.webkit.messageHandlers.fu.postMessage(JSON.stringify(m)); } catch (e) {} };
   const $ = (id) => document.getElementById(id);
   const size = () => post({ type: 'size', h: $('card').offsetHeight + 16 });
+  // >>> rem look
+  // V1.58 (the developer: "when you choose the white coloured theme ... the text almost becomes invisible"): every colour on the
+  // card is worked out here from its background and accent, at the moment it is drawn, with the same numbers as
+  // web core/remind.ts remLook. The words read at 4.5 to 1 on any background (tests/remind-look-test.mjs).
+  const Look = (() => {
+    const W = '#ffffff', D = '#17121a', K = '#000000', AA = 4.5, BTN = 3;
+    const ok = (h, d) => (typeof h === 'string' && /^#[0-9a-f]{6}$/i.test(h) ? h.toLowerCase() : d);
+    const rgb = (h) => { const n = parseInt(ok(h, K).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+    const luma = (h) => {
+      const f = (c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+      const [r, g, b] = rgb(h); return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const con = (a, b) => { const x = luma(a), y = luma(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const mix = (a, b, t) => { const p = rgb(a), q = rgb(b); return '#' + p.map((v, i) => Math.round(v * t + q[i] * (1 - t)).toString(16).padStart(2, '0')).join(''); };
+    const ink = (bg) => {
+      const w = con(W, bg), d = con(D, bg);
+      if (Math.max(w, d) >= AA) return w > d ? W : D;
+      return con(K, bg) > w ? K : W;
+    };
+    const minC = (c, tones) => Math.min(...tones.map((t) => con(c, t)));
+    const soft = (c, base, tones, from) => {
+      for (let i = Math.round(from * 100); i < 100; i += 5) { const x = mix(c, base, i / 100); if (minC(x, tones) >= AA) return x; }
+      return c;
+    };
+    const onAcc = (tone, acc, first, min) => {
+      if (con(first, tone) >= min) return first;
+      for (const s of [0.4, 0.3, 0.2, 0.1]) { const x = mix(acc, K, s); if (con(x, tone) >= AA) return x; }
+      return con(K, tone) >= con(W, tone) ? K : W;
+    };
+    const look = (bgIn, accIn) => {
+      const bg = ok(bgIn, '#28121e'), acc = ok(accIn, '#ec4e86');
+      const i = ink(bg);
+      const lift = i === W && con(W, mix(W, bg, 0.08)) < AA ? bg : W;
+      const top = mix(lift, bg, 0.08);
+      const glow = [22, 14, 8, 0].find((g) => con(i, mix(acc, top, g / 100)) >= AA) ?? 0;
+      const pillBg = mix(acc, mix(acc, top, glow / 100), 0.18);
+      const pillA = [55, 45, 35, 25, 15, 0].find((a) => con(mix(acc, i, a / 100), pillBg) >= AA) ?? 0;
+      const btn = [13, 10, 7, 4, 0].find((p) => minC(i, [mix(i, bg, p / 100), mix(i, top, p / 100)]) >= AA) ?? 0;
+      const mainTone = mix(mix(acc, W, 0.8), mix(acc, K, 0.85), 0.5);
+      const dark = i !== W;
+      const fieldTone = dark ? mix(W, bg, 0.5) : mix(K, bg, 0.28);
+      const red = dark ? '#b42318' : '#fca5a5';
+      return { bg, acc, ink: i, sub: soft(i, bg, [bg, top], 0.7), lift, top, glow, pill: mix(acc, i, pillA / 100), pillBg, btn,
+        on: onAcc(mainTone, acc, W, BTN), mainTone, field: dark ? 'rgba(255,255,255,.5)' : 'rgba(0,0,0,.28)', fieldTone,
+        ph: soft(i, fieldTone, [fieldTone], 0.6), hint: minC(red, [bg, top]) >= AA ? red : i };
+    };
+    return { look, con, mix, ink };
+  })();
+  // <<< rem look
   let click = false;
   window.__fu = {
     set(o, fresh) {
       const r = document.documentElement.style;
-      r.setProperty('--bg', o.bg); r.setProperty('--acc', o.accent); r.setProperty('--ink', o.ink);
+      const L = Look.look(o.bg, o.accent);
+      const v = { '--bg': L.bg, '--acc': L.acc, '--ink': L.ink, '--sub': L.sub, '--lift': L.lift, '--glow': L.glow + '%', '--pill': L.pill,
+        '--btn': L.btn + '%', '--on': L.on, '--field': L.field, '--ph': L.ph, '--hint': L.hint };
+      for (const k in v) r.setProperty(k, v[k]);
       $('p').textContent = o.pill; $('tt').textContent = o.test ? ' · test' : '';
       $('q').textContent = o.text; $('later').textContent = o.later; $('yes').textContent = o.yes;
       $('open').textContent = o.open || ''; $('open').hidden = !o.open;

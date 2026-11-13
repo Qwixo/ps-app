@@ -12,3 +12,5 @@ build/
 signing/*.key
 signing/*.keychain-db
 signing/.keychain-pass
+.build/
+ps-build.json

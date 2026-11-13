@@ -15,7 +15,7 @@ import { DEVICE_TZ } from "./core/tz";
 import { newGroupId } from "./core/groups";
 import { todayISO } from "./ui/kit";
 import { handleApi, API_PORT, cleanScopes, type ApiStore } from "./core/taskapi";
-import { aiGuide } from "./core/taskapidoc";
+import { aiConnect, aiGuide } from "./core/taskapidoc";
 import { startSentryForApi } from "./views/Sentry";
 
 const store: ApiStore = {
@@ -79,4 +79,9 @@ export const useShownApiKey = () => useSyncExternalStore((f) => { subs.add(f); r
  *  `api` is psSettings.taskApi as PS last sent it. */
 export function copyAiGuide(api: { scopes?: Record<string, boolean>; port?: number }) {
   psPost({ type: "api:copyGuide", text: aiGuide({ scopes: cleanScopes(api.scopes), port: api.port || API_PORT, today: todayISO() }) });
+}
+/** Connect your AI (V1.58, views/AiMessage.tsx): the short rule that has an AI message the island at the end of every task.
+ *  The same way as Copy for AI: PS on the Mac fills the key in as it copies. */
+export function copyAiConnect(api: { port?: number }) {
+  psPost({ type: "api:copyGuide", text: aiConnect({ port: api.port || API_PORT }) });
 }

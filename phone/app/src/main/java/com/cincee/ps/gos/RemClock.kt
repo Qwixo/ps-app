@@ -78,7 +78,7 @@ object RemClock {
             snooze = snooze,
             later = line(o, "later").ifEmpty { "Remind me in $snooze mins" },
             yes = yes, word = line(o, "word").ifEmpty { yes }, click = o.optBoolean("click", false),
-            bg = hex(o.optString("bg"), BG), accent = hex(o.optString("accent"), ACCENT), ink = hex(o.optString("ink"), "#ffffff"),
+            bg = hex(o.optString("bg"), BG), accent = hex(o.optString("accent"), ACCENT), ink = RemInk.inkOr(o.optString("ink"), hex(o.optString("bg"), BG)),   // V1.58: never white on a light card
             sound = o.optString("sound").takeIf { it in SOUNDS } ?: "none",
             vol = Math.round(num(o, "vol", VOL_DEF).coerceIn(0.1, 1.0) * 100) / 100.0,
             done = o.optString("done").takeIf { DAY.matches(it) } ?: "",

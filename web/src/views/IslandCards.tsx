@@ -14,9 +14,11 @@ import "./islandcards.css";
 
 /** Over a full screen app the island glides to the top left black band beside the notch (settings.island.fsMove, ps-mac
  *  Island.swift). The developer, 12 Nov 2026: "make it so the dynamic island does a fancy animation so it moves itself up to the
- *  top left of the screen instead". On by default, everyone's, in both island settings places. */
-export const ISLAND_FS_LABEL = "Move to the top left in full screen";
-export const ISLAND_FS_HINT = "On: over a full screen app the island glides into the black band left of the notch, and back when full screen ends. Off: it stays where it is, dimmed. Only a Mac with a notch has that band.";
+ *  top left of the screen instead". On by default, everyone's, in both island settings places.
+ *  V1.58 words (a friend, 13 Nov 2026: "When I am on fullscreen of any app, I want it to be in that black bar"): the same
+ *  setting, now called what it does. Since V1.58 the island can also be dragged into the top strip and the corners. */
+export const ISLAND_FS_LABEL = "In full screen, sit in the top bar";
+export const ISLAND_FS_HINT = "On: when the app in front is full screen, the island moves into the black strip at the top, left of the notch, and stays there. When full screen ends it goes back to where you put it. Off: it stays where it is, dimmed. Only a Mac with a notch has that strip.";
 export function IslandFullScreenRow({ prefs, save }: { prefs: IslandPrefs; save: (p: IslandPrefs) => void }) {
   const islandOn = prefs.mode !== "off";
   const on = prefs.fsMove;

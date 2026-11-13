@@ -15,6 +15,7 @@ import { GROUP_NAME_MAX, cleanGroups, groupKey, groupOf, tabLists, type TabLists
 import { DEFAULT_NAMES, LIST_NAME_MAX, MAIN, SEC_NAME_MAX, allPages, cleanNames, listMoveTarget, pageOfSec, pageOrder, renamePage, shownName, tidyName } from "./lists.ts";
 import { INBOX, INBOX_MAX, INBOX_NAME, inInbox, intoSection, listsCtx, sectionTakes } from "./aiinbox.ts";
 import { API_GYM_FIELDS, API_GYM_YES, API_NO_YES, apiGym, apiGymPatch, gymPrefs } from "./gym.ts";
+import { AI_MSG, AI_MSG_FIELDS, addAiMsg, aiMsgWait, aiNotesMode, checkAiMsg, newAiMsgId, sameAiMsg } from "./aimessage.ts";
 import { REM_TEXT_MAX, okTz, addTaskReminder, freshId, minutesOf, newTaskReminder, oneLine, patchReminder, reminderOfTask, remindOrDefault, removeReminder, type RemindRec } from "./remind.ts";
 
 export const API_PORT = 47836;
@@ -24,7 +25,7 @@ export const TITLE_MAX = 500, NOTES_MAX = 2000;
 export const LIST_LIMIT_DEF = 200, LIST_LIMIT_MAX = 500;
 
 // ---------- the switches ----------
-export type ScopeId = "inbox" | "lists" | "rename" | "read" | "add" | "edit" | "done" | "delete" | "remind" | "sentry" | "gym" | "settings";
+export type ScopeId = "inbox" | "lists" | "rename" | "read" | "add" | "edit" | "done" | "delete" | "remind" | "sentry" | "gym" | "settings" | "message";
 export interface ScopeDef { id: ScopeId; group: "where" | "what"; label: string; line: string; def: boolean }
 /** One switch per thing an AI may do (Settings, AI task API). Off unless switched on, except add, read and the inbox. */
 export const SCOPES: ScopeDef[] = [
@@ -43,6 +44,8 @@ export const SCOPES: ScopeDef[] = [
   { id: "gym", group: "what", label: "Gym reminder", line: "Read and change your gym reminder times. An AI can never say Yes for you.", def: false },
   // The developer, 13 Nov 2026 (V1.57): Invert swipe "accessible via the API as well, so you can just tell your Claude to do it".
   { id: "settings", group: "what", label: "Change settings", line: "Read and change the settings listed for AI, for now Invert swipe.", def: false },
+  // V1.58 (the developer, 13 Nov 2026: "I want the AI to write to me at the end of each chat instead of the AI completion cards").
+  { id: "message", group: "what", label: "Send you messages", line: "Pop a short message up on the Dynamic Island, like what it finished. Words only.", def: false },
 ];
 export type Scopes = Record<ScopeId, boolean>;
 export const DEFAULT_SCOPES: Scopes = Object.fromEntries(SCOPES.map((s) => [s.id, s.def])) as Scopes;
@@ -85,7 +88,7 @@ export type SentryStartResult = { result: "engaged" | "already"; phase: "covered
   | { result: "refused"; note: string } | { result: "notStarted" } | { result: "noAnswer" } | { result: "unavailable" };
 
 export type ErrCode = "bad_request" | "bad_field" | "unknown_field" | "not_found" | "method_not_allowed" | "scope_off" | "locked"
-  | "wrong_section" | "not_a_task_list" | "inbox_full" | "too_many" | "internal" | "sentry_checks" | "sentry_refused" | "not_ready";
+  | "wrong_section" | "not_a_task_list" | "inbox_full" | "too_many" | "internal" | "sentry_checks" | "sentry_refused" | "not_ready" | "rate_limited";
 export const fail = (status: number, code: ErrCode, message: string, extra: Record<string, unknown> = {}): ApiRes =>
   ({ status, body: { error: { code, message, ...extra } } });
 const ok = (body: unknown, status = 200): ApiRes => ({ status, body });
@@ -209,6 +212,7 @@ const ENDPOINTS = [
   "POST /v1/sentry/start",
   "GET /v1/gym", "PATCH /v1/gym",
   "GET /v1/settings", "PATCH /v1/settings",
+  "POST /v1/island/message",
 ];
 /** The settings an AI may read and change (GET and PATCH /v1/settings): the API name, the settings record's field. */
 export const API_SETTINGS = { invertSwipe: "swipeInvert" } as const;
@@ -363,6 +367,14 @@ async function route(req: ApiReq, sc: Scopes, store: ApiStore): Promise<ApiRes> 
     return ok({ settings: view({ ...store.settings(), ...patch }) });
   }
 
+  // POST /v1/island/message (V1.58): a short message from the AI on the island (core/aimessage.ts has the rules).
+  if (seg[1] === "island") {
+    if (seg.length !== 3 || seg[2] !== "message") return fail(404, "not_found", "The island endpoint is POST /v1/island/message.");
+    const no = allow("POST"); if (no) return no;
+    if (!sc.message) return scopeOff("message");
+    return islandMessage(body, store);
+  }
+
   if (seg[1] !== "tasks" || seg.length > 4) return fail(404, "not_found", "No such endpoint. GET /v1 lists them.");
 
   // /v1/tasks
@@ -411,6 +423,28 @@ const openIn = (l: TabLists, key: string) => {
   return key === "p1" ? l.p1.length : key === "prio" ? l.prio.length : key === "daily" ? l.daily.filter((d) => !d.data.done).length : 0;
 };
 /** The task as saved now (a fake or slow store: what we sent, put on top of the copy we had). */
+/** POST /v1/island/message: checked, then kept in the encrypted settings, where the cards and the island pick it up. */
+async function islandMessage(body: unknown, store: ApiStore): Promise<ApiRes> {
+  if (!isObj(body)) return fail(400, "bad_request", "Send a JSON object as the body, with Content-Type: application/json: {\"from\": \"Claude Code\", \"text\": \"...\"}.");
+  const u = unknownField(body, [...AI_MSG_FIELDS]); if (u) return u;
+  const r = checkAiMsg(body);
+  if ("field" in r) return badField(r.field, r.message);
+  const st = store.settings();
+  const now = store.now();
+  const mode = aiNotesMode(st.aiNotes);
+  // The person chose plain finished cards, or nothing: nothing is kept or shown, and the AI is told so (no error).
+  if (mode !== "messages") return ok({ message: null, shown: false, note: mode === "plain"
+    ? "The person chose plain finished cards in PS, so messages are not shown. Nothing to fix; carry on."
+    : "The person switched AI pop ups off in PS. Nothing to fix; carry on." });
+  const again = sameAiMsg(st.aiMsgs, r.msg, now);
+  if (again) return ok({ message: { id: again.id, at: again.at }, shown: true, note: "The same message was already sent a moment ago." });
+  const wait = aiMsgWait(st.aiMsgs, now);
+  if (wait) return fail(429, "rate_limited", `Too many messages: at most ${AI_MSG.burst} in ${AI_MSG.burstMs / 60_000} minutes. Send one short message at the end of a task, not one per step.`, { retryAfter: wait });
+  const m = { id: newAiMsgId(), ...r.msg, at: new Date(now).toISOString() };
+  await store.saveSettings({ aiMsgs: addAiMsg(st.aiMsgs, m, now, st.dnd) });
+  return ok({ message: { id: m.id, at: m.at }, shown: true }, 201);
+}
+
 function fresh(id: string, store: ApiStore, before: Doc<Todo>, patch: Partial<Todo>): ApiTask {
   const c = makeCtx(store);
   const d = c.all.find((x) => x.id === id) ?? { ...before, data: { ...before.data, ...patch } };

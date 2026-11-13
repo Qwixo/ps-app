@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "features": [
+    { "id": "campaigns", "name": "Cincee Campaigns stats", "owner": "core", "scope": "shared", "since": "1.55", "parts": ["web", "phone"], "default": "off", "gate": "web src/core/features.ts CAMPAIGNS_ON" },
+    { "id": "notebook-looks", "name": "Notebook looks", "owner": "core", "scope": "shared", "since": "1.55", "parts": ["web"], "default": "off", "gate": "web src/core/features.ts NOTEBOOK_ON" }
+  ]
+}

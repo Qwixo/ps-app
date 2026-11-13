@@ -80,7 +80,8 @@ enum FullScreenPlace { case off, bar, dropped }
 
 enum IslandPlace {
   static let panelW: CGFloat = 480, panelH: CGFloat = 270
-  /// Moved: the gap between the pill and the panel's edge, and the least gap to the screen's edge.
+  /// Moved: the gap between the pill and the panel's edge, and V1.57's least gap to the screen's edge (legacyRoom only;
+  /// since V1.58 edgeGap and topGap).
   static let freeGap: CGFloat = 6, screenGap: CGFloat = 8
 
   // ---------- full screen ----------
@@ -148,6 +149,16 @@ enum IslandPlace {
     return menuDown ? .dropped : .bar
   }
 
+  /// Why the island is not in the top bar over a full screen app, in plain words for the log (nil: it is, or no full
+  /// screen app is in front). The menu bar sliding down is not a reason: that only drops it for a moment.
+  static func barWhyNot(_ k: Kind, notch: Bool, menuAlways: Bool, move: Bool) -> String? {
+    guard k != .none else { return nil }
+    if !move { return "the setting 'In full screen, sit in the top bar' is off" }
+    if !notch { return "this screen has no notch, so there is no black strip" }
+    if menuAlways { return "macOS keeps the menu bar showing in full screen, so the strip is the menu bar" }
+    return nil
+  }
+
   // ---------- over full screen apps at all (the root cause above) ----------
 
   /// PS in the Dock as always, or out of it while a full screen app is in front (the only way macOS draws a PS
@@ -202,32 +213,98 @@ enum IslandPlace {
   /// The bar's island: as wide as fits left of the notch, never wider than the pill.
   static func barW(_ g: IslandGeo) -> CGFloat { min(340, max(150, g.leftW - 24)) }
 
-  /// The area the pill's centre may take: the screen below the menu bar, less the gaps, and so the panel (and the
-  /// island open inside it) is never past a side.
-  static func room(_ g: IslandGeo, pillH: CGFloat) -> CGRect {
+  // ---------- moved anywhere, into the top strip and the corners (V1.58) ----------
+  // A friend, 13 Nov 2026, on V1.57: "I can't move it up there in the black empty space WHEN IN FULL SCREEN, nor when
+  // not in full screen" and "It doesn't let me move it more to the corner than this". The V1.57 room kept the pill's
+  // centre half the panel (240 points) from each side, so the pill stopped 75 points in (105 for the compact look),
+  // and 8 points below the menu bar, so it never reached the top strip. Now the pill itself goes up to edgeGap from
+  // each side and the bottom and topGap from the top, over the menu bar's strip and beside the notch, never on the
+  // camera. The panel stays fully on the screen and the pill moves inside it instead (Layout.anchor), so the open view
+  // still opens fully on screen, from the corner inwards.
+
+  /// The least gap between the moved pill and the screen's sides and bottom, and its top.
+  static let edgeGap: CGFloat = 4, topGap: CGFloat = 2
+  /// Next to the notch the pill keeps this far from the camera; over it, it stays this far below it.
+  static let notchGap: CGFloat = 4
+
+  /// The area the moved pill's centre may take: the whole screen less a small edge, the top strip included.
+  static func room(_ g: IslandGeo, pillW: CGFloat, pillH: CGFloat) -> CGRect {
+    let left = g.frame.minX + edgeGap + pillW / 2, right = g.frame.maxX - edgeGap - pillW / 2
+    let bottom = g.frame.minY + edgeGap + pillH / 2, top = g.frame.maxY - topGap - pillH / 2
+    return CGRect(x: left, y: bottom, width: max(0, right - left), height: max(0, top - bottom))
+  }
+  /// A pill centre kept in the room and off the camera: where the pill would cover the notch (or come closer than
+  /// notchGap to it), it stays just below the notch instead. Beside the notch it may sit right up in the strip.
+  static func clamp(_ c: CGPoint, _ g: IslandGeo, pillW: CGFloat, pillH: CGFloat) -> CGPoint {
+    let r = room(g, pillW: pillW, pillH: pillH)
+    var p = CGPoint(x: min(r.maxX, max(r.minX, c.x)), y: min(r.maxY, max(r.minY, c.y)))
+    if g.notch, g.notchW > 0 {
+      let overCamera = p.x - pillW / 2 < g.notchLeft + g.notchW + notchGap && p.x + pillW / 2 > g.notchLeft - notchGap
+      if overCamera { p.y = max(r.minY, min(p.y, g.frame.maxY - g.notchH - notchGap - pillH / 2)) }
+    }
+    return p
+  }
+  /// The pill's centre on screen for a kept spot (fractions of the screen, 0 left or bottom, 1 right or top), clamped.
+  static func center(_ s: CGPoint, _ g: IslandGeo, pillW: CGFloat, pillH: CGFloat) -> CGPoint {
+    clamp(CGPoint(x: g.frame.minX + s.x * g.frame.width, y: g.frame.minY + s.y * g.frame.height), g, pillW: pillW, pillH: pillH)
+  }
+  /// The kept spot for a pill centre on screen (clamped first), as fractions of the screen to 4 places.
+  static func spot(_ c: CGPoint, _ g: IslandGeo, pillW: CGFloat, pillH: CGFloat) -> CGPoint {
+    let k = clamp(c, g, pillW: pillW, pillH: pillH)
+    let x = g.frame.width > 0 ? (k.x - g.frame.minX) / g.frame.width : 0.5, y = g.frame.height > 0 ? (k.y - g.frame.minY) / g.frame.height : 1
+    return CGPoint(x: min(1, max(0, (x * 10000).rounded() / 10000)), y: min(1, max(0, (y * 10000).rounded() / 10000)))
+  }
+  /// Opens upwards: kept in the lower half of the screen.
+  static func opensUp(_ s: CGPoint) -> Bool { s.y < 0.5 }
+
+  /// V1.57 kept the spot as fractions of its smaller room (island.pos). Read once and turned into the same place on
+  /// screen as a V1.58 spot (island.spot), so nobody's island jumps on the update.
+  static func legacyRoom(_ g: IslandGeo, pillH: CGFloat) -> CGRect {
     let top = g.frame.maxY - g.menuH - screenGap - pillH / 2, bottom = g.frame.minY + screenGap + pillH / 2
     let left = g.frame.minX + panelW / 2, right = g.frame.maxX - panelW / 2
     return CGRect(x: left, y: bottom, width: max(0, right - left), height: max(0, top - bottom))
   }
-  /// The pill's centre on screen for a kept spot.
-  static func center(_ p: CGPoint, _ g: IslandGeo, pillH: CGFloat) -> CGPoint {
-    let r = room(g, pillH: pillH)
-    return CGPoint(x: r.minX + p.x * r.width, y: r.minY + p.y * r.height)
+  static func fromLegacy(_ old: CGPoint, _ g: IslandGeo, pillW: CGFloat, pillH: CGFloat) -> CGPoint {
+    let r = legacyRoom(g, pillH: pillH)
+    let x = min(1, max(0, old.x)), y = min(1, max(0, old.y))
+    return spot(CGPoint(x: r.minX + x * r.width, y: r.minY + y * r.height), g, pillW: pillW, pillH: pillH)
   }
-  /// The kept spot for a pill centre on screen (clamped to the room).
-  static func spot(_ c: CGPoint, _ g: IslandGeo, pillH: CGFloat) -> CGPoint {
-    let r = room(g, pillH: pillH)
-    let x = r.width > 0 ? (c.x - r.minX) / r.width : 0.5, y = r.height > 0 ? (c.y - r.minY) / r.height : 1
-    return CGPoint(x: min(1, max(0, (x * 10000).rounded() / 10000)), y: min(1, max(0, (y * 10000).rounded() / 10000)))
+
+  /// The panel round a moved pill and where the pill's resting centre sits in it (top left origin, as SwiftUI draws).
+  struct Layout: Equatable { var frame: CGRect; var anchor: CGPoint }
+  /// The pill freeGap below the panel's top edge (it opens downwards) or, opening upwards, above its bottom edge, the
+  /// panel centred on it across. Then the panel is kept fully on the screen: near a side, the top or a corner the pill
+  /// moves inside the panel instead, so it reaches the edge and the open view still fits on screen.
+  static func layout(_ c: CGPoint, _ g: IslandGeo, pillH: CGFloat, up: Bool) -> Layout {
+    var x = c.x - panelW / 2
+    var y = up ? c.y - pillH / 2 - freeGap : c.y + pillH / 2 + freeGap - panelH
+    x = max(g.frame.minX, min(x, g.frame.maxX - panelW))
+    y = max(g.frame.minY, min(y, g.frame.maxY - panelH))
+    let f = CGRect(x: x, y: y, width: panelW, height: panelH)
+    return Layout(frame: f, anchor: CGPoint(x: c.x - f.minX, y: f.maxY - c.y))
+  }
+  /// The moved layout for a kept spot.
+  static func moved(_ s: CGPoint, _ g: IslandGeo, pillW: CGFloat, pillH: CGFloat) -> Layout {
+    layout(center(s, g, pillW: pillW, pillH: pillH), g, pillH: pillH, up: opensUp(s))
+  }
+  /// The shape inside the panel for a moved pill (top left origin): the resting pill round its anchor, and the open
+  /// view (w by h) from the pill's top edge down, or up from its bottom edge. Centred on the pill unless that would
+  /// cross the panel's side: then it lines up with the pill's outer edge (from a corner it opens inwards).
+  static func movedShape(anchor a: CGPoint, w: CGFloat, h: CGFloat, pillW: CGFloat, pillH: CGFloat, up: Bool) -> CGRect {
+    var x = a.x - w / 2
+    if x < 0 { x = min(a.x - pillW / 2, panelW - w) } else if x + w > panelW { x = max(a.x + pillW / 2 - w, 0) }
+    x = max(0, min(x, panelW - w))
+    let y = max(0, min(up ? a.y + pillH / 2 - h : a.y - pillH / 2, panelH - h))
+    return CGRect(x: x, y: y, width: w, height: h)
   }
 
   /// The bar island's centre across: its right end 10 points left of the notch.
   static func barMid(_ g: IslandGeo) -> CGFloat { g.notchLeft - 10 - barW(g) / 2 }
   /// The panel's frame: in the black bar (its right end just left of the notch), home at the top centre, or round
-  /// the moved pill (its top or bottom edge freeGap from the pill). Over a full screen app the moved spot waits.
+  /// the moved pill (IslandPlace.moved, V1.58). Over a full screen app the moved spot waits while it sits in the bar.
   /// Dropped below the menu bar while it is down: under the same spot as the bar, so it only drops, never jumps back
   /// to the centre (kept on the screen).
-  static func frame(_ fs: FullScreenPlace, _ g: IslandGeo, pos: CGPoint?, pillH: CGFloat) -> CGRect {
+  static func frame(_ fs: FullScreenPlace, _ g: IslandGeo, pos: CGPoint?, pillW: CGFloat, pillH: CGFloat) -> CGRect {
     if fs == .bar || fs == .dropped {
       var x = barMid(g) - panelW / 2
       if fs == .dropped { x = min(max(x, g.frame.minX), g.frame.maxX - panelW) }
@@ -236,8 +313,7 @@ enum IslandPlace {
     guard let p = pos, fs == .off else {
       return CGRect(x: g.centerX - panelW / 2, y: g.frame.maxY - panelH, width: panelW, height: panelH)
     }
-    let c = center(p, g, pillH: pillH)
-    let y = p.y < 0.5 ? c.y - pillH / 2 - freeGap : c.y + pillH / 2 + freeGap - panelH
-    return CGRect(x: c.x - panelW / 2, y: y, width: panelW, height: panelH)
+    return moved(p, g, pillW: pillW, pillH: pillH).frame
   }
+
 }

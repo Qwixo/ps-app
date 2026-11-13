@@ -12,7 +12,10 @@
 // PS before but kept no record of which version (a build before V1.36, the phone, cleared storage) lists the last
 // five. tests/notesfromany.test.ts runs every old version's stored state through it.
 
-export type WhatsNew = { version: string; keyword: string; notes: string[] };
+import { cleanMade } from "./releaseby.ts";
+
+/** `by` (V1.58): who made this release; missing for releases from before V1.58. */
+export type WhatsNew = { version: string; keyword: string; notes: string[]; by?: string };
 export type WhatsNewStep = "show" | "record" | "quiet";
 
 /** The panel shows at most this many points (the developer: "a few bullet points"; the gate asks for 3 to 6). */
@@ -48,7 +51,8 @@ export function cleanWhatsNew(x: unknown): WhatsNew | null {
   if (!notes.length || notes.length !== o.notes.length) return null;
   if (notes.some((n) => /[\u2013\u2014<>]/.test(n) || n.length > 300)) return null;
   const keyword = typeof o.keyword === "string" && !/[\u2013\u2014<>]/.test(o.keyword) ? o.keyword.trim().slice(0, 30) : "";
-  return { version, keyword, notes: notes.slice(0, MAX_POINTS) };
+  const made = cleanMade(o);
+  return { version, keyword, notes: notes.slice(0, MAX_POINTS), ...(made ? { by: made.by } : {}) };
 }
 
 /** The heading: "What's new in V1.36 · Keyword". */

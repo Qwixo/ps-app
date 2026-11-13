@@ -86,7 +86,7 @@ export function InviteModal({ client, onClose }: { client: Doc<ClientRec>; onClo
                 <input className="input" value={first} onChange={(e) => setFirst(e.target.value)} placeholder="David" autoComplete="off" />
               </label>
               <label className="field"><span>Their email (becomes their username)</span>
-                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="person10@company.com" autoComplete="off" spellCheck={false} />
+                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" autoComplete="off" spellCheck={false} />
               </label>
             </div>
             <span className="xs muted">The page greets them by name with their email already filled in. They only choose a password. Both stay inside the link and are never stored on the server.</span>

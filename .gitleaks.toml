@@ -22,4 +22,6 @@ regexes = [
   '''eh9Z-pv1ZqqYRlmb_mwXgh9q7_QqPScA8C8RlOkg2sY''',
   '''qV93MYaAWWy-70hB0w8BAZPlkyWhO16ad_E6wyv97So''',
   '''vaDAwLp3ZsAguzRrcQ_ofO0rQHuQlEG8mDksYXs4GXA''',
+  # V1.58: the name of a browser storage key (the walkthrough's gate), not a key.
+  '''GATE_KEY = "ps\.walkGate\.\d+"''',
 ]

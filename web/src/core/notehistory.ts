@@ -8,7 +8,10 @@
 //
 // Run: node --experimental-strip-types tests/notehistory.test.ts
 
-export type NoteBlock = { version: string; keyword: string; notes: string[] };
+import { cleanMade } from "./releaseby.ts";
+
+/** `by` (V1.58): who made that release ("jan", "gsquad"); missing for releases from before V1.58. */
+export type NoteBlock = { version: string; keyword: string; notes: string[]; by?: string };
 
 /** The most versions one view carries (the files hold the last 20 approved ones). */
 export const MAX_BLOCKS = 20;
@@ -47,7 +50,8 @@ export function cleanBlock(x: unknown): NoteBlock | null {
   if (!notes.length || notes.length !== o.notes.length) return null;
   if (notes.some((n) => BAD.test(n) || n.length > LINE_MAX)) return null;
   const kw = typeof o.keyword === "string" && !BAD.test(o.keyword) ? o.keyword.trim().slice(0, 30) : "";
-  return { version, keyword: kw, notes: notes.slice(0, BLOCK_LINES) };
+  const made = cleanMade(o);
+  return { version, keyword: kw, notes: notes.slice(0, BLOCK_LINES), ...(made ? { by: made.by } : {}) };
 }
 
 /** A list of blocks from a file or the shell: bad ones dropped, one per version, newest first, at most MAX_BLOCKS. */

@@ -361,18 +361,19 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     // stays until the developer clicks its Dismiss button, or Remind me in (src/mailcards.ts brings it back then).
     // "done": a Claude Code chat finished (src/core/chatdone.ts); stays until its X, or the page drops it after a few hours.
     // "lead": a lead replied in Instantly (src/mailcards.ts), Instantly blue, kept like a client email.
-    let tones = ["booked", "declined", "msg", "cancel", "soon", "soon-warn", "ok", "warn", "bad", "info", "mail", "done", "lead"]
+    // "ai": a message an AI sent through the Task API (V1.58, AiMessageCard.swift), kept like an AI chat card.
+    let tones = ["booked", "declined", "msg", "cancel", "soon", "soon-warn", "ok", "warn", "bad", "info", "mail", "done", "lead", AiMessageCard.tone]
     guard let id = c["id"] as? String, !id.isEmpty, id.count <= 40, let title = c["title"] as? String, !title.isEmpty,
           let tone = c["tone"] as? String, tones.contains(tone) else { return }
     if hold(c, meet: true) { return }
     setUp()
     var card: [String: Any] = ["id": id, "kind": "meet", "tone": tone, "title": String(title.prefix(160)),
-                               "sticky": ["msg", "cancel", "declined", "soon-warn", "warn", "bad", "mail", "done", "lead"].contains(tone), "dismiss": ["mail", "done", "lead"].contains(tone), "discreet": (c["discreet"] as? Bool) == true,
+                               "sticky": ["msg", "cancel", "declined", "soon-warn", "warn", "bad", "mail", "done", "lead", AiMessageCard.tone].contains(tone), "dismiss": ["mail", "done", "lead", AiMessageCard.tone].contains(tone), "discreet": (c["discreet"] as? Bool) == true,
                                "discreetText": String(((c["discreetText"] as? String) ?? "A meeting alert").prefix(80))]
     if let sub = c["sub"] as? String, !sub.isEmpty { card["sub"] = String(sub.prefix(200)) }
-    if let body = c["body"] as? String, !body.isEmpty { card["body"] = String(body.prefix(600)) }
+    if let body = c["body"] as? String, !body.isEmpty { card["body"] = String(body.prefix(tone == AiMessageCard.tone ? AiMessageCard.detailMax : 600)) }
     if let at = c["callAt"] as? String, ISO8601DateFormatter().date(from: at) != nil || at.count < 40 { card["callAt"] = at }
-    if let icon = c["icon"] as? String, ["shield", "globe", "wifi", "plug", "swap", "mail", "done", "reply"].contains(icon) { card["icon"] = icon }
+    if let icon = c["icon"] as? String, ["shield", "globe", "wifi", "plug", "swap", "mail", "done", "reply", AiMessageCard.icon].contains(icon) { card["icon"] = icon }
     if let at = c["at"] as? String, at.count < 40 { card["at"] = at }
     if let u = Toast.openable(c["url"] as? String) { card["url"] = u }
     if let j = Toast.openable(c["join"] as? String) { card["join"] = j }
@@ -905,6 +906,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     .row,.bul{transition:none}
     #newer,#bar{transition:none}
   }
+  \#(AiMessageCard.css)
   </style></head><body><div id="wrap"><div id="bar"><b id="count"></b><button id="newer"></button><button id="clear">Clear all</button></div><div id="view"><div id="list"><div id="fill"></div></div><div id="thumb"></div></div></div>
   <script>
   (function(){
@@ -943,6 +945,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     ICON.done='<path d="M5 12.5l4.5 4.5L19 7.5"/>';
     ICON.reply='<path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 6 6v4"/>';
     ICON.swap='<path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>';
+    \#(AiMessageCard.js)
     function svg(k){var s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 24 24');s.setAttribute('fill','none');s.setAttribute('stroke','currentColor');s.setAttribute('stroke-width','2.3');s.setAttribute('stroke-linecap','round');s.setAttribute('stroke-linejoin','round');s.innerHTML=ICON[k]||ICON.soon;return s}
     function until(iso){var m=Math.round((Date.parse(iso)-Date.now())/60000);if(isNaN(m))return'';if(m<0)return'Started '+(-m)+' min ago';if(m<1)return'Starting now';if(m<60)return'In '+m+' min';if(m>=2880)return'In '+Math.round(m/1440)+' days';return'In '+Math.floor(m/60)+' h'+(m%60?' '+(m%60)+' min':'')}
     // >>> private pill model: pure, no page. tests/privatepill-test.mjs runs this block on its own.
@@ -1296,7 +1299,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       if(c.data.kind==='meet'){
         if(t.classList.contains('rv')){edit(c);return}               // the time: type one
         if(t.closest&&t.closest('.rem')){if(!c.editing){answer(c,'remind:'+c.mins);remove(c)}return}
-        if(t.dataset&&t.dataset.reply){answer(c,'reply');return}       // Reply: the compose window opens; the card stays until it is sent
+        if(t.dataset&&t.dataset.reply){answer(c,'reply');return}
+        if(c.data.tone==='ai'&&AiMsg.click(c,t)){layout();return}      // a message from an AI: the words open and fold (AiMessageCard.swift)       // Reply: the compose window opens; the card stays until it is sent
         var act=t.dataset&&t.dataset.act;
         if(act){answer(c,act);remove(c);return}                      // Dismiss (or a swipe, or Clear all): the only ways a client email card goes
         var link=t.dataset&&t.dataset.link;
@@ -1311,7 +1315,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     document.getElementById('clear').onclick=function(){clearAll()};
     // Colours per kind (Toast.setLook, V1.36): one style sheet after the built in one, so a kind the developer gave a colour wins
     // and every other kind keeps its look. Discreet and alarm cards keep theirs (their rules are more specific).
-    var LOOKSEL={done:['.t-done'],mail:['.t-mail'],lead:['.t-lead'],meet:['.t-booked','.t-soon'],other:['.t-ok','.t-info']};
+    var LOOKSEL={done:['.t-done','.t-ai'],mail:['.t-mail'],lead:['.t-lead'],meet:['.t-booked','.t-soon'],other:['.t-ok','.t-info']};
     var LOOKKEYS=['c','top','bot','icBg','ic','sub','rem','remHi','line','btn','ink'];
     function look(L){
       var st=document.getElementById('look');if(!st){st=document.createElement('style');st.id='look';document.head.appendChild(st)}
@@ -1415,6 +1419,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
           c.inner.appendChild(acts);
         }
         c.el.appendChild(c.inner);
+        if(d.tone==='ai')AiMsg.made(c);
         // V1.55: its own time on screen (AI chat cards): the line runs down, paused while the pointer is on the card.
         if(d.life>0){
           var lf=el('div','life'),li=el('i');lf.appendChild(li);c.el.appendChild(lf);c.life=li;

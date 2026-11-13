@@ -5,11 +5,8 @@
 // set their priority (the top one is P1). Size slider top left; hover and click sounds (volume in
 // Settings). Tab still works normally inside text boxes, menus and the notes window.
 import { createPortal } from "react-dom";
-import { islandPrefs, type IslandPrefs } from "../core/island";
-import { IslandHideRow } from "./IslandHide";
-import { IslandCardsRows, IslandFullScreenRow, IslandTickSideRow } from "./IslandCards";
-import { IslandLookEditor, LookEditButton, noNotch, type LookKind } from "./IslandLook";
-import { islandMenuSpot } from "../ui/menuspot";
+import { islandPrefs } from "../core/island";
+import { IslandSettingsWindow } from "./IslandSettings";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { meetingTitleKey, workingIdsOf, type AwareItem, type AwayEntry, type DimxItem, type DimxZone, type CalEvent, type ClientRec, type Doc, type Goal, type MeetingNote, type Settings, type StandingNote, type TaskGroup, type TimelineItem, type Todo } from "../core/model";
 import { calendarDocs, calendarSnap, campaignStats, clientViews, openReplies, screenLines, screenTimeDays, settingsData, tabLayoutDoc, todos, allTodos } from "../core/select";
@@ -93,7 +90,7 @@ import { overdueLookOf, type OverdueLook } from "../core/overduelook";
 import { OverdueFxLayer, useOverdueCard, useOverdueLook } from "./OverdueLook";
 import { BG_DESIGNS, P1_COLORS, P1_DESIGNS, bgDesign, colorHue, hueColor, isVideoBg, isP1, movedId, p1AfterMove, p1Color, p1Design, p1Tones, prioNumbers, sortPrio } from "../core/prio";
 import { Storm, type StormKind } from "./Storm";
-import { islandPicVars, rainLayers } from "../core/looksample";
+import { rainLayers } from "../core/looksample";
 import { DimensionX, dimxIsOpen, morph } from "./DimensionX";
 import { openSettings, useSettingsWanted, type Preview, type SettingsOwner } from "./SettingsScreen";
 import { SettingsHost } from "./SettingsGroups";
@@ -102,6 +99,7 @@ import { BgClip, BgFitControls, PhoneBgChoice, bgPatch, shownBg, useBgKeeper, us
 import { cropCss, type BgCrop } from "../core/bgcrop";
 import { FitnessButton } from "../fitness/FitnessButton";
 import { SoundboardButton } from "../soundboard/SoundboardButton";
+import { PomodoroButton } from "./Pomodoro";
 import "../fitness/fitness.css";
 import { PsRuleButton, RuleBookHost } from "./RuleBook";
 import { endDayGate, myRules, openRuleBook } from "../rulegate";
@@ -1283,6 +1281,9 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
       {/* Every panel and button sits in a Slot (views/EditMode.tsx): Edit mode moves or removes it. */}
       <div className="tm-side tm-left">
         <Slot id="clocks"><TimeZones scale={100} slider={null} /></Slot>
+        {/* Pomodoro (V1.58, views/Pomodoro.tsx): between Time zones and Sentry mode by default (the developer, 13 Nov 2026); on a
+            list where Time zones was moved it follows it (core/tablayout.ts followStyle). */}
+        <Slot id="pomodoro"><PomodoroButton docked={docked} /></Slot>
         {/* Sentry mode (V1.48, views/Sentry.tsx): the big AI button between Time zones and Timelines, PS on a Mac only. */}
         {PS && !docked && <Slot id="sentry"><SentryButton docked={docked} /></Slot>}
         <div className="nu-tlrow">
@@ -1293,8 +1294,11 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
           {/* Numerology is the developer's own: other accounts (the public PS) never see it (the developer, 5 Nov 2026). */}
           {red && <Slot id="numerology"><Numerology saved={st.tmNumPeople} birthday={st.birthday} docked={docked} onSave={(people) => void taskMapActions.looks({ tmNumPeople: people })} /></Slot>}
         </div>
-        {/* Meetings with the Dynamic Island switch: every account (the developer, 7 Nov 2026: "where's a meeting panel"). */}
-        <Slot id="meetings"><MeetingsPeek list={meet} notes={st.meetingNotes || []} standing={st.standingNotes || []} privateOn={!!st.privateMode} island={islandPrefs(st.island)} calAt={calendarSnap(s)?.data.at ?? null} local={!red} web={web} /></Slot>
+        {/* Meetings: every account (the developer, 7 Nov 2026: "where's a meeting panel"). V1.58: the island's settings button left it;
+            they open from the island's own right click menu and from Settings, Dynamic Island. */}
+        <Slot id="meetings"><MeetingsPeek list={meet} notes={st.meetingNotes || []} standing={st.standingNotes || []} privateOn={!!st.privateMode} calAt={calendarSnap(s)?.data.at ?? null} local={!red} web={web} /></Slot>
+        {/* V1.58 the island's settings window (views/IslandSettings.tsx): Settings in the island's right click menu opens it. */}
+        {PS && !docked && <IslandSettingsWindow prefs={islandPrefs(st.island)} save={(p) => void taskMapActions.looks({ island: { ...islandPrefs(st.island), ...p } })} />}
         <div className="tm-xrow">
           {red && CAMPAIGNS_ON && <Slot id="campaigns"><CampaignStats stats={cstats} docked={docked} /></Slot>}
           <Slot id="dimx"><DimensionX prio={prio} aware={st.aware || []} dimx={st.dimx || []} docked={docked} inbox={aiInbox} /></Slot>
@@ -3595,7 +3599,7 @@ const saveStanding = (standing: StandingNote[], title: string, items: StandingNo
 
 // web (V1.44): the website's To-do page. No Dynamic Island switch (it is the Mac's), and for anyone but the developer no refresh:
 // their meetings come from the Calendar app on their Mac, through the vault, when PS runs there.
-function MeetingsPeek({ list: usual, notes, standing, privateOn, island, calAt, local, web }: { list: Upcoming[]; notes: MeetingNote[]; standing: StandingNote[]; privateOn: boolean; island: IslandPrefs; calAt: string | null; local: boolean; web?: boolean }) {
+function MeetingsPeek({ list: usual, notes, standing, privateOn, calAt, local, web }: { list: Upcoming[]; notes: MeetingNote[]; standing: StandingNote[]; privateOn: boolean; calAt: string | null; local: boolean; web?: boolean }) {
   // V1.55: each Meetings panel can show its own calendar (core/calfeeds.ts, set in the Edit mode overview). The usual
   // one is the list handed in; another Google calendar (the developer's own server only) or one Mac account is worked out here.
   const inst = useInst();
@@ -3652,7 +3656,6 @@ function MeetingsPeek({ list: usual, notes, standing, privateOn, island, calAt, 
         <span className="tm-meet-h">Coming up{soon > 0 && <em> · {soon} in the next 24 hours</em>}</span>
         {/* The three buttons top right can be dragged out to be buttons of their own (Edit mode overview, V1.55). */}
         {!(web && local) && <Inner kind="calrefresh"><CalRefresh local={local} /></Inner>}
-        {!web && <Inner kind="islandsw"><IslandSwitch prefs={island} /></Inner>}
         <Inner kind="privacy"><PrivateMask on={privateOn} /></Inner>
         {cal.kind === "google" ? <FeedUpdated feed={cal.feed} copyAt={own?.at ?? null} />
           : local ? <LocalCalUpdated copyAt={calAt} web={web} only={cal.kind === "mac" ? cal.account : undefined} /> : <CalUpdated copyAt={calAt} />}
@@ -3851,105 +3854,6 @@ function PrivateMask({ on }: { on: boolean }) {
 // off, and whether the next Priority 1 task shows (dimmed) when nothing is in progress. The menu lives
 // on document.body (the overlay's blur would shift a fixed menu inside it) and never takes the keyboard.
 // Each look has an Edit button that opens its editor in the menu (views/IslandLook.tsx, the developer 4 Nov 2026).
-const ISLAND_MODES: { id: IslandPrefs["mode"]; label: string; hint: string }[] = [
-  { id: "notch", label: "Around the notch", hint: "Grows out of the camera notch" },
-  { id: "pill", label: "Pill below the notch", hint: "A floating pill just under it" },
-  { id: "off", label: "Off", hint: "No island" },
-];
-/** Where the island sits on this Mac (G Squad, Island.swift): moved by its grab line, put back here. */
-function IslandPosRow() {
-  const ps = usePsSettings();
-  useEffect(() => { psPost({ type: "psSettings:get" }); }, []);
-  const moved = !!ps?.islandMoved;
-  return (
-    <div className="tm-isl-pos">
-      <span className="tm-isl-l">Position<em>{moved ? "Moved. Drag its top line to move it again" : "Drag its top line to move it anywhere"}</em></span>
-      <button type="button" className="tm-isl-posbtn" disabled={!moved} onClick={() => { sfx.click(); psPost({ type: "island:reset" }); }}>Put back at the top</button>
-    </div>
-  );
-}
-const ISL_MENU_W = 292, ISL_EDIT_W = 340;   // taskmap.css .tm-isl-menu and islandlook.css .il-editing
-function IslandSwitch({ prefs }: { prefs: IslandPrefs }) {
-  const [open, setOpen] = useState(false);
-  const [edit, setEdit] = useState<LookKind | null>(null);
-  const editing = useRef(edit);
-  editing.current = edit;
-  const btn = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  const [at, setAt] = useState<{ top: number; left: number; maxH: number } | null>(null);
-  const on = prefs.mode !== "off";
-  const save = (p: Partial<IslandPrefs>) => { sfx.click(); void taskMapActions.looks({ island: { ...prefs, ...p } }); };
-  // Placed in full on the screen (the developer, 5 Nov 2026: the look editor ran off the left of his monitor when the island
-  // button sat near the left edge). The menu lines up with the button's right edge when there is room, else slides
-  // in from the screen's edge; it never runs off the bottom (it scrolls inside instead).
-  useLayoutEffect(() => {
-    if (!open || !btn.current) return;
-    const place = () => {
-      const r = btn.current?.getBoundingClientRect();
-      if (!r) return;
-      setAt(islandMenuSpot(r, edit ? ISL_EDIT_W : ISL_MENU_W, window.innerWidth, window.innerHeight));
-    };
-    place();
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, [open, edit]);
-  useEffect(() => {
-    if (!open) return;
-    const down = (e: PointerEvent) => { const t = e.target as Node; if (!menu.current?.contains(t) && !btn.current?.contains(t)) setOpen(false); };
-    // Esc steps back out of a look's editor first, then closes the menu.
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); if (editing.current) setEdit(null); else setOpen(false); } };
-    document.addEventListener("pointerdown", down, true);
-    window.addEventListener("keydown", key, true);
-    return () => { document.removeEventListener("pointerdown", down, true); window.removeEventListener("keydown", key, true); };
-  }, [open]);
-  return (
-    <>
-      <button ref={btn} type="button" className={`tm-isl-btn${on ? " on" : ""}${open ? " open" : ""}`} aria-haspopup="menu" aria-expanded={open}
-        aria-label={on ? "Dynamic Island is on. Click for its settings" : "Dynamic Island is off. Click for its settings"}
-        title="Dynamic Island" onClick={() => { sfx.click(); setEdit(null); setOpen((v) => !v); }}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <rect x="2.5" y="8" width="19" height="8" rx="4" fill="currentColor" fillOpacity=".18" /><circle cx="17.2" cy="12" r="1.3" fill="currentColor" stroke="none" />
-        </svg>
-      </button>
-      {open && at && createPortal(
-        <div ref={menu} className={`tm-isl-menu${edit ? " il-editing" : ""}`} role="menu" aria-label="Dynamic Island" style={{ top: at.top, left: at.left, maxHeight: at.maxH }}
-          onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-          {edit ? (
-            <IslandLookEditor key={edit} kind={edit} pill={prefs.pill} notch={prefs.notch} onBack={() => setEdit(null)}
-              onSave={(k, look) => { void taskMapActions.looks({ island: { ...prefs, mode: k, [k]: look } }); }} />
-          ) : (<div className="il-menu-main">
-          <span className="tm-isl-h">Dynamic Island</span>
-          {ISLAND_MODES.map((m) => (
-            <div key={m.id} className="tm-isl-row">
-              <button type="button" role="menuitemradio" aria-checked={prefs.mode === m.id} className={`tm-isl-opt${prefs.mode === m.id ? " sel" : ""}`}
-                onClick={() => save({ mode: m.id })}>
-                <i className={`tm-isl-pic ${m.id}`} style={m.id === "off" ? undefined : islandPicVars(m.id, m.id === "pill" ? prefs.pill : prefs.notch) as React.CSSProperties} aria-hidden="true"><b /><s /></i>
-                <span className="tm-isl-l">{m.label}<em>{m.id === "notch" && noNotch() ? "No notch on this Mac: shows as the pill" : m.hint}</em></span>
-              </button>
-              {m.id !== "off" && <LookEditButton kind={m.id} onEdit={setEdit} />}
-            </div>
-          ))}
-          <button type="button" role="menuitemcheckbox" aria-checked={prefs.idle === "next"} disabled={!on}
-            className={`tm-isl-sw${prefs.idle === "next" ? " sel" : ""}`} onClick={() => save({ idle: prefs.idle === "next" ? "none" : "next" })}>
-            <span className="tm-isl-l">When nothing is in progress, show the next Priority 1 task<em>Dimmed, until you start a task</em></span>
-            <i className="tm-isl-tog" aria-hidden="true"><b /></i>
-          </button>
-          {/* V1.40: how long a click on the grab line hides it (1 minute unless set). */}
-          <IslandHideRow value={prefs.hide} disabled={!on} onPick={(hide) => save({ hide })} />
-          {/* V1.55: the Mac's notification cards come out of the island, and which kinds go to the top right instead. */}
-          {PS && <IslandCardsRows prefs={prefs} save={(p) => save(p)} />}
-          {/* Over a full screen app: glide to the top left black band beside the notch. */}
-          {PS && <IslandFullScreenRow prefs={prefs} save={(p) => save(p)} />}
-          {/* Which side of the island the tick circle sits on. */}
-          {PS && <IslandTickSideRow prefs={prefs} save={(p) => save(p)} />}
-          {/* G Squad: drag the island's grab line to move it anywhere (Island.swift); this puts it back. */}
-          {PS && <IslandPosRow />}
-          </div>)}
-        </div>, document.body)}
-    </>
-  );
-}
-
 /** Their side of a call, next to yours: "1:00 PM PT" (plus their day when it differs from yours). */
 function TheirTime({ at, tz }: { at: Date; tz: string }) {
   let zone = "";

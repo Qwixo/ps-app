@@ -81,6 +81,9 @@ export function applyAppearance(a: Appearance | null, animate: boolean) {
   const root = document.documentElement;
   const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   if (!animate || reduce) { put(a); return; }
+  // V1.58: a list page landing with its own background is already cross fading the whole screen (views/ListPager.tsx):
+  // the look joins that fade instead of starting a second one, which would cut the first short.
+  if (root.classList.contains("pg-turning")) { put(a); return; }
   const after = a?.look ?? DEFAULT_LOOK;
   const turn = NOTEBOOK_IDS.has(after) !== NOTEBOOK_IDS.has(before) || (NOTEBOOK_IDS.has(after) && after !== before);
   const doc = document as VtDoc;

@@ -8,3 +8,7 @@ declare const __WEB_SRC__: string;
 declare const __WEB_BUILT__: string;
 /** The What's new panel's notes for this version (vite.config.ts psWhatsNew): only words the developer approved, else none. */
 declare const __PS_WHATSNEW__: { version: string; keyword: string; notes: string[]; code: string; built: string; history?: { version: string; keyword: string; notes: string[] }[] };
+/** V1.58: which build this is (vite.config.ts psBuild, written by core tools/assemble.mjs). All null in a build made
+ *  without the assembler (the private tree, the dev server): the code then keeps its per account answers.
+ *  `profile` is the full profile JSON (profiles/<name>.json), `version` is ps-version.json as it is. */
+declare const __PS_BUILD__: { flavour: string | null; core: string | null; layer: { name: string; owner: string } | null; profile: Record<string, unknown> | null; features: unknown[]; version: Record<string, unknown> | null };

@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { DEFAULT_SCOPES, SCOPES, cleanScopes, handleApi, type ApiStore, type Scopes, type SentryStartResult } from "../src/core/taskapi.ts";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { INBOX, inboxMove, inboxTasks, openInboxCount } from "../src/core/aiinbox.ts";
-import { aiGuide, KEY_SLOT } from "../src/core/taskapidoc.ts";
+import { aiConnect, aiGuide, KEY_SLOT } from "../src/core/taskapidoc.ts";
+import { AI_MSG } from "../src/core/aimessage.ts";
 import { tabLists } from "../src/core/groups.ts";
 import { cleanRemind, type RemindRec } from "../src/core/remind.ts";
 
@@ -63,7 +64,7 @@ const world = () => fake({
 
 // ---------- switches ----------
 ok("defaults: add, read and the AI Inbox on, everything else off", () => {
-  assert.deepEqual(DEFAULT_SCOPES, { inbox: true, lists: false, rename: false, read: true, add: true, edit: false, done: false, delete: false, remind: false, sentry: false, gym: false, settings: false });
+  assert.deepEqual(DEFAULT_SCOPES, { inbox: true, lists: false, rename: false, read: true, add: true, edit: false, done: false, delete: false, remind: false, sentry: false, gym: false, settings: false, message: false });
   assert.deepEqual(cleanScopes({ lists: true, delete: "yes", bogus: true }), { ...DEFAULT_SCOPES, lists: true });
   assert.deepEqual(cleanScopes(null), DEFAULT_SCOPES);
 });
@@ -534,6 +535,106 @@ ok("PATCH /v1/settings refuses anything else: other fields, bad values, an empty
   assert.ok(list.includes("GET /v1/settings") && list.includes("PATCH /v1/settings"));
 });
 
+// ---------- POST /v1/island/message (V1.58) ----------
+const MSG = { ...DEFAULT_SCOPES, message: true };
+const msgs = (s: ReturnType<typeof fake>) => (s.set().aiMsgs ?? []) as { id: string; from: string; text: string; detail?: string; chat?: string; at: string }[];
+ok("message: the switch is off by default, refused with scope_off and nothing is saved", async () => {
+  const s = world();
+  const r = await call(s, "POST", "/v1/island/message", { from: "Claude Code", text: "Done" });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.error.code, "scope_off");
+  assert.equal(r.body.error.scope, "message");
+  assert.equal(msgs(s).length, 0);
+  assert.ok(!s.log.some((x) => x.startsWith("settings")));
+});
+ok("message: kept in the settings with who, the words, the detail and the chat id; 201", async () => {
+  const s = world();
+  const r = await call(s, "POST", "/v1/island/message", { from: "  Claude   Code ", text: "Fixed the login bug,\n tests pass", detail: "Line one\r\nLine two\n\n\n\nEnd", chat: "43eece02-c43a-4a02-8e1d-2619fc41f9cf" }, MSG);
+  assert.equal(r.status, 201);
+  assert.equal(r.body.shown, true);
+  const [m] = msgs(s);
+  assert.equal(m.id, r.body.message.id);
+  assert.match(m.id, /^[a-z0-9]{12}$/);
+  assert.equal(m.from, "Claude Code");
+  assert.equal(m.text, "Fixed the login bug, tests pass");
+  assert.equal(m.detail, "Line one\nLine two\n\nEnd");
+  assert.equal(m.chat, "43eece02-c43a-4a02-8e1d-2619fc41f9cf");
+  assert.equal(m.at, "2026-11-12T10:00:00.000Z");
+  assert.ok((await call(s, "GET", "/v1")).body.endpoints.includes("POST /v1/island/message"));
+});
+ok("message: text is needed; from defaults to AI; detail and chat are optional", async () => {
+  const s = world();
+  for (const b of [{}, { text: "" }, { text: "   " }, { text: 5 }, { from: "Codex" }]) {
+    const r = await call(s, "POST", "/v1/island/message", b, MSG);
+    assert.equal(r.status, 400, JSON.stringify(b));
+    assert.equal(r.body.error.field, "text");
+  }
+  const r = await call(s, "POST", "/v1/island/message", { text: "Hi" }, MSG);
+  assert.equal(r.status, 201);
+  assert.deepEqual(Object.keys(msgs(s)[0]).sort(), ["at", "from", "id", "text"]);
+  assert.equal(msgs(s)[0].from, "AI");
+});
+ok("message: limits are refused, never cut; unknown fields and wrong types are refused", async () => {
+  const s = world();
+  const at = (b: unknown) => call(s, "POST", "/v1/island/message", b, MSG);
+  assert.equal((await at({ text: "x".repeat(AI_MSG.textMax) })).status, 201);
+  for (const [b, f] of [[{ text: "x".repeat(AI_MSG.textMax + 1) }, "text"], [{ text: "a", from: "x".repeat(AI_MSG.fromMax + 1) }, "from"],
+    [{ text: "a", detail: "x".repeat(AI_MSG.detailMax + 1) }, "detail"], [{ text: "a", from: 3 }, "from"], [{ text: "a", detail: ["x"] }, "detail"],
+    [{ text: "a", chat: 12 }, "chat"]] as const) {
+    const r = await at(b);
+    assert.equal(r.status, 400, f);
+    assert.equal(r.body.error.code, "bad_field");
+    assert.equal(r.body.error.field, f);
+  }
+  const u = await at({ text: "a", html: "<b>hi</b>" });
+  assert.equal(u.status, 400);
+  assert.equal(u.body.error.code, "unknown_field");
+  assert.equal(msgs(s).length, 1);
+});
+ok("message: bad JSON shapes, other methods and paths", async () => {
+  const s = world();
+  for (const b of [null, undefined, "text", ["a"], 5]) assert.equal((await call(s, "POST", "/v1/island/message", b, MSG)).status, 400, String(b));
+  for (const m of ["GET", "PATCH", "PUT", "DELETE"]) assert.equal((await call(s, m, "/v1/island/message", { text: "a" }, MSG)).status, 405, m);
+  for (const p of ["/v1/island", "/v1/island/messages", "/v1/island/message/1"]) assert.equal((await call(s, "POST", p, { text: "a" }, MSG)).status, 404, p);
+  assert.equal(msgs(s).length, 0);
+});
+ok("message: words only; hidden marks and controls are taken out, HTML stays as typed", async () => {
+  const s = world();
+  const bidi = String.fromCharCode(0x202e), zw = String.fromCharCode(0x200b), bell = String.fromCharCode(7);
+  await call(s, "POST", "/v1/island/message", { from: `Cl${zw}aude`, text: `<img src=x onerror=alert(1)> done${bidi}txt.exe${bell}` }, MSG);
+  const [m] = msgs(s);
+  assert.equal(m.from, "Cl aude");
+  assert.equal(m.text, "<img src=x onerror=alert(1)> done txt.exe");
+  assert.ok(![...m.text].some((c) => c.charCodeAt(0) < 32 || (c.charCodeAt(0) >= 0x200b && c.charCodeAt(0) <= 0x206f)));
+});
+ok("message: while PS is locked, 423 and nothing kept", async () => {
+  const s = fake({ settings: SETTINGS, locked: true });
+  assert.equal((await call(s, "POST", "/v1/island/message", { text: "a" }, MSG)).status, 423);
+  assert.equal(msgs(s).length, 0);
+});
+ok("message: at most 10 in 10 minutes (429 with retryAfter); the same message again is not a second one", async () => {
+  const s = world();
+  for (let i = 0; i < AI_MSG.burst; i++) assert.equal((await call(s, "POST", "/v1/island/message", { text: `Task ${i} done` }, MSG)).status, 201, String(i));
+  const r = await call(s, "POST", "/v1/island/message", { text: "One more" }, MSG);
+  assert.equal(r.status, 429);
+  assert.equal(r.body.error.code, "rate_limited");
+  assert.ok(r.body.error.retryAfter >= 1 && r.body.error.retryAfter <= 600);
+  assert.equal(msgs(s).length, AI_MSG.burst);
+  const again = await call(s, "POST", "/v1/island/message", { text: "Task 3 done" }, MSG);   // a retry of one already kept
+  assert.equal(again.status, 200);
+  assert.equal(msgs(s).length, AI_MSG.burst);
+});
+ok("message: the person chose plain cards or Off: 200, shown false, nothing kept", async () => {
+  for (const aiNotes of ["plain", "off"]) {
+    const s = fake({ settings: { ...SETTINGS, aiNotes } });
+    const r = await call(s, "POST", "/v1/island/message", { text: "Done" }, MSG);
+    assert.equal(r.status, 200, aiNotes);
+    assert.equal(r.body.shown, false);
+    assert.ok(r.body.note.length > 10);
+    assert.equal(msgs(s).length, 0);
+  }
+});
+
 // ---------- Copy for AI ----------
 ok("Copy for AI: self explaining, every endpoint, the switches as they are, the key slot, no dashes", () => {
   const g = aiGuide({ scopes: { ...DEFAULT_SCOPES, delete: true }, today: T });
@@ -553,6 +654,23 @@ ok("Copy for AI: self explaining, every endpoint, the switches as they are, the 
   assert.ok(g.includes("- settings: OFF.") && g.includes("PATCH /v1/settings") && g.includes('{"invertSwipe": true}'), "the settings switch, endpoints and example");
   assert.ok(!/[\u2013\u2014]/.test(g), "no en or em dashes");
   assert.ok(!/\bRed\b|Cincee/.test(g), "nothing personal");
+  assert.ok(g.includes("- message: OFF.") && g.includes("### POST /v1/island/message") && g.includes("curl -s -X POST http://127.0.0.1:47836/v1/island/message"), "the message switch, endpoint and example");
+  assert.ok(aiGuide({ scopes: { ...DEFAULT_SCOPES, message: true }, today: T }).includes("- message: ON."));
+});
+ok("Connect your AI: a short rule with the key slot (never a key), the curl, the chat id, where to save it, no dashes", () => {
+  const c = aiConnect({});
+  assert.equal(c.split(KEY_SLOT).length - 1, 1, "the key slot once, in the curl");
+  assert.ok(!/ps_[A-Za-z0-9]{20,}/.test(c), "never a key");
+  assert.ok(c.includes("http://127.0.0.1:47836/v1/island/message"));
+  assert.ok(c.includes(`Authorization: Bearer ${KEY_SLOT}`));
+  assert.ok(c.includes("CLAUDE_CODE_SESSION_ID") && c.includes("CODEX_THREAD_ID") && c.includes("__CHAT__"), "the chat id for Claude Code and Codex");
+  assert.ok(c.includes("~/.claude/CLAUDE.md") && c.includes("~/.codex/AGENTS.md"), "where to save it");
+  assert.ok(c.includes("never put it in a project file that goes into git"), "keep the key out of git");
+  assert.ok(c.includes("cat <<'PSMSG'"), "a quoted here document: the words stay as typed");
+  assert.ok(c.length < 2500, "short");
+  assert.ok(!/[\u2013\u2014]/.test(c), "no en or em dashes");
+  assert.ok(!/\bRed\b|Cincee/.test(c), "nothing personal");
+  assert.ok(aiConnect({ port: 5000 }).includes("http://127.0.0.1:5000/v1/island/message"));
 });
 
 for (const [name, fn] of tests) { await fn(); n++; console.log("ok -", name); }

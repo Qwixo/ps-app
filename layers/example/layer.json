@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "name": "example",
+  "owner": "",
+  "add": { "web": ["src/example-layer.ts"] }
+}

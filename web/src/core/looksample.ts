@@ -3,7 +3,7 @@
 // appearances are broken when you actually try and preview them"). Every picture is painted from the same sums the
 // real thing uses, so a click (or a hover, or a slider) changes the picture straight away and shows exactly what
 // that choice changes. Pure, no DOM: tests/looksample.test.ts runs it; the pictures are in looks/AppearanceSettings.tsx,
-// views/TaskMap.tsx (LooksPage, IslandSwitch).
+// views/TaskMap.tsx (LooksPage, views/IslandSettings.tsx).
 import { buildTokens, lookById, fontCss, type Appearance } from "./looks.ts";
 import { notchTones, pillTones, type NotchLook, type PillLook } from "./islandlook.ts";
 

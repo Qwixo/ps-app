@@ -39,9 +39,13 @@ cp "$HERE/Helper/com.cincee.ps.rebootd.plist" "$APP/Contents/Library/LaunchDaemo
 # Force Touch middle click helper "PS Middle Click.app", built from ~/Projects/middle-click (the same code
 # as the standalone PSMiddleClicker app) and signed there as com.cincee.ps.middleclick with the same identity.
 # PS starts and stops it (Sources/MiddleClick.swift); it runs as its own process.
-MC="$(cd "${PS_MIDDLECLICK_DIR:-$HERE/../middle-click}" && pwd)"
-mkdir -p "$APP/Contents/Library/LoginItems"
-PS_SIGNING_DIR="$SIGN" bash "$MC/build.sh" helper "$APP/Contents/Library/LoginItems" | grep -E "checks|Built|WARNING"
+# V1.58: a tree without it (the public repo has no middle-click folder) builds PS without the helper and says so.
+if MC="$(cd "${PS_MIDDLECLICK_DIR:-$HERE/../middle-click}" 2>/dev/null && pwd)"; then
+  mkdir -p "$APP/Contents/Library/LoginItems"
+  PS_SIGNING_DIR="$SIGN" bash "$MC/build.sh" helper "$APP/Contents/Library/LoginItems" | grep -E "checks|Built|WARNING"
+else
+  echo "WARNING: no middle-click folder next to this one: PS is built without the Force Touch middle click helper"
+fi
 cp "$HERE/Info.plist" "$APP/Contents/Info.plist"
 # V1.49 (the developer, 12 Nov 2026: the app is called "PS app" for everyone): Finder, the Dock, Launchpad, Spotlight, the
 # menu bar and notifications read the app's name from here. Info.plist keeps "PS" (it matches the folder PS.app
@@ -66,6 +70,14 @@ cp "$HERE/ui/supabase.html" "$APP/Contents/Resources/supabase.html"
 cp "$HERE/ui/guide.html" "$APP/Contents/Resources/guide.html"
 node "$WEB/scripts/ps-kit.mjs" "$APP/Contents/Resources/project-kit"
 
+# V1.58 layers (core tools/assemble.mjs): an assembled tree has ps-build.json at its top (flavour, commits, the
+# full profile). The app gets it and the profile as Resources/ps-build.json and Resources/profile.json. A build
+# from the private tree as in V1.57 has neither, and the app keeps its per account answers.
+if [ -f "$HERE/../ps-build.json" ]; then
+  cp "$HERE/../ps-build.json" "$APP/Contents/Resources/ps-build.json"
+  node -e 'const b=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(!b.profile) process.exit(0); require("fs").writeFileSync(process.argv[2], JSON.stringify(b.profile,null,2)+"\n")' "$HERE/../ps-build.json" "$APP/Contents/Resources/profile.json"
+fi
+
 # Icon: to swap the logo, replace icon/icon-1024.png (or rerun icon/make-icon.swift on a new logo).
 ICONSET="$(dirname "$APP")/AppIcon.iconset"
 rm -rf "$ICONSET"; mkdir -p "$ICONSET"
@@ -83,7 +95,7 @@ cp "$HERE/geo/ip-country.bin" "$APP/Contents/Resources/"
 # so the Accessibility permission survives rebuilds. Keychain items do NOT: with no Apple team the login
 # Keychain ties each item to the exact build (a cdhash partition), so the update hands them over
 # (UpdateHandoff.swift) and every Keychain call refuses to ask (KeychainQuiet.swift). Ad hoc only as a fallback.
-KC="$SIGN/ps-signing.keychain-db"; ID=B278D9D09DFED336675CFB367B2F8A3B51896689
+KC="$SIGN/ps-signing.keychain-db"; ID=C0E302F2CE304D062A50D6EBDAFF97D5F7D4B6E6
 if [ -f "$KC" ] && [ -f "$SIGN/.keychain-pass" ]; then
   security unlock-keychain -p "$(cat "$SIGN/.keychain-pass")" "$KC"
   # Hardened runtime (27 Oct 2026): no code can be injected into PS, so only the genuine PS can read its

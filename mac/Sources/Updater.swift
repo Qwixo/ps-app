@@ -99,9 +99,10 @@ final class Updater {
       let p = staged?.plan ?? plan
       if let v = manifest?.version { o["version"] = v }
       if let k = manifest?.keyword { o["keyword"] = k }
+      if let b = manifest?.by { o["by"] = b }   // V1.58: who made it (the page shows "V1.59 by Jan")
       if let n = manifest?.notes, !n.isEmpty { o["notes"] = n }
       // V1.52: every earlier version's approved notes (the page picks the ones newer than the version it runs).
-      if let h = manifest?.history, !h.isEmpty { o["history"] = h.map { ["version": $0.version, "keyword": $0.keyword, "notes": $0.notes] as [String: Any] } }
+      if let h = manifest?.history, !h.isEmpty { o["history"] = h.map { b -> [String: Any] in var x: [String: Any] = ["version": b.version, "keyword": b.keyword, "notes": b.notes]; if let by = b.by { x["by"] = by }; return x } }
       if case .app = p { o["kind"] = "app" } else { o["kind"] = "web" }
       o["size"] = p.bytes
     }
@@ -262,7 +263,7 @@ final class Updater {
     guard case .app(let a, _) = p else { return p }
     let r = rolledBack()
     guard let worst = r.builds.max() else { return p }
-    let webOnly = UpdatePlan.decide(UpdateManifest(kind: m.kind, made: m.made, app: nil, web: m.web, name: m.name), myBuild: PSVersion.mine, web: PSVersion.web())
+    let webOnly = UpdatePlan.decide(UpdateManifest(kind: m.kind, made: m.made, app: nil, web: m.web, name: m.name, by: m.by, channel: m.channel), myBuild: PSVersion.mine, web: PSVersion.web())
     if a.build <= worst { why = "build \(a.build) did not start here before, not offered again"; return webOnly }
     if !manual && Date().timeIntervalSince1970 - r.last < quietAfterRollBack { why = "quiet after a roll back"; return webOnly }
     return p
@@ -317,7 +318,8 @@ final class Updater {
       if let dir = source {
         do {
           let raw = try Data(contentsOf: dir.appendingPathComponent("ps-update.json"))
-          let m = try UpdateManifest.open(raw, publicKey: UpdatePaths.publicKey)
+          let m = try UpdateManifest.open(raw, publicKeys: UpdatePaths.publicKeys)
+          guard UpdateRoute.current.takes(m.channel) else { throw UpdateError("the update note is for another PS build") }
           var skipped = ""
           let p = Updater.skipRolledBack(UpdatePlan.decide(m, myBuild: PSVersion.mine, web: PSVersion.web()), m, manual: manual, why: &skipped)
           if !skipped.isEmpty { why = skipped }
@@ -611,7 +613,8 @@ final class Updater {
     var source = UpdatePaths.drive()
     if source == nil { source = try UpdateChannel.sync(myBuild: PSVersion.mine, web: PSVersion.web(), fresh: true) }
     guard let dir = source else { throw UpdateError("no update channel") }
-    let m = try UpdateManifest.open(try Data(contentsOf: dir.appendingPathComponent("ps-update.json")), publicKey: UpdatePaths.publicKey)
+    let m = try UpdateManifest.open(try Data(contentsOf: dir.appendingPathComponent("ps-update.json")), publicKeys: UpdatePaths.publicKeys)
+    guard UpdateRoute.current.takes(m.channel) else { throw UpdateError("the update note is for another PS build") }
     var skipped = ""
     let p = Updater.skipRolledBack(UpdatePlan.decide(m, myBuild: PSVersion.mine, web: PSVersion.web()), m, manual: true, why: &skipped)
     if let f = UpdateChannel.files(p).first(where: { UpdateChannel.size(of: dir.appendingPathComponent($0.0)) != $0.1 }) { throw UpdateError("\(f.0) is not here yet") }

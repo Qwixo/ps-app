@@ -83,7 +83,7 @@ object GymClock {
                     text = line(o.optString("text"), 80),
                     yes = line(o.optString("yes"), 30).ifEmpty { "Acknowledge" },
                     later = line(o.optString("later"), 30).ifEmpty { "Later" },
-                    bg = hex("bg", "#2a1a08"), accent = hex("accent", "#f59e0b"), ink = hex("ink", "#ffffff")))
+                    bg = hex("bg", "#2a1a08"), accent = hex("accent", "#f59e0b"), ink = RemInk.inkOr(o.optString("ink"), hex("bg", "#2a1a08"))))   // V1.58: never white on a light alarm
             }
         }
         return GymPlan(

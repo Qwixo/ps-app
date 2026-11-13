@@ -22,8 +22,7 @@ import { settingsData } from "../core/select";
 import { saveSettings } from "../core/actions";
 import type { Settings } from "../core/model";
 import { islandPrefs, type IslandPrefs } from "../core/island";
-import { IslandHideRow } from "./IslandHide";
-import { IslandCardsRows, IslandFullScreenRow, IslandTickSideRow } from "./IslandCards";
+import { IslandSettingsPage } from "./IslandSettings";
 import { APP_NAME_MAX, appName, appNameProblem, macListHint, tidyAppName } from "../core/appname";
 import { TAB_STAYS_HINT, tabStaysShown } from "../core/tabstays";
 import { OpenShortcuts } from "./OpenShortcuts";
@@ -245,14 +244,8 @@ export function IgnoredAppsSetting() {
   );
 }
 
-/** The island's shape or Off, the same three as the Meetings panel's island menu (TaskMap.tsx ISLAND_MODES). */
-const ISLAND_PLACE_MODES: { id: IslandPrefs["mode"]; label: string }[] = [
-  { id: "notch", label: "Around the notch" },
-  { id: "pill", label: "Pill below the notch" },
-  { id: "off", label: "Off" },
-];
-/** Where the Dynamic Island sits on this Mac (G Squad, Island.swift): drag its grab line to move it anywhere; this
- *  puts it back at the top centre. Everyone's (the island runs for every account). */
+/** Where the Dynamic Island sits and everything else about it, on the older Mac settings page: the same shared settings
+ *  as the island settings window and Settings, Dynamic Island (V1.58, views/IslandSettings.tsx), so they never drift. */
 export function IslandPlace({ moved, ready, prefs, save }: { moved: boolean; ready: boolean; prefs: IslandPrefs; save: (p: Partial<Settings>) => void }) {
   return (
     <section className="panel stack" aria-labelledby="isl-pos-h">
@@ -260,31 +253,7 @@ export function IslandPlace({ moved, ready, prefs, save }: { moved: boolean; rea
         <h2 className="h2" id="isl-pos-h">Dynamic Island</h2>
         {ready && <span className={`pill ${moved ? "ink" : "good"}`}>{moved ? "Moved" : "At the top"}</span>}
       </div>
-      <span className="xs muted">
-        Drag the island by the short line at its top to move it anywhere on the screen. A click on the line hides it for
-        a while (set below). Dropped near the top centre, it goes back around the notch. This Mac remembers the spot.
-      </span>
-      {/* Open source build: the island can be switched off here too, the same settings.island.mode = "off" as the Meetings panel's island menu. */}
-      <div className="ih-row" role="radiogroup" aria-label="Show the Dynamic Island">
-        <span className="ih-l">Show it<em>Off: no island on this Mac or any other</em></span>
-        <div className="ih-chips">
-          {ISLAND_PLACE_MODES.map((m) => (
-            <button key={m.id} type="button" role="radio" className={`ih-chip isl-mode-${m.id}${prefs.mode === m.id ? " sel" : ""}`} aria-checked={prefs.mode === m.id}
-              onClick={() => { if (prefs.mode !== m.id) save({ island: { ...prefs, mode: m.id } }); }}>{m.label}</button>
-          ))}
-        </div>
-      </div>
-      {/* V1.40: the hide time, a vault setting (settings.island.hide), so it syncs to every Mac. */}
-      <IslandHideRow value={prefs.hide} disabled={prefs.mode === "off"} onPick={(hide) => save({ island: { ...prefs, hide } })} />
-      {/* V1.55: notifications out of the island, and which kinds go to the top right instead (views/IslandCards.tsx). */}
-      <IslandCardsRows prefs={prefs} save={(island) => save({ island })} />
-      {/* Over a full screen app: glide to the top left black band beside the notch (views/IslandCards.tsx). */}
-      <IslandFullScreenRow prefs={prefs} save={(island) => save({ island })} />
-      {/* Which side of the island the tick circle sits on (views/IslandCards.tsx). */}
-      <IslandTickSideRow prefs={prefs} save={(island) => save({ island })} />
-      <div className="row" style={{ gap: 8 }}>
-        <button type="button" className="btn ghost sm isl-reset" disabled={!moved} onClick={() => psPost({ type: "island:reset" })}>Put it back at the top</button>
-      </div>
+      <IslandSettingsPage prefs={prefs} save={(p) => save({ island: { ...prefs, ...p } })} />
     </section>
   );
 }

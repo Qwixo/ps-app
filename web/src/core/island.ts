@@ -83,7 +83,9 @@ export const ISLAND_FRESH_MS = 180_000;
 const TITLE_MAX = 120;
 
 /** quiet: Do Not Disturb mutes the island's pop (core/dnd.ts), so it only lights up for a moment and never opens. */
-export interface IslandEvent { id: string; kind: "mail" | "lead" | "chat"; title: string; sub: string; url: string; quiet?: boolean }
+export interface IslandEvent { id: string; kind: "mail" | "lead" | "chat"; title: string; sub: string; url: string; quiet?: boolean;
+  /** V1.58: its own private mode line (a message from an AI), instead of the kind's. Never sent to the Mac. */
+  privTitle?: string }
 export interface IslandState {
   mode: IslandMode;
   private: boolean;
@@ -173,7 +175,8 @@ export function islandState(inp: IslandInput): IslandState {
     const next = lists.p1[0] || lists.prio[0];
     if (next) task = { id: next.id, title: name(next), dim: true };
   }
-  let ev = inp.event && (priv ? { ...inp.event, title: PRIVATE_EVENT[inp.event.kind], sub: "" } : inp.event);
+  const { privTitle, ...e0 } = inp.event ?? ({} as IslandEvent);
+  let ev = inp.event && (priv ? { ...e0, title: privTitle || PRIVATE_EVENT[e0.kind], sub: "" } : e0);
   if (ev && dndMutes(inp.settings.dnd, "island", inp.now ?? Date.now())) ev = { ...ev, quiet: true };
   return {
     ...none,

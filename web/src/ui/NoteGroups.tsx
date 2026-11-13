@@ -6,6 +6,7 @@
 // keep their plain list (the card's title already names it).
 import { useState, type CSSProperties } from "react";
 import { startsOpen, type NoteBlock } from "../core/notehistory";
+import { byLine } from "../core/releaseby";
 import "./notegroups.css";
 
 /** `all`: every version starts open (the What's new panel, whose whole job is reading the list; V1.53). */
@@ -25,7 +26,7 @@ export function NoteGroups({ blocks, className, tall, all }: { blocks: NoteBlock
         return (
           <section key={b.version} className={`ng-b${isOpen ? " open" : ""}`} role="listitem" style={{ "--i": i } as CSSProperties}>
             <button type="button" className="ng-h" aria-expanded={isOpen} onClick={(e) => toggle(b.version, e.currentTarget)}>
-              <b>V{b.version}</b>{b.keyword && <><i aria-hidden="true">·</i><em>{b.keyword}</em></>}
+              <b>V{b.version}</b>{b.keyword && <><i aria-hidden="true">·</i><em>{b.keyword}</em></>}{byLine(b.by) && <span className="ng-by">{byLine(b.by)}</span>}
               <span className="ng-n">{b.notes.length} {b.notes.length === 1 ? "change" : "changes"}</span>
               <svg className="ng-c" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </button>

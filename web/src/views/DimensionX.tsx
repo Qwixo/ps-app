@@ -957,7 +957,7 @@ const FX: { v: NonNullable<DimxStyle["fx"]>; label: string }[] = [
   { v: "none", label: "None" }, { v: "glisten", label: "Glisten" }, { v: "glow", label: "Glow" },
   { v: "flicker", label: "Flicker" }, { v: "pulse", label: "Pulse" }, { v: "flip", label: "Flip" },
 ];
-const COLOR_NAME: Record<(typeof DIMX_COLORS)[number], string> = { white: "White", red: "Owner", purple: "Purple", pink: "Pink", gold: "Gold", ice: "Ice blue" };
+const COLOR_NAME: Record<(typeof DIMX_COLORS)[number], string> = { white: "White", red: "Red", purple: "Purple", pink: "Pink", gold: "Gold", ice: "Ice blue" };
 
 /** The style menu under a card (its hover button or a right click). Every pick shows on the card at once. */
 function StyleMenu({ card, at, bounds, onStyle, onEdit, onDelete, onClose }: {

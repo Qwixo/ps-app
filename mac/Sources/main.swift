@@ -308,6 +308,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     window.delegate = self
     window.isReleasedWhenClosed = false
     window.center()
+    SetupIsland.shared.appLaunched(app: AppName.name(of: Bundle.main.bundleURL))   // V1.58: loading square, first setup guide
     ProjectSetup.shared.launch(self)   // loads the page now, or first asks which Supabase project to use (ProjectSetup.swift)
     if selfTest {
       // Self test copies stay out of the developer's way: invisible and click-through whenever they are shown.
@@ -333,6 +334,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     TabWatch.shared.loadStays()   // Tab keeps the list open: this Mac's choice, or the default for who signed in last
     SafePeek.shared.app = self
     DND.shared.onChange.append { Toast.shared.dndChanged(); Reminders.shared.dndChanged(); Updater.shared.conditionsChanged() }   // Do Not Disturb: held cards come up when it ends
+    // V1.58: who is signed in decides the 1Password and Signal rules (BuildRules.swift), so a change re-applies them.
+    Owner.onChange = { [weak self] in TabWatch.shared.protectedChanged(); SafePeek.shared.refresh(); Island.shared.rulesChanged(); self?.sendSettings() }
     Protected.onChange = { [weak self] in self?.replyWin.protectedChanged(); TabWatch.shared.protectedChanged(); SafePeek.shared.refresh(); Reminders.shared.check(); Toast.shared.protectedChanged(); Island.shared.protectedChanged(); Popup.shared.protectedChanged(); Updater.shared.conditionsChanged(); Soundboard.shared.protectedChanged(); HelperAlert.shared.protectedChanged() }
     TabWatch.shared.start()
     KeyLayout.watch()
@@ -507,6 +510,10 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     }
     // The island moved or put back (G Squad): PS > Settings shows where it is.
     Island.shared.onMoved = { [weak self] in self?.sendSettings() }
+    // V1.58 the island's right click menu: away and back (Settings shows it), and Settings opens the Tab list with the
+    // island settings window (web views/IslandSettings.tsx; the usual Settings if that page is older).
+    Island.shared.onAway = { [weak self] in self?.sendSettings() }
+    Island.shared.onSettings = { [weak self] in self?.openList(then: Island.openSettingsJS) }
     // V1.53 island clearance: the list hears where the island is, so Keep overlay and Hover mode slide out of its way.
     Island.shared.onShape = { [weak self] in self?.pushIsland() }
     // The Dynamic Island's tick and Undo go back to the main window, which ticks the task as the list does.
@@ -700,7 +707,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     }
     return ["custom": w.customList != nil, "list": items, "labels": Dictionary(uniqueKeysWithValues: labels.map { (String($0.key), $0.value) }),
             "layout": KeyLayout.layoutName(), "taken": Array(SafePeek.shared.comboTaken).sorted(),
-            "legacyProtected": w.customList == nil]   // never changed: plain Tab opens PS over 1Password and Signal
+            "legacyProtected": w.customList == nil,   // never changed: plain Tab opens PS over 1Password and Signal
+            "overProtected": BuildRules.now.tabOverProtected]   // V1.58: false on the developer's account (never over them)
   }
   func setShortcuts(_ raw: Any?) {
     guard let arr = raw as? [Any], let data = try? JSONSerialization.data(withJSONObject: arr),
@@ -757,6 +765,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     d["autoApprove"] = AutoApprove.shared.settingsJSON()   // Sentry mode > Auto approve: switches, state and log (AutoApprove.swift)
     d["appName"] = AppRename.shared.settingsJSON()   // Mac settings > App name (AppRename.swift, V1.36)
     d["islandMoved"] = Island.shared.moved            // Mac settings > Dynamic Island: moved off the top centre (G Squad)
+    // V1.58: away from its right click menu, until when (ms): the island settings say so and offer Show it now.
+    d["islandAway"] = Island.shared.away.map { ["kind": $0.kind.rawValue, "until": ($0.until * 1000).rounded()] as [String: Any] } ?? NSNull()
     d["mailSend"] = MailSend.shared.settingsJSON()    // Reply from PS: which accounts can send, never a token or a key
     d["tgBot"] = TelegramBot.shared.settingsJSON()    // Add Telegram Bot: a key kept here or not and the reader's status, never the key
     d["taskApi"] = TaskApi.shared.settingsJSON()      // AI task API: on, listening, the switches, the key's last 4 characters, never the key
@@ -953,6 +963,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     Popup.shared.hide(giveBack: false)   // the list is up: the "PS app is active" card has done its job
     Toast.shared.reveal(true)            // holding Tab shows the meeting cards hidden during a meeting
     shown = true
+    if vaultUnlocked { SetupIsland.shared.listShown() }   // V1.58 setup island: "Hold Tab to see your list" done
     panel.ignoresMouseEvents = selfTest   // a self test copy never catches the developer's clicks
     clickThrough = selfTest
     panel.orderFrontRegardless()
@@ -1238,6 +1249,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       if vaultUnlocked && !now { hideOverlay(force: true) }   // signed out: Tab is left alone again
       let justUnlocked = !vaultUnlocked && now
       vaultUnlocked = now
+      SetupIsland.shared.vault(unlocked: now)   // V1.58 setup island: signed in, database loaded
       updatePopup()
       if justUnlocked { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { ScreenTime.shared.send() } }
       pushState()
@@ -1250,6 +1262,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       }
       sendTabState(force: true)
       sendRememberStatus()
+      SetupIsland.shared.pageReady(remembered: Remember.cachedExists, unlocked: vaultUnlocked)
       Updater.shared.pageReady()       // just updated: healthy once the keyboard tap is up too
       // "Remember me": signed in before on this Mac, so open silently (launch, restart, update refresh).
       // Just updated: the sign in may still be coming from the old build, so ask again once it is here.
@@ -1521,11 +1534,15 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     case "dnd" where fromMain:                  // Do Not Disturb: what is muted right now (src/dnd.ts, DND.swift)
       if let st = msg["state"] as? [String: Any] { DND.shared.fromPage(st) }
     case "island" where fromMain:               // the Dynamic Island's state (src/island.ts, Island.swift)
-      if let st = msg["state"] as? [String: Any] { Island.shared.fromPage(st) }
+      if let st = msg["state"] as? [String: Any] { Island.shared.fromPage(st); SetupIsland.shared.islandState(st) }
+    case "setupIsland" where fromMain || fromOverlay:   // the setup menu opened or closed (views/Welcome.tsx, SetupIsland.swift)
+      SetupIsland.shared.menu(open: msg["menu"] as? Bool ?? false)
     case "island:edit" where fromMain || fromOverlay:    // the Tab list's Edit mode (views/EditMode.tsx): show it, ready to move
       Island.shared.setEditing(msg["on"] as? Bool ?? false)
     case "island:reset" where fromMain || fromOverlay:   // Mac settings or Edit mode: back to the top centre
       Island.shared.resetPos()
+    case "island:show" where fromMain || fromOverlay:    // V1.58 Show it now: back from its right click menu's away at once
+      Island.shared.showNow()
     case "meetCard" where fromMain:             // a meeting alert card (src/meetwatch.ts)
       if let c = msg["card"] as? [String: Any] { Toast.shared.showMeet(c) }
     case "sentryPrefs" where fromMain:          // Sentry mode's restart if not unlocked, for the restart helper pop up (src/sentryprefs.ts, V1.49)
@@ -1964,6 +1981,11 @@ final class TabWatch {
     }
     mu.unlock()
     if hide { app?.hideOverlay() }
+    // V1.58, the developer's account (BuildRules): a list left up (pinned, Keep overlay) goes away too. Everyone else keeps it.
+    else if let a = app, SafePeekCore.hideListOnProtected(protectedFront: Protected.front, shown: a.shown,
+                                                           tabOverProtected: BuildRules.now.tabOverProtected) {
+      a.hideOverlay(force: true, giveBack: false)
+    }
     if let tap { CGEvent.tapEnable(tap: tap, enable: !Protected.front) }
     protectedEndedAt = CACurrentMediaTime()   // Tab health: the tap was off on purpose until now
   }
@@ -2513,7 +2535,7 @@ enum SelfTest {
              "createdAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-1800))]]]],
           ["id": "cl1", "ws": NSNull(), "kind": "client", "author": NSNull(), "updatedAt": NSNull(), "data": ["name": "Northwind Silk", "contactName": "Jane Doe", "email": "jane@northwindsilk.example"]],
           ["id": "r1", "ws": NSNull(), "kind": "reply", "author": NSNull(), "updatedAt": NSNull(), "data": [
-            "clientId": "cl1", "account": "person20@gmail.com", "threadId": "abc", "msgIds": ["m1"], "from": "jane@northwindsilk.example", "fromName": "Jane Doe",
+            "clientId": "cl1", "account": "person19@gmail.com", "threadId": "abc", "msgIds": ["m1"], "from": "jane@northwindsilk.example", "fromName": "Jane Doe",
             "subject": "Homepage draft", "snippet": "Hi Sam. Loved the draft! Can we move the banner up a little? Also the font feels small on phones.",
             "date": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-600)), "count": 2, "handled": false]],
           ["id": "c1", "ws": NSNull(), "kind": "calendar", "author": NSNull(), "updatedAt": NSNull(), "data": [
@@ -4702,6 +4724,10 @@ enum SelfTest {
   static func safePeek(_ a: App, _ done: @escaping () -> Void) {
     let p = SafePeek.shared, w = TabWatch.shared
     let wasUnlocked = a.vaultUnlocked, wasHold = a.testHoldState, wasStays = w.staysChoice
+    // V1.58: two accounts (BuildRules.swift). Everything up to redPart is the public / G Squad account (Tab opens PS
+    // over 1Password and Signal); redPart is the developer's (it never does). The real owner answer is never changed.
+    let wasAccount = BuildRules.testAccount
+    BuildRules.testAccount = false
     a.testHoldState = true               // the signed out main page's own "state" never lands mid check
     a.vaultUnlocked = true
     // Letting go hides: the setting "Tab keeps the list open" off (the developer's default). On (anyone else's) it is
@@ -4717,6 +4743,7 @@ enum SelfTest {
       ok("disarmed-after", !p.armed)
       if let t = w.tap { ok("tap-back-on", CGEvent.tapIsEnabled(tap: t)) }
       a.vaultUnlocked = wasUnlocked; a.testHoldState = wasHold
+      BuildRules.testAccount = wasAccount; p.refresh()
       let line: String = r.joined(separator: " ")
       print("SAFEPEEK CHECK:", line, "status=\(p.lastStatus)")
       done()
@@ -4754,11 +4781,71 @@ enum SelfTest {
               ok("any:secure-release-hides", !a.shown)
               p.secureStuck = false
               ok("any:secure-cleared-disarmed", !p.armed)
-              finish()
+              stalePart()
             }
           }
         }
       }
+    }
+    /// V1.58, the cause of "Tab does not open over Signal" for friends: a typing flag left on while the list is hidden
+    /// (the page said a screen was open) disarmed the hotkey over 1Password and Signal only. Now it counts only while
+    /// the list is shown, as in the keyboard tap.
+    func stalePart() {
+      w.setStays(false)
+      Protected.simulate(front: true, signal: true)
+      w.editing = true                                                  // left over, the list is hidden
+      ok("public:stale-typing-flag-still-armed", !a.shown && p.armed)
+      p.hit(1, pressed: true)
+      DispatchQueue.main.asyncAfter(deadline: .now() + HOLD_SECONDS + 0.3) {
+        ok("public:stale-typing-flag-hold-shows", a.shown)
+        p.hit(1, pressed: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+          ok("public:stale-typing-flag-release-hides", !a.shown)
+          w.editing = false
+          redPart()
+        }
+      }
+    }
+    /// V1.58, the developer's account: PS never opens over 1Password or Signal (no hold key, no Esc, no combo), whatever else
+    /// is going on, and a list left up goes away when one of them comes to the front. The tap stays off there as before.
+    func redPart() {
+      BuildRules.testAccount = true
+      let list = w.customList
+      w.setCustom([OpenKeysCore.Shortcut(kind: .hold, key: OpenKeysCore.TAB),
+                   OpenKeysCore.Shortcut(kind: .combo, key: OpenKeysCore.SPACE, mods: ["ctrl", "opt"])], save: false)
+      Protected.simulate(front: false, signal: false)
+      ok("red:combos-on-normal-app", p.testCombos == 1)
+      Protected.simulate(front: true, signal: false)                     // 1Password
+      ok("red:1password-not-armed", !p.armed)
+      ok("red:1password-combos-dropped", p.testCombos == 0)
+      if let t = w.tap { ok("red:1password-tap-off", !CGEvent.tapIsEnabled(tap: t)) }
+      Protected.simulate(front: true, signal: true)                      // Signal
+      ok("red:signal-not-armed", !p.armed)
+      p.secureStuck = true
+      ok("red:secure-stuck-still-not-armed", !p.armed)
+      p.secureStuck = false
+      a.vaultUnlocked = false
+      ok("red:signed-out-not-armed", !p.armed)
+      a.vaultUnlocked = true
+      Protected.simulate(front: false, signal: false)
+      ok("red:combos-back-after", p.testCombos == 1)
+      a.showOverlay()                                                   // a list left up (pinned) on a normal app
+      w.mu.lock(); w.pinned = true; w.mu.unlock()
+      Protected.simulate(front: true, signal: false)
+      ok("red:pinned-list-goes", !a.shown)
+      ok("red:esc-not-armed", !p.escArmed)
+      w.mu.lock(); w.pinned = false; w.mu.unlock()
+      Protected.simulate(front: false, signal: false)
+      w.setCustom(list, save: false)
+      // Everyone else keeps a list left up when one of them comes to the front.
+      BuildRules.testAccount = false
+      a.showOverlay()
+      w.mu.lock(); w.pinned = true; w.mu.unlock()
+      Protected.simulate(front: true, signal: true)
+      ok("public:pinned-list-stays", a.shown)
+      ok("public:esc-armed-while-up", p.escArmed)
+      a.hideOverlay(force: true)
+      finish()
     }
     /// Tab keeps the list open on: hold, let go, it stays (no keyboard); the next press hides it.
     func staysPart() {

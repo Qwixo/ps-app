@@ -10,6 +10,7 @@ import { PS, psPost, usePsSettings } from "../ps";
 import { sfx } from "../ui/sfx";
 import { API_PORT, SCOPES, cleanScopes, type ScopeId, type Scopes } from "../core/taskapi";
 import { copyAiGuide, hideApiKey, useShownApiKey } from "../taskapi";
+import { ConnectAi } from "./AiMessage";
 import "./taskapi.css";
 
 const ago = (ms: number) => {
@@ -94,6 +95,8 @@ export function TaskApiSettings() {
         <span><b>{flash === "guide" ? "Copied. Paste it into your AI" : "Copy for AI"}</b>
           <em>{api.keyTail ? "Everything an AI needs: the address, your key, every endpoint with examples, and what is switched on. Paste it into Claude Code, Codex or any AI." : "Switch the API on first: that makes your key."}</em></span>
       </button>
+
+      <ConnectAi api={api} scopes={scopes} flip={() => flip("message")} />
     </div>
   );
 }

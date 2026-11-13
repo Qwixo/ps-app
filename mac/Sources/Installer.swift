@@ -104,6 +104,7 @@ final class Installer {
 
   func clicked(_ id: String) {
     log.append("click:\(id)")
+    SetupIsland.shared.installerClick(id)   // V1.58 setup island: the person is doing something (no nudge)
     switch id {
     case "start": run()
     case "finish": finish()
@@ -145,6 +146,8 @@ final class Installer {
         self.existing = found
         self.chosenName = found.map { AppName.name(of: $0) } ?? AppName.publicDefault
         self.ui?.call("name", self.chosenName, AppName.maxLength)
+        // V1.58: the island guides a first time setup, born out of this screen (SetupIsland.swift). Never blocks it.
+        SetupIsland.shared.installerOpened(fresh: found == nil && ProjectStore.choiceOpen, window: self.ui?.window, app: self.chosenName)
       }
     }
   }
@@ -173,6 +176,7 @@ final class Installer {
         }
         self.chosenName = name
         self.ui?.call("name", name, AppName.maxLength)
+        SetupIsland.shared.installerName(name)
         self.copyIn(apps, target)
       }
     }
@@ -181,6 +185,7 @@ final class Installer {
   /// Copy, unpack, then the permissions page. All file work is off the main thread.
   private func copyIn(_ apps: URL, _ target: URL) {
     ui?.call("page", "pSteps")
+    SetupIsland.shared.installerPage("steps")
     step("sCopy", "now", 0, "Getting ready")
     let src = Bundle.main.bundleURL
     installedAt = target
@@ -274,6 +279,7 @@ final class Installer {
       } catch {
         DispatchQueue.main.async {
           psLog("PS install: stopped: \(error)")
+          SetupIsland.shared.installerStopped()
           self.step("sCopy", "now", nil, "Stopped: \(error). Nothing was changed.")
         }
       }
@@ -287,6 +293,7 @@ final class Installer {
 
   private func permissions() {
     ui?.call("page", "pPerms")
+    SetupIsland.shared.installerPage("perms")
     refreshPerms()
     // Watched once a second, only while this page shows.
     let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.refreshPerms() }
@@ -296,6 +303,7 @@ final class Installer {
   }
   func refreshPerms() {
     let ax = axGranted(), audio = audioGranted()
+    SetupIsland.shared.installerPerms(ax: ax, audio: audio)
     let list: [[String: Any]] = [
       ["id": "ax", "name": Installer.axPane, "why": "Needed: lets \(chosenName) see when you hold Tab, so the list can float over any app.", "granted": ax],
       ["id": "audio", "name": Installer.audioPane, "why": "Only for the volume mixer. Pick \"System Audio Recording Only\". Nothing is recorded.", "granted": audio],
@@ -312,6 +320,7 @@ final class Installer {
     }
     step("sPerm", "done"); step("sOpen", "now")
     ui?.call("page", "pDone")
+    SetupIsland.shared.installerPage("done")
     guard let target = installedAt ?? UpdatePaths.target else { return }
     let volume = Installer.originalFolder().path
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {

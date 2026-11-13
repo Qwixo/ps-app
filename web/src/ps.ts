@@ -34,6 +34,8 @@ import { cleanCrops } from "./core/bgcrop";
 import { rainAmount, rainKind } from "./core/rain";
 import { nbDesign } from "./core/notebook";
 import { CAMPAIGNS_ON } from "./core/features";
+import { cleanSwitches } from "./core/features";   // V1.58 "From the squad" switches (cleanLooks)
+import { startFeatureSync } from "./featuresync";
 import { liveForMirror, liveStore, refreshCampaignsLive, setLiveAsker, setLiveMirror } from "./core/campaignsLive";
 import { cleanTgPrefs } from "./core/tgbot";
 import { cleanSentry } from "./core/sentry";
@@ -71,6 +73,11 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (Array.isArray(p.tmSecOrder)) o.tmSecOrder = cleanSecOrder(p.tmSecOrder);
   if (typeof p.privateMode === "boolean") o.privateMode = p.privateMode;
   if (p.island && typeof p.island === "object") o.island = islandPrefs(p.island);
+  // Pomodoro (core/pomodoro.ts, V1.58): its Settings section; switched off, a timer that is running stops too.
+  if (p.pomodoro && typeof p.pomodoro === "object") { o.pomodoro = pomoPrefs(p.pomodoro); if (!o.pomodoro.on) o.pomoRun = null; }
+  if (p.pomoIntro === true) o.pomoIntro = true;                                    // the first Pomodoro card was answered
+  if (p.standup && typeof p.standup === "object") o.standup = standPrefs(p.standup);   // Stand-up reminders (core/standup.ts, V1.58)
+  if (p.meetBubble && typeof p.meetBubble === "object") o.meetBubble = meetBubblePrefs(p.meetBubble);   // the next meeting bubble (core/meetbubble.ts, V1.58)
   if (Array.isArray(p.tmGroups)) o.tmGroups = cleanGroups(p.tmGroups);
   Object.assign(o, cleanPagesLooks(p));                                              // V1.55: the developer's lists, their names, the swipe direction (core/lists.ts)
   if (Array.isArray(p.tmSubOpen)) o.tmSubOpen = p.tmSubOpen.filter((x): x is string => typeof x === "string" && x.length <= 64).slice(-200);
@@ -84,6 +91,7 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   { const v = cleanWelcomeDone(p.welcomeDone); if (v) o.welcomeDone = v; }        // the welcome tour was finished or put off (core/welcome.ts, G Squad)
   if (p.tipsSeen && typeof p.tipsSeen === "object") o.tipsSeen = mergeTipsSeen(settingsData(vaultStore.get()).tipsSeen, p.tipsSeen);   // the first use tips seen, merged with this vault's newest (core/tips.ts, V1.55)
   if (p.popupsSeen && typeof p.popupsSeen === "object") o.popupsSeen = mergePopupsSeen(settingsData(vaultStore.get()).popupsSeen, p.popupsSeen);   // the "new in this version" pop-ups seen, merged with this vault's newest (core/newpopups.ts, V1.56)
+  if (p.walkSeen && typeof p.walkSeen === "object") o.walkSeen = mergeWalkSeen(settingsData(vaultStore.get()).walkSeen, p.walkSeen);   // the "what is new" walkthrough steps seen, merged with this vault's newest (core/walkthrough.ts, V1.58)
   if (Array.isArray(p.tmNumPeople)) o.tmNumPeople = cleanPeople(p.tmNumPeople);   // Numerology (views/Numerology.tsx)
   if (p.gym && typeof p.gym === "object") o.gym = gymPrefs(p.gym);                  // the gym reminder (core/gym.ts, Fitness settings)
   if (p.sleepMode && typeof p.sleepMode === "object") o.sleepMode = cleanSleepMode(p.sleepMode);   // Sleep mode (core/sleepmode.ts, V1.40)
@@ -103,12 +111,17 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (typeof p.psPresence === "boolean") o.psPresence = p.psPresence;
   if (typeof p.tipsShow === "boolean") o.tipsShow = p.tipsShow;
   if (typeof p.swipeInvert === "boolean") o.swipeInvert = p.swipeInvert;   // Settings, Controls, Invert swipe (V1.57)
+  if (p.squadFeatures && typeof p.squadFeatures === "object") o.squadFeatures = cleanSwitches(p.squadFeatures);   // Settings, From the squad (V1.58, core/features.ts)
   // V1.56 Saved looks: only the device kinds this change names, merged into the vault's newest (core/looksprofiles.ts).
   if (p.looksSaved && typeof p.looksSaved === "object") o.looksSaved = mergeLooksKinds(settingsData(vaultStore.get()).looksSaved, cleanLooksStore(p.looksSaved, cleanLookData));
   if (typeof p.editSounds === "boolean") o.editSounds = p.editSounds;   // V1.56 Edit mode sounds (core/editsounds.ts)
   return o;
 }
-import { islandMessage, startIsland } from "./island";
+import { islandMessage, islandNow, islandStandTest, startIsland } from "./island";
+import { runPomoOp, startPomodoro } from "./pomodoro";
+import { cleanOp, pomoPrefs } from "./core/pomodoro";
+import { standPrefs } from "./core/standup";
+import { meetBubblePrefs } from "./core/meetbubble";
 import { cleanAppearance, workStyle } from "./core/looks";
 import { trailPrefs } from "./core/trail";
 import { cleanLooksStore, mergeLooksKinds } from "./core/looksprofiles";
@@ -151,6 +164,7 @@ import { cleanSeen } from "./core/whatsnew";
 import { cleanWelcomeDone } from "./core/welcome";
 import { mergeTipsSeen } from "./core/tips";
 import { mergePopupsSeen } from "./core/newpopups";
+import { mergeWalkSeen } from "./core/walkthrough";
 import { cleanUpdateEvery } from "./core/updateevery";
 import { presenceOn } from "./core/offswitches";   // "Tell the website PS app is open": off = no ps-presence channel, the website no longer leaves Tab to PS app
 import { startExamples } from "./examples";
@@ -671,6 +685,9 @@ export function startPsBridge() {
         // Fitness in the Tab list: a program, workout or Fitness setting saved, and the rest timer's card.
         if (patch.fitOp) void runFitOp(patch.fitOp).catch(() => psPost({ type: "log", text: "fitness: a save from the Tab list failed" }));
         if (patch.fitCard) fitCard(patch.fitCard);
+        // Pomodoro in the Tab list (V1.58, src/pomodoro.ts): Start, Pause, Resume, Skip, Stop, on the newest run and the time now.
+        { const op = cleanOp(patch.pomoOp); if (op) void runPomoOp(op).catch(() => psPost({ type: "log", text: "pomodoro: a button from the Tab list failed to save" })); }
+        if (patch.standTest === true) islandStandTest();   // Settings, Stand-up reminders, Try it now (src/island.ts)
         // The Time zones screen in the Tab list: a person added, renamed, moved or taken off.
         if (patch.tzZonesOp) void runTzZonesOp(patch.tzZonesOp).catch(() => psPost({ type: "log", text: "time zones: a list change from the Tab list failed" }));
         // Edit mode in the Tab list: panels moved, removed or brought back (one small record).
@@ -938,6 +955,7 @@ export function startPsBridge() {
   setLocalCalReader((ask) => psPost({ type: "localCal", op: "read", ask }));   // not the developer: this Mac's Calendar (src/calrefresh.ts)
   startCalRefresh();   // asks for the calendar every 2 minutes and on wake; the server reads Google every minute (src/calrefresh.ts)
   startIsland(psPost);   // the Dynamic Island under the notch (src/island.ts)
+  startPomodoro(() => islandNow());   // Pomodoro (src/pomodoro.ts): each phase saved as it ends, the island told at once
   // Second Computer (src/second/store.ts): started by sayOwner above, on the developer's account only.
   startRebootWarn(psPost);   // a card 10 min before the other Mac's auto reboot, with Postpone (src/rebootwarn.ts)
   startNoteLook(psPost);   // notification card colours and the Other alerts sound to the Mac (src/notelook.ts, core/notelook.ts)
@@ -950,6 +968,7 @@ export function startPsBridge() {
   startSquadBoard();   // G Squad Leaderboard and Screen time; last month's amount is added in the Leaderboard, nothing pops up (src/squad/board.ts)
   startChat(psPost);   // G Squad chat (V1.40): tick every 2 min, pulls while open, the history vote card (src/squad/chatengine.ts)
   startGymSquad();   // G Squad Fitness (V1.40): your Fitness and Sleep cards, the boards, compare (src/squad/gym.ts)
+  startFeatureSync(psPost);   // V1.58: who is signed in and the From the squad switches for feature(), and the answers to the Mac (src/featuresync.ts)
   startTgBot();   // Add Telegram Bot (V1.47): reads this person's own bot while PS runs, only with a key in this Mac's Keychain (src/tgbot.ts)
   // Sign in once per Mac: the derived keys (never the passphrase) go to the macOS Keychain.
   setPsRememberHook((username, auth, kek) => {
@@ -1054,7 +1073,9 @@ export interface PsSettings {
   /** V1.47 Tab overlay shortcuts (core/openkeys.ts, ps-mac OpenKeysCore.swift): the list in use (custom false: the old
    *  settings as a list, never changed), what each key code types on this Mac's layout, and which combos (their place
    *  among the combos) another app already holds. */
-  shortcuts?: { custom: boolean; list: import("./core/openkeys").OpenShortcut[]; labels?: Record<string, string>; layout?: string; taken?: number[] };
+  /** overProtected (V1.58, the Mac's BuildRules): false on the developer's account, where PS never opens over 1Password or
+   *  Signal. Missing (an older Mac) means true. */
+  shortcuts?: { custom: boolean; list: import("./core/openkeys").OpenShortcut[]; labels?: Record<string, string>; layout?: string; taken?: number[]; overProtected?: boolean };
   /** Hold / and press . (on by default), and what those two keys type on this Mac's keyboard layout. */
   slashChord?: boolean; slashKeys?: { slash: string; dot: string; layout: string }; ignoredApps?: { id: string; name: string }[]; runningApps?: { id: string; name: string }[];
   /** Tab keeps the list open (core/tabstays.ts): on now, and whether someone chose it on this Mac. */
@@ -1062,6 +1083,9 @@ export interface PsSettings {
   /** Mac settings > App name (V1.36, ps-mac AppRename.swift): the name now, a rename running, why the last one stopped. */
   appName?: { name: string; busy: boolean; max: number; canRename: boolean; error?: string };
   islandMoved?: boolean;   // the Dynamic Island was dragged off the top centre on this Mac (Island.swift, G Squad)
+  /** V1.58: the island is away (its right click menu: Disappear for this meeting, or for a time) until this wall clock
+   *  time (ms), or null. Island.swift; the island settings show it and bring it back ({type:"island:show"}). */
+  islandAway?: { kind: "minutes" | "meeting"; until: number } | null;
   /** Reply from PS (ps-mac MailSend.swift): which Gmail accounts can send, whether an Instantly key is kept, how many
    *  sends are waiting. Never a token or the key itself. */
   mailSend?: MailSendStatus;

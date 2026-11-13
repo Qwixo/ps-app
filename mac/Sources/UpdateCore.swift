@@ -22,8 +22,18 @@ import Security
 
 /// The update signing key's public half (the private half: ps-mac/signing/update-ed25519.key).
 let UPDATE_PUBLIC_KEY = "Pc6Z49PnFmrf7frRS7d+W2RzpI/bR756v10J8b44/eU="
-/// What may be installed, and who may be handed the sign in: PS signed with the developer's own certificate.
-let PS_REQUIREMENT = #"identifier "com.cincee.ps" and certificate root = H"b278d9d09dfed336675cfb367b2f8a3b51896689""#
+/// V1.58 (multiple developers): the G Squad channel's own update key, public half (the private half lives only in the
+/// G Squad release workflow's secrets). Empty until it is made: then only the developer's key opens a G Squad note, as before.
+/// A build that follows the G Squad channel trusts both, so friends' apps move from the developer's releases to the G Squad
+/// ones by themselves; a build on a private channel trusts only its own key (UpdateRoute.keys).
+let UPDATE_GSQUAD_PUBLIC_KEY = "caMPQq7AM4+Ol5Ynh9na7pO/BwTsutaFhLuCu9R3bWE="
+/// The developer's own signing certificate ("PS Local Signing"), its root's SHA-1.
+let PS_CERT_ROOT_RED = "b278d9d09dfed336675cfb367b2f8a3b51896689"
+/// V1.58: the G Squad build's signing certificate root (SHA-1, 40 hex). Empty until it is made.
+let PS_CERT_ROOT_GSQUAD = "c0e302f2ce304d062a50d6ebdaff97d5f7d4b6e6"
+/// What may be installed, and who may be handed the sign in: PS signed with the developer's own certificate, and on the G Squad
+/// channel also PS signed with the G Squad certificate once there is one (UpdateRoute.requirement).
+let PS_REQUIREMENT = UpdateRoute.current.requirement
 
 struct UpdateError: Error, CustomStringConvertible {
   let description: String
@@ -80,6 +90,62 @@ enum UpdatePaths {
   /// Where the channel's manifest and files are downloaded to before they are offered.
   static var mirror: URL { work.appendingPathComponent("channel", isDirectory: true) }
   static var publicKey: String { test ? (env["PS_SELFTEST_UPDATE_PUBKEY"] ?? UPDATE_PUBLIC_KEY) : UPDATE_PUBLIC_KEY }
+  /// V1.58: every key a note on this build's channel may be signed with (a test copy: its test key only).
+  static var publicKeys: [String] { test ? [publicKey] : UpdateRoute.current.keys }
+}
+
+// MARK: - Which channel this build follows (V1.58, multiple developers)
+
+/// The channel comes from the build's own profile (Contents/Resources/profile.json, put there by build.sh from the
+/// G Squad profile or the person's layer), nothing else. The profile is inside the signed app, so it cannot be changed
+/// without breaking the app's signature.
+///   {"name": "gsquad", "channel": {"kind": "gsquad"}}        the G Squad channel (the public PS repo's GitHub releases)
+///   {"name": "jan", "channel": {"kind": "url", "url": "https://.../", "key": "<Ed25519 public key, base64>",
+///                               "certRoot": "<40 hex>"}}       that person's own channel, their own keys
+///   {"name": "jan", "channel": {"kind": "local"}}             no update channel (they install their own builds)
+/// No profile (every build before V1.58, and builds made the V1.57 way) or anything not understood: the G Squad channel,
+/// which is today's channel, so nothing changes for anyone until their build says otherwise.
+/// Every note says which channel it was made for ("channel": "gsquad" or the person's name); a note for another
+/// channel is refused next to the signature check. Notes from before V1.58 say nothing and are taken as before.
+struct UpdateRoute: Equatable {
+  enum Kind: String { case gsquad, url, local }
+  let kind: Kind
+  /// The channel's name: "gsquad", or the person's profile name for their own channel.
+  let id: String
+  /// Where the notes are (nil: no channel).
+  let base: URL?
+  /// The update keys this channel's notes may be signed with.
+  let keys: [String]
+  /// The certificate roots an installed app may be signed with.
+  let certRoots: [String]
+
+  static let gsquad = UpdateRoute(kind: .gsquad, id: "gsquad", base: URL(string: UPDATE_CHANNEL),
+                                  keys: [UPDATE_PUBLIC_KEY, UPDATE_GSQUAD_PUBLIC_KEY].filter { !$0.isEmpty },
+                                  certRoots: [PS_CERT_ROOT_RED, PS_CERT_ROOT_GSQUAD].filter { !$0.isEmpty })
+
+  /// The route a profile gives (nil data: no profile).
+  static func from(profile data: Data?) -> UpdateRoute {
+    guard let data, let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let ch = o["channel"] as? [String: Any], let kind = Kind(rawValue: ch["kind"] as? String ?? "") else { return gsquad }
+    if kind == .gsquad { return gsquad }
+    guard let name = o["name"] as? String, name.range(of: #"^[a-z][a-z0-9-]{0,30}$"#, options: .regularExpression) != nil, name != "gsquad" else { return gsquad }
+    // Their own key and certificate when the profile names them, else the developer's (the developer's own profile names neither).
+    let key = (ch["key"] as? String).flatMap { k in Data(base64Encoded: k).flatMap { (try? Curve25519.Signing.PublicKey(rawRepresentation: $0)) != nil ? k : nil } } ?? UPDATE_PUBLIC_KEY
+    let root = (ch["certRoot"] as? String).flatMap { $0.range(of: #"^[0-9a-f]{40}$"#, options: .regularExpression) != nil ? $0 : nil } ?? PS_CERT_ROOT_RED
+    if kind == .local { return UpdateRoute(kind: .local, id: name, base: nil, keys: [key], certRoots: [root]) }
+    // A private channel must be https and a folder ("…/"), else the profile is not used at all.
+    guard let s = ch["url"] as? String, let u = URL(string: s), u.scheme == "https", u.host != nil, s.hasSuffix("/") else { return gsquad }
+    return UpdateRoute(kind: .url, id: name, base: u, keys: [key], certRoots: [root])
+  }
+  static let current: UpdateRoute = from(profile: Bundle.main.url(forResource: "profile", withExtension: "json").flatMap { try? Data(contentsOf: $0) })
+
+  /// The code requirement for an installed or handed over PS on this channel.
+  var requirement: String {
+    let roots = certRoots.map { #"certificate root = H""# + $0 + #"""# }
+    return #"identifier "com.cincee.ps" and "# + (roots.count == 1 ? roots[0] : "(" + roots.joined(separator: " or ") + ")")
+  }
+  /// May a note made for `channel` be taken here? A note that names no channel (before V1.58) always may.
+  func takes(_ channel: String?) -> Bool { channel == nil || channel == id }
 }
 
 // MARK: - The channel (the public PS repo's newest GitHub release)
@@ -103,7 +169,7 @@ enum UpdateChannel {
       guard let s = UpdatePaths.env["PS_SELFTEST_CHANNEL"], let u = URL(string: s), u.isFileURL else { return nil }
       return u
     }
-    return URL(string: UPDATE_CHANNEL)
+    return UpdateRoute.current.base
   }()
   /// Who answers, for the messages PS shows when a look fails.
   static var who: String { base?.isFileURL == false ? (base?.host == "github.com" ? "GitHub" : (base?.host ?? "the update server")) : "the update folder" }
@@ -139,12 +205,13 @@ enum UpdateChannel {
     let noteURL = dir.appendingPathComponent("ps-update.json"), tagURL = dir.appendingPathComponent("ps-update.etag")
     let held = try? Data(contentsOf: noteURL)
     let (fresh, tag) = try getNote(base.appendingPathComponent("ps-update.json"), etag: held == nil || freshRead ? nil : (try? String(contentsOf: tagURL, encoding: .utf8)), noCache: freshRead)
-    if fresh == nil, let held, let m = try? UpdateManifest.open(held, publicKey: UpdatePaths.publicKey),
+    if fresh == nil, let held, let m = try? UpdateManifest.open(held, publicKeys: UpdatePaths.publicKeys), UpdateRoute.current.takes(m.channel),
        files(UpdatePlan.decide(m, myBuild: myBuild, web: web)).allSatisfy({ size(of: dir.appendingPathComponent($0.0)) == $0.1 }) {
       return dir
     }
     let raw = try fresh ?? get(base.appendingPathComponent("ps-update.json"), max: 64 << 10)
-    let m = try UpdateManifest.open(raw, publicKey: UpdatePaths.publicKey)
+    let m = try UpdateManifest.open(raw, publicKeys: UpdatePaths.publicKeys)
+    guard UpdateRoute.current.takes(m.channel) else { throw UpdateError("the update note is for another PS build") }
     let want = files(UpdatePlan.decide(m, myBuild: myBuild, web: web))
     for (file, size, sha) in want {
       let to = dir.appendingPathComponent(file)
@@ -262,11 +329,19 @@ enum PSVersion {
   }
   /// This app's own version only (after a roll back the web files may be the newer ones).
   static var appName: String { short(of: Bundle.main.bundleURL).map { show($0.0, $0.1) } ?? label(mine) }
-  /// "V1.07 · Wisdom" ("V1.07" alone when there is no keyword).
-  static func show(_ version: String, _ keyword: String?) -> String {
-    let v = version.hasPrefix("V") ? version : "V" + version
+  /// "V1.07 · Wisdom" ("V1.07" alone when there is no keyword). V1.58: with who made it, "V1.59 by Jan · Harmony".
+  static func show(_ version: String, _ keyword: String?, by: String? = nil) -> String {
+    let v = (version.hasPrefix("V") ? version : "V" + version) + (byLine(by).map { " " + $0 } ?? "")
     return keyword.map { "\(v) · \($0)" } ?? v
   }
+  /// V1.58: a maker's profile name as people read it: "gsquad" is "the G Squad", "jan" is "Jan" (nil: not a name).
+  static func byName(_ by: Any?) -> String? {
+    guard let s = by as? String, s.range(of: #"^[a-z][a-z0-9-]{0,30}$"#, options: .regularExpression) != nil else { return nil }
+    if s == "gsquad" { return "the G Squad" }
+    return s.split(separator: "-").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: "-")
+  }
+  /// "by Jan" (nil for releases from before V1.58).
+  static func byLine(_ by: Any?) -> String? { byName(by).map { "by \($0)" } }
   static func short(of app: URL) -> (String, String?)? {
     guard let d = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
           let s = d["CFBundleShortVersionString"] as? String, hundredths(s) > 0 else { return nil }
@@ -311,8 +386,9 @@ struct NoteBlock: Equatable {
   let version: String        // "1.50"
   let keyword: String
   let notes: [String]
-  /// "V1.50 · Curiosity"
-  var title: String { PSVersion.show(version, keyword.isEmpty ? nil : keyword) }
+  var by: String? = nil      // V1.58: who made it ("jan", "gsquad"); none before V1.58
+  /// "V1.50 · Curiosity", "V1.59 by Jan · Harmony"
+  var title: String { PSVersion.show(version, keyword.isEmpty ? nil : keyword, by: by) }
 }
 
 struct UpdateManifest: Equatable {
@@ -327,23 +403,39 @@ struct UpdateManifest: Equatable {
   var keyword: String? = nil
   var notes: [String] = []    // The developer's approved patch notes, plain lines (none until he approved them)
   var history: [NoteBlock] = []   // V1.52: the approved notes of the earlier versions, newest first (none in older notes)
+  var by: String? = nil          // V1.58: who made this release ("jan", "gsquad"); none in older notes
+  var shared: Bool? = nil        // V1.58: true when everyone's G Squad build got it
+  var channel: String? = nil     // V1.58: the channel the note was made for ("gsquad" or a person's name)
 
   /// Checks the Ed25519 signature first and reads only the signed bytes.
-  static func open(_ raw: Data, publicKey: String) throws -> UpdateManifest {
+  static func open(_ raw: Data, publicKey: String) throws -> UpdateManifest { try open(raw, publicKeys: [publicKey]) }
+  /// V1.58: the note may be signed by any one of `publicKeys` (the channel's keys, UpdateRoute.keys).
+  static func open(_ raw: Data, publicKeys: [String]) throws -> UpdateManifest {
     guard let o = try? JSONSerialization.jsonObject(with: raw) as? [String: Any],
           let signed = (o["signed"] as? String).flatMap({ Data(base64Encoded: $0) }),
           let sig = (o["sig"] as? String).flatMap({ Data(base64Encoded: $0) }) else { throw UpdateError("the update note is unreadable") }
-    guard let pub = Data(base64Encoded: publicKey), let key = try? Curve25519.Signing.PublicKey(rawRepresentation: pub),
-          key.isValidSignature(sig, for: signed) else { throw UpdateError("the update note's signature is wrong") }
+    guard publicKeys.contains(where: { k in
+      guard let pub = Data(base64Encoded: k), let key = try? Curve25519.Signing.PublicKey(rawRepresentation: pub) else { return false }
+      return key.isValidSignature(sig, for: signed)
+    }) else { throw UpdateError("the update note's signature is wrong") }
     guard let p = try? JSONSerialization.jsonObject(with: signed) as? [String: Any], (p["format"] as? Int) == 1,
           let w = p["web"] as? [String: Any], let web = Web(w) else { throw UpdateError("the update note is not one PS app knows") }
     var app: App?
     if let a = p["app"] as? [String: Any] { guard let x = App(a) else { throw UpdateError("the update note is not one PS app knows") }; app = x }
     let version = (p["name"] as? String).flatMap { $0.hasPrefix("V") && PSVersion.hundredths(String($0.dropFirst())) > 0 ? $0 : nil }
     let keyword = version == nil ? nil : PSVersion.keyword(p["keyword"])
-    let name = version.map { PSVersion.show($0, keyword) }
+    // V1.58: who made it ("V1.59 by Jan · Harmony") and which channel it is for. A "channel" that is there but is not a
+    // plain name is refused (never read as "no channel", which every build would take).
+    let by = PSVersion.byName(p["by"]) == nil ? nil : p["by"] as? String
+    let name = version.map { PSVersion.show($0, keyword, by: by) }
+    var channel: String?
+    if let c = p["channel"] {
+      guard let s = c as? String, s.range(of: #"^[a-z][a-z0-9-]{0,30}$"#, options: .regularExpression) != nil else { throw UpdateError("the update note is not one PS app knows") }
+      channel = s
+    }
     return UpdateManifest(kind: p["kind"] as? String ?? "web", made: p["made"] as? String ?? "", app: app, web: web, name: name,
-                          version: version, keyword: keyword, notes: cleanNotes(p["notes"]), history: cleanHistory(p["history"]))
+                          version: version, keyword: keyword, notes: cleanNotes(p["notes"]), history: cleanHistory(p["history"]),
+                          by: by, shared: by == nil ? nil : (p["shared"] as? Bool) ?? true, channel: channel)
   }
   /// The earlier versions' notes (V1.52): a real version, plain short lines, no long dash or HTML. A bad block is
   /// left out whole; one per version, newest first, at most 20, and at most 6 lines of 220 characters each.
@@ -359,7 +451,7 @@ struct UpdateManifest: Equatable {
       let kw = (o["keyword"] as? String).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
       guard kw.rangeOfCharacter(from: bad) == nil else { continue }
       seen.insert(v)
-      out.append(NoteBlock(version: v, keyword: String(kw.prefix(30)), notes: Array(lines.prefix(6))))
+      out.append(NoteBlock(version: v, keyword: String(kw.prefix(30)), notes: Array(lines.prefix(6)), by: PSVersion.byName(o["by"]) == nil ? nil : o["by"] as? String))
     }
     return Array(out.sorted { PSVersion.hundredths($0.version) > PSVersion.hundredths($1.version) }.prefix(20))
   }
@@ -367,7 +459,7 @@ struct UpdateManifest: Equatable {
   /// one running (V1.52). `installed` is "V1.49" or "1.49"; with none known only the newest shows.
   func catchUp(installed: String?) -> [NoteBlock] {
     var blocks: [NoteBlock] = []
-    if let v = version, !notes.isEmpty { blocks.append(NoteBlock(version: String(v.dropFirst()), keyword: keyword ?? "", notes: notes)) }
+    if let v = version, !notes.isEmpty { blocks.append(NoteBlock(version: String(v.dropFirst()), keyword: keyword ?? "", notes: notes, by: by)) }
     guard let inst = installed.map({ $0.hasPrefix("V") ? String($0.dropFirst()) : $0 }), PSVersion.hundredths(inst) > 0 else { return blocks }
     let top = version.map { PSVersion.hundredths(String($0.dropFirst())) } ?? Int.max
     for h in history where PSVersion.hundredths(h.version) > PSVersion.hundredths(inst) && PSVersion.hundredths(h.version) < top

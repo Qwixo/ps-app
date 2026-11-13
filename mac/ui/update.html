@@ -212,7 +212,7 @@
   // the last Open carries the answer ("local" or "sync") and PS opens on it.
   let askStore = false, store = 'local';
   const click = (id) => {
-    if (id === 'finish' && askStore && !$('pStore').classList.contains('on')) { $('pStore').classList.add('on'); window.__up.page('pStore'); return; }
+    if (id === 'finish' && askStore && !$('pStore').classList.contains('on')) { $('pStore').classList.add('on'); window.__up.page('pStore'); send({ type: 'click', id: 'storePage' }); return; }
     send(id === 'start' ? { type: 'click', id, name: $('wName').value } : id === 'finish' && askStore ? { type: 'click', id, store } : { type: 'click', id });
   };
   document.addEventListener('click', (e) => {

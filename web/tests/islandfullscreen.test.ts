@@ -35,17 +35,19 @@ ok("other island choices are untouched by it", () => {
   assert.equal(p.hide, 300);
 });
 ok("the row is in Settings > Mac > Dynamic Island and in the Tab list's island menu, for everyone", () => {
-  const set = src("src/views/PsSettings.tsx"), tm = src("src/views/TaskMap.tsx"), row = src("src/views/IslandCards.tsx");
-  assert.match(set, /<IslandFullScreenRow prefs=\{prefs\}/);
-  assert.match(tm, /\{PS && <IslandFullScreenRow /);
+  const set = src("src/views/PsSettings.tsx"), tm = src("src/views/TaskMap.tsx"), row = src("src/views/IslandCards.tsx"), isl = src("src/views/IslandSettings.tsx");
+  // V1.58: in the shared island settings (views/IslandSettings.tsx), drawn by the window, Settings and the Mac page.
+  assert.match(isl, /\{PS && <IslandFullScreenRow /);
+  assert.match(set, /<IslandSettingsPage prefs=\{prefs\}/);
+  assert.match(tm, /<IslandSettingsWindow /);
   // no account gate on the row itself (public build has every feature)
   const fn = row.slice(row.indexOf("export function IslandFullScreenRow"), row.indexOf("export const ISLAND_CARDS_LABEL"));
   assert.ok(fn.length > 0 && !/isRedAccount|red\b/.test(fn));
-  assert.match(row, /ISLAND_FS_LABEL = "Move to the top left in full screen"/);
+  assert.match(row, /ISLAND_FS_LABEL = "In full screen, sit in the top bar"/);
 });
 ok("Settings search finds it by full screen words", () => {
   const e = X.settingById("island")!;
-  for (const w of ["full screen", "fullscreen", "top left"]) assert.ok(e.words!.includes(w), w);
+  for (const w of ["full screen", "fullscreen", "top left", "top bar", "black bar", "corner"]) assert.ok(e.words!.includes(w), w);
 });
 ok("no em or en dashes in the new words", () => {
   const row = src("src/views/IslandCards.tsx");

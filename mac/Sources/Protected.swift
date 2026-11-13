@@ -5,9 +5,9 @@ import Cocoa
 // the app in front IS one of them (its bundle id, at the moment it comes to the front), so it can
 // step aside completely. Matching is broad on purpose: any 1Password or Signal build or helper.
 // While one of them is in front the keyboard tap is switched OFF (macOS hands PS none of its keys).
-// Over both, the Tab list can still be held up through SafePeek: Signal since 17 Oct, 1Password
-// since V1.40 (the developer, 7 Nov: "make it so you can do the tab overlay over the 1Password app"). SafePeek
-// is one macOS hotkey for plain Tab, so PS still never sees a key typed in either app.
+// Whether the Tab list (SafePeek, one macOS hotkey for plain Tab, so PS still never sees a key typed in either app)
+// and the floating island may show over them is decided per account in BuildRules.swift (V1.58, the developer, 13 Nov 2026):
+// yes for everyone except the developer, never on the developer's own account.
 enum Protected {
   static func matches(_ bundleId: String?) -> Bool {
     guard let id = bundleId?.lowercased() else { return false }
@@ -22,8 +22,8 @@ enum Protected {
   /// True while 1Password or Signal is the app in front. Kept up to date by one observer, so the
   /// keyboard tap can step aside instantly without asking macOS on every key.
   private(set) static var front = false
-  /// True while the app in front is Signal (not 1Password). Since V1.40 nothing depends on it: SafePeek
-  /// arms over both. Kept so the self tests can still say which of the two they are pretending is in front.
+  /// True while the app in front is Signal (not 1Password). Since V1.40 nothing depends on it: the rules
+  /// treat both the same. Kept so the self tests can still say which of the two they are pretending is in front.
   private(set) static var signalFront = false
   /// Runs on the main thread whenever either flag changes.
   static var onChange: (() -> Void)?

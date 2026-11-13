@@ -375,6 +375,16 @@ export interface ChatDone {
 /** Which AI tool a finished chat came from (core/chatdone.ts AI_TOOLS). None means Claude Code (every card before V1.53). */
 export type AiTool = "claude" | "codex" | "gemini" | "cursor";
 
+/** V1.58: a message an AI on this Mac sent to the island through the Task API (core/aimessage.ts). Plain text only. */
+export interface AiMsg {
+  id: string; from: string; text: string; detail?: string;
+  /** The chat it came from, as the AI tool names it (Claude Code's session id): its plain finished card is then not shown. */
+  chat?: string;
+  at: string; seen?: boolean; remindAt?: string;
+}
+/** V1.58: what pops up when an AI chat ends (core/aimessage.ts AI_NOTES). None means "messages". */
+export type AiNotes = "messages" | "plain" | "off";
+
 /** A named group of tasks in the Tab list (the developer, 29 Oct 2026), see core/groups.ts. */
 export interface TaskGroup { id: string; name: string }
 
@@ -422,6 +432,8 @@ export interface Settings {
   leadCards?: LeadCardState;      // Instantly reply cards in PS: when they started, dismissed and reminded (core/leadcards.ts)
   chatFade?: number;               // V1.55: seconds an AI chat card stays before it goes by itself (core/chatdone.ts chatFade: 10 unless set, 0 = it stays)
   chatDone?: ChatDone[];           // Claude Code chats that just finished a turn (core/chatdone.ts): a card each until dismissed
+  aiMsgs?: AiMsg[];                // V1.58: messages AIs sent to the island (core/aimessage.ts): a card each until dismissed
+  aiNotes?: AiNotes;               // V1.58: AI messages (default), plain finished cards only, or neither (core/aimessage.ts)
   meetAlerts?: { booked: boolean; msg: boolean; soon: boolean; privacy: boolean; sBooked: boolean; sMsg: boolean; sSoon: boolean;
     notes?: boolean; notesAfter?: number; notesSnooze?: number[]; notesBlur?: boolean };  // PS meeting alert cards (gear menu)
   tmInboxMinAt?: string | null;  // when the developer last minimized the New tasks pop-up; newer suggestions open it big again
@@ -443,6 +455,11 @@ export interface Settings {
   tmSubOpen?: string[];          // tasks whose mini tasks are shown expanded (PS and the website), see core/subtasks.ts
   tmDailyFirst?: boolean;        // the Tab list: "Every day" dragged above the main tasks (the developer, 23 Oct 2026). Default below
   island?: { mode: "notch" | "pill" | "off"; idle: "next" | "none"; pill?: PillLook; notch?: NotchLook; hide?: number; cards?: boolean; top?: string[] };   // hide: seconds a click on the grab line hides it (V1.40, 60 unless set); cards: the Mac's notification cards come out of the island (V1.55, on unless false)| "pill" | "off"; idle: "next" | "none"; pill?: PillLook; notch?: NotchLook };   // pill, notch: their looks (core/islandlook.ts)   // PS Dynamic Island (core/island.ts): around the notch, a pill below it, or off; what shows when nothing is in progress
+  pomodoro?: Partial<import("./pomodoro").PomoPrefs>;   // Pomodoro (core/pomodoro.ts, V1.58): the button on or off, work and break lengths, sessions before a long break, auto start, sound, time left on the island
+  pomoRun?: import("./pomodoro").PomoRun | null;         // the Pomodoro running now, by wall clock end times (survives a restart, sleep and a lock); null when stopped
+  standup?: Partial<import("./standup").StandPrefs>;   // Stand-up reminders (core/standup.ts, V1.58): on, how often, how long, sound, active hours
+  meetBubble?: Partial<import("./meetbubble").MeetBubblePrefs>;   // the next meeting bubble on the island (core/meetbubble.ts, V1.58): on, minutes before
+  pomoIntro?: boolean;           // the first Pomodoro card (it recommends the Dynamic Island) was answered
   dnd?: Dnd;                     // PS Do Not Disturb (core/dnd.ts, the developer 30 Oct 2026): the moon top right of the Tab list; muted cards are held, never lost
   meetHidden?: MeetHide[];       // meetings the developer took off the Meetings panel (core/meethide.ts, the developer 2 Nov 2026): PS only, his calendar is never touched
   sentry?: import("./sentry").SentryPrefs;   // Sentry mode (core/sentry.ts, V1.48): screen dim or off, stop at low battery, lid closed, the warning seen
@@ -487,6 +504,7 @@ export interface Settings {
   welcomeDone?: string;          // when the welcome tour was finished, skipped or put off (ISO), any device (core/welcome.ts, G Squad)
   tipsSeen?: import("./tips").TipsSeen;   // V1.55: the first use tips already shown or learned, per tip (ISO), any device; reset = "Show tips again" (core/tips.ts)
   popupsSeen?: import("./newpopups").PopupsSeen;   // V1.56: the "new in this version" pop-ups (AI task API, Auto approve, open source) already shown or found, per pop-up (ISO), any device (core/newpopups.ts)
+  walkSeen?: import("./walkthrough").WalkSeen;   // V1.58: the "what is new" walkthrough steps already seen, per step (ISO), any device (core/walkthrough.ts)
   p1Migrated?: boolean;          // the top task became P1 once when P1 turned optional (18 Oct 2026)
   notifyLog?: { at: string; text: string }[];   // the last 24 hours of notification pop-ups (kept even when they are off)
   tmNotify?: boolean;

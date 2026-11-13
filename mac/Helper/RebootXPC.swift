@@ -38,7 +38,7 @@ enum RebootdIDs {
   static let plist = "com.cincee.ps.rebootd.plist"
   // Both sides check the other is genuine: same certificate (the developer's "PS Local Signing", self signed,
   // so leaf and root are the same) and the exact identifier.
-  static let cert = "b278d9d09dfed336675cfb367b2f8a3b51896689"
+  static let cert = "c0e302f2ce304d062a50d6ebdaff97d5f7d4b6e6"
   static let psRequirement = "identifier \"com.cincee.ps\" and certificate root = H\"\(cert)\""
   static let helperRequirement = "identifier \"com.cincee.ps.rebootd\" and certificate root = H\"\(cert)\""
 }

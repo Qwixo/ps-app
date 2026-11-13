@@ -31,7 +31,7 @@ import { PS, psPost } from "../ps";
 import { saveTabLayout } from "../core/actions";
 import {
   addPanel, canHide, cfgOf, dropPage, gallery, hideSlot, isCopy, isWide, kindOf, moveSlot, onPage, outOf, pageOf, pullOut, pushIn, putOnPage, resetLayout,
-  sameLayout, setCfg, setSize, sizeOf, slotInfo, slotLabel, slotStyle, snapRect, toPos, fromPos, MAIN_PAGE, SIZE_MAX, SIZE_MIN, EDGE,
+  sameLayout, setCfg, setSize, sizeOf, slotInfo, slotLabel, slotStyle, followStyle, snapRect, toPos, fromPos, MAIN_PAGE, SIZE_MAX, SIZE_MIN, EDGE,
   type InstCfg, type Rect, type TabLayout,
 } from "../core/tablayout";
 import { macAccounts, newFeedId, panelCal } from "../core/calfeeds";
@@ -178,16 +178,23 @@ export function Slot({ id, children }: { id: string; children: ReactNode }) {
   if (!c) return <>{children}</>;
   const here = shownHere(c, id);
   const p = c.layout.pos[id];
+  // V1.58 smooth page swipe (views/pagelayer.ts): which page it belongs to (none for the gear and Tab and Lock, on
+  // every page, and for a removed one). A main page panel in a column keeps its room while another page shows
+  // (ed-box), so the columns never reflow as pages change and it can slide back in with its page.
+  const removed = !isCopy(id) && c.layout.hidden.includes(id);
+  const pg = slotInfo(id)?.keep || removed ? undefined : pageOf(c.layout, id, c.pages);
+  const box = !here && !removed && !p && pg === MAIN_PAGE;
   const z = sizeOf(c.layout, id);
   const dragging = d?.id === id;
   const style: Record<string, string> = dragging
     ? { left: `${d.rect.left}px`, top: `${d.rect.top}px`, width: `${d.rect.width}px`, maxHeight: `calc(100vh - ${2 * EDGE}px)` }
-    : p ? slotStyle(p, z) : {};
+    : p ? slotStyle(p, z) : followStyle(c.layout, id) ?? {};   // V1.58: Pomodoro follows a moved Time zones (core/tablayout.ts)
+  const follows = !p && !dragging && "left" in style;
   if (z !== 1) style["--ed-z"] = String(z);
   return (
     <InstCtx.Provider value={id}>
-      <div data-slot={id} style={style}
-        className={`ed-slot${p || dragging ? " ed-moved" : ""}${here ? "" : " ed-hidden"}${dragging ? " ed-dragging" : ""}${f.has(id) ? " ed-fresh" : ""}${z !== 1 ? " ed-z" : ""}${isCopy(id) ? " ed-copy" : ""}`}>
+      <div data-slot={id} data-pg={pg} style={style}
+        className={`ed-slot${p || dragging || follows ? " ed-moved" : ""}${here ? "" : " ed-hidden"}${box && !dragging ? " ed-box" : ""}${dragging ? " ed-dragging" : ""}${f.has(id) ? " ed-fresh" : ""}${z !== 1 ? " ed-z" : ""}${isCopy(id) ? " ed-copy" : ""}`}>
         {children}
       </div>
     </InstCtx.Provider>

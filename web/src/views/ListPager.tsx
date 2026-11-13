@@ -19,7 +19,7 @@
 //   "ps-list-created" {id, name} when a new list is there.
 // Everything is saved in settings (one change-only write each), so the Mac, the website and the phone match.
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import type { Doc, Settings, TaskGroup, Todo } from "../core/model";
 import { cleanGroups, groupKey, groupOf, newGroupId, type TabLists } from "../core/groups";
 import { isEveryDay } from "../core/repeat";
@@ -28,13 +28,15 @@ import { offeredLooks } from "../core/looks";
 import {
   GESTURE_GAP_MS, MAIN, PAGES_MAX, PLUS_LEFT, SEC_NAME_MAX, LIST_NAME_MAX, addGroupFor, allPages, cleanNames, cleanPages,
   cleanSwipeDir, fingerDx, swiped, isPlus, listMoveTarget, moveSec, movePage, newPageId, pageDx, pageGesture, pageOfTask, pageOffset, pageOrder,
-  pagerIds, placeAt, removePage, renamePage, secsByPage, settleIndex, shownName, springDone, springStart, springStep, stepIndex, tidyName,
+  pagerIds, placeAt, removePage, renamePage, secsByPage, shownName, springDone, springStart, springStep, stepIndex, tidyName,
   type GestureOver, type GestureOwner, type ListNames, type ListPage, type SwipeDir,
 } from "../core/lists";
+import { REDUCED_OUT_MS, nearIndex, pageAt, reducedFade, releasePlan } from "../core/pageswipe";
 import { useBgVideos as usePsBgVideos, useOverlayShown } from "../ps";
 import { sfx } from "../ui/sfx";
 import { bgPatch } from "./BgFit";
 import { openAddTask, pushUndoAction, taskMapActions } from "./TaskMap";
+import { layerArrive, layerBegin, layerDim, layerEnd, layerPaint, pagesClear, pagesPaint, type Layer } from "./pagelayer";
 import "./listpager.css";
 
 const GOS = import.meta.env.MODE === "gos";
@@ -100,6 +102,13 @@ let goWhenReady: { id: string; until: number; open?: boolean } | null = null;
 let renameAsk: string | null = null;
 const askSubs = new Set<() => void>();
 function askRename(k: string | null) { renameAsk = k; askSubs.forEach((f) => f()); }
+/** V1.58: while a swipe moves, the page whose name shows under the headline (it changes at half way, as the name has
+ *  faded out); null at rest (the page showing). */
+let stripNear: string | null = null;
+const stripSubs = new Set<() => void>();
+function setStripNear(id: string | null) { if (stripNear !== id) { stripNear = id; stripSubs.forEach((f) => f()); } }
+const useStripNear = () => useSyncExternalStore((l) => { stripSubs.add(l); return () => { stripSubs.delete(l); }; }, () => stripNear);
+type VtDoc = Document & { startViewTransition?: (f: () => void) => { finished: Promise<void> } };
 const useRenameAsk = () => useSyncExternalStore((l) => { askSubs.add(l); return () => { askSubs.delete(l); }; }, () => renameAsk);
 
 // ---------- the changes (each one write) ----------
@@ -397,23 +406,48 @@ function install() {
 export function ListPager({ ids, index, docked, render }: { ids: string[]; index: number; docked?: boolean; render: (id: string, here: boolean) => ReactNode }) {
   const box = useRef<HTMLDivElement>(null), track = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState<number[]>([]);
-  const st = useRef({ from: index, x: 0, x0: 0, v: 0, to: 0, raf: 0, span: 0, moving: false, lastT: 0 });
+  const st = useRef({ from: index, x: 0, x0: 0, v: 0, to: 0, raf: 0, span: 0, moving: false, lastT: 0,
+    layer: null as Layer | null, gen: 0, dim: 1, landed: 0, fade: false });
   const live = useRef({ ids, index });
   live.current = { ids, index };
   useEffect(() => { install(); }, []);
 
+  // V1.58 (core/pageswipe.ts, views/pagelayer.ts): one frame of the move. The list pages, the panels and buttons of
+  // their pages and the list's name all follow the fingers as one layer; things on every page stand still.
+  // Reduce Motion: nothing slides, the page only dims a little, then a quick cross fade (fadeTo).
   const paint = (x: number) => {
     const s = st.current;
-    if (track.current) track.current.style.transform = `translate3d(${x.toFixed(2)}px,0,0)`;
-    moveDots(box.current, s.from - x / (s.span || 1));   // the bright dot follows the fingers
+    const rm = reduced();
+    const ids = live.current.ids;
+    const at = pageAt(s.from, rm ? 0 : x, s.span);
+    const atFingers = pageAt(s.from, x, s.span);
+    if (rm) s.dim = reducedFade(atFingers, s.from);
+    if (track.current) track.current.style.transform = rm ? "" : `translate3d(${x.toFixed(2)}px,0,0)`;
+    pagesPaint(track.current, ids, rm ? atFingers : at, s.from, rm);
+    layerPaint(s.layer, rm ? atFingers : at, s.from, s.span, rm);
+    if (!rm) setStripNear(ids[nearIndex(at, ids.length)] ?? null);
+    moveDots(box.current, atFingers);   // the bright dot follows the fingers
   };
   const finish = (to: number) => {
     const s = st.current;
     cancelAnimationFrame(s.raf); s.raf = 0;
+    s.gen++;
     s.moving = false;
-    const id = live.current.ids[to] ?? MAIN;
-    if (id !== activeId) { setActive(id); sfx.hover(); }
-    else settle();
+    const ids = live.current.ids;
+    const id = ids[to] ?? MAIN;
+    if (id === activeId) { settle(); return; }
+    s.landed = to > s.from ? 1 : -1;
+    const fromId = activeId;
+    sfx.hover();
+    // A page with its own background: the two backgrounds cross fade as it lands (a view transition where the web view
+    // has one; its look, if it has its own, fades with it, looks/engine.ts), instead of changing in one frame.
+    const doc = document as VtDoc, html = document.documentElement;
+    if (doc.startViewTransition && pageBg(ctx.pages, fromId) !== pageBg(ctx.pages, id) && !html.classList.contains("lk-turning") && !html.classList.contains("nb-turning")) {
+      html.classList.add("pg-turning");
+      try { doc.startViewTransition(() => { flushSync(() => setActive(id)); }).finished.finally(() => html.classList.remove("pg-turning")); return; }
+      catch { html.classList.remove("pg-turning"); }
+    }
+    setActive(id);
   };
   /** The pages back in their places: the current one in the page, no transform, no neighbours. */
   const settle = () => {
@@ -421,23 +455,78 @@ export function ListPager({ ids, index, docked, render }: { ids: string[]; index
     if (s.moving) return;
     s.x = 0; s.from = live.current.index;
     if (track.current) track.current.style.transform = "";
+    pagesClear(track.current);
+    const rode = layerEnd(s.layer);
+    const overlay = s.layer?.overlay ?? box.current?.closest<HTMLElement>(".tm-overlay") ?? null;
+    s.layer = null;
+    setStripNear(null);
     box.current?.classList.remove("moving");
     moveDots(box.current, live.current.index);
     setNear([]);
+    // A new page landed: whatever of it did not ride in with the swipe fades in (Reduce Motion: all of it, the second
+    // half of the cross fade).
+    if (s.landed) {
+      const rm = s.fade || reduced();
+      const cur = track.current?.querySelector<HTMLElement>(":scope > .tl-page:not(.tl-near)") ?? null;
+      layerArrive(overlay, live.current.ids[live.current.index] ?? MAIN, rode, rm, s.landed, [cur, overlay?.querySelector<HTMLElement>(".tl-strip") ?? null]);
+    }
+    s.landed = 0; s.fade = false; s.dim = 1;
   };
   // A new current page (the spring landed, a dot, a new list): back to rest in the same frame, no flicker.
   useLayoutEffect(() => { settle(); }, [index]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Reduce Motion: a quick fade out of the page (and its panels and name), then the new one fades in as it lands
+   *  (settle). Staying on the same page: it fades back up. */
+  const fadeTo = (to: number) => {
+    const s = st.current;
+    s.to = to;
+    const leaving = to !== s.from;
+    const o0 = s.dim, o1 = leaving ? 0 : 1;
+    const gen = ++s.gen;
+    let k = 0, last = -1;
+    s.fade = true;
+    let over = false;
+    const end = () => {
+      if (over || s.gen !== gen) return;
+      over = true;
+      s.x = leaving ? -(to - s.from) * s.span : 0;
+      finish(to);
+    };
+    const frame = (k: number) => {
+      const o = o0 + (o1 - o0) * k;
+      s.dim = o;
+      pagesPaint(track.current, live.current.ids, s.from, s.from, true, o);
+      layerDim(s.layer, s.from, o);
+    };
+    const step = () => {
+      if (over || s.gen !== gen) return;
+      // Frame by frame, each step at most 25 ms worth: a long frame (the next page drawing) slows the fade a little
+      // instead of making it jump.
+      const now = performance.now();
+      if (last >= 0) k = Math.min(1, k + Math.min(25, now - last) / REDUCED_OUT_MS);
+      last = now;
+      frame(k);
+      if (k >= 1) end(); else s.raf = requestAnimationFrame(step);
+    };
+    cancelAnimationFrame(s.raf);
+    s.raf = requestAnimationFrame(step);
+    window.setTimeout(() => { if (!over && s.gen === gen) { frame(1); end(); } }, REDUCED_OUT_MS + 800);   // a hidden list never runs frames
+  };
   const spring = (to: number, v0: number) => {
     const s = st.current;
     s.to = to;
     const target = -(to - s.from) * s.span;
     // The empty + page shows its + in the middle of the screen: the list scrolls to the top on the way there.
     if (isPlus(live.current.ids[to] ?? "")) { const sc = box.current?.closest(".tm-scroll"); if (sc && sc.scrollTop > 0) sc.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" }); }
-    if (reduced()) { paint(target); finish(to); return; }
+    if (reduced()) { fadeTo(to); return; }
+    s.fade = false;
     s.v = springStart(v0, target - s.x);
     s.lastT = performance.now();
+    const gen = ++s.gen;
     const step = (t: number) => {
-      const dt = (t - s.lastT) / 1000; s.lastT = t;
+      if (s.gen !== gen) return;
+      // At most two frames' worth per frame: after a long frame (the next page drawing) the glide carries on from where
+      // it was instead of jumping ahead.
+      const dt = Math.min(0.034, Math.max(0, (t - s.lastT) / 1000)); s.lastT = t;
       const r = springStep(s.x, s.v, target, dt);
       s.x = r.x; s.v = r.v;
       if (springDone(s.x, s.v, target)) { s.x = target; paint(target); finish(to); return; }
@@ -447,13 +536,19 @@ export function ListPager({ ids, index, docked, render }: { ids: string[]; index
     cancelAnimationFrame(s.raf);
     s.raf = requestAnimationFrame(step);
     // A hidden list never runs frames: land anyway.
-    window.setTimeout(() => { if (s.raf && s.to === to && s.moving) { cancelAnimationFrame(s.raf); s.x = target; paint(target); finish(to); } }, 1200);
+    window.setTimeout(() => { if (s.gen === gen && s.moving) { cancelAnimationFrame(s.raf); s.x = target; paint(target); finish(to); } }, 1200);
   };
   const measure = () => { const s = st.current; s.span = box.current?.clientWidth || 0; return s.span > 0; };
   useEffect(() => {
     const root = box.current;
     if (!root) return;
     const s = st.current;
+    /** The page layer (views/pagelayer.ts) for the pages taking part, started afresh (a caught glide keeps its place:
+     *  the caller paints it again in the same event, before the next frame). */
+    const startLayer = (pick: (i: number) => boolean) => {
+      layerEnd(s.layer);
+      s.layer = layerBegin(root.closest<HTMLElement>(".tm-overlay"), live.current.ids, pick);
+    };
     const p: Pager = {
       root,
       count: () => live.current.ids.length,
@@ -461,12 +556,15 @@ export function ListPager({ ids, index, docked, render }: { ids: string[]; index
       begin: () => {
         if (live.current.ids.length < 2 || !measure()) return false;
         // Caught while it glides: the swipe carries on from where the pages are.
-        if (s.raf) { cancelAnimationFrame(s.raf); s.raf = 0; } else { s.from = live.current.index; s.x = 0; }
+        if (s.raf) { cancelAnimationFrame(s.raf); s.raf = 0; } else { s.from = live.current.index; s.x = 0; s.dim = 1; }
+        s.gen++;   // a glide or a fade caught by the fingers stops where it is
         s.x0 = s.x;
         s.moving = true;
         root.classList.add("moving");
         const n = [s.from - 1, s.from + 1].filter((i) => i >= 0 && i < live.current.ids.length);
         setNear((old) => (old.length === n.length && old.every((x, i) => x === n[i]) ? old : n));
+        startLayer((i) => Math.abs(i - s.from) <= 1);
+        paint(s.x);   // at once, so the next page's panels never show for a frame before they are faded
         return true;
       },
       move: (dx) => {
@@ -476,18 +574,23 @@ export function ListPager({ ids, index, docked, render }: { ids: string[]; index
       },
       release: (v) => {
         if (!s.moving) return;
-        spring(settleIndex(s.from, live.current.ids.length, s.x, v, s.span), v);
+        const plan = releasePlan(s.from, live.current.ids.length, s.x, v, s.span, reduced());   // core/pageswipe.ts
+        spring(plan.to, v);
       },
       go: (i) => {
         const n = live.current.ids.length;
         if (i < 0 || i >= n) return;
         if (i === live.current.index && !s.moving) return;
         if (!measure()) { setActive(live.current.ids[i]); return; }
-        if (!s.moving) { s.from = live.current.index; s.x = 0; }
+        const caught = s.moving;
+        if (!s.moving) { s.from = live.current.index; s.x = 0; s.dim = 1; }
         if (s.raf) { cancelAnimationFrame(s.raf); s.raf = 0; }
+        s.gen++;
         s.moving = true;
         root.classList.add("moving");
         setNear([i]);
+        startLayer((j) => j === s.from || j === i || (caught && Math.abs(j - s.from) <= 1));
+        paint(s.x);
         spring(i, 0);
       },
     };
@@ -682,8 +785,10 @@ export function ListDots({ ids, index, names }: { ids: string[]; index: number; 
 }
 
 // ---------- the name under the headline ----------
-export function ListStrip({ names, id }: { names: ListNames; id: string }) {
+export function ListStrip({ names, id: here }: { names: ListNames; id: string }) {
   const all = allPages(ctx.pages, names, ctx.order);
+  // V1.58: while a swipe moves, the name fades out, changes at half way and fades in (views/pagelayer.ts).
+  const id = useStripNear() ?? here;
   const cur = all.find((p) => p.id === id);
   const ask = useRenameAsk();
   const [edit, setEdit] = useState(false);

@@ -64,7 +64,8 @@ export type GosPrefs = {
 };
 export type GosPerms = { notifications: boolean; usage: boolean; overlay: boolean; battery: boolean; exactAlarm: boolean; install: boolean; fullScreen?: boolean };
 export type GosUpdate = { state: "idle" | "checking" | "none" | "available" | "downloading" | "verifying" | "ready" | "installing" | "error";
-  version?: string; keyword?: string; current?: string; currentKeyword?: string; notes?: string; history?: unknown; size?: number; progress?: number; error?: string };
+  version?: string; keyword?: string; current?: string; currentKeyword?: string; notes?: string; history?: unknown; size?: number; progress?: number; error?: string;
+  by?: string };   // V1.58: who made the update ("jan", "gsquad"); shown only when it is a profile name (core/releaseby.ts)
 export type GosState = {
   ready: boolean; visible: boolean; remembered: boolean; version: string; keyword: string; build: number;
   prefs: GosPrefs | null; perms: GosPerms | null; update: GosUpdate; online: boolean;

@@ -1,0 +1,143 @@
+/* Pomodoro (V1.58, views/Pomodoro.tsx). A small screen over the Tab list, built from the PS look's own colours (--k-*).
+   Work is the accent, a short break green, a long break blue. Animations move only transform, opacity and the ring. */
+.pm-layer { position: fixed; inset: 0; z-index: 65; display: grid; place-items: center; pointer-events: none; }
+.pm-layer.docked { z-index: 96; }
+.pm-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--k-base, #050307) 58%, transparent); pointer-events: auto; }
+.pm-win {
+  --pm-bg: var(--k-base, #0B080D);
+  --pm-fg: var(--k-fg, #FFFFFF);
+  --pm-card: color-mix(in srgb, var(--pm-fg) 7%, var(--pm-bg));
+  --pm-line: color-mix(in srgb, var(--pm-fg) 12%, transparent);
+  --pm-dim: color-mix(in srgb, var(--pm-fg) 62%, transparent);
+  --pm-work: var(--k-acc, #F0567F);
+  --pm-short: #34D399;
+  --pm-long: #60A5FA;
+  position: relative; width: min(400px, calc(100vw - 32px)); max-height: calc(100vh - 32px); pointer-events: auto;
+  border-radius: calc(26px * var(--k-rd, 1)); overflow: hidden; background: var(--pm-bg); color: var(--pm-fg); isolation: isolate; will-change: transform;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pm-work) 22%, transparent), 0 40px 120px rgba(0, 0, 0, .7);
+  font-size: calc(14px * var(--k-fs, 1));
+}
+.pm-morph { position: absolute; inset: 0; z-index: 5; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 40%, var(--pm-work), color-mix(in srgb, var(--pm-work) 40%, #7C6CFF)); }
+
+.pm-body {
+  --pm-c: var(--pm-work);
+  position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px 20px 22px;
+  background: radial-gradient(420px 260px at 50% -10%, color-mix(in srgb, var(--pm-c) 18%, transparent), transparent 70%);
+  transition: background .6s ease;
+}
+.pm-body.pm-short { --pm-c: var(--pm-short); }
+.pm-body.pm-long { --pm-c: var(--pm-long); }
+
+.pm-head { align-self: stretch; display: flex; align-items: center; justify-content: space-between; }
+.pm-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 750; letter-spacing: .01em; }
+.pm-title svg { color: var(--pm-c); transition: color .5s ease; }
+.pm-head-r { display: inline-flex; gap: 6px; }
+.pm-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--pm-line); background: none; color: var(--pm-dim); cursor: pointer;
+  transition: background .16s, color .16s, transform .12s; }
+.pm-icon:hover { background: var(--pm-card); color: var(--pm-fg); }
+.pm-icon:active { transform: scale(.92); }
+
+.pm-phase { font-size: 1.05em; font-weight: 700; color: var(--pm-c); letter-spacing: .02em; animation: pm-pop .55s cubic-bezier(.34, 1.56, .64, 1) both; transition: color .5s ease; }
+@keyframes pm-pop { from { opacity: 0; transform: translateY(6px) scale(.92); } to { opacity: 1; transform: none; } }
+
+.pm-ring { position: relative; width: 220px; height: 220px; }
+.pm-ring svg { width: 100%; height: 100%; display: block; }
+.pm-track { fill: none; stroke: var(--pm-line); stroke-width: 9; }
+.pm-arc { fill: none; stroke: var(--pm-c); stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset .3s linear, stroke .6s ease;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--pm-c) 45%, transparent)); }
+.pm-mid { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 4px; }
+.pm-time { font-size: 3.3em; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1; }
+.pm-sess { color: var(--pm-dim); font-size: .9em; font-weight: 600; }
+.pm-paused .pm-time { animation: pm-breathe 2.4s ease-in-out infinite; }
+@keyframes pm-breathe { 50% { opacity: .45; } }
+
+.pm-dots { display: flex; gap: 7px; min-height: 8px; }
+.pm-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--pm-line); transition: background .4s ease, transform .4s cubic-bezier(.34, 1.56, .64, 1); }
+.pm-dots i.done { background: var(--pm-work); }
+.pm-dots i.now { background: color-mix(in srgb, var(--pm-work) 45%, transparent); transform: scale(1.25); }
+
+.pm-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.pm-btn { height: 38px; padding: 0 18px; border-radius: 19px; border: 1px solid var(--pm-line); background: var(--pm-card); color: var(--pm-fg);
+  font: inherit; font-weight: 700; cursor: pointer; transition: transform .12s, background .16s, border-color .16s, box-shadow .2s; }
+.pm-btn:hover { background: color-mix(in srgb, var(--pm-fg) 12%, var(--pm-bg)); }
+.pm-btn:active { transform: scale(.95); }
+.pm-btn.main { min-width: 120px; border-color: transparent; background: var(--pm-c, var(--pm-work)); color: #0B0B0F;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--pm-c, var(--pm-work)) 35%, transparent); }
+.pm-btn.main:hover { filter: brightness(1.08); }
+.pm-btn.quiet { background: none; color: var(--pm-dim); }
+.pm-btn:focus-visible, .pm-icon:focus-visible { outline: 2px solid var(--pm-c, var(--pm-work)); outline-offset: 2px; }
+
+/* ---------- the first card: the island recommended ---------- */
+.pm-intro { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, var(--pm-bg) 72%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  animation: pm-fade .25s ease both; }
+@keyframes pm-fade { from { opacity: 0; } }
+.pm-intro-card { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  animation: pm-rise .5s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes pm-rise { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+.pm-intro-card h3 { margin: 6px 0 0; font-size: 1.15em; font-weight: 750; }
+.pm-intro-card p { margin: 0; line-height: 1.45; color: color-mix(in srgb, var(--pm-fg) 86%, transparent); }
+.pm-intro-card .pm-intro-dim { color: var(--pm-dim); font-size: .92em; }
+.pm-intro-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
+.pm-intro-acts .pm-btn.main { --pm-c: var(--pm-work); }
+
+/* The little island: the task, a bounce to the countdown, the green tick, a bounce back. 6 s, round and round. */
+.pm-demo { height: 52px; display: grid; place-items: start center; }
+.pm-demo-isl { position: relative; height: 30px; width: 200px; border-radius: 15px; background: #000; color: #fff; font-size: 12px; font-weight: 650;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .1), 0 10px 26px rgba(0, 0, 0, .5); animation: pm-isl 6s cubic-bezier(.34, 1.56, .64, 1) infinite; overflow: hidden; }
+.pm-demo-isl > span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
+.pm-demo-ring { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--pm-work); }
+.pm-demo-tick { width: 13px; height: 13px; border-radius: 50%; background: #34C759; position: relative; }
+.pm-demo-tick::after { content: ""; position: absolute; left: 4.2px; top: 2.2px; width: 3px; height: 6px; border: solid #000; border-width: 0 1.8px 1.8px 0; transform: rotate(45deg); }
+.pm-demo-timer { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--pm-short); }
+.pm-demo-task { animation: pm-d-task 6s ease infinite; }
+.pm-demo-timer { animation: pm-d-timer 6s ease infinite; }
+.pm-demo-back { animation: pm-d-back 6s ease infinite; }
+@keyframes pm-isl {
+  0%, 18% { transform: scale(1); width: 200px; }
+  22% { transform: scale(.86, .8); }
+  28%, 52% { transform: scale(1); width: 110px; }
+  56% { transform: scale(.88, .82); }
+  62%, 76% { transform: scale(1); width: 170px; }
+  80% { transform: scale(.88, .82); }
+  86%, 100% { transform: scale(1); width: 200px; }
+}
+@keyframes pm-d-task { 0%, 18% { opacity: 1; transform: none; } 23%, 81% { opacity: 0; transform: translateY(-8px); } 88%, 100% { opacity: 1; transform: none; } }
+@keyframes pm-d-timer { 0%, 22% { opacity: 0; transform: translateY(8px); } 28%, 52% { opacity: 1; transform: none; } 57%, 100% { opacity: 0; transform: translateY(-8px); } }
+@keyframes pm-d-back { 0%, 56% { opacity: 0; transform: translateY(8px) scale(.9); } 62%, 76% { opacity: 1; transform: none; } 81%, 100% { opacity: 0; transform: translateY(-8px); } }
+.pm-intro-card.calm .pm-demo-isl, .pm-intro-card.calm .pm-demo-isl > span { animation: none; }
+.pm-intro-card.calm .pm-demo-timer, .pm-intro-card.calm .pm-demo-back { opacity: 0; }
+
+/* ---------- the bottom row button ---------- */
+.pm-tab-btn { display: inline-flex; align-items: center; gap: calc(7px * var(--k-dn, 1)); height: calc(34px * var(--k-dn, 1)); padding: 0 calc(12px * var(--k-dn, 1)); border-radius: calc(17px * var(--k-rd, 1));
+  border: 1px solid color-mix(in srgb, var(--k-fg, #fff) 16%, transparent); background: color-mix(in srgb, var(--k-base, #000) 55%, transparent); color: var(--k-fg, #fff);
+  font: inherit; font-weight: 650; cursor: pointer; transition: transform .12s, background .16s, border-color .16s, color .3s; white-space: nowrap; }
+.pm-tab-btn:hover { background: color-mix(in srgb, var(--k-fg, #fff) 12%, transparent); }
+.pm-tab-btn:active { transform: scale(.95); }
+.pm-tab-btn svg { width: 18px; height: 18px; flex: none; }
+.pm-tab-btn.on .pm-tab-label { font-variant-numeric: tabular-nums; }
+.pm-tab-btn.on.wrk { border-color: color-mix(in srgb, var(--k-acc, #F0567F) 60%, transparent); color: var(--k-acc, #F0567F); }
+.pm-tab-btn.on.brk { border-color: color-mix(in srgb, #34D399 60%, transparent); color: #34D399; }
+@media (max-width: 720px) { .pm-tab-btn:not(.on) .pm-tab-label { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-phase, .pm-intro, .pm-intro-card, .pm-paused .pm-time { animation: none; }
+  .pm-arc, .pm-dots i { transition: none; }
+}
+
+/* ---------- Settings, Pomodoro ---------- */
+.pm-step { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--k-fg, #fff) 14%, transparent); }
+.pm-step button { width: 28px; height: 28px; border-radius: 50%; border: 0; background: none; color: inherit; font: inherit; font-size: 1.15em; font-weight: 700; cursor: pointer; transition: background .15s, transform .12s; }
+.pm-step button:hover:not(:disabled) { background: color-mix(in srgb, var(--k-fg, #fff) 12%, transparent); }
+.pm-step button:active:not(:disabled) { transform: scale(.9); }
+.pm-step button:disabled { opacity: .3; cursor: default; }
+.pm-step-v { min-width: 62px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pm-set-row { display: inline-flex; align-items: center; gap: 8px; }
+.pm-play { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--k-fg, #fff) 16%, transparent); background: none; color: inherit; cursor: pointer; transition: background .15s, transform .12s; }
+.pm-play:hover { background: color-mix(in srgb, var(--k-fg, #fff) 12%, transparent); }
+.pm-play:active { transform: scale(.9); }
+.pm-hours input[type="time"] { height: 30px; padding: 0 8px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--k-fg, #fff) 16%, transparent); background: none; color: inherit; font: inherit; font-variant-numeric: tabular-nums; }
+.pm-to { opacity: .7; }
+.pm-try { --pm-bg: var(--k-base, #0B080D); --pm-fg: var(--k-fg, #fff); --pm-line: color-mix(in srgb, var(--pm-fg) 16%, transparent); --pm-card: color-mix(in srgb, var(--pm-fg) 7%, var(--pm-bg)); height: 32px; }
+.pm-try:disabled { opacity: .55; cursor: default; }
+.pm-tab-btn { width: max-content; align-self: flex-start; }

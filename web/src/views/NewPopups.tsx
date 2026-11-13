@@ -26,7 +26,7 @@ import { sentryUp } from "./Sentry";
 import { taskMapActions } from "./TaskMap";
 import { openSettings, settingsWanted } from "./SettingsScreen";
 import { frontIsProtected, screenNow, sinceLastKeyMs, typingNow } from "./Tips";
-import { popupOn, setPopupOn, tipOn, noteSourceOpened, sourceWasOpened } from "./popupstate";
+import { popupOn, setPopupOn, tipOn, walkOn, walkWaitingNow, noteSourceOpened, sourceWasOpened } from "./popupstate";
 import { copyAiGuide } from "../taskapi";
 import { cleanApprove, APPROVE_LINE } from "../core/autoapprove";
 import { checkWithAiText, openSourceUrl } from "../core/opensource";
@@ -158,7 +158,7 @@ export function NewPopupsHost() {
       };
       const phone = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
       pf.gateOpen = gateOpen(gate.current, tipsFinished(cleanTipsSeen(st.tipsSeen), { hasReminder: !!remindRec(snap)?.list?.some((r) => r.task), phone }));
-      pf.tipShowing = tipOn();   // views/Tips.tsx keeps the flag
+      pf.tipShowing = tipOn() || walkOn() || walkWaitingNow();   // views/Tips.tsx keeps the flag; the 1.58 walkthrough (views/Walkthrough.tsx) goes first
       if (import.meta.env.DEV) { Object.assign(pf, (window as unknown as { __popupsFacts?: Partial<PopupFacts> }).__popupsFacts); (window as unknown as { __popupsSeenFacts?: unknown }).__popupsSeenFacts = pf; }
       // A feature they found by themselves needs no pop-up: mark it seen, quietly.
       const f = foundNow(pf);

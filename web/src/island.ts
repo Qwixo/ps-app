@@ -6,15 +6,22 @@
 // Private mode: the island shows a mask and "Private mode" with Show instead of the hidden title; a click there comes
 // back as {type:"islandAction", action:"privateOff"} and turns private mode off, and the real task is sent at once.
 import { vaultStore, type Snapshot } from "./core/vault";
-import { settingsData, todos } from "./core/select";
+import { calendarSnap, settingsData, todos } from "./core/select";
+import { islandMeetings } from "./core/islandaway";
+import { visibleEvents } from "./core/meethide";
 import { saveSettings, toggleTodo } from "./core/actions";
 import { workingIdsOf, type Doc, type Reply, type Todo } from "./core/model";
 import { mailCards } from "./core/mailcards";
 import { leadCards } from "./core/leadcards";
-import { chatDoneCards } from "./core/chatdone";
+import { AI_MSG_PRIVATE, aiCardsNow } from "./core/aimessage";
 import { irepFeed } from "./mailcards";
 import { ISLAND_EVENT_MS, ISLAND_FRESH_MS, canPrivateOff, canTick, canUndo, islandState, pickEvent, type IslandCard, type IslandEvent, type IslandState, type IslandTick } from "./core/island";
 import { todayISO } from "./ui/kit";
+import { breakWindows, cleanRun, pomoIsland, pomoPrefs } from "./core/pomodoro";
+import { STAND_LEAD_MS, standIsland, standPrefs } from "./core/standup";
+import { meetBubblePrefs, meetIsland } from "./core/meetbubble";
+import { dndMutes } from "./core/dnd";
+import { runPomoOp } from "./pomodoro";
 
 type Post = (m: object) => void;
 let post: Post = () => {};
@@ -33,7 +40,8 @@ function cardsNow(s: Snapshot, now: number): { mail: number; leads: number; card
   const st = settingsData(s);
   const mail = mailCards(s.docs.values(), st.mailCardsSince, 20, now);
   const leads = leadCards(irepFeed(s), st.leadCards, now);
-  const chats = chatDoneCards(st.chatDone, now, st.dnd);
+  const ai = aiCardsNow(st, now);   // V1.58: a chat that sent a message has no plain card; Settings may show neither
+  const chats = ai.chats;
   const cards: IslandCard[] = [];
   for (const c of mail) {
     // Fresh: the email just came, or its "Remind me in" just ran out.
@@ -44,6 +52,7 @@ function cardsNow(s: Snapshot, now: number): { mail: number; leads: number; card
   }
   for (const c of leads) cards.push({ id: c.id, kind: "lead", title: c.title, sub: c.sub, url: c.url, at: Date.parse(c.at) || 0, fresh: c.fresh });
   for (const c of chats) cards.push({ id: c.id, kind: "chat", title: c.chat, sub: c.sub, url: "", at: Date.parse(c.at) || 0, fresh: c.fresh });
+  for (const c of ai.msgs) cards.push({ id: c.id, kind: "chat", title: c.text, sub: c.from, url: "", privTitle: AI_MSG_PRIVATE, at: Date.parse(c.at) || 0, fresh: c.fresh });
   return { mail: mail.length, leads: leads.length, cards };
 }
 
@@ -60,7 +69,21 @@ function sync(force = false) {
   }
   const st = settingsData(s);
   shown = islandState({ todos: todos(s) as Doc<Todo>[], settings: st, today: todayISO(), mail, leads, event, now });
-  send(shown, force);
+  // V1.58: the meetings for "Disappear for this meeting" (core/islandaway.ts): the Meetings panel's own calendar copy,
+  // the meetings taken off the panel left out. Only ids and times.
+  const cal = calendarSnap(s);
+  const meets = islandMeetings(visibleEvents(cal ? cal.data.events : [], st.meetHidden), now);
+  // Pomodoro (V1.58, core/pomodoro.ts): the run with wall clock end times, so the island counts down by itself (ps-mac
+  // IslandPomo.swift). Sent with the island off too: the Mac then says it with a pop-up. Sound: the setting, then Do Not Disturb.
+  const soundOk = !dndMutes(st.dnd, "sounds", now);
+  const run = cleanRun(st.pomoRun), pp = pomoPrefs(st.pomodoro);
+  const pomo = pomoIsland(run, pp, now, soundOk);
+  // Stand-up reminders (core/standup.ts): the one on now or next; one that falls in a Pomodoro break is skipped.
+  const breaks = breakWindows(run, pp, now);
+  const stand = standIsland(standPrefs(st.standup), now, soundOk, (at) => breaks.some(([a, b]) => at >= a && at < b), standTest);
+  // The next meeting bubble (core/meetbubble.ts): the meetings the Meetings panel already has.
+  const meet = meetIsland(cal?.data.events, st.meetHidden, meetBubblePrefs(st.meetBubble), now, !!st.privateMode);
+  send({ ...shown, meets, pomo, stand, meet }, force);
 }
 function send(state: object, force: boolean) {
   const json = JSON.stringify(state);
@@ -74,6 +97,8 @@ export function islandMessage(m: { type?: string; action?: string; id?: string }
   if (m.type !== "islandAction") return false;
   const s = vaultStore.get();
   if (s.status !== "unlocked" || s.role !== "owner") return true;
+  // Pomodoro: the island's Start on a break that waits (Start the next one by itself is off).
+  if (m.action === "pomoBegin") { void runPomoOp("begin"); return true; }
   if (m.action === "privateOff") {
     if (canPrivateOff(shown, settingsData(s).privateMode)) void saveSettings({ privateMode: false }).then(() => sync(true));
     return true;
@@ -92,6 +117,12 @@ export function islandMessage(m: { type?: string; action?: string; id?: string }
   }
   return true;
 }
+
+/** Send the island's state now (a Pomodoro phase just changed). */
+export function islandNow() { sync(true); }
+/** Settings, Stand-up reminders, Try it now: one stand-up 15 seconds from now, on this Mac only (never saved). */
+let standTest: number | null = null;
+export function islandStandTest() { standTest = Date.now() + STAND_LEAD_MS + 400; sync(true); }
 
 /** PS main window only. */
 export function startIsland(p: Post) {

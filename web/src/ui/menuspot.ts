@@ -1,4 +1,4 @@
-// Where the Dynamic Island menu goes (views/TaskMap.tsx IslandSwitch). The developer, 5 Nov 2026: its look editor ran off
+// Where the Dynamic Island menu goes (the old views/TaskMap.tsx island menu, gone since V1.58: no longer used by the app, kept for its test). The developer, 5 Nov 2026: its look editor ran off
 // the left of his monitor when the island button sat near the screen's left edge.
 
 /** Under the button with the right edges lined up when there is room, else slid in from the screen's edge.

@@ -37,7 +37,7 @@ SIGN="${PS_SIGNING_DIR:-$HERE/signing}"   # a worktree reads the main checkout's
 INAME="${PS_TEST_NAME:-PS}"
 RENAME_TO="${PS_TEST_RENAME_TO:-My Tasks}"
 mkdir -p "$HERE/build"
-KC="$SIGN/ps-signing.keychain-db"; ID=B278D9D09DFED336675CFB367B2F8A3B51896689
+KC="$SIGN/ps-signing.keychain-db"; ID=C0E302F2CE304D062A50D6EBDAFF97D5F7D4B6E6
 TOOL="$HERE/build/pstool"
 [ -x "$APP/Contents/MacOS/PS" ] || { echo "build the test copy first (NO_INSTALL=1 bash build.sh)"; exit 1; }
 [ -f "$APP/Contents/Resources/update.html" ] || { echo "the test copy has no update.html: rebuild it"; exit 1; }

@@ -19,6 +19,19 @@ val versionProps = Properties().apply { rootProject.file("version.properties").i
 val updateBase = (project.findProperty("updateBase") as String?) ?: "https://github.com/RedbyPS/ps/releases/latest/download/"
 val updateNote = (project.findProperty("updateNote") as String?) ?: "gos-version.json"
 
+// V1.58 layers (core tools/assemble.mjs): an assembled tree has ps-build.json at its top (flavour, commits, the full
+// profile). The app gets it and the profile as assets ps-build.json and profile.json. A build from the private tree as
+// in V1.57 has neither (the folder is emptied), and the app keeps its per account answers.
+val psBuildFile = rootProject.file("../ps-build.json")
+val psBuildAssets = layout.buildDirectory.dir("generated/ps-build").get().asFile
+psBuildAssets.deleteRecursively()
+if (psBuildFile.exists()) {
+    psBuildAssets.mkdirs()
+    psBuildFile.copyTo(File(psBuildAssets, "ps-build.json"), overwrite = true)
+    val profile = (groovy.json.JsonSlurper().parse(psBuildFile) as Map<*, *>)["profile"]
+    if (profile != null) File(psBuildAssets, "profile.json").writeText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(profile)) + "\n")
+}
+
 android {
     namespace = "com.cincee.ps.gos"
     compileSdk = 37
@@ -67,6 +80,7 @@ android {
         }
     }
 
+    sourceSets["main"].assets.srcDir(psBuildAssets)
     buildFeatures { buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

@@ -21,6 +21,7 @@ import { runSecondOp, sendFile } from "../second/store";
 import { WhatsNewHost } from "./WhatsNew";
 import { TipsHost } from "./Tips";
 import { NewPopupsHost } from "./NewPopups";
+import { WalkthroughHost } from "./Walkthrough";
 import { startSetupDoor, WelcomeHost } from "./Welcome";
 import { UpdateFace } from "./UpdateFace";
 import "./ps.css";
@@ -193,6 +194,7 @@ export function PsOverlay() {
       <UpdateFace />{/* the update card on the list itself (V1.40, the developer: "I want it to be in your face") */}
       <TipsHost />{/* the first use tips (V1.55): gentle, one at a time, once per account (views/Tips.tsx) */}
       <NewPopupsHost />{/* the "new in this version" pop-ups (V1.56): AI task API, Auto approve, open source, after What's new (views/NewPopups.tsx) */}
+      <WalkthroughHost />{/* the "what is new" walkthrough (V1.58): the island's grey bar menu, its settings, Pomodoro, Stand-up and more, after What's new (views/Walkthrough.tsx) */}
     </>
   );
 }

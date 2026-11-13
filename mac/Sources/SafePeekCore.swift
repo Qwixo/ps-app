@@ -16,6 +16,17 @@ import Foundation
 //  - "Hold Right Option" chosen: Right Option needs the tap (there is no hotkey for a modifier alone), so over
 //    1Password or Signal nothing could open PS. Now a hold of plain Tab opens it there too.
 //  - Secure Input stuck on: the hotkey is armed while it lasts.
+//
+// V1.58 (the developer, 13 Nov 2026), two rules, one per account (BuildRules.swift):
+//  - Everyone except the developer: armed over 1Password and Signal, as above.
+//  - the developer: never armed over them (tabOverProtected false). Secure Input stuck does not change that while one of them
+//    is in front.
+// And the cause of "Tab still does not open over Signal" on the public build: `editing` (typing in the floating list)
+// stayed true after the list had gone, because the page can say "a screen is open" (G Squad, Fitness, Dimension X,
+// Brief and the others send {type:"dimx"}, a box sends {type:"edit"}) while the list is hidden, for example a screen
+// reopening itself. The keyboard tap only counts `editing` while the list is shown (main.swift), so Tab kept working
+// over every normal app, but SafePeek counted it always and dropped the hotkey: over 1Password and Signal nothing
+// opened PS, silently. Now `editing` only counts while the list is shown, as in the tap.
 enum SafePeekCore {
   /// Why the keyboard tap cannot see Tab right now. nil: it can, SafePeek stays out of the way.
   enum Blind: String, Equatable { case protected, secureInput }
@@ -46,17 +57,22 @@ enum SafePeekCore {
     var held = false
     /// A Tab PS just sent on (a quick tap over a normal app): the hotkey stays off until it has gone by.
     var passingOn = false
+    /// The list is on screen now. `editing` only counts then (a flag left over while hidden must not disarm Tab).
+    var shown = false
+    /// This account may open PS over 1Password and Signal (BuildRules: false for the developer, true for everyone else).
+    var tabOverProtected = true
   }
 
   /// Whether the plain Tab hotkey is armed.
   static func wantTab(_ i: Inputs) -> Bool {
     if i.held { return true }
     guard let why = blind(protectedFront: i.protectedFront, secureStuck: i.secureStuck) else { return false }
-    guard i.enabled, !i.kept, !i.editing, !i.passingOn else { return false }
+    guard i.enabled, !i.kept, !(i.editing && i.shown), !i.passingOn else { return false }
     switch why {
     case .protected:
-      // Any chosen key: Right Option cannot be seen over them, so plain Tab is the way in there.
-      return true
+      // The developer's account: never over them. Everyone else: any chosen key (Right Option cannot be seen over them, so
+      // plain Tab is the way in there).
+      return i.tabOverProtected
     case .secureInput:
       // PS's own Sign in window and apps on the ignore list keep their Tab.
       return !i.appActive && !i.frontIgnored
@@ -64,8 +80,23 @@ enum SafePeekCore {
   }
 
   /// Whether Esc is grabbed the same way (the tap cannot see it either): only while the list is up.
-  static func wantEsc(protectedFront: Bool, secureStuck: Bool, shown: Bool) -> Bool {
-    shown && blind(protectedFront: protectedFront, secureStuck: secureStuck) != nil
+  /// The developer's account: never over 1Password or Signal (the list does not stay up there for him anyway).
+  static func wantEsc(protectedFront: Bool, secureStuck: Bool, shown: Bool, tabOverProtected: Bool = true) -> Bool {
+    if protectedFront && !tabOverProtected { return false }
+    return shown && blind(protectedFront: protectedFront, secureStuck: secureStuck) != nil
+  }
+
+  /// Whether the list's combos (V1.47, Control Option Space and the like) are registered. Everyone else: always while
+  /// the Tab overlay is on and Settings is not recording. The developer's account: dropped while 1Password or Signal is in
+  /// front, so no combo can open PS over them and no combo key is taken from them.
+  static func wantCombos(enabled: Bool, recording: Bool, protectedFront: Bool, tabOverProtected: Bool) -> Bool {
+    enabled && !recording && !(protectedFront && !tabOverProtected)
+  }
+
+  /// When 1Password or Signal comes to the front with the list up (pinned, Keep overlay): the developer's account puts it away
+  /// (PS steps aside completely), everyone else keeps it where it is.
+  static func hideListOnProtected(protectedFront: Bool, shown: Bool, tabOverProtected: Bool) -> Bool {
+    protectedFront && shown && !tabOverProtected
   }
 
   enum HoldAction: Equatable { case showList, askTouchID, showCard, nothing }

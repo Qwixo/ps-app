@@ -35,8 +35,9 @@ ok("other island choices are untouched", () => {
   assert.equal(p.hide, 300);
 });
 ok("the row is in Settings > Mac > Dynamic Island and in the Tab list's island menu, for everyone", () => {
-  assert.match(src("src/views/PsSettings.tsx"), /<IslandTickSideRow prefs=\{prefs\}/);
-  assert.match(src("src/views/TaskMap.tsx"), /\{PS && <IslandTickSideRow /);
+  // V1.58: in the shared island settings (views/IslandSettings.tsx): the window, Settings > Dynamic Island, the Mac page.
+  assert.match(src("src/views/IslandSettings.tsx"), /\{PS && <IslandTickSideRow /);
+  assert.match(src("src/views/PsSettings.tsx"), /<IslandSettingsPage prefs=\{prefs\}/);
   const row = src("src/views/IslandCards.tsx");
   const fn = row.slice(row.indexOf("export function IslandTickSideRow"), row.indexOf("export const ISLAND_CARDS_LABEL"));
   assert.ok(fn.length > 0 && !/isRedAccount|\bred\b/.test(fn));

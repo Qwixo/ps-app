@@ -8,6 +8,7 @@
 import type { Settings } from "./model";
 import { mergeLeadState } from "./leadcards.ts";
 import { mergeChatDone } from "./chatdone.ts";
+import { mergeAiMsgs } from "./aimessage.ts";
 import { mergeMailRules } from "./mailrules.ts";
 import { mergeMailReply } from "./mailreply.ts";
 
@@ -17,6 +18,8 @@ export function mergeSettings(local: Settings, remote: Settings): Settings {
   if (lead) out.leadCards = lead;
   const chat = mergeChatDone(local.chatDone, remote.chatDone);
   if (chat) out.chatDone = chat;
+  const msgs = mergeAiMsgs(local.aiMsgs, remote.aiMsgs);   // V1.58: messages from AIs, a Dismiss on either device holds
+  if (msgs) out.aiMsgs = msgs;
   const rules = mergeMailRules(local.mailRules, remote.mailRules);   // Always notify me and Muted, entry by entry
   if (rules) out.mailRules = rules;
   const reply = mergeMailReply(local.mailReply, remote.mailReply);   // signatures and saved responses: the newer change

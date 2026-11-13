@@ -65,7 +65,7 @@ ok("wired: the Accent and Layout cards draw the live list, the Looks page the ra
   assert.match(ap, /<LiveSample a=\{\{ look: look\.id, accent: pictured/);
   assert.match(ap, /<LiveSample a=\{pictured\} mark="type" \/>/);
   assert.match(tm, /ms-rain-live/);
-  assert.match(tm, /islandPicVars\(m\.id/);
+  assert.match(src("views/IslandSettings.tsx"), /islandPicVars\(m\.id/);   // V1.58: the island's shapes live in the shared island settings
   assert.match(tm, /tm-p1-frame mini p1d-\$\{p1\}/, "background tiles show your own outline, not always red");
 });
 

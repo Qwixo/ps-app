@@ -101,7 +101,7 @@ ok("looks, backgrounds and rain follow the floating list, not the old docked boa
 });
 ok("Coming up on the web: no island switch, no refresh for anyone but the developer", () => {
   const peek = tm.slice(tm.indexOf("function MeetingsPeek("), tm.indexOf("const useCalStatus"));
-  assert.match(peek, /\{!web && (?:<Inner kind="islandsw">)?<IslandSwitch prefs=\{island\} \/>(?:<\/Inner>)?\}/);   // V1.55: Inner, it can be dragged out
+  assert.doesNotMatch(peek, /IslandSwitch/);   // V1.58: the island's settings left the Meetings panel (right click on the island, Settings)
   assert.match(peek, /\{!\(web && local\) && (?:<Inner kind="calrefresh">)?<CalRefresh local=\{local\} \/>(?:<\/Inner>)?\}/);
   assert.match(tm, /local=\{!red\} web=\{web\} \/>/);
 });

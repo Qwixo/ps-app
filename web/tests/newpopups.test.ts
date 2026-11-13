@@ -269,7 +269,7 @@ ok("source checks: one copy of the text, Esc, no focus, mounts, saving, quiet ru
   assert.match(read("../src/gos/GosLayer.tsx"), /<NewPopupsHost \/>/);
   // the tips and the pop-ups never overlap, both ways
   const tips = read("../src/views/Tips.tsx");
-  assert.match(tips, /if \(popupOn\(\)\) return;/);
+  assert.match(tips, /if \(popupOn\(\) \|\| walkOn\(\)\) return;/);   // V1.58: the walkthrough too (tests/walkthrough.test.ts)
   assert.match(tips, /setTipOn\(true\)/);
   assert.match(view, /tipOn\(\)/);
   assert.match(view, /setPopupOn\(true\)/);

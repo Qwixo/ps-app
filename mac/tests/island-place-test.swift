@@ -98,35 +98,106 @@ check("place-move-on-default", IslandPlace.place(.whole, notch: true, menuAlways
 
 // MARK: the panel's frame
 let W = IslandPlace.panelW, H = IslandPlace.panelH
-let home = IslandPlace.frame(.off, red, pos: nil, pillH: 34)
+let home = IslandPlace.frame(.off, red, pos: nil, pillW: 330, pillH: 34)
 check("normal-home-top-centre", near(home.midX, 855) && near(home.maxY, 1112) && near(home.width, W) && near(home.height, H))
-let bar = IslandPlace.frame(.bar, red, pos: nil, pillH: 34)
+let bar = IslandPlace.frame(.bar, red, pos: nil, pillW: 330, pillH: 34)
 let barW = IslandPlace.barW(red)
 check("bar-width", near(barW, 340))
 check("fullscreen-bar-left-of-notch", near(bar.midX + barW / 2, red.notchLeft - 10) && bar.midX - barW / 2 >= red.frame.minX && near(bar.maxY, 1112), "\(bar)")
 check("fullscreen-bar-covers-no-notch", bar.midX + barW / 2 < red.notchLeft)
-let dropped = IslandPlace.frame(.dropped, red, pos: CGPoint(x: 0.1, y: 0.9), pillH: 34)
+let dropped = IslandPlace.frame(.dropped, red, pos: CGPoint(x: 0.1, y: 0.9), pillW: 330, pillH: 34)
 check("fullscreen-dropped-under-the-bar", near(dropped.midX, bar.midX) && near(dropped.maxY, 1112) && dropped.minX >= 0, "\(dropped)")
 let moved = CGPoint(x: 0.1, y: 0.95)
-let spot = IslandPlace.frame(.off, red, pos: moved, pillH: 34)
+let spot = IslandPlace.frame(.off, red, pos: moved, pillW: 330, pillH: 34)
 check("moved-spot-on-desktop", spot.midX < 855 - 300 && spot.minX >= 0)
-check("moved-spot-waits-in-full-screen", IslandPlace.frame(.bar, red, pos: moved, pillH: 34) == bar)
-check("moved-spot-same-when-menu-hides", IslandPlace.frame(.off, redFull, pos: moved, pillH: 34) == spot)
+check("moved-spot-waits-in-full-screen", IslandPlace.frame(.bar, red, pos: moved, pillW: 330, pillH: 34) == bar)
+check("moved-spot-same-when-menu-hides", IslandPlace.frame(.off, redFull, pos: moved, pillW: 330, pillH: 34) == spot)
 // Little screen, little left strip: the bar never goes past the screen's left edge or into the notch.
 let small = IslandGeo.make(frame: CGRect(x: 0, y: 0, width: 1280, height: 832), visible: CGRect(x: 0, y: 0, width: 1280, height: 795), inset: 32,
                            left: CGRect(x: 0, y: 800, width: 547, height: 32), right: CGRect(x: 733, y: 800, width: 547, height: 32))
-let sbar = IslandPlace.frame(.bar, small, pos: nil, pillH: 34)
+let sbar = IslandPlace.frame(.bar, small, pos: nil, pillW: 330, pillH: 34)
 check("small-bar-left-of-notch", sbar.midX + IslandPlace.barW(small) / 2 <= small.notchLeft - 10 + 0.01 && sbar.midX - IslandPlace.barW(small) / 2 >= 0)
 // Second display (MacBook left of the main one): the bar sits on the MacBook, left of its notch.
 let leftMac = IslandGeo.make(frame: redFrame.offsetBy(dx: -1710, dy: 0), visible: redVisible.offsetBy(dx: -1710, dy: 0), inset: 37.5, left: redL, right: redR)
-let lbar = IslandPlace.frame(.bar, leftMac, pos: nil, pillH: 34)
+let lbar = IslandPlace.frame(.bar, leftMac, pos: nil, pillW: 330, pillH: 34)
 check("second-display-bar-on-the-macbook", lbar.midX - barW / 2 >= -1710 && lbar.midX + barW / 2 <= -1710 + 751)
 check("second-display-cg-rect", IslandPlace.cgRect(CGRect(x: 1920, y: -200, width: 1710, height: 1112), primaryH: 1080) == CGRect(x: 1920, y: 168, width: 1710, height: 1112))
 
-// MARK: the moved spot round trip (G Squad, kept as fractions of the room)
-let c = IslandPlace.center(moved, red, pillH: 34)
-check("spot-round-trip", IslandPlace.spot(c, red, pillH: 34) == moved)
-check("spot-clamped", IslandPlace.spot(CGPoint(x: -5000, y: 99999), red, pillH: 34) == CGPoint(x: 0, y: 1))
+// MARK: the moved spot round trip (V1.58: fractions of the screen)
+let c = IslandPlace.center(moved, red, pillW: 330, pillH: 34)
+check("spot-round-trip", IslandPlace.spot(c, red, pillW: 330, pillH: 34) == moved)
+check("spot-clamped", IslandPlace.spot(CGPoint(x: -5000, y: 99999), red, pillW: 330, pillH: 34) == CGPoint(x: 0.0988, y: 0.9829), "\(IslandPlace.spot(CGPoint(x: -5000, y: 99999), red, pillW: 330, pillH: 34))")
+
+// MARK: V1.58 into the top strip and the corners (a friend, 13 Nov 2026: "It doesn't let me move it more to the corner
+// than this" and "I can't move it up there in the black empty space")
+func pillRect(_ s: CGPoint, _ g: IslandGeo, w: CGFloat = 330, h: CGFloat = 34) -> CGRect {
+  let l = IslandPlace.moved(s, g, pillW: w, pillH: h)
+  let r = IslandPlace.movedShape(anchor: l.anchor, w: w, h: h, pillW: w, pillH: h, up: IslandPlace.opensUp(s))
+  return CGRect(x: l.frame.minX + r.minX, y: l.frame.maxY - r.maxY, width: r.width, height: r.height)
+}
+func inside(_ a: CGRect, _ b: CGRect) -> Bool { a.minX >= b.minX - 0.01 && a.maxX <= b.maxX + 0.01 && a.minY >= b.minY - 0.01 && a.maxY <= b.maxY + 0.01 }
+let eg = IslandPlace.edgeGap, tg = IslandPlace.topGap
+// No notch (an external display, the M1): every corner, right up to the edge, the top one over the menu bar's strip.
+let tl = pillRect(CGPoint(x: 0, y: 1), plainShown), tr = pillRect(CGPoint(x: 1, y: 1), plainShown)
+let bl = pillRect(CGPoint(x: 0, y: 0), plainShown), br = pillRect(CGPoint(x: 1, y: 0), plainShown)
+check("corner-top-left", near(tl.minX, eg) && near(tl.maxY, 900 - tg), "\(tl)")
+check("corner-top-right", near(tr.maxX, 1440 - eg) && near(tr.maxY, 900 - tg), "\(tr)")
+check("corner-bottom-left", near(bl.minX, eg) && near(bl.minY, eg), "\(bl)")
+check("corner-bottom-right", near(br.maxX, 1440 - eg) && near(br.minY, eg), "\(br)")
+check("top-strip-over-menu-bar", tl.minY > plainShown.frame.maxY - plainShown.menuH - 34 && tl.maxY > plainShown.frame.maxY - plainShown.menuH, "\(tl)")
+// The V1.57 limits are gone: 75 points in from the side, 8 below the menu bar.
+let old = IslandPlace.legacyRoom(plainShown, pillH: 34)
+check("further-than-v157-side", tl.minX < old.minX - 165 - 60)
+check("further-than-v157-top", tl.maxY > old.maxY + 17 + 30)
+// The panel always fully on screen, and the island open inside it from every corner (it opens inwards).
+var panelsOk = true, openOk = true
+for g in [plainShown, red, redFull, small] {
+  for s in [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0), CGPoint(x: 0, y: 1), CGPoint(x: 1, y: 1), CGPoint(x: 0.5, y: 0.5), CGPoint(x: 0.02, y: 0.6)] {
+    for (w, h) in [(CGFloat(330), CGFloat(34)), (270, 28)] {
+      let l = IslandPlace.moved(s, g, pillW: w, pillH: h)
+      if !inside(l.frame, g.frame) || l.frame.width != W || l.frame.height != H { panelsOk = false }
+      let o = IslandPlace.movedShape(anchor: l.anchor, w: w + 70, h: 254, pillW: w, pillH: h, up: IslandPlace.opensUp(s))
+      if !inside(o, CGRect(x: 0, y: 0, width: W, height: H)) { openOk = false }
+      if !inside(pillRect(s, g, w: w, h: h), g.frame) { panelsOk = false }
+    }
+  }
+}
+check("moved-panel-always-on-screen", panelsOk)
+check("moved-open-view-fits", openOk)
+// The open view from the top left corner starts at the pill's left edge (it grows to the right, inwards).
+let tlL = IslandPlace.moved(CGPoint(x: 0, y: 1), red, pillW: 330, pillH: 34)
+let tlOpen = IslandPlace.movedShape(anchor: tlL.anchor, w: 400, h: 200, pillW: 330, pillH: 34, up: false)
+check("corner-opens-inwards", near(tlL.frame.minX + tlOpen.minX, eg) && near(tlL.frame.maxY - tlOpen.minY, red.frame.maxY - tg), "\(tlOpen)")
+// A notch: beside it the pill goes right up into the black strip; over it, it stays below the camera.
+let besideNotch = IslandPlace.clamp(CGPoint(x: 300, y: 2000), red, pillW: 330, pillH: 34)
+check("notch-strip-beside", near(besideNotch.y + 17, 1112 - tg) && besideNotch.x + 165 < red.notchLeft, "\(besideNotch)")
+let overNotch = IslandPlace.clamp(CGPoint(x: 855, y: 2000), red, pillW: 330, pillH: 34)
+check("notch-never-on-camera", overNotch.y + 17 <= 1112 - red.notchH - IslandPlace.notchGap + 0.01, "\(overNotch)")
+let edgeNotch = IslandPlace.clamp(CGPoint(x: red.notchLeft - 165, y: 2000), red, pillW: 330, pillH: 34)
+check("notch-touching-edge-stays-below", edgeNotch.y + 17 <= 1112 - red.notchH, "\(edgeNotch)")
+let rightOfNotch = IslandPlace.clamp(CGPoint(x: 1710, y: 2000), red, pillW: 330, pillH: 34)
+check("notch-strip-right-side", near(rightOfNotch.y + 17, 1112 - tg) && near(rightOfNotch.x + 165, 1710 - eg), "\(rightOfNotch)")
+// Full screen (menu bar hidden) or not: the same spot, the same place.
+check("moved-same-in-full-screen", IslandPlace.moved(CGPoint(x: 0, y: 1), red, pillW: 330, pillH: 34) == IslandPlace.moved(CGPoint(x: 0, y: 1), redFull, pillW: 330, pillH: 34))
+// A second display left of the main one: the corners of that screen.
+let lc = pillRect(CGPoint(x: 0, y: 1), leftMac)
+check("second-display-corner", near(lc.minX, -1710 + eg) && near(lc.maxY, 1112 - tg), "\(lc)")
+// The V1.57 spot (fractions of its smaller room) lands on the same place on screen.
+for s0 in [CGPoint(x: 0, y: 1), CGPoint(x: 0.3, y: 0.2), CGPoint(x: 1, y: 0), CGPoint(x: 0.5, y: 0.5)] {
+  let r0 = IslandPlace.legacyRoom(red, pillH: 34)
+  let was = CGPoint(x: r0.minX + s0.x * r0.width, y: r0.minY + s0.y * r0.height)
+  let now = IslandPlace.center(IslandPlace.fromLegacy(s0, red, pillW: 330, pillH: 34), red, pillW: 330, pillH: 34)
+  check("legacy-spot-\(s0.x)-\(s0.y)-same-place", abs(now.x - was.x) < 0.5 && abs(now.y - was.y) < 0.5, "\(was) \(now)")
+}
+check("legacy-spot-bad-numbers-clamped", IslandPlace.fromLegacy(CGPoint(x: -3, y: 7), red, pillW: 330, pillH: 34) == IslandPlace.fromLegacy(CGPoint(x: 0, y: 1), red, pillW: 330, pillH: 34))
+check("opens-up-lower-half", IslandPlace.opensUp(CGPoint(x: 0.5, y: 0.2)) && !IslandPlace.opensUp(CGPoint(x: 0.5, y: 0.9)))
+
+// MARK: why not in the top bar (the log line)
+check("why-not-none", IslandPlace.barWhyNot(.none, notch: true, menuAlways: false, move: true) == nil)
+check("why-not-in-bar", IslandPlace.barWhyNot(.whole, notch: true, menuAlways: false, move: true) == nil)
+check("why-not-setting", IslandPlace.barWhyNot(.whole, notch: true, menuAlways: false, move: false)?.contains("sit in the top bar") == true)
+check("why-not-no-notch", IslandPlace.barWhyNot(.whole, notch: false, menuAlways: false, move: true)?.contains("no notch") == true)
+check("why-not-menu-always", IslandPlace.barWhyNot(.belowNotch, notch: true, menuAlways: true, move: true)?.contains("menu bar") == true)
 
 // MARK: every desktop (the developer, 12 Nov 2026: the island stopped following him across desktops after a drag)
 let sp = IslandPlace.spaces

@@ -22,8 +22,11 @@ import SwiftUI
 // catch a click), and brings it back the same way a while later (1 minute by default since V1.40, set in Settings; news brings it back at once).
 // G Squad (the developer, 7 Nov 2026: "make it so you can actually move the dynamic island around as well. So you don't have to
 // have it at the top, you can move it down"): drag the grab line and the island goes anywhere on the screen as the
-// pill (IslandPanel.dragHook, Island.dragEvent). The spot is kept per Mac (UserDefaults island.pos, a fraction of the
+// pill (IslandPanel.dragHook, Island.dragEvent). The spot is kept per Mac (UserDefaults island.spot, a fraction of the
 // screen, so it means the same on any screen size), clamped so the island and its open view are always fully on screen.
+// V1.58 (a friend: "It doesn't let me move it more to the corner than this", and not up into the black strip): the pill
+// goes right into the corners and up into the top strip, beside the notch, never on the camera (IslandPlace.clamp). The
+// window stays on the screen and the pill moves inside it (IslandModel.anchor), so the open view still fits.
 // In the lower half it opens upwards. Dropped near the top centre it snaps home (around the notch again). Reset: Mac
 // settings, the Tab list's Edit mode, or the page's {type:"island:reset"}. While the Tab list is in Edit mode
 // ({type:"island:edit"}) the island shows even with nothing to show, so it can be found and moved.
@@ -36,6 +39,9 @@ final class IslandPanel: NSPanel {
   }
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
+  /// V1.58: never pushed below the menu bar by AppKit. The island places itself (IslandPlace.layout keeps the window on
+  /// its screen) and sits in the top strip on purpose, at a level above the menu bar.
+  override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
 final class IslandHost<C: View>: NSHostingView<C> {
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }   // the first click on the island counts
@@ -190,6 +196,11 @@ struct IslandState: Equatable {
   /// settings.island.tickSide, left unless set). The developer, 12 Nov 2026: "Make it so it's always on the left. Make this
   /// adjustable in the dynamic island settings too".
   var tickLeft = true
+  /// V1.58: the calendar events from now to 12 hours ahead, ids and times only (web src/core/islandaway.ts),
+  /// for "Disappear for this meeting" in the island's right click menu (IslandAwayCore.swift).
+  var meets: [IslandMeet] = []
+  /// V1.58: Pomodoro breaks, Stand-up reminders and the next meeting bubble (IslandTimersCore.swift).
+  var timers = TimersIn()
 
   /// A hide time from the page: whole seconds from 5 s to 1 hour, anything else the 1 minute default.
   static func hideTime(_ v: Any?) -> Double {
@@ -226,6 +237,8 @@ struct IslandState: Equatable {
     s.cards = (d["cards"] as? Bool) != false
     s.fsMove = (d["fsMove"] as? Bool) != false
     s.tickLeft = (d["tickSide"] as? String) != "right"
+    s.meets = IslandAwayCore.meets(d["meets"])
+    s.timers = TimersCore.from(d)   // V1.58 island timers
     s.cardsTop = ((d["top"] as? [Any]) ?? []).compactMap { $0 as? String }.filter { NoteDrop.kinds.contains($0) }
     if let e = d["event"] as? [String: Any] {
       let id = str(e["id"], 64), kind = e["kind"] as? String ?? "", title = str(e["title"], 160)
@@ -267,6 +280,9 @@ final class IslandModel: ObservableObject {
   @Published var away = false               // hidden by the grab line: faded and slid up (the window is then ordered out)
   @Published var free = false               // moved off the top centre (G Squad): always the pill, anywhere on screen
   @Published var growUp = false             // free in the lower half of the screen: it opens upwards
+  /// Moved (V1.58): where the resting pill's centre sits in the panel (top left origin). The panel stays on the screen
+  /// and the pill moves inside it, so the pill reaches the screen's edges, corners and top strip (IslandPlace.layout).
+  @Published var anchor: CGPoint?
   @Published var editing = false            // the Tab list is in Edit mode: shown even with nothing to show, to be moved
   @Published var dragging = false           // being dragged by its grab line: it stays shut
   /// V1.55: a card just dropped out of the island (1) or went back into it (a smaller gulp): the island swells for a
@@ -275,6 +291,12 @@ final class IslandModel: ObservableObject {
   /// The glide to or from the black band over a full screen app: the shape leans into the move for a moment (signed,
   /// below 0 it travels left; IslandPlace.glide), then springs back as it settles. Drawn only, like swell.
   @Published var travel: CGFloat = 0
+  /// V1.58 island timers (IslandTimers.swift): what they show, what the page sent, and a meeting opened from its bubble.
+  @Published var tshow = TShow.idle
+  @Published var tin = TimersIn()
+  @Published var meetOpen: TMeet?
+  var timerOn: Bool { !tshow.middle.isTask || meetOpen != nil }
+  var bigTimer: Bool { tshow.middle.isStand || meetOpen != nil }
   /// The cards hang from the island at rest: its hover view opens over them for a moment and is never measured.
   fileprivate var restOnly = false
   /// A full screen app on a screen with a notch (V1.40): the island sits in the black bar left of the notch, one
@@ -305,13 +327,13 @@ final class IslandModel: ObservableObject {
   static let notchBlend: CGFloat = 6
   /// No notch on this screen (the M1, an external display): "around the notch" shows as the pill, in the pill's look.
   var pill: Bool { st.mode == "pill" || !geo.notch || free || (editing && !hasNews) || fs != .off }
-  var notchStyle: String { st.notchLook.style }
+  var notchStyle: String { timerOn ? "drop" : st.notchLook.style }   // V1.58: a timer needs the body below the notch
   /// Up to 4 rows; 3 in private mode, where the private mode line takes the fourth's room (the names read the same).
   var rows: [IslandTask] { st.tasks.isEmpty ? (st.task.map { [$0] } ?? []) : Array(st.tasks.prefix(st.priv ? 3 : 4)) }
   /// Something of its own to show (a task, counts, news); Edit mode shows it anyway, with a hint, so it can be moved.
-  var hasNews: Bool { st.task != nil || st.mail > 0 || st.leads > 0 || popping != nil || ticked != nil || glowing }
+  var hasNews: Bool { st.task != nil || st.mail > 0 || st.leads > 0 || popping != nil || ticked != nil || glowing || tshow.active || meetOpen != nil }
   var hasContent: Bool { hasNews || editing }
-  var expanded: Bool { !dragging && fs != .bar && (popping != nil || (hovering && !restOnly && hasNews) || (fs == .dropped && hasNews)) }
+  var expanded: Bool { !dragging && fs != .bar && (popping != nil || bigTimer || (hovering && !restOnly && hasNews && !timerOn) || (fs == .dropped && hasNews)) }
   var undoable: Bool { ticked != nil && Date().timeIntervalSince(tickedAt) < 5 }
   /// Dim over a full screen app, unless something just arrived or the pointer is on it.
   var opacity: Double { fullScreen && fs == .off && popping == nil && !hovering && !glowing ? 0.35 : 1 }
@@ -323,7 +345,7 @@ final class IslandModel: ObservableObject {
   /// notch. Slim and Halo have no body below the notch until they open, so their line shows once they do.
   func gripCenter() -> CGPoint? {
     guard hasContent, fs == .off else { return nil }   // over a full screen app it neither hides nor moves
-    if pill { return CGPoint(x: IslandModel.panelW / 2, y: shapeRect().minY + (st.pillLook.compact ? 4.25 : 4.75)) }
+    if pill { let r = shapeRect(); return CGPoint(x: r.midX, y: r.minY + (st.pillLook.compact ? 4.25 : 4.75)) }
     guard expanded || notchStyle == "drop" else { return nil }
     return CGPoint(x: IslandModel.panelW / 2, y: geo.notchH + 5)
   }
@@ -364,6 +386,7 @@ final class IslandModel: ObservableObject {
     if pill {
       w = expanded ? pillOpenW : pillW
       h = expanded ? expandedH() : pillH
+      if free, fs == .off, let a = anchor { return IslandPlace.movedShape(anchor: a, w: w, h: h, pillW: pillW, pillH: pillH, up: growUp) }
       // Moved: the pill sits at the panel's top edge, or (lower half) its bottom edge, so it opens away from the screen's edge.
       top = !free || fs != .off ? (geo.notch ? geo.notchH : geo.menuH) + 6 : growUp ? IslandModel.panelH - IslandModel.freeGap - h : IslandModel.freeGap
     } else {
@@ -382,6 +405,7 @@ final class IslandModel: ObservableObject {
   }
   func expandedH() -> CGFloat {
     if popping != nil { return 78 }
+    if bigTimer { return IslandTimerLayout.bigBody }   // V1.58: Stand up, or a meeting opened from its bubble
     let badges: CGFloat = st.mail > 0 || st.leads > 0 ? 34 : 0
     let undo: CGFloat = undoable ? 34 : 0
     let rowsH: CGFloat = CGFloat(max(rows.count, 1)) * 42
@@ -547,6 +571,8 @@ struct IslandView: View {
         .offset(x: r.minX, y: r.minY)
         .opacity(m.hasContent ? 1 : 0)
         gripLayer
+        // V1.58: the bubble that splits off the island's right side (a stand-up in 15 seconds, the next meeting).
+        TimerBubble(m: m, r: r, fg: fg, tap: { IslandTimers.shared.tapBubble($0) })
       }
       .frame(width: IslandModel.panelW, height: IslandModel.panelH, alignment: .topLeading)
       // Hidden by the grab line: up into the notch (or the menu bar) and gone, and back down the same way.
@@ -581,14 +607,17 @@ struct IslandView: View {
       .opacity(m.opacity)
       .transition(.opacity)
       if m.gripTip {
+        // Beside the line, never up under the camera notch. Moved into the right edge (V1.58) there is no room on the
+        // right, so it sits on the line's left instead, its right end by the line.
+        let tipW: CGFloat = 170, left = c.x + IslandModel.gripHoverW / 2 + 5 + tipW > IslandModel.panelW
         Text(m.editing ? "Drag to move" : "Click hides it, drag moves it")
           .font(.system(size: 10, weight: .medium)).foregroundColor(Color(white: 0.93)).fixedSize()
           .padding(.horizontal, 7).padding(.vertical, 3)
           .background(Capsule().fill(Color(white: 0.13).opacity(0.94)))
           .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 0.5))
           .shadow(color: .black.opacity(0.3), radius: 4, y: 1)
-          // Beside the line, never up under the camera notch.
-          .offset(x: c.x + IslandModel.gripHoverW / 2 + 5, y: max(c.y - 9, (m.geo.notch ? m.geo.notchH : 0) + 1))
+          .frame(width: tipW, alignment: left ? .trailing : .leading)
+          .offset(x: left ? c.x - IslandModel.gripHoverW / 2 - 5 - tipW : c.x + IslandModel.gripHoverW / 2 + 5, y: max(c.y - 9, (m.geo.notch ? m.geo.notchH : 0) + 1))
           .allowsHitTesting(false)
           .transition(.opacity)
       }
@@ -663,6 +692,7 @@ struct IslandView: View {
 
   @ViewBuilder func content(_ r: CGRect) -> some View {
     if let e = m.popping { eventView(e).transition(.opacity) }
+    else if m.timerOn { TimerMiddle(m: m, fg: fg, dim: dimC, accent: accent, start: { Island.shared.onAction?("pomoBegin", "") }, open: { IslandTimers.shared.openLink($0) }) }   // V1.58
     else if m.expanded { expandedView.transition(.opacity) }
     else if m.editing && !m.hasNews { editRow.transition(.opacity) }
     else if m.pill { pillRow.transition(.opacity) }
@@ -768,7 +798,10 @@ struct IslandView: View {
     } else if m.privateShown {
       privateLabel(size: size)
     } else if let t = m.st.task {
-      Text(t.title).font(.system(size: size, weight: .semibold)).foregroundColor(t.dim ? dimC : fg).lineLimit(1).truncationMode(.tail)
+      HStack(spacing: 6) {
+        Text(t.title).font(.system(size: size, weight: .semibold)).foregroundColor(t.dim ? dimC : fg).lineLimit(1).truncationMode(.tail)
+        WorkClock(m: m, color: dimC)   // V1.58: Pomodoro time left, only with its setting on
+      }
     }
   }
   /// Private mode on (a friend saw "Hidden (private mode)" and took it for a task): a mask, "Private mode" and a small
@@ -994,6 +1027,7 @@ final class Island {
       DispatchQueue.main.async { [weak self] in self?.shapePending = false; self?.shapeChanged() }
     }
     loadPos()
+    loadAway()
     NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
       self?.place(); self?.fullScreenSoon()
     }
@@ -1002,6 +1036,9 @@ final class Island {
       self?.followSpace("desktop change"); self?.fullScreenSoon()
     }
     ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] n in self?.appActivated(n) }
+    // V1.58 the island away: a Mac asleep counts no seconds, so the clock is looked at again on wake.
+    ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in self?.checkAway("wake") }
+    NotificationCenter.default.addObserver(forName: .NSSystemClockDidChange, object: nil, queue: .main) { [weak self] _ in self?.checkAway("clock change") }
   }
 
   /// From the main window page. While the self test feeds its own states, the page's wait.
@@ -1012,6 +1049,7 @@ final class Island {
   /// The state ({type:"island"}). Nothing changes on screen when nothing changed (the page re-sends each minute).
   func update(_ d: [String: Any]) {
     let s = IslandState.from(d)
+    IslandTimers.shared.update(s.timers, islandOn: s.mode != "off")   // V1.58: also with the island off (pop-up cards then)
     if s.mode == "off" && panel == nil { return }
     setUp()
     var pop = s.event.flatMap { e -> IslandEvent? in seen.contains(e.id) ? nil : e }
@@ -1030,7 +1068,11 @@ final class Island {
         if let pop { model.popping = pop }
       }
     }
-    if pop != nil || waitPop != nil, hiddenUntil != nil { comeBack() }   // news brings a hidden island back at once (V1.40)
+    // News brings a hidden island back at once (V1.40), but never one sent away from its right click menu (V1.58): that
+    // stays away until its time or its meeting ends.
+    if pop != nil || waitPop != nil, hiddenUntil != nil, away == nil { comeBack() }
+    if s.mode != "off" { pageSpoke = true }
+    checkAway(nil)
     if let w = waitPop { popOrGlow(w, s) }
     if s.cards != cardsWas || s.cardsTop != topWas { DispatchQueue.main.async { Toast.shared.islandChanged() } }
     if s.fsMove != moveWas { applyFullScreen() }    // switched in Settings while over a full screen app: it glides now
@@ -1107,13 +1149,16 @@ final class Island {
   }
 
   private var shown: Bool { panel?.isVisible == true }
-  /// On screen only when switched on, with something to show, and never over 1Password or Signal.
+  /// On screen only when switched on and with something to show. Over 1Password or Signal it follows the account's
+  /// rule (BuildRules.swift, V1.58): shown for everyone except the developer, hidden on the developer's account.
   private func place() {
     guard let p = panel else { return }
     let (g, s) = IslandGeo.read()
     screen = s
     if g != model.geo { model.geo = g }
-    let want = model.st.mode != "off" && !Protected.front && model.hasContent && hiddenUntil == nil
+    syncAnchor()
+    let want = model.st.mode != "off" && IslandRules.show(protectedFront: Protected.front, rules: BuildRules.now)
+      && model.hasContent && hiddenUntil == nil
     if !want {
       if p.isVisible { p.orderOut(nil) }
       setPresence(.dock, "the island is not showing")   // out of the Dock only while the island shows over full screen
@@ -1134,7 +1179,15 @@ final class Island {
     startWatching()
     shapeChanged()
   }
-  func protectedChanged() { place() }
+  /// 1Password or Signal came to the front or went. Where the island shows over them (everyone except the developer) nothing
+  /// about it depends on that, so nothing runs at all: no window is looked at and no line is written at that moment.
+  func protectedChanged() { if !BuildRules.now.islandOverProtected { place() } }
+  /// Who is signed in changed (Owner.onChange): the rule over 1Password and Signal may be another one now.
+  func rulesChanged() { place() }
+  /// V1.58 island timers (IslandTimers.swift): something to show came or went.
+  func timersChanged() { place() }
+  /// On screen now (switched on, showing, not hidden by its grab line).
+  var onScreen: Bool { panel?.isVisible == true && hiddenUntil == nil && !model.away }
 
   // ---------- every desktop (the developer, 12 Nov 2026: "it doesn't follow me around my desktop anymore") ----------
   /// A drag on the grab line can leave the island on the one desktop it was dropped on (IslandPlace.spaces says why).
@@ -1195,11 +1248,12 @@ final class Island {
   }
 
   // ---------- moved anywhere (G Squad) ----------
-  /// Where the island was moved to on this Mac: the collapsed pill's centre as a fraction of the room it has (0 left or
+  /// Where the island was moved to on this Mac: the collapsed pill's centre as a fraction of the screen (0 left or
   /// bottom, 1 right or top), or nil at home (the top centre, around the notch). Kept as fractions so it means the same
-  /// spot on any screen size; the island is always clamped fully on screen.
+  /// spot on any screen size; the pill is always clamped on screen, off the camera (IslandPlace.clamp).
+  /// V1.58: island.spot (fractions of the screen). V1.57's island.pos (fractions of a smaller room) is carried over once.
   private(set) var pos: CGPoint?
-  static let posKey = "island.pos"
+  static let posKey = "island.spot", legacyPosKey = "island.pos"
   /// A self test copy keeps the spot in memory only (never in the developer's PS settings).
   private var testStore: [Double]?
   private func readPos() -> [Double]? { test ? testStore : UserDefaults.standard.array(forKey: Island.posKey) as? [Double] }
@@ -1210,6 +1264,13 @@ final class Island {
   private func loadPos() {
     if let a = readPos(), a.count == 2, a.allSatisfy({ $0.isFinite }) {
       pos = CGPoint(x: min(1, max(0, a[0])), y: min(1, max(0, a[1])))
+    } else if !test, let a = UserDefaults.standard.array(forKey: Island.legacyPosKey) as? [Double], a.count == 2, a.allSatisfy({ $0.isFinite }) {
+      // The V1.57 spot, turned into the same place on screen, so nobody's island moves on the update.
+      let (g, _) = IslandGeo.read()
+      pos = IslandPlace.fromLegacy(CGPoint(x: a[0], y: a[1]), g, pillW: model.pillW, pillH: model.pillH)
+      writePos(pos.map { [Double($0.x), Double($0.y)] })
+      UserDefaults.standard.removeObject(forKey: Island.legacyPosKey)
+      psLog("PS island: moved spot carried over from V1.57")
     } else { pos = nil }
     applyFree()
   }
@@ -1220,14 +1281,20 @@ final class Island {
   /// PS > Settings shows whether it is moved (main.swift sendSettings).
   var onMoved: (() -> Void)?
   private func applyFree() {
-    let free = pos != nil && model.fs == .off, up = (pos?.y ?? 1) < 0.5   // over a full screen app: the bar, not the spot
-    if model.free != free || model.growUp != up { withAnimation(anim) { model.free = free; model.growUp = up } }
+    let free = pos != nil && model.fs == .off, up = pos.map(IslandPlace.opensUp) ?? false   // over a full screen app: the bar, not the spot
+    let a = movedAnchor()
+    if model.free != free || model.growUp != up || model.anchor != a { withAnimation(anim) { model.free = free; model.growUp = up; model.anchor = a } }
+  }
+  /// Where the moved pill sits in its panel for the kept spot on this screen (nil at home).
+  private func movedAnchor() -> CGPoint? { pos.map { IslandPlace.moved($0, model.geo, pillW: model.pillW, pillH: model.pillH).anchor } }
+  /// The anchor follows the screen and the pill's size (a screen change, the compact look) at once, never animated.
+  private func syncAnchor() {
+    guard drag?.moving != true, let a = movedAnchor(), model.anchor != a else { return }
+    var t = Transaction(); t.disablesAnimations = true
+    withTransaction(t) { model.anchor = a }
   }
   /// The moved pill's room, centre and kept spot, and the panel's frame: IslandPlace.swift.
-  static func room(_ g: IslandGeo, pillH: CGFloat) -> NSRect { IslandPlace.room(g, pillH: pillH) }
-  static func center(_ p: CGPoint, _ g: IslandGeo, pillH: CGFloat) -> CGPoint { IslandPlace.center(p, g, pillH: pillH) }
-  static func spot(_ c: CGPoint, _ g: IslandGeo, pillH: CGFloat) -> CGPoint { IslandPlace.spot(c, g, pillH: pillH) }
-  func frameFor(_ g: IslandGeo) -> NSRect { IslandPlace.frame(model.fs, g, pos: pos, pillH: model.pillH) }
+  func frameFor(_ g: IslandGeo) -> NSRect { IslandPlace.frame(model.fs, g, pos: pos, pillW: model.pillW, pillH: model.pillH) }
   /// Back to the top centre (Mac settings, the Tab list's Edit mode).
   func resetPos() {
     rejoinAfterMove("put back")                     // also when it is already home: put back always mends this
@@ -1241,7 +1308,7 @@ final class Island {
   func setEditing(_ on: Bool) {
     guard model.editing != on else { return }
     if on { setUp() }
-    if on, hiddenUntil != nil { comeBack() }        // Edit mode shows it to be moved
+    if on, hiddenUntil != nil { if away != nil { endAway("edit mode") } else { comeBack() } }   // Edit mode shows it to be moved
     withAnimation(anim) { model.editing = on }
     place()
     rejoinAfterMove(on ? "edit mode" : "edit mode done")
@@ -1274,6 +1341,13 @@ final class Island {
   func dragEvent(_ e: NSEvent) -> Bool {
     guard let p = panel else { return false }
     switch e.type {
+    case .rightMouseDown:
+      // V1.58: right click the grey bar (or just round it) for the island's menu.
+      guard let h = model.gripHit(), hiddenUntil == nil, drag?.moving != true else { return false }
+      let at = e.locationInWindow, inPanel = CGPoint(x: at.x, y: IslandModel.panelH - at.y)
+      guard h.insetBy(dx: -6, dy: -6).contains(inPanel) else { return false }
+      showMenu(e)
+      return true
     case .leftMouseDown:
       drag = nil
       guard let h = model.gripHit(), hiddenUntil == nil else { return false }
@@ -1294,12 +1368,19 @@ final class Island {
         withAnimation(.easeOut(duration: 0.15)) { model.dragging = true; model.hovering = false; model.gripTip = false; model.popping = nil }
         if !model.free || model.growUp { model.free = true; model.growUp = false }   // the pill, its top edge under the line
       }
-      let g = model.geo, r = Island.room(g, pillH: model.pillH)
-      var c = CGPoint(x: min(r.maxX, max(r.minX, d.center0.x + dx)), y: min(r.maxY, max(r.minY, d.center0.y + dy)))
-      if abs(c.x - g.frame.midX) < Island.centreSnap, r.contains(CGPoint(x: g.frame.midX, y: c.y)) { c.x = g.frame.midX }
+      // V1.58: anywhere on the screen up to a small edge, into the corners and the top strip, never on the camera.
+      let g = model.geo, pw = model.pillW, ph = model.pillH
+      var c = IslandPlace.clamp(CGPoint(x: d.center0.x + dx, y: d.center0.y + dy), g, pillW: pw, pillH: ph)
+      if abs(c.x - g.frame.midX) < Island.centreSnap {
+        let mid = IslandPlace.clamp(CGPoint(x: g.frame.midX, y: c.y), g, pillW: pw, pillH: ph)
+        if mid.y == c.y { c = mid }
+      }
       d.center = c
       drag = d
-      p.setFrameOrigin(NSPoint(x: c.x - IslandModel.panelW / 2, y: c.y + model.pillH / 2 + IslandModel.freeGap - IslandModel.panelH))
+      // The panel stays on the screen; near an edge the pill moves inside it (redrawn only when that changes).
+      let l = IslandPlace.layout(c, g, pillH: ph, up: false)
+      if model.anchor != l.anchor { var t = Transaction(); t.disablesAnimations = true; withTransaction(t) { model.anchor = l.anchor } }
+      p.setFrameOrigin(l.frame.origin)
       return true
     case .leftMouseUp:
       guard let d = drag else { return false }
@@ -1333,12 +1414,12 @@ final class Island {
     }
     // Kept where it was let go. In the lower half the pill moves to the window's bottom edge (so it opens upwards) in
     // the same moment the window moves down by as much: on screen it does not move at all.
-    pos = Island.spot(c, g, pillH: model.pillH)
+    pos = IslandPlace.spot(c, g, pillW: model.pillW, pillH: model.pillH)
     savePos()
     model.dragging = false
-    let free = true, up = (pos?.y ?? 1) < 0.5
+    let free = true, up = pos.map(IslandPlace.opensUp) ?? false
     var t = Transaction(); t.disablesAnimations = true
-    withTransaction(t) { model.free = free; model.growUp = up }
+    withTransaction(t) { model.free = free; model.growUp = up; model.anchor = movedAnchor() }
     if let p = panel { p.setFrame(frameFor(g), display: true) }
     place()
     rejoinAfterMove("drag")
@@ -1355,9 +1436,15 @@ final class Island {
   /// client email, lead reply or finished chat, not muted by Do Not Disturb) or Edit mode brings it back at once.
   func hideForAWhile() {
     guard let p = panel, p.isVisible, hiddenUntil == nil, !model.away, !justDragged, drag?.moving != true else { return }
+    fadeAway(p, until: Date().addingTimeInterval(0.25 + hideSeconds))
+    hideTimer?.invalidate()
+    hideTimer = Timer.scheduledTimer(withTimeInterval: 0.25 + hideSeconds, repeats: false) { [weak self] _ in self?.comeBack() }
+  }
+  /// Fades and slides the island away and orders its window out (the grab line's click, and the right click menu).
+  private func fadeAway(_ p: IslandPanel, until: Date) {
     p.ignoresMouseEvents = true
     hoverTimer?.invalidate(); hoverTimer = nil; enterAt = nil; leaveAt = nil; gripAt = nil
-    hiddenUntil = Date().addingTimeInterval(0.25 + hideSeconds)
+    hiddenUntil = until
     hidAt = Date(); backAt = nil
     withAnimation(outAnim) { model.away = true; model.gripHover = false; model.gripTip = false }
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
@@ -1365,8 +1452,6 @@ final class Island {
       self.place()                                  // ordered out, the pointer watchers off
       self.model.hovering = false                   // closed behind the scenes, so it comes back as it rests
     }
-    hideTimer?.invalidate()
-    hideTimer = Timer.scheduledTimer(withTimeInterval: 0.25 + hideSeconds, repeats: false) { [weak self] _ in self?.comeBack() }
   }
   private func comeBack() {
     hideTimer?.invalidate(); hideTimer = nil
@@ -1380,6 +1465,132 @@ final class Island {
       self.backAt = Date()
       self.refreshMouse()
     }
+  }
+
+  // ---------- away from the right click menu (V1.58, IslandAwayCore.swift) ----------
+  // Right click the grey bar: Settings, Disappear for this meeting (only while one is on), Disappear for a time. Away
+  // until a wall clock time kept in UserDefaults (island.away), so sleep and a restart change nothing; the clock is
+  // looked at on a timer (at most every 30 s), on wake, and on every state from the page (which also follows a moved or
+  // longer meeting). Back early: Show it now in the island settings or Settings, Dynamic Island ({type:"island:show"}),
+  // or Edit mode. News does not bring it back.
+  private(set) var away: IslandAway?
+  static let awayKey = "island.away", awayMinutesKey = "island.awayMinutes"
+  /// Settings in the menu: the island settings window in the Tab list (web views/IslandSettings.tsx), or the
+  /// usual Settings on a page from before it.
+  static let openSettingsJS = "(window.__psOpenIslandSettings && window.__psOpenIslandSettings()) || (window.__psOpenSettings && window.__psOpenSettings())"
+  /// PS > Settings shows that it is away and until when (main.swift sendSettings).
+  var onAway: (() -> Void)?
+  /// Settings in the right click menu: the Tab list shows with the island settings window open (main.swift).
+  var onSettings: (() -> Void)?
+  private var awayTimer: Timer?
+  /// A state from the unlocked page has come since PS started: until then a meeting's end is the kept one.
+  private var pageSpoke = false
+  /// The time in the menu: the last one chosen, 30 minutes the first time.
+  var awayMinutes: Int {
+    get { let m = UserDefaults.standard.integer(forKey: Island.awayMinutesKey); return m > 0 ? IslandAwayCore.clampMinutes(m) : IslandAwayCore.defaultMinutes }
+    set { if !test { UserDefaults.standard.set(IslandAwayCore.clampMinutes(newValue), forKey: Island.awayMinutesKey) } }
+  }
+  private var nowSecs: Double { Date().timeIntervalSince1970 }
+  private func saveAway() {
+    guard !test else { return }
+    if let d = IslandAwayCore.encode(away) { UserDefaults.standard.set(d, forKey: Island.awayKey) } else { UserDefaults.standard.removeObject(forKey: Island.awayKey) }
+  }
+  /// A kept away from before a restart: still away until its time (never shown in between).
+  private func loadAway() {
+    guard !test, let a = IslandAwayCore.decode(UserDefaults.standard.data(forKey: Island.awayKey), now: nowSecs) else {
+      if !test { UserDefaults.standard.removeObject(forKey: Island.awayKey) }
+      return
+    }
+    away = a
+    hiddenUntil = Date(timeIntervalSince1970: a.until)
+    model.away = true
+    psLog("PS island: still away after a restart (\(a.kind.rawValue)), back at \(Island.clock(a.until))")
+    armAway()
+    onAway?()
+  }
+  static func clock(_ t: Double) -> String { let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: Date(timeIntervalSince1970: t)) }
+  /// Sent away from the right click menu.
+  func goAway(_ a: IslandAway) {
+    guard let p = panel, drag?.moving != true else { return }
+    hideTimer?.invalidate(); hideTimer = nil
+    away = a
+    saveAway()
+    if p.isVisible, hiddenUntil == nil, !model.away { fadeAway(p, until: Date(timeIntervalSince1970: a.until)) }
+    else { hiddenUntil = Date(timeIntervalSince1970: a.until); place() }
+    psLog("PS island: away (\(a.kind.rawValue)) until \(Island.clock(a.until))")
+    armAway()
+    onAway?()
+  }
+  /// The clock looked at again: still away (its meeting's end followed), or back.
+  func checkAway(_ why: String?) {
+    guard let a = away else { return }
+    switch IslandAwayCore.step(a, now: nowSecs, meets: pageSpoke ? model.st.meets : nil) {
+    case .stay(let n):
+      if n != a {
+        away = n; saveAway(); hiddenUntil = Date(timeIntervalSince1970: n.until)
+        psLog("PS island: its meeting moved, away until \(Island.clock(n.until))")
+        onAway?()
+      }
+      armAway()
+    case .back: endAway(why ?? (a.kind == .meeting ? "the meeting ended" : "time is up"))
+    }
+  }
+  private func armAway() {
+    awayTimer?.invalidate()
+    guard let a = away else { awayTimer = nil; return }
+    let wait = max(0.5, min(30, a.until - nowSecs))
+    awayTimer = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in self?.checkAway(nil) }
+    awayTimer?.tolerance = 0.5
+  }
+  /// Back from the right click menu's away (its time, its meeting, Show it now, Edit mode).
+  private func endAway(_ why: String) {
+    guard away != nil else { return }
+    away = nil
+    saveAway()
+    awayTimer?.invalidate(); awayTimer = nil
+    psLog("PS island: back (\(why))")
+    if hiddenUntil == nil { hiddenUntil = Date() }
+    comeBack()
+    onAway?()
+  }
+  /// Show it now (the island settings, Settings, Dynamic Island): back from any hide at once.
+  func showNow() {
+    if away != nil { endAway("Show it now") } else if hiddenUntil != nil { comeBack() }
+  }
+
+  /// The right click menu on the grey bar. Its words wait for the developer's approval (v158-island-move.md).
+  private var menuTarget: IslandMenuTarget?
+  private func showMenu(_ e: NSEvent) {
+    guard let p = panel, let view = p.contentView else { return }
+    let t = IslandMenuTarget()
+    menuTarget = t
+    let menu = NSMenu()
+    menu.autoenablesItems = false
+    let settings = NSMenuItem(title: "Settings", action: #selector(IslandMenuTarget.run(_:)), keyEquivalent: "")
+    settings.target = t
+    t.actions[settings] = { [weak self] in self?.onSettings?() }
+    menu.addItem(settings)
+    menu.addItem(.separator())
+    if pageSpoke, let m = IslandAwayCore.current(model.st.meets, now: nowSecs) {
+      let meet = NSMenuItem(title: "Disappear for this meeting", action: #selector(IslandMenuTarget.run(_:)), keyEquivalent: "")
+      meet.target = t
+      t.actions[meet] = { [weak self] in
+        guard let self, let a = IslandAwayCore.forMeeting(m, now: self.nowSecs) else { return }
+        self.goAway(a)
+      }
+      menu.addItem(meet)
+    }
+    let time = NSMenuItem()
+    let v = IslandMinutesView(minutes: awayMinutes) { [weak self] minutes in
+      guard let self else { return }
+      self.awayMinutes = minutes
+      self.goAway(IslandAwayCore.forMinutes(minutes, now: self.nowSecs))
+    }
+    time.view = v
+    menu.addItem(time)
+    withAnimation(anim) { model.hovering = false }
+    NSMenu.popUpContextMenu(menu, with: e, for: view)
+    menuTarget = nil
   }
 
   // ---------- the pointer: clicks only count on the shape ----------
@@ -1415,9 +1626,10 @@ final class Island {
   private func refreshMouse() {
     guard let p = panel, p.isVisible, !test, hiddenUntil == nil, drag?.moving != true else { return }
     let at = NSEvent.mouseLocation
-    let inside = hitRects().contains { $0.contains(at) }
+    let onBubble = bubbleHit(at)   // V1.58: the timer bubble takes clicks but never opens the island on hover
+    let inside = !onBubble && hitRects().contains { $0.contains(at) }
     trackMenuBar(at, onIsland: inside)
-    if p.ignoresMouseEvents == inside { p.ignoresMouseEvents = !inside }
+    if p.ignoresMouseEvents == (inside || onBubble) { p.ignoresMouseEvents = !(inside || onBubble) }
     gripPointer(inside ? at : nil)
     if inside {
       leaveAt = nil
@@ -1442,7 +1654,17 @@ final class Island {
         withAnimation(anim) { model.hovering = false }
         hoverTimer?.invalidate(); hoverTimer = nil; leaveAt = nil
       }
+    } else if onBubble {
+      if hoverTimer == nil { hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in self?.refreshMouse() } }
     } else { hoverTimer?.invalidate(); hoverTimer = nil }
+  }
+  /// V1.58: the pointer on the timer bubble beside the island (IslandTimers.swift TimerBubble).
+  private func bubbleHit(_ at: NSPoint) -> Bool {
+    guard let p = panel, !model.tshow.right.isNone, model.meetOpen == nil, !model.expanded, !model.inBar else { return false }
+    let r = model.shapeRect(), g = IslandTimerLayout.bubbleGap, h = IslandTimerLayout.bubbleH
+    let y = model.pill ? r.minY + (model.pillH - h) / 2 : max(0, (model.geo.notchH - h) / 2)
+    let b = CGRect(x: r.maxX + g, y: y, width: IslandModel.panelW - r.maxX - g, height: h)
+    return NSRect(x: p.frame.minX + b.minX, y: p.frame.maxY - b.maxY, width: b.width, height: b.height).insetBy(dx: -2, dy: -3).contains(at)
   }
 
   /// The pointer on the grab line: a stronger grey at once, the tip after half a second.
@@ -1484,6 +1706,9 @@ final class Island {
   /// a big ordinary window under a showing menu bar is not full screen (IslandPlace.decide).
   private func checkFullScreen() {
     if let t = testFullScreen { setFullScreen(t ? .whole : .none); return }
+    // V1.58: the island may now show over 1Password or Signal (everyone except the developer). The full screen check reads window
+    // bounds and logs, so it never runs while one of them is in front: the island keeps the look it had.
+    if !IslandRules.lookAtWindows(protectedFront: Protected.front) { return }
     guard shown, let s = screen, let frontApp = NSWorkspace.shared.frontmostApplication else { return }
     let front = frontApp.processIdentifier
     if front == ProcessInfo.processInfo.processIdentifier {           // PS in front: no change of space
@@ -1580,8 +1805,14 @@ final class Island {
   }
   /// In the bar, dropped below the menu bar, or as before. Outside full screen, and on screens without a notch, as before
   /// (the moved spot included). Since V1.44 an app over the whole screen goes to the bar too, not just one below it.
+  private var lastBarWhyNot = ""
   private func applyFullScreen() {
-    let want = IslandPlace.place(fsKind, notch: model.geo.notch && !testNoBar, menuAlways: menuAlwaysInFullScreen, menuDown: menuDown, move: model.st.fsMove)
+    let notch = model.geo.notch && !testNoBar, always = menuAlwaysInFullScreen
+    let want = IslandPlace.place(fsKind, notch: notch, menuAlways: always, menuDown: menuDown, move: model.st.fsMove)
+    // V1.58: one line saying why it is not in the top bar over a full screen app, so a report like "it sits just below
+    // the black strip" shows the reason in ps.log.
+    let why = IslandPlace.barWhyNot(fsKind, notch: notch, menuAlways: always, move: model.st.fsMove) ?? ""
+    if why != lastBarWhyNot { lastBarWhyNot = why; if !why.isEmpty { psLog("PS island: full screen, not in the top bar: \(why)") } }
     guard model.fs != want else { return }
     let calm = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     // The shape morphs (the notch or pill into the bar's capsule and back) on a soft spring while the window glides.
@@ -1836,12 +2067,23 @@ final class Island {
         picture("look-nonotch-glow", notch: false)
         func rest() { self.moveCheck(base, picture: { picture($0, notch: true) }) { got in r += got; restOn() } }
         func restOn() {
-        // 1Password or Signal in front: gone. Off: gone.
+        // 1Password or Signal in front (V1.58, BuildRules.swift): the developer's account, gone; everyone else's, it stays.
+        // Off: gone.
         self.update(base())
+        let wasAccount = BuildRules.testAccount
+        BuildRules.testAccount = true
         Protected.simulate(front: true, signal: false)
         let hid = self.panel?.isVisible != true
         Protected.simulate(front: false, signal: false)
-        r.append(("protected-hides", hid && self.panel?.isVisible == true))
+        r.append(("red:protected-hides", hid && self.panel?.isVisible == true))
+        BuildRules.testAccount = false
+        self.rulesChanged()
+        Protected.simulate(front: true, signal: true)
+        let stays = self.panel?.isVisible == true
+        Protected.simulate(front: false, signal: false)
+        r.append(("public:protected-stays", stays && self.panel?.isVisible == true))
+        BuildRules.testAccount = wasAccount
+        self.rulesChanged()
         self.update(base(["mode": "off"]))
         r.append(("off-hides", self.panel?.isVisible != true))
         r.append(("still-not-key", self.panel?.isKeyWindow == false && !NSApp.isActive))
@@ -1978,7 +2220,8 @@ final class Island {
 // ---------- self test: moved anywhere (G Squad, the developer 7 Nov 2026) ----------
 // A real drag on the grab line through the island's own window (the drag hook sees the test copy's own pointer
 // positions, never the developer's mouse): it goes down the screen as the pill, opens upwards there, a press that ends a drag
-// never hides it, and the spot is kept. Then: on screen at every corner of three screen sizes, dropped near the top
+// never hides it, and the spot is kept. Then: on screen at every corner of three screen sizes and (V1.58) right in each
+// corner, let go at the top left it sits in the top strip in the corner, dropped near the top
 // centre it goes home, Reset puts it home, the Tab list's Edit mode shows it with nothing to show, and the window
 // stays its one small size (no invisible window over the screen). Pictures: island-moved.png, island-edit.png.
 extension Island {
@@ -2035,22 +2278,41 @@ extension Island {
       let was = pos
       pos = nil; loadPos()
       r.append(("move-survives-restart", pos == was && model.free))
-      // Every corner of three screen sizes: the window, and the island open inside it, fully on screen.
-      var ok = true
+      // Every corner of three screen sizes: the window, and the island open inside it, fully on screen, and (V1.58) the
+      // pill right into each corner, a small edge from the sides and the top (IslandPlace.edgeGap, topGap).
+      var ok = true, corners = true
+      let pw = model.pillW, ph = model.pillH, eg = IslandPlace.edgeGap, tg = IslandPlace.topGap
       for size in [CGSize(width: 1280, height: 800), CGSize(width: 1512, height: 982), CGSize(width: 3440, height: 1440)] {
         var fake = g; fake.frame = NSRect(origin: .zero, size: size); fake.centerX = size.width / 2; fake.notch = false
         for spot in [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0), CGPoint(x: 0, y: 1), CGPoint(x: 1, y: 1), CGPoint(x: 0.5, y: 0.5)] {
           let keep = pos
           pos = spot; applyFree()
-          let fr = frameFor(fake)
-          if !inside(fr, fake.frame) { ok = false; print("ISLAND OFF SCREEN:", size, spot, fr) }
+          let fr = frameFor(fake), l = IslandPlace.moved(spot, fake, pillW: pw, pillH: ph), up = IslandPlace.opensUp(spot)
+          if !inside(fr, fake.frame) || fr != l.frame { ok = false; print("ISLAND OFF SCREEN:", size, spot, fr) }
+          let pill = IslandPlace.movedShape(anchor: l.anchor, w: pw, h: ph, pillW: pw, pillH: ph, up: up)
+          let open = IslandPlace.movedShape(anchor: l.anchor, w: model.pillOpenW, h: 220, pillW: pw, pillH: ph, up: up)
+          let ps = NSRect(x: fr.minX + pill.minX, y: fr.maxY - pill.maxY, width: pill.width, height: pill.height)
+          if !inside(NSRect(x: fr.minX + open.minX, y: fr.maxY - open.maxY, width: open.width, height: open.height), fake.frame) { ok = false }
+          if spot != CGPoint(x: 0.5, y: 0.5) {
+            let sideGap = spot.x == 0 ? ps.minX - fake.frame.minX : fake.frame.maxX - ps.maxX
+            let endGap = spot.y == 0 ? ps.minY - fake.frame.minY : fake.frame.maxY - ps.maxY
+            if abs(sideGap - eg) > 0.5 || abs(endGap - (spot.y == 0 ? eg : tg)) > 0.5 { corners = false; print("ISLAND NOT IN THE CORNER:", size, spot, ps) }
+          }
           // The fraction gives back the same spot.
-          let c = Island.center(spot, fake, pillH: model.pillH), back = Island.spot(c, fake, pillH: model.pillH)
-          if abs(back.x - spot.x) > 0.001 || abs(back.y - spot.y) > 0.001 { ok = false }
+          let c = IslandPlace.center(spot, fake, pillW: pw, pillH: ph), back = IslandPlace.spot(c, fake, pillW: pw, pillH: ph)
+          if abs((c.x - fake.frame.minX) / size.width - back.x) > 0.001 || abs((c.y - fake.frame.minY) / size.height - back.y) > 0.001 { ok = false }
           pos = keep; applyFree()
         }
       }
+      r.append(("move-into-every-corner", corners))
       r.append(("move-any-screen-size", ok))
+      // V1.58: let go at the very top left, it sits in the top strip in the corner (beside the notch, never on it).
+      drop(CGPoint(x: g.frame.minX, y: g.frame.maxY))
+      do {
+        let f = Island.unparked(p.frame), sr = model.shapeRect()
+        let ps = NSRect(x: f.minX + sr.minX, y: f.maxY - sr.maxY, width: sr.width, height: sr.height)
+        r.append(("move-top-left-corner", moved && abs(ps.minX - g.frame.minX - IslandPlace.edgeGap) < 0.6 && abs(g.frame.maxY - ps.maxY - IslandPlace.topGap) < 0.6 && inside(f, g.frame)))
+      }
       // Near the top centre: home again (around the notch).
       let homeC = CGPoint(x: g.centerX, y: g.frame.maxY - (g.notch ? g.notchH : g.menuH) - 6 - model.pillH / 2)
       drop(CGPoint(x: homeC.x + 20, y: homeC.y - 30))
@@ -2076,12 +2338,37 @@ extension Island {
         r.append(("move-window-small", self.panel.map { $0.frame.width <= IslandModel.panelW && $0.frame.height <= IslandModel.panelH } ?? false))
         self.update(base([:]))
         r += self.fullScreenBarChecks()
+        r += self.awayChecks()
         done(r)
       }
     }
   }
   /// Over a full screen app on a screen with a notch (V1.40): in the black bar left of the notch, one line; dropped
   /// below the menu bar while it is down; as before once the app leaves full screen. Needs a notched screen.
+  /// V1.58 the right click menu's away (IslandAwayCore.swift has the full rules offline): away for a meeting, its new
+  /// end followed, back when it is gone; away for minutes; Show it now. A test copy keeps nothing in UserDefaults.
+  func awayChecks() -> [(String, Bool)] {
+    var r: [(String, Bool)] = []
+    let was = pageSpoke, meetsWas = model.st.meets, now = nowSecs
+    pageSpoke = true
+    model.st.meets = [IslandMeet(id: "selftest", start: now - 60, end: now + 600, real: true)]
+    r.append(("away-menu-offers-meeting", IslandAwayCore.current(model.st.meets, now: now)?.id == "selftest"))
+    if let a = IslandAwayCore.forMeeting(model.st.meets[0], now: now) { goAway(a) }
+    r.append(("away-meeting-hidden", away?.kind == .meeting && hiddenUntil != nil && model.away))
+    model.st.meets = [IslandMeet(id: "selftest", start: now - 60, end: now + 1200, real: true)]
+    checkAway(nil)
+    r.append(("away-meeting-follows-new-end", abs((away?.until ?? 0) - (now + 1200)) < 1))
+    model.st.meets = []
+    checkAway(nil)
+    r.append(("away-meeting-gone-back", away == nil && hiddenUntil == nil))
+    goAway(IslandAwayCore.forMinutes(30, now: nowSecs))
+    r.append(("away-minutes-hidden", away?.kind == .minutes && hiddenUntil != nil))
+    showNow()
+    r.append(("away-show-now", away == nil && hiddenUntil == nil))
+    model.st.meets = meetsWas
+    pageSpoke = was
+    return r
+  }
   func fullScreenBarChecks() -> [(String, Bool)] {
     guard model.geo.notch, !menuAlwaysInFullScreen else { print("ISLAND FULL SCREEN BAR: skipped (no notch here)"); return [] }
     var r: [(String, Bool)] = []

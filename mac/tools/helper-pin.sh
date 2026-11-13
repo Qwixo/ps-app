@@ -21,7 +21,7 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 PIN="$HERE/Helper/pinned"
 SRCS=(Helper/rebootd.swift Helper/RebootCore.swift Helper/RebootXPC.swift Helper/LidCore.swift)
 COMPILE=(swiftc -O -parse-as-library -target arm64-apple-macos13)
-ID=B278D9D09DFED336675CFB367B2F8A3B51896689
+ID=C0E302F2CE304D062A50D6EBDAFF97D5F7D4B6E6
 CERT=$(sed -n 's/.*static let cert = "\([0-9a-f]*\)".*/\1/p' "$HERE/Helper/RebootXPC.swift")
 REQ="identifier \"com.cincee.ps.rebootd\" and certificate root = H\"$CERT\""
 

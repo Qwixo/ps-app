@@ -38,6 +38,7 @@ import { TypedPrioSwitch } from "./TypedPrio";
 import { NewBadgeControls } from "./NewBadge";
 import { NotifyPage } from "./NoteLook";
 import { AiDoneSettings, type AiDoneState } from "./AiDone";
+import { AiNotesChoice } from "./AiMessage";
 import { AutoApproveSettings } from "./AutoApprove";
 import { MeetPrefsPanel } from "./MeetPrefs";
 import { CalSwitch } from "./CalSwitch";
@@ -46,7 +47,8 @@ import { TelegramBotSettings } from "./TelegramBot";
 import { TaskApiSettings } from "./TaskApi";
 import { MailPeople } from "./MailPeople";
 import { AutoResetSetting } from "./AutoReset";
-import { AppNameSetting, IgnoredAppsSetting, IslandPlace } from "./PsSettings";
+import { AppNameSetting, IgnoredAppsSetting } from "./PsSettings";
+import { IslandSettingsPage } from "./IslandSettings";
 import { OpenShortcuts } from "./OpenShortcuts";
 import { MiddleClickSettings } from "./MiddleClickSettings";
 import { AfkSettings } from "./AfkSettings";
@@ -57,7 +59,10 @@ import { SecondSettings } from "./Second";
 import { openSleepSettings } from "./SleepSettings";
 import { SentryBatterySetting, SentryLidSetting, SentryRestartSetting, SentryRestartSleepSetting } from "./Sentry";
 import { SharingList, openGSquad } from "./GSquad";
+import { FromTheSquad } from "./FromTheSquad";
 import { AddFriendPanel } from "./AddFriend";
+import { PomoSetting } from "./Pomodoro";
+import { MeetBubbleSetting, StandSetting } from "./IslandTimersSettings";
 import { LinkIphoneRow } from "./LinkIphone";
 import { MacUpdateRow } from "./MacUpdate";
 import { WhatsNewEntry } from "./WhatsNew";
@@ -175,6 +180,25 @@ export const CONTROLS: Controls = {
   "typed-prio": row(() => <TypedPrioSwitch save={save} />),
   "new-badge": row(() => <NewBadgeControls />),
 
+  // Pomodoro (V1.58, views/Pomodoro.tsx)
+  "pomo-on": row(() => <PomoSetting k="on" />),
+  "pomo-work": row(() => <PomoSetting k="work" />),
+  "pomo-short": row(() => <PomoSetting k="short" />),
+  "pomo-long": row(() => <PomoSetting k="long" />),
+  "pomo-rounds": row(() => <PomoSetting k="rounds" />),
+  "pomo-auto": row(() => <PomoSetting k="auto" />),
+  "pomo-sound": row(() => <PomoSetting k="sound" />),
+  "pomo-clock": row(() => <PomoSetting k="clock" />),
+  // Stand-up reminders and the next meeting bubble (V1.58, views/IslandTimersSettings.tsx)
+  "stand-on": row(() => <StandSetting k="on" />),
+  "stand-every": row(() => <StandSetting k="every" />),
+  "stand-len": row(() => <StandSetting k="len" />),
+  "stand-sound": row(() => <StandSetting k="sound" />),
+  "stand-hours": row(() => <StandSetting k="hours" />),
+  "stand-test": row(() => <StandSetting k="test" />),
+  "meet-bubble": row(() => <MeetBubbleSetting k="on" />),
+  "meet-bubble-lead": row(() => <MeetBubbleSetting k="lead" />),
+
   // Appearance
   "look": looks("look"),
   "accent": looks("accent"),
@@ -193,7 +217,7 @@ export const CONTROLS: Controls = {
   "popups": function Popups({ e }) { const { gen } = useGen(); return <SetRow e={e} right={<NotifyControls notifyOn={gen.notifyOn} notifyLog={gen.notifyLog} />} />; },
   "ai-done": function AiDone({ e }) {   // V1.53, views/AiDone.tsx; V1.55 the cards' own time (views/IslandCards.tsx)
     const fade = settingsData(useVault()).chatFade;
-    return <SetRow e={e} body={<><ChatFadeRow value={fade} save={(chatFade) => save({ chatFade })} /><AiDoneSettings state={usePs()?.aiDone} /></>} open />;
+    return <SetRow e={e} body={<><AiNotesChoice /><ChatFadeRow value={fade} save={(chatFade) => save({ chatFade })} /><AiDoneSettings state={usePs()?.aiDone} /></>} open />;
   },
   "card-looks": block(() => <NotifyPage />, false),
   "meetings": block(() => <div className="gs-meet"><MeetPrefsPanel /></div>, false),
@@ -254,9 +278,10 @@ export const CONTROLS: Controls = {
   "ignored-apps": block(() => <IgnoredAppsSetting />, false),
 
   // Mac
+  // Dynamic Island (V1.58): its own tab with the same settings as the island settings window (views/IslandSettings.tsx).
   "island": function Island({ e }) {
-    const st = usePsSettings();
-    return <SetRow e={e} body={<IslandPlace moved={!!st?.islandMoved} ready={!!st} prefs={islandPrefs(settingsData(useVault()).island)} save={save} />} />;
+    const prefs = islandPrefs(settingsData(useVault()).island);
+    return <SetRow e={e} plain open body={<IslandSettingsPage prefs={prefs} save={(p) => save({ island: { ...prefs, ...p } })} />} />;
   },
   "afk": function Afk({ e }) {
     const on = useAfkOn();
@@ -287,6 +312,7 @@ export const CONTROLS: Controls = {
 
   // G Squad
   "gs-share": block(() => <SharingList />),
+  "squad-features": block(() => <FromTheSquad />),   // V1.58 (views/FromTheSquad.tsx)
   "gs-auto-join": function GsAutoJoin({ e }) { return <SyncedOnOff e={e} field="squadAutoJoin" />; },
   // V1.44: the QR code comes up as soon as the section opens (a fresh code each time; closing calls it off).
   "add-friend": function AddFriend({ e }) { return <SetRow e={e} body={<AddFriendPanel />} open plain className="af-row-set" />; },

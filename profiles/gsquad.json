@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "name": "gsquad",
+  "display": "the G Squad",
+  "channel": { "kind": "gsquad" },
+  "othersShared": "on",
+  "features": {},
+  "rules": {
+    "tabOverProtectedApps": true,
+    "islandOverProtectedApps": true
+  }
+}

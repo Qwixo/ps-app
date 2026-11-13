@@ -3,10 +3,12 @@
 export type MacUpdateState = "idle" | "checking" | "none" | "available" | "downloading" | "verifying" | "installing"
   | "ready" | "relaunching" | "done" | "error";
 import { cleanBlocks, type NoteBlock } from "./notehistory.ts";
+import { cleanMade } from "./releaseby.ts";
 
 export type MacUpdate = {
   state: MacUpdateState;
   version?: string; keyword?: string;          // the update's "V1.23" and its word
+  by?: string;                                 // V1.58: who made it ("jan", "gsquad"); none before V1.58
   current?: string; currentKeyword?: string;   // this Mac's version now
   kind?: "app" | "web";                        // app: a relaunch; web: the pages reload, no restart
   size?: number; progress?: number; notes?: string[]; error?: string;
@@ -32,6 +34,7 @@ export function cleanMacUpdate(x: unknown): MacUpdate {
     notes: Array.isArray(o.notes) ? o.notes.map((n) => word(n, 220)).filter((n): n is string => !!n).slice(0, 6) : undefined,
     history: Array.isArray(o.history) && o.history.length ? cleanBlocks(o.history) : undefined,
     error: word(o.error, 240), unseen: o.unseen === true,
+    ...(cleanMade(o) ? { by: cleanMade(o)!.by } : {}),
   };
 }
 

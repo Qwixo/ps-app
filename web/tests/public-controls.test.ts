@@ -37,7 +37,7 @@ const RED_GATED: Record<string, string> = {
 };
 // Controls of features that run for everyone, and where the feature runs.
 const PUBLIC_CONTROLS: Record<string, string> = {
-  MeetingsPeek: "the Meetings panel (meetings, reminders, private mode)", IslandSwitch: "the Dynamic Island (src/island.ts, Island.swift)",
+  MeetingsPeek: "the Meetings panel (meetings, reminders, private mode)", IslandSettingsWindow: "the Dynamic Island (src/island.ts, Island.swift), V1.58 its own window", IslandSettingsPage: "the same, Settings, Dynamic Island",
   MeetPrefsPanel: "meeting alerts and the notes pop-up (src/meetwatch.ts, src/notescard.ts)", DndButton: "Do Not Disturb (src/dnd.ts, DND.swift)",
   RemindSettings: "the Annoying 15 min reminders: Mac cards and phone notifications (Reminders.swift, ps-gos Remind.kt, V1.46)", GymReminder: "the gym reminder (src/gymwatch.ts)", AfkSettings: "the AFK timer (Afk.swift)",
   AysSettings: "Are you sure (AreYouSure.swift)", MiddleClickSettings: "middle click (MiddleClick.swift)", MixerButton: "the volume mixer (Mixer.swift)",
@@ -46,8 +46,8 @@ const PUBLIC_CONTROLS: Record<string, string> = {
   TelegramBotSettings: "Add Telegram Bot: the key, Link my Telegram, Test, Remove, the rules (src/tgbot.ts, TelegramBot.swift, ps-gos TgBot.kt, V1.47)",
   HeadphonesSwitch: "Headphones mode and its auto switch (Headphones.swift, V1.40)",
   EditButton: "Edit mode: moved and removed panels (views/EditMode.tsx, G Squad)",
-  IslandPlace: "the Dynamic Island's position on this Mac (Island.swift island.pos, G Squad)", IslandPosRow: "the same, in the island's own menu",
-  IslandHideRow: "how long a click on the island's top line hides it (settings.island.hide, Island.swift, V1.40)",
+  IslandPlace: "the Dynamic Island's position on this Mac (Island.swift island.pos, G Squad)", IslandPosRow: "the same, in the island's own settings",
+  IslandAwayRow: "Show it now while the island is away (right click > Disappear, V1.58)", IslandHideRow: "how long a click on the island's top line hides it (settings.island.hide, Island.swift, V1.40)",
   AutoResetSetting: "the automatic Reset and its time (core/resetday.ts, actions.ts maybeAutoReset, 8 Nov 2026)",
   MediaGuardSettings: "the AirPods card (MediaGuard.swift, everyone's since V1.40)", AirPodsFix: "Give AirPods button back to Spotify (MediaGuard.swift reconfigure, V1.40)",
 };

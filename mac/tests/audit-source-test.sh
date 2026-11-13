@@ -4,7 +4,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"; T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/tests" "$T/src"
-printf 'grant select on t to service_role;\nconst k = "service_role";\person11@gmail.com\n' > "$T/src/a.ts"
+printf 'grant select on t to service_role;\nconst k = "service_role";\person10@gmail.com\n' > "$T/src/a.ts"
 printf 'x = [".drop-secret", "-----BEGIN PRIVATE KEY-----"]\n' > "$T/tests/b.ts"
 printf 'mail person2@gmail.com\n' > "$T/src/c.ts"
 pass=0; fail=0; ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; fi; }

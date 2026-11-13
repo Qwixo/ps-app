@@ -3,6 +3,7 @@
 // Settings (tmSound, 0 = off).
 import { nativeTickName, tonesOf, type TickSoundId } from "../core/ticksound";
 import { noteSampleName, noteSoundTones, type NoteSoundId } from "../core/notelook";
+import { ISLAND_TONES } from "../core/islandtimers";
 import { EDIT_SOUNDS, editSoundOk, type EditSound, type EditTone } from "../core/editsounds";
 
 let ctx: AudioContext | null = null;
@@ -163,6 +164,12 @@ export const sfx = {
     if (viaApp("plop")) return;
     tone(420, 0.11, 0.32, "sine", 0, 140);
     tone(900, 0.03, 0.08, "triangle", 0.005, 600);
+  },
+  /** The island timers (V1.58, core/islandtimers.ts): "done" with the green tick, "start" as a takeover begins. PS plays its own copy. */
+  island(kind: "done" | "start") {
+    primeSfx();
+    if (viaApp(`island-${kind}`)) return;
+    for (const t of ISLAND_TONES[kind]) tone(t.f, t.dur, t.peak, t.wave === 0 ? "sine" : "triangle", t.at, t.to);
   },
   /** Settings preview. */
   test() { this.hover(); window.setTimeout(() => this.click(), 160); },

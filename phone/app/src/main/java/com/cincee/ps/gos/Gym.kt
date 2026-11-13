@@ -429,8 +429,13 @@ class GymRingActivity : ComponentActivity() {
         fun col(hex: String?, def: String) = runCatching { Color.parseColor(hex ?: def) }.getOrDefault(Color.parseColor(def))
         val bg = col(a?.bg, "#0B0C0E")
         val accent = col(a?.accent, "#F5C542")
-        val ink = col(a?.ink, "#F4F6F2")
-        val soft = if (a != null) (ink and 0x00FFFFFF) or (0xCC shl 24) else Color.parseColor("#FFE7A3")
+        // V1.58: an alarm's words, smaller words and the words on its accent come from its background and accent
+        // (RemInk), so a light alarm (Paper, white, cream) reads like a dark one.
+        val look = a?.let { RemInk.alarm(it.bg, it.accent, it.ink) }
+        val ink = if (look != null) col(look.ink, "#F4F6F2") else Color.parseColor("#F4F6F2")
+        val soft = if (look != null) col(look.sub, "#F4F6F2") else Color.parseColor("#FFE7A3")
+        val onAcc = if (look != null) col(look.on, "#0B0C0E") else Color.parseColor("#0B0C0E")
+        val hintInk = if (look != null) col(look.hint, "#F4F6F2") else (ink and 0x00FFFFFF) or (0x9E shl 24)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             setBackgroundColor(bg); setPadding(dp(28), dp(40), dp(28), dp(40))
@@ -439,7 +444,7 @@ class GymRingActivity : ComponentActivity() {
         val orb = TextView(this).apply {
             text = orbText; textSize = if (orbText.length <= 4) 22f else if (orbText.length <= 9) 16f else 12f
             typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; letterSpacing = .2f; maxLines = 3
-            setTextColor(if (a != null) bg else Color.parseColor("#0B0C0E")); setPadding(dp(10), dp(10), dp(10), dp(10))
+            setTextColor(onAcc); setPadding(dp(10), dp(10), dp(10), dp(10))
             background = GradientDrawable().apply {
                 if (a != null) { setColor(accent) } else { colors = intArrayOf(Color.parseColor("#FFE08A"), Color.parseColor("#F5C542"), Color.parseColor("#C9971C")) }
                 shape = GradientDrawable.OVAL
@@ -455,7 +460,7 @@ class GymRingActivity : ComponentActivity() {
             setTextColor(soft); setPadding(0, dp(4), 0, dp(40))
         }
         val ack = Button(this).apply {
-            text = a?.yes ?: Gym.YES; isAllCaps = false; textSize = 22f; typeface = Typeface.DEFAULT_BOLD; setTextColor(if (a != null) bg else Color.parseColor("#0B0C0E"))
+            text = a?.yes ?: Gym.YES; isAllCaps = false; textSize = 22f; typeface = Typeface.DEFAULT_BOLD; setTextColor(onAcc)
             stateListAnimator = null
             background = GradientDrawable().apply { setColor(accent); cornerRadius = 99 * d }
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(76))
@@ -480,7 +485,7 @@ class GymRingActivity : ComponentActivity() {
             text = if (a != null) "${a.yes} stops it here and on your Mac. ${a.later} rings again in 5 minutes."
                 else "${Gym.YES} stops it here and on your Mac. Later rings again in 5 minutes."
             textSize = 14f; gravity = Gravity.CENTER
-            setTextColor((ink and 0x00FFFFFF) or (0x9E shl 24)); setPadding(0, dp(14), 0, 0)
+            setTextColor(hintInk); setPadding(0, dp(14), 0, 0)
         }
         listOf(orb, big, sub, ack, later, hint).forEach(root::addView)
         setContentView(root)

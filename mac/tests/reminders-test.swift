@@ -72,5 +72,27 @@ ok("plan: a task's id, its day and Open task kept; a bad task id or a day withou
 ok("plan: room for the list's 20 and 60 on tasks", RemMath.items(["items": (0..<100).map { ["id": "x\($0)", "at": "09:00", "until": "10:00"] }]).count == 80)
 ok("the json a Mac keeps carries the new fields back", RemMath.item(tp[0].json) == tp[0])
 
+// ---------- V1.58: the words' colour reads on the card (web tests/remind-ink.test.ts) ----------
+let presets: [(String, String)] = [("#28121e", "#ffffff"), ("#0f1b2d", "#ffffff"), ("#0f2418", "#ffffff"), ("#2a1a08", "#ffffff"), ("#1c1230", "#ffffff"),
+                                   ("#2a0d0d", "#ffffff"), ("#18181b", "#ffffff"), ("#f6f3ee", "#17121a")]
+ok("ink: the same as the page on every theme", presets.allSatisfy { RemMath.inkFor($0.0) == $0.1 })
+ok("ink: dark words on white, cream and a light grey, all at 4.5 to 1",
+   ["#ffffff", "#fff8e1", "#e5e7eb", "#b0b0b0", "#9a9a9a", "#ec4e86"].allSatisfy { RemMath.inkFor($0) != "#ffffff" && RemMath.contrast(RemMath.inkFor($0), $0) >= 4.5 })
+var sweepOk = true
+for r in stride(from: 0, to: 256, by: 16) { for g in stride(from: 0, to: 256, by: 16) { for b in stride(from: 0, to: 256, by: 16) {
+  let bg = String(format: "#%02x%02x%02x", r, g, b)
+  if RemMath.contrast(RemMath.inkFor(bg), bg) < 4.5 { sweepOk = false }
+} } }
+ok("ink reads at 4.5 to 1 on any background (every 16th step)", sweepOk)
+let paperNoInk = RemMath.item(["id": "p", "bg": "#f6f3ee", "accent": "#e0457b"])!
+ok("a plan without ink on Paper: near black words, not the old white", paperNoInk.ink == "#17121a")
+let paperWhite = RemMath.item(["id": "p", "bg": "#f6f3ee", "accent": "#e0457b", "ink": "#ffffff"])!
+ok("an old plan with white words on Paper: worked out again from the background", paperWhite.ink == "#17121a")
+let greyOld = RemMath.item(["id": "g", "bg": "#b0b0b0", "ink": "#ffffff"])!
+ok("an older page's white on a light grey: dark words now", greyOld.ink != "#ffffff" && RemMath.contrast(greyOld.ink, "#b0b0b0") >= 4.5)
+ok("a readable ink from the plan is kept", RemMath.item(["id": "k", "bg": "#28121e", "ink": "#ffffff"])!.ink == "#ffffff"
+   && RemMath.item(["id": "k", "bg": "#ffffff", "ink": "#17121a"])!.ink == "#17121a")
+ok("the default pink card keeps white words", RemMath.item(["id": "d"])!.ink == "#ffffff")
+
 print("\n\(n - bad) of \(n) passed")
 if bad > 0 { exit(1) }

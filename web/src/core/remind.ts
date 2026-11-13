@@ -92,8 +92,90 @@ export function luma(hex: string): number {
   const f = (c: number) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
   return 0.2126 * f((n >> 16) & 255) + 0.7152 * f((n >> 8) & 255) + 0.0722 * f(n & 255);
 }
-/** The text colour that reads on a background: white on dark, near black on light. */
-export const inkFor = (bg: string) => (luma(bg) > 0.45 ? "#17121a" : "#ffffff");
+// ---------- readable colours on any background (V1.58) ----------
+// The developer, 13 Nov 2026: "when you choose the white coloured theme for the fifteen minute reminder, the text almost
+// becomes invisible. The text doesn't adapt to the colour." Every colour on the pop-up is worked out from its
+// background and accent here, so it reads (4.5 to 1, WCAG AA) on Paper, on white, on a light custom colour and on the
+// dark themes alike. The Mac's card (ps-mac Sources/Reminders.swift, "rem look" in its page) and the phone's ring
+// screen (ps-gos RemInk.kt) work out the same colours with the same numbers.
+export const REM_DARK_INK = "#17121a", REM_WHITE = "#ffffff", REM_BLACK = "#000000";
+export const REM_MIN_CONTRAST = 4.5;     // text (WCAG AA)
+export const REM_MIN_BUTTON = 3;         // big bold words on an accent button keep their colour down to 3 to 1 (WCAG AA large)
+/** WCAG contrast ratio of two colours, 1 to 21. */
+export function contrast(a: string, b: string): number {
+  const x = luma(a), y = luma(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+const rgbOf = (h: string) => { const n = parseInt(okHex(h, "#000000").slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+/** `a` at share `t` (0 to 1) over `b`, as CSS color-mix(in srgb, a t, b) draws it. */
+export function mixHex(a: string, b: string, t: number): string {
+  const p = rgbOf(a), q = rgbOf(b);
+  return "#" + p.map((v, i) => Math.round(v * t + q[i] * (1 - t)).toString(16).padStart(2, "0")).join("");
+}
+/** The text colour that reads on a background: white or near black, whichever reads better; on a middle tone where
+ *  neither reaches 4.5 to 1, pure black or white (one of them always does). */
+export function inkFor(bg: string): string {
+  const w = contrast(REM_WHITE, bg), d = contrast(REM_DARK_INK, bg);
+  if (Math.max(w, d) >= REM_MIN_CONTRAST) return w > d ? REM_WHITE : REM_DARK_INK;
+  return contrast(REM_BLACK, bg) > w ? REM_BLACK : REM_WHITE;
+}
+const minC = (c: string, tones: string[]) => Math.min(...tones.map((t) => contrast(c, t)));
+/** `ink` softened toward `base` as far as it still reads on every tone (secondary words, placeholders). */
+function softInk(ink: string, base: string, tones: string[], from: number): string {
+  for (let i = Math.round(from * 100); i < 100; i += 5) { const c = mixHex(ink, base, i / 100); if (minC(c, tones) >= REM_MIN_CONTRAST) return c; }
+  return ink;
+}
+/** Words on an accent filled button: `first` when it reads (`min` to 1), else a deep shade of the accent itself. */
+export function onAccent(tone: string, accent: string, first: string, min: number): string {
+  if (contrast(first, tone) >= min) return first;
+  for (const s of [0.4, 0.3, 0.2, 0.1]) { const c = mixHex(accent, REM_BLACK, s); if (contrast(c, tone) >= REM_MIN_CONTRAST) return c; }
+  return contrast(REM_BLACK, tone) >= contrast(REM_WHITE, tone) ? REM_BLACK : REM_WHITE;
+}
+/** Every colour on the reminder card (the Mac's pop-up, the website's Test card, Settings' preview). */
+export interface RemLook {
+  ink: string;      // the question and the buttons' words
+  sub: string;      // smaller words (Type Yes and press Enter to confirm)
+  lift: string;     // the card's top sheen mixes 8% of this into the background (the background itself: no sheen)
+  top: string;      // the card's top tone (background with its sheen)
+  glow: number;     // % of the accent glowing at the top
+  pill: string;     // the pill's words
+  pillBg: string;   // the pill's tone under its words
+  btn: number;      // % of ink filling the other buttons
+  on: string;       // words on the main (accent) button
+  mainTone: string; // the main button's middle tone
+  field: string;    // the box's fill (CSS)
+  fieldTone: string;
+  ph: string;       // the box's placeholder
+  hint: string;     // "Only Yes closes this."
+}
+export function remLook(bgIn: string, accentIn: string): RemLook {
+  const bg = okHex(bgIn, REM_BG), accent = okHex(accentIn, REM_ACCENT);
+  const ink = inkFor(bg);
+  const lit = mixHex(REM_WHITE, bg, 0.08);
+  const lift = ink === REM_WHITE && contrast(REM_WHITE, lit) < REM_MIN_CONTRAST ? bg : REM_WHITE;
+  const top = mixHex(lift, bg, 0.08);
+  const glow = [22, 14, 8, 0].find((g) => contrast(ink, mixHex(accent, top, g / 100)) >= REM_MIN_CONTRAST) ?? 0;
+  const pillBg = mixHex(accent, mixHex(accent, top, glow / 100), 0.18);
+  const pillA = [55, 45, 35, 25, 15, 0].find((a) => contrast(mixHex(accent, ink, a / 100), pillBg) >= REM_MIN_CONTRAST) ?? 0;
+  const btn = [13, 10, 7, 4, 0].find((p) => minC(ink, [mixHex(ink, bg, p / 100), mixHex(ink, top, p / 100)]) >= REM_MIN_CONTRAST) ?? 0;
+  const mainTone = mixHex(mixHex(accent, REM_WHITE, 0.8), mixHex(accent, REM_BLACK, 0.85), 0.5);
+  const dark = ink !== REM_WHITE;
+  const fieldTone = dark ? mixHex(REM_WHITE, bg, 0.5) : mixHex(REM_BLACK, bg, 0.28);
+  const red = dark ? "#b42318" : "#fca5a5";
+  return {
+    ink, sub: softInk(ink, bg, [bg, top], 0.7), lift, top, glow, pill: mixHex(accent, ink, pillA / 100), pillBg, btn,
+    on: onAccent(mainTone, accent, REM_WHITE, REM_MIN_BUTTON), mainTone,
+    field: dark ? "rgba(255,255,255,.5)" : "rgba(0,0,0,.28)", fieldTone, ph: softInk(ink, fieldTone, [fieldTone], 0.6),
+    hint: minC(red, [bg, top]) >= REM_MIN_CONTRAST ? red : ink,
+  };
+}
+/** The phone's ring screen for an alarm (ps-gos GymRingActivity) on a flat background: words, smaller words, and the
+ *  words on the accent orb and stop button (big and bold: the background's own colour when it reads, as before). */
+export function alarmLook(bgIn: string, accentIn: string): { ink: string; sub: string; on: string } {
+  const bg = okHex(bgIn, REM_BG), accent = okHex(accentIn, REM_ACCENT);
+  const ink = inkFor(bg);
+  return { ink, sub: softInk(ink, bg, [bg], 0.7), on: onAccent(accent, accent, bg, REM_MIN_BUTTON) };
+}
 
 // ---------- cleaning ----------
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
