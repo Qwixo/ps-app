@@ -38,9 +38,11 @@ class RemRingService : Service() {
 
     override fun onBind(i: Intent?): IBinder? = null
     override fun onStartCommand(i: Intent?, flags: Int, id: Int): Int {
+        // startForegroundService() promises a startForeground() within seconds: always make it, even when the ring was
+        // answered a moment before this ran (then stop at once), or Android kills the app for not doing so.
+        startForeground(Remind.RING_ID, Remind.ringNotice(this), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         val r = Remind.ringItem(this)
         if (r == null) { stopSelf(); return START_NOT_STICKY }
-        startForeground(Remind.RING_ID, Remind.ringNotice(this), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         if (player == null) play(r)
         h.removeCallbacks(end); h.postDelayed(end, RemClock.RING_FOR + 500)
         return START_NOT_STICKY

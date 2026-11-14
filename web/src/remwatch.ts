@@ -15,8 +15,12 @@
 import { vaultStore } from "./core/vault";
 import { allTodos, remindDoc, remindRec } from "./core/select";
 import { saveRemind, setTodoDone } from "./core/actions";
-import { applyAct, okTaskId, remPlan, removeReminders, staleTaskReminders, taskInfos, type RemAct } from "./core/remind";
+import { applyAct, okTaskId, remPlan, removeReminders, staleTaskReminders, taskInfos, type Reminder, type RemAct } from "./core/remind";
 import { DEVICE_TZ } from "./core/tz";
+import { sb } from "./core/vault";
+import { feature } from "./core/features";
+import { gymReady } from "./core/gym";
+import { pushClearArgs } from "./core/webpush";
 
 type Post = (m: object) => void;
 const PHONE = import.meta.env.MODE === "gos";
@@ -52,6 +56,9 @@ function run() {
         .catch(() => {}).finally(() => { sweeping = false; });
     }
   }
+  // 1.60: never hand the shells a plan before the saved reminders have loaded: an empty one would cancel every alarm and
+  // ring on the phone and make a reminder that was just answered ring again from scratch. They keep the plan they have.
+  if (!gymReady({ hasSettings: !!rec, syncing: s.syncing, lastSync: s.lastSync })) return;
   const full = remPlan(rec, !!s.red, { tasks, now: Date.now(), deviceTz: DEVICE_TZ });
   // Alarms (V1.57): the Mac shows their card from this plan; the phone RINGS them with the gym ring instead (gymwatch.ts
   // hands them over with the gym plan), so they are left out of the phone's reminder notifications.
@@ -67,11 +74,13 @@ export function remAnswer(a: RemAct) {
   // Done on a reminder on a task ticks the task, only when the answer is new (a Mac sending an old one again, after
   // The developer unticked the task, never ticks it back).
   let task: string | undefined;
+  let clearRem: Reminder | null = null;
   void saveRemind((cur) => {
     const next = cur ? applyAct(cur, a) : null;
-    if (next && a.act === "done") task = cur!.list.find((r) => r.id === a.id)?.task;
+    if (next && a.act === "done") { const r0 = cur!.list.find((r) => r.id === a.id); task = r0?.task; clearRem = r0 ?? null; }
     return next;
   }).then(() => {
+    if (a.act === "done" && feature("remind-push")) void sb.rpc("push_clear", pushClearArgs(clearRem, a.at || Date.now(), DEVICE_TZ)).then(() => {}, () => {});   // pushes still waiting for it (iPhone) go too, from any device
     if (okTaskId(task)) return setTodoDone(task, true).catch(() => post({ type: "log", text: "reminders: the task could not be ticked yet" }));
   }).catch(() => { waiting.push(a); });
 }

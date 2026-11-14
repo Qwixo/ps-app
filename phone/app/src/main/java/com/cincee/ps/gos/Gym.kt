@@ -97,7 +97,8 @@ object Gym {
         // Days the vault knows are acknowledged no longer need this phone's own copy.
         val keep = local(c).filter { it !in p.acked && it >= GymClock.minusDay(today()) }.toSet()
         val keepAlarms = alarmLocal(c).filter { it.takeLast(10) >= GymClock.minusDay(today()) }.toSet()
-        sp(c).edit().putString("plan", GymClock.toJson(p).toString()).putStringSet("acked", keep).putStringSet("alarmAcked", keepAlarms).apply()
+        val forgotten = GymClock.forgetMoved(plan(c), p, fired(c))
+        sp(c).edit().putStringSet("fired", forgotten).putString("plan", GymClock.toJson(p).toString()).putStringSet("acked", keep).putStringSet("alarmAcked", keepAlarms).apply()
         // 1.60: a reminder or missed notice up for a gym time the saved settings no longer have (moved from morning to
         // night, a day switched off) goes away; the ring and the next alarm are re-worked by check() below.
         sp(c).getString("noteDay", null)?.let { d -> if (d in p.acked || !p.on || !GymClock.planHas(p, d, sp(c).getLong("noteAt", 0))) cancelNote(c) }

@@ -89,4 +89,14 @@ ok("push bodies and subscriptions are checked", () => {
   assert.equal(W.cleanSub(null), null);
   assert.deepEqual([...W.keyBytes("AQID")], [1, 2, 3]);
 });
+ok("Done clears pushes only to the end of the window it is in, never tomorrow's daily ring", () => {
+  const r = asR(item());   // 09:00 to 12:00 every day
+  const now = ts("2026-11-10", "09:30");
+  const a = W.pushClearArgs(r, now, DXB);
+  assert.equal(a.p_rem_id, "ab1");
+  assert.equal(a.p_until, ts("2026-11-10", "12:00"));
+  assert.ok(ts("2026-11-11", "09:00") > a.p_until);                        // tomorrow's 09:00 push is kept
+  assert.equal(W.pushClearArgs(r, ts("2026-11-10", "15:00"), DXB).p_until, ts("2026-11-10", "15:00"));   // window closed: nothing in the future dropped
+  assert.equal(W.pushClearArgs(null, now, DXB).p_rem_id, "");
+});
 console.log(`${n} passed`);

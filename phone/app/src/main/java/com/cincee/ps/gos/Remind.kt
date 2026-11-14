@@ -148,10 +148,10 @@ object Remind {
         val at = wake.coerceAtLeast(now + 1000)
         // A ring is a real alarm clock (the system keeps it exact through Doze and lets the full screen card start).
         val isRing = items.any { RemClock.nextRing(it, now, z, last[it.id] ?: 0).let { t -> t > now && t <= wake } }
-        if (am.canScheduleExactAlarms()) {
-            if (isRing) am.setAlarmClock(AlarmManager.AlarmClockInfo(at, Notifier.openIntent(c, "list", 5102)), alarmIntent(c))
-            else am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, alarmIntent(c))
-        } else am.setWindow(AlarmManager.RTC_WAKEUP, at, 60_000, alarmIntent(c))
+        // An alarm clock needs no "Alarms and reminders" permission, so a ring stays on time even if that was switched off.
+        if (isRing) am.setAlarmClock(AlarmManager.AlarmClockInfo(at, Notifier.openIntent(c, "list", 5102)), alarmIntent(c))
+        else if (am.canScheduleExactAlarms()) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, alarmIntent(c))
+        else am.setWindow(AlarmManager.RTC_WAKEUP, at, 60_000, alarmIntent(c))
     }
 
     // ---------- the ring (RemRing.kt) ----------

@@ -3,7 +3,7 @@
 //
 // What goes to the server: the phone's push address and keys, and for each reminder only its ID and the moments it should
 // buzz. The reminder's words stay in the vault; the phone keeps a small copy of them (words only) for the notification.
-import { remNextRing, remRingTimes, remStatus, type PlanItem, type Reminder, type RemState } from "./remind.ts";
+import { openWindow, remNextRing, remRingTimes, remStatus, type PlanItem, type Reminder, type RemState } from "./remind.ts";
 
 export const PUSH_HORIZON_MS = 36 * 3_600_000;
 export const PUSH_MAX = 200;
@@ -103,4 +103,12 @@ export function dueCard(list: PlanItem[], now: number, tz: string, lastRang: Map
     if (t > 0 && t <= now && remStatus(r, stateOf(i), now, tz) === "show") return i;
   }
   return null;
+}
+
+/** Done on any device: the arguments for push_clear. Pushes waiting for that reminder up to the end of the window it is in
+ *  are dropped; the next day's stay (never "the next 24 hours", which would eat tomorrow's daily ring). */
+export function pushClearArgs(r: Reminder | null, now: number, deviceTz: string): { p_rem_id: string; p_until: number } {
+  if (!r) return { p_rem_id: "", p_until: now };
+  const w = openWindow(r, now, deviceTz);
+  return { p_rem_id: r.id, p_until: Math.max(now, w ? w.end : now) };
 }

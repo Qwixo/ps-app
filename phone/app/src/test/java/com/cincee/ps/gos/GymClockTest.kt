@@ -292,4 +292,12 @@ class GymClockTest {
         assertNull(GymClock.next(off, hm(5, 0), emptySet()))
         assertEquals(RingNow.DONE, GymClock.ringNow(GymRing(day, gym, hm(7, 44, 1)), off, hm(7, 45), emptySet()))
     }
+
+    @Test fun aGymMovedLaterTheSameDayRingsAgainAfterTheFirstRingFired() {
+        val fired = setOf("$day:16", "$day:120", "a:abc:$day", "2026-11-04:16")
+        val moved = GymClock.forgetMoved(plan(), nightPlan(), fired)
+        assertEquals(setOf("a:abc:$day", "2026-11-04:16"), moved)             // that day's gym steps are forgotten, alarms and other days kept
+        assertEquals(fired, GymClock.forgetMoved(plan(), plan(), fired))       // same time: nothing forgotten
+        assertEquals(fired, GymClock.forgetMoved(null, nightPlan(), fired))    // no older plan: nothing to compare
+    }
 }

@@ -161,6 +161,14 @@ object GymClock {
      *  gym settings no longer have (the gym moved from the morning to the night), is not followed any more. */
     fun planHas(p: GymPlan?, day: String, at: Long): Boolean = p?.items?.any { it.day == day && it.at == at } == true
 
+    /** A gym day whose time changed in a new plan (moved later the same day, say) is a new step: what already fired for the
+     *  old time on that day is forgotten, so the new ring and notices come. Alarm entries ("a:") are not touched. */
+    fun forgetMoved(old: GymPlan?, new: GymPlan, fired: Set<String>): Set<String> {
+        val moved = new.items.filter { n -> old?.items?.any { it.day == n.day && it.at != n.at } == true && old.items.none { it.day == n.day && it.at == n.at } }.map { it.day }.toSet()
+        if (moved.isEmpty()) return fired
+        return fired.filterNot { !it.startsWith("a:") && it.take(10) in moved }.toSet()
+    }
+
     /** Where the ring stands. Acknowledge (here, on the Mac: the plan's acked) ends it at any time, ringing or snoozed. */
     fun ringNow(r: GymRing?, p: GymPlan?, now: Long, localAcked: Set<String>, alarmAcked: Set<String> = emptySet()): RingNow = when {
         r == null -> RingNow.NONE

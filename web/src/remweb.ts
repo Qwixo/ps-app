@@ -51,7 +51,7 @@ export function answerCard(act: "done" | "snooze") {
   const now = Date.now(), r = asReminder(c);
   remAnswer(act === "done" ? doneAct(r, now, DEVICE_TZ, "web") : snoozeAct(r, now, "web"));
   card = null; emit();
-  if (act === "done") void sb.rpc("push_clear", { p_rem_id: c.id, p_until: now + 24 * 3_600_000 }).then(() => {}, () => {});   // pushes still waiting for it go too
+  // pushes still waiting for a Done reminder are cleared by remAnswer (remwatch.ts), from every device
 }
 
 // ---------- the small copy of the words for the notification (this phone only) ----------
