@@ -140,20 +140,35 @@ class MainActivity : FragmentActivity() {
         if (isShown && Fitness.Awake.wanted()) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
-    override fun onResume() { super.onResume(); WebHost.sendPerms(); WatchService.sync(this); LiveService.sync(this) }
+    override fun onResume() { super.onResume(); WebHost.sendPerms(); overlayBack(); WatchService.sync(this); LiveService.sync(this) }
 
-    /** V1.59: the first time the vault is open with the island on and no Display over other apps, say what it is for once. */
-    fun askIsland() {
-        if (!isShown || isFinishing || Settings.canDrawOverlays(this) || !Prefs.island(this)) return
+    /** V1.59: the first time the vault is open with the island on and no Display over other apps, say what it is for once.
+     *  PS 1.60: Android blocks that permission for an app installed from a file, so the card gives the steps, a button for PS
+     *  app's own settings page, and comes back with "Still off" when the person returns and Android still says no. */
+    private var islandCard: android.app.AlertDialog? = null
+    fun askIsland(still: Boolean = false, force: Boolean = false) {
+        val granted = Settings.canDrawOverlays(this)
         val sp = getSharedPreferences("island", MODE_PRIVATE)
-        if (sp.getBoolean("asked", false)) return
-        sp.edit().putBoolean("asked", true).apply()
-        android.app.AlertDialog.Builder(this, android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("Dynamic island")
-            .setMessage("PS app can show a small live island around your camera, over every app: your next meeting, Pomodoro breaks, stand-ups, reminders and AI messages. Tap it to open PS app.\n\nAndroid calls this Display over other apps. It never shows over the lock screen. You can switch it off in Settings, This phone.")
-            .setPositiveButton("Allow") { _, _ -> openPermission("overlay") }
-            .setNegativeButton("Not now", null)
+        if (!isShown || isFinishing) return
+        if (islandCard?.isShowing == true || granted) return
+        if (!still && !force && !OverlayHelp.showFirst(granted, Prefs.island(this), sp.getBoolean("asked", false))) return
+        sp.edit().putBoolean("asked", true).putBoolean("waiting", true).apply()
+        islandCard = android.app.AlertDialog.Builder(this, android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle(OverlayHelp.TITLE)
+            .setMessage(OverlayHelp.message(still))
+            .setPositiveButton(OverlayHelp.OPEN_APP) { _, _ -> openPermission("app") }
+            .setNeutralButton(OverlayHelp.OPEN_OVERLAY) { _, _ -> openPermission("overlay") }
+            .setNegativeButton(OverlayHelp.LATER) { _, _ -> sp.edit().putBoolean("waiting", false).apply() }
+            .setOnCancelListener { sp.edit().putBoolean("waiting", false).apply() }
             .show()   // Back closes it (Not now)
+    }
+    /** PS 1.60: back from Settings after the card sent the person there: done, or still off (the card says so). */
+    private fun overlayBack() {
+        val sp = getSharedPreferences("island", MODE_PRIVATE)
+        val waiting = sp.getBoolean("waiting", false)
+        val granted = Settings.canDrawOverlays(this)
+        if (OverlayHelp.finished(granted, waiting)) { sp.edit().putBoolean("waiting", false).apply(); return }
+        if (OverlayHelp.showAgain(granted, Prefs.island(this), waiting)) { sp.edit().putBoolean("waiting", false).apply(); askIsland(true) }
     }
     /** V1.47: a log line when the system asks for memory back while PS is open (it can take the background video's
      *  decoder; the page then reloads the video, web src/core/bgwatch.ts). 10 is "running low" and up. */
@@ -307,6 +322,8 @@ class MainActivity : FragmentActivity() {
             "exactAlarm" -> Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, pkg)
             "install" -> Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, pkg)
             "fullScreen" -> Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, pkg)
+            // PS 1.60: PS app's own settings page: the camera switch, and the three dots with Allow restricted settings.
+            "app" -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)
             else -> return
         }
         runCatching { startActivity(i) }.onFailure { runCatching { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)) } }

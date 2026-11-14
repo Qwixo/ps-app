@@ -86,7 +86,7 @@
   .nt-launch { right: 16px; bottom: calc(78px + env(safe-area-inset-bottom)); width: 54px; height: 54px; padding: 0; justify-content: center; border-radius: 50%; background: var(--nt-acc); border: 0; }
   .nt-launch .nt-glyph { color: #fff; width: 24px; height: 24px; }
   .nt-launch-l { display: none; }
-  .nt-win, .nt-win.big { inset: 0; right: 0; bottom: 0; width: 100%; height: 100%; border-radius: 0; z-index: 70; padding-top: env(safe-area-inset-top); }
+  .nt-win, .nt-win.big { inset: 0; right: 0; bottom: 0; width: 100%; height: 100%; border-radius: 0; z-index: 70; padding-top: var(--sat, env(safe-area-inset-top, 0px)); }
   .nt-desk { display: none; }
   .nt-body { grid-template-columns: minmax(0, 1fr); }
   .nt-win .nt-main { display: none; }

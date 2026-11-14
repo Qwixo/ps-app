@@ -7,7 +7,8 @@
 // is off, the developer can type what the label says instead.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { appName } from "../core/appname";
-import { haptic } from "../gos/bridge";
+import { GOS, gos, haptic } from "../gos/bridge";
+import { CAMERA_BUTTON, cameraOffText } from "../core/camerahelp";
 import { gymScan } from "../gos/gymscan";
 import { prefillSets, setsFor, type FitPrefs, type FitProgram, type FitSet, type FitWorkout } from "../core/fitness";
 import { LIB, libById, planFromLib, type LibEx } from "./lib";
@@ -224,7 +225,7 @@ function Camera({ still, reading, say, onShot, onType, onCancel }: { still: stri
     try { await t.applyConstraints({ advanced: [{ torch: !torch } as MediaTrackConstraintSet] }); setTorch(!torch); } catch { setTorch(null); }
   };
   const bad = state === "denied" || state === "nocamera";
-  const msg = state === "denied" ? `The camera is off for ${appName()}. Allow it in the phone's Settings, Apps, ${appName()}, Permissions, Camera. Or type what the label says.`
+  const msg = state === "denied" ? cameraOffText(appName(), "Or type what the label says.")
     : state === "nocamera" ? "No camera found. Type what the label says instead."
     : reading ? "Reading the label..." : say || (state === "starting" ? "Opening the camera..." : "Fit the machine's name inside the frame, then tap Read.");
   return (
@@ -240,6 +241,7 @@ function Camera({ still, reading, say, onShot, onType, onCancel }: { still: stri
         )}
       </div>
       <p className={cx("sc-say", (bad || (!!say && !reading)) && "bad")} role="status" aria-live="polite" key={msg}>{msg}</p>
+      {state === "denied" && GOS && <button type="button" className="fg-second sc-open" onClick={() => { haptic("press"); gos.openAppSettings(); }}>{CAMERA_BUTTON}</button>}
       <div className="sc-foot">
         <button type="button" className="fg-second sc-side" onClick={onCancel}>Cancel</button>
         <button type="button" className={cx("sc-shoot", reading && "busy")} onClick={shoot} disabled={state !== "on" || reading} aria-label="Read the label">

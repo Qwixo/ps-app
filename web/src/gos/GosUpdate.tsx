@@ -9,10 +9,11 @@ import { tickStore, useTick } from "../updatetick";
 import { catchUp } from "../core/notehistory";
 import { NoteGroups } from "../ui/NoteGroups";
 import { byLine } from "../core/releaseby";
+import { cardShape, sizeText } from "../core/updatecard";
 
 const STEPS = ["Download", "Verify", "Install"] as const;
 
-function mb(n?: number) { return n ? `${(n / 1048576).toFixed(n > 10 * 1048576 ? 0 : 1)} MB` : ""; }
+const mb = sizeText;
 
 /** The reload button on "You are up to date" (a tick before V1.51): a tap looks for updates, the same as the Mac (core/updatetick.ts). */
 const gosTick = tickStore<GosUpdate>();
@@ -65,7 +66,9 @@ export function GosUpdateCard() {
   const blocks = u.state === "available"
     ? catchUp([...(u.version && u.notes ? [{ version: u.version, keyword: u.keyword ?? "", notes: u.notes.split("\n").map((n) => n.trim()).filter(Boolean), by: u.by }] : []), ...(Array.isArray(u.history) ? u.history : [])], u.current, u.version)
     : [];
-  const sub = u.state === "available" ? `${mb(u.size)}${u.notes && blocks.length <= 1 ? ` · ${u.notes}` : ""}`
+  // PS 1.60: the notes are a full width list under the title (below), the size is the only thing on this line.
+  const shape = cardShape(u.state, u.notes, u.size, blocks.length);
+  const sub = u.state === "available" ? (shape.size ? `Download size ${shape.size}` : "A new version is ready")
     : u.state === "downloading" ? `${Math.round(shown * 100)}% of ${mb(u.size)}`
     : u.state === "verifying" ? "SHA-256 and PS app's own signing certificate"
     : u.state === "ready" ? "GrapheneOS shows one confirm tap"
@@ -96,11 +99,6 @@ export function GosUpdateCard() {
           <div className="gos-upd-t" key={u.state}>{title}</div>
           {tickOn ? <div className={`gos-upd-s fx${tk.phase === "fail" ? " soft" : ""}`} key={tk.phase === "spin" || tk.phase === "fail" ? tk.phase : "v"}>{sub}</div> : <div className="gos-upd-s">{sub}</div>}
         </div>
-        {(u.state === "available" || u.state === "ready") && (
-          <button type="button" className="gos-btn primary" onClick={() => { haptic("press"); gosTick.reset(); gos.installUpdate(); }}>
-            {u.state === "ready" ? "Install" : "Update now"}
-          </button>
-        )}
         {/* V1.51: the reload symbol, not the word "Check" (when up to date the orb on the left is that button). */}
         {(u.state === "idle" || u.state === "checking" || u.state === "error") && (
           <button type="button" className={`gos-btn ghost gos-upd-check${u.state === "checking" ? " on" : ""}`} disabled={u.state === "checking"}
@@ -113,6 +111,12 @@ export function GosUpdateCard() {
         )}
       </div>
       {blocks.length > 1 && <NoteGroups blocks={blocks} />}
+      {shape.notes.length > 0 && <ul className="gos-upd-notes">{shape.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>}
+      {shape.wide && (
+        <button type="button" className="gos-btn primary gos-upd-go" onClick={() => { haptic("press"); gosTick.reset(); gos.installUpdate(); }}>
+          {u.state === "ready" ? "Install" : "Update now"}
+        </button>
+      )}
       {stepAt >= 0 && (
         <>
           <div className="gos-upd-bar"><i style={{ transform: `scaleX(${shown})` }} /></div>

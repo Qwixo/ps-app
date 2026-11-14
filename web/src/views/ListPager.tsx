@@ -18,6 +18,8 @@
 // - for the first use tips (another chat): window events "ps-page-swiped" {from, to, how} after a page lands, and
 //   "ps-list-created" {id, name} when a new list is there.
 // Everything is saved in settings (one change-only write each), so the Mac, the website and the phone match.
+import { MWEB, haptic as gosHaptic } from "../gos/bridge";
+import * as pd from "../core/pagedots";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal, flushSync } from "react-dom";
 import type { Doc, Settings, TaskGroup, Todo } from "../core/model";
@@ -749,7 +751,17 @@ function moveDots(pager: HTMLElement | null, at: number) {
   if (!pill || all.length < 1) return;
   const i = Math.max(0, Math.min(all.length - 1, at));
   const a = all[Math.floor(i)], b = all[Math.min(all.length - 1, Math.ceil(i))], f = i - Math.floor(i);
-  const x = a.offsetLeft + a.offsetWidth / 2 + ((b.offsetLeft + b.offsetWidth / 2) - (a.offsetLeft + a.offsetWidth / 2)) * f;
+  // PS 1.60: on the phone the dots sit in their own pill (.tl-bed) with the + buttons outside it, so the spot is measured
+  // from the pill's own left edge, and the bright dot never slides out over a + button.
+  const bed = pill.parentElement && pill.parentElement.classList.contains("tl-bed") ? pill.parentElement : null;
+  let x: number;
+  if (bed) {
+    const br = bed.getBoundingClientRect(), ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    const ca = ra.left + ra.width / 2 - br.left, cb = rb.left + rb.width / 2 - br.left;
+    x = Math.max(0, Math.min(br.width, ca + (cb - ca) * f));
+  } else {
+    x = a.offsetLeft + a.offsetWidth / 2 + ((b.offsetLeft + b.offsetWidth / 2) - (a.offsetLeft + a.offsetWidth / 2)) * f;
+  }
   pill.style.transform = `translate3d(${x.toFixed(1)}px, 0, 0)`;
   const near = Math.round(i);
   all.forEach((d, n) => d.classList.toggle("on", n === near));
@@ -761,25 +773,71 @@ export function ListDots({ ids, index, names }: { ids: string[]; index: number; 
   useLayoutEffect(() => { moveDots(ref.current?.closest(".tm-overlay")?.querySelector(".tl-pager") ?? null, index); }, [index, ids.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   const hold = useRef(0);
   const go = (i: number) => { const p = keyPagerIn(ref.current); lastHow = "dot"; if (p) p.go(i); else setActive(ids[i]); };
+  // PS 1.60 (phone): the iPhone's page dots. Tap the left or right half to go back or forward, press and slide to scrub
+  // (one haptic tick a page, the pill grows while held). Rules in core/pagedots.ts. The Mac and the website keep the old dots.
+  const phone = GOS || MWEB;
+  const real = ids.filter((id) => !isPlus(id));
+  const first = ids.findIndex((id) => !isPlus(id));
+  const curReal = Math.max(0, Math.min(real.length - 1, index - first));
+  const bed = useRef<HTMLDivElement>(null);
+  const press = useRef<pd.Press | null>(null);
+  const [held, setHeld] = useState(false);
+  const geo = (): pd.Geo => { const r = bed.current?.getBoundingClientRect(); return { left: r?.left ?? 0, width: r?.width ?? 0, n: real.length }; };
+  const gesture = phone ? {
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.button !== 0 || real.length < 1) return;
+      press.current = pd.press(e.clientX, performance.now(), curReal);
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* gone */ }
+      setHeld(true);
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const p = press.current; if (!p) return;
+      const m = pd.move(p, e.clientX, geo());
+      press.current = m.p;
+      if (m.to != null) { gosHaptic("tick"); go(first + m.to); }
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const p = press.current; press.current = null; setHeld(false);
+      if (!p) return;
+      if (hold.current === -1) { hold.current = 0; return; }   // the long press menu already opened
+      const r = pd.release(p, e.clientX, performance.now(), geo());
+      if (r.kind === "tap" && r.to !== curReal) { gosHaptic("tick"); sfx.hover(); go(first + r.to); }
+    },
+    onPointerCancel: () => { press.current = null; setHeld(false); },
+  } : {};
+  const dot = (id: string, i: number) => (
+    <button key={id} type="button" role="tab" aria-selected={i === index} data-page={id}
+      className={`tl-dot${i === index ? " on" : ""}${id === MAIN ? " home" : ""}${isPlus(id) ? " plus" : ""}`} title={name(id)} aria-label={name(id)}
+      onClick={() => { if (phone && !isPlus(id)) return; if (hold.current === -1) { hold.current = 0; return; } sfx.hover(); go(i); }}
+      onContextMenu={(e) => { if (!isPlus(id)) openListMenu(e, id); else e.preventDefault(); }}
+      onPointerDown={(e) => {
+        if (isPlus(id) || e.button !== 0) return;
+        const x = e.clientX, y = e.clientY, el = e.currentTarget;
+        window.clearTimeout(hold.current);
+        hold.current = window.setTimeout(() => { hold.current = -1; menuAt(x, y, id, el); }, 520);   // a long press: the menu
+      }}
+      onPointerUp={() => { if (hold.current > 0) { window.clearTimeout(hold.current); hold.current = 0; } }}
+      onPointerLeave={() => { if (hold.current > 0) { window.clearTimeout(hold.current); hold.current = 0; } }}>
+      {id === MAIN ? <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 5.2L5 2l3.5 3.2V8.5h-7z" /></svg> : isPlus(id) ? <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 2v6M2 5h6" /></svg> : <i />}
+    </button>
+  );
+  if (!phone || real.length === 0) {
+    return (
+      <div ref={ref} className="tl-dots" role="tablist" aria-label="Your lists" onMouseDown={(e) => e.stopPropagation()}>
+        <i className="tl-pill" aria-hidden="true" />
+        {ids.map(dot)}
+      </div>
+    );
+  }
+  const lead = ids.slice(0, first), tail = ids.slice(first + real.length);
   return (
-    <div ref={ref} className="tl-dots" role="tablist" aria-label="Your lists" onMouseDown={(e) => e.stopPropagation()}>
-      <i className="tl-pill" aria-hidden="true" />
-      {ids.map((id, i) => (
-        <button key={id} type="button" role="tab" aria-selected={i === index} data-page={id}
-          className={`tl-dot${i === index ? " on" : ""}${id === MAIN ? " home" : ""}${isPlus(id) ? " plus" : ""}`} title={name(id)} aria-label={name(id)}
-          onClick={() => { if (hold.current === -1) { hold.current = 0; return; } sfx.hover(); go(i); }}
-          onContextMenu={(e) => { if (!isPlus(id)) openListMenu(e, id); else e.preventDefault(); }}
-          onPointerDown={(e) => {
-            if (isPlus(id) || e.button !== 0) return;
-            const x = e.clientX, y = e.clientY, el = e.currentTarget;
-            window.clearTimeout(hold.current);
-            hold.current = window.setTimeout(() => { hold.current = -1; menuAt(x, y, id, el); }, 520);   // a long press: the menu
-          }}
-          onPointerUp={() => { if (hold.current > 0) { window.clearTimeout(hold.current); hold.current = 0; } }}
-          onPointerLeave={() => { if (hold.current > 0) { window.clearTimeout(hold.current); hold.current = 0; } }}>
-          {id === MAIN ? <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 5.2L5 2l3.5 3.2V8.5h-7z" /></svg> : isPlus(id) ? <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 2v6M2 5h6" /></svg> : <i />}
-        </button>
-      ))}
+    <div ref={ref} className={`tl-dots tl-phone${held ? " held" : ""}`} role="tablist" aria-label="Your lists" onMouseDown={(e) => e.stopPropagation()}>
+      {lead.map((id, k) => dot(id, k))}
+      <div ref={bed} className="tl-bed" {...gesture}>
+        <i className="tl-pill" aria-hidden="true" />
+        {real.map((id, k) => dot(id, first + k))}
+      </div>
+      {tail.map((id, k) => dot(id, first + real.length + k))}
     </div>
   );
 }
