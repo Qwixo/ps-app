@@ -32,6 +32,7 @@ import { dayMinutes, dayWords } from "./nav-logic";
 import { ActivityRow } from "./Activity";
 import { PeopleIcon, SquadChip } from "./Squad";
 import { useGymSquad } from "../squad/gymclient";
+import { fitIslandSetDone, fitIslandSetUndone } from "./fitisland";
 import "./gym.css";
 
 type Dated = { id: string; data: FitWorkout };
@@ -291,6 +292,7 @@ function Live({ v, onFinished }: { v: FitView; onFinished: (s: Summary, label: s
     const n = sets.findIndex((x) => x.id === s.id) + 1;
     haptic("tick");
     void setPatch(id, e.id, s.id, { done: true });   // saved on this device first, then pushed (store.ts)
+    fitIslandSetDone({ ex: e, set: s, workouts: v.workouts, workoutId: id });   // V1.60 the phone's island: a progress hint now, a nudge after the rest
     const more = list.some((x) => liveSets(x).some((y) => !y.done && y.id !== s.id));
     // A drop set (V1.29) never starts a rest: the developer goes straight on.
     if (more && !s.drop) rest.start({ sec: restFor(e, v.prefs), exercise: e.name, set: n, of: sets.length, exId: e.id, setId: s.id });
@@ -304,6 +306,7 @@ function Live({ v, onFinished }: { v: FitView; onFinished: (s: Summary, label: s
   const untick = (e: FitLogEx, s: FitSet) => {
     haptic("press");
     void setPatch(id, e.id, s.id, { done: false });
+    fitIslandSetUndone();
     if (r && r.setId === s.id) rest.cancel();
     if (ask?.setId === s.id) setAsk(null);
   };

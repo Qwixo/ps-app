@@ -18,6 +18,7 @@ import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.SystemClock
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -61,6 +62,7 @@ object Island {
     val seenBack = HashMap<String, Long>()
     private val seenEvents = LinkedHashSet<String>()
     private var lastJson = ""
+    private var lastFit = ""
 
     private fun sp(c: Context) = c.getSharedPreferences("island", Context.MODE_PRIVATE)
     fun hideUntil(c: Context) = sp(c).getLong("hideUntil", 0)
@@ -90,6 +92,12 @@ object Island {
                 else { seenEvents.add(ev.id); while (seenEvents.size > 200) seenEvents.remove(seenEvents.first()); p }
             val changed = raw != lastJson
             lastJson = raw
+            // V1.60 Fitness: a NEW moment (and a fresh one: the page resends every minute) plays its own sound, if its switch is on.
+            val fit = next.fit
+            if (fit != null && fit.id != lastFit) {
+                lastFit = fit.id
+                if (next.on && fit.sound && now - fit.at < 4_000 && now < fit.until && Prefs.island(c)) FitTones.play(c, fit.kind)
+            }
             page = next
             if (changed || ev != null) LiveService.refresh()
             if (next.on) WebHost.activity?.askIsland()
@@ -338,9 +346,18 @@ class IslandView(private val svc: Context, private val onTap: (String) -> Unit, 
                 val body = if (menuOpen) 2 * 46 * d + 8 * d else bigBody(l as IslandShow.Look.Big, w)
                 out.set(cx - w / 2, top, cx + w / 2, top + body); clampX(out); 24 * d
             }
+            l is IslandShow.Look.Found -> {
+                val w = min(screenW - 24 * d, 320 * d); val h = 76 * d
+                out.set(cx - w / 2, top, cx + w / 2, top + h); clampX(out); 30 * d
+            }
+            l is IslandShow.Look.Added -> {
+                val w = min(screenW - 24 * d, 176 * d)
+                out.set(cx - w / 2, top, cx + w / 2, top + w); clampX(out); 38 * d
+            }
             l is IslandShow.Look.Compact -> {
                 val h = 36 * d
-                val w = (left.measureText(l.left) + right.measureText(l.right) + 2 * inset + 18 * d).coerceIn(150 * d, screenW - 16 * d)
+                val rw = if (l.spin) 16 * d else right.measureText(l.right)
+                val w = (left.measureText(l.left) + rw + 2 * inset + 18 * d).coerceIn(150 * d, screenW - 16 * d)
                 out.set(cx - w / 2, top, cx + w / 2, top + h); clampX(out); h / 2
             }
             else -> { out.set(pill); pill.height() / 2 }
@@ -364,6 +381,7 @@ class IslandView(private val svc: Context, private val onTap: (String) -> Unit, 
     }
     fun leave() {
         anim?.cancel()
+        removeCallbacks(frame)
         ValueAnimator.ofFloat(alphaAll, 0f).apply {
             duration = 180
             addUpdateListener { alphaAll = it.animatedValue as Float; invalidate() }
@@ -387,14 +405,34 @@ class IslandView(private val svc: Context, private val onTap: (String) -> Unit, 
 
     fun show(l: IslandShow.Look) {
         val was = look
-        val wasSize = was.javaClass != l.javaClass || (was is IslandShow.Look.Compact && l is IslandShow.Look.Compact && (was.left != l.left || was.tone != l.tone)) ||
-            (was is IslandShow.Look.Big && l is IslandShow.Look.Big && (was.title != l.title || was.sub != l.sub))
+        val wasSize = was.javaClass != l.javaClass || (was is IslandShow.Look.Compact && l is IslandShow.Look.Compact && (was.left != l.left || was.tone != l.tone || was.spin != l.spin)) ||
+            (was is IslandShow.Look.Big && l is IslandShow.Look.Big && (was.title != l.title || was.sub != l.sub)) ||
+            (was is IslandShow.Look.Found && l is IslandShow.Look.Found && was.id != l.id) || (was is IslandShow.Look.Added && l is IslandShow.Look.Added && was.id != l.id)
         look = l
+        if (identity(was) != identity(l)) since = SystemClock.uptimeMillis()
+        frames()
         if (menuOpen) { invalidate(); return }
-        morph(if (wasSize) 460 else 200, wasSize)
+        // The Fitness moments grow with a squeeze and a spring, and spring back the same way.
+        val springy = fitMoment(l) || fitMoment(was)
+        morph(if (springy && wasSize) 680 else if (wasSize) 460 else 200, wasSize, springy && wasSize)
     }
+    private fun fitMoment(l: IslandShow.Look) = l is IslandShow.Look.Found || l is IslandShow.Look.Added
+    /** What a look is, for the clock of its animation (the tick, the figure's rep, the spinner): a new one starts it again. */
+    private fun identity(l: IslandShow.Look): String? = when (l) {
+        is IslandShow.Look.Found -> "f:${l.id}"
+        is IslandShow.Look.Added -> "a:${l.id}"
+        is IslandShow.Look.Compact -> if (l.spin) "spin" else null
+        else -> null
+    }
+    private var since = 0L
+    /** Reduced motion (the phone's animation scale is off): no spring, no squeeze, a still figure and a finished tick. */
+    private val reduced get() = runCatching { android.provider.Settings.Global.getFloat(svc.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false)
+    // A frame loop only while something moves (the spinner, a figure doing its rep, the tick drawing): never otherwise.
+    private val frame = Runnable { frames(); }
+    private fun moving() = added && (fitMoment(look) || (look as? IslandShow.Look.Compact)?.spin == true)
+    private fun frames() { removeCallbacks(frame); if (moving()) { invalidate(); postOnAnimation(frame) } }
 
-    private fun morph(ms: Long, fade: Boolean) {
+    private fun morph(ms: Long, fade: Boolean, spring: Boolean = false) {
         measure()
         val nt = RectF(); val nr = target(look, nt)
         if (anim?.isRunning != true && cur == nt) { invalidate(); return }
@@ -402,12 +440,18 @@ class IslandView(private val svc: Context, private val onTap: (String) -> Unit, 
         // A new look grows out of the pill: from the body as it is now, or from the pill when it was idle.
         from.set(cur); fromR = radius; to.set(nt); toR = nr
         val u = RectF(from); u.union(to); place(u)
+        val red = reduced
         anim = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = ms
-            interpolator = if (ms > 300) OvershootInterpolator(1.1f) else DecelerateInterpolator()
+            duration = if (spring && red) 160 else ms
+            interpolator = if (spring) android.view.animation.LinearInterpolator() else if (ms > 300) OvershootInterpolator(1.1f) else DecelerateInterpolator()
             addUpdateListener { va ->
-                val f = va.animatedValue as Float
+                val f = if (spring) IslandSpring.grow(va.animatedValue as Float, red) else va.animatedValue as Float
                 cur.set(lerp(from.left, to.left, f), lerp(from.top, to.top, f), lerp(from.right, to.right, f), lerp(from.bottom, to.bottom, f))
+                if (spring) {
+                    // The tiny squeeze first: the island shrinks about its own middle, still hanging from the pill.
+                    val q = IslandSpring.squeeze(va.animatedValue as Float, red)
+                    if (q != 1f) { val cx = cur.centerX(); val cy = cur.centerY(); val hw = cur.width() * q / 2; val hh = cur.height() * q / 2; cur.set(cx - hw, cy - hh, cx + hw, cy + hh) }
+                }
                 radius = lerp(fromR, toR, f.coerceIn(0f, 1f))
                 content = if (fade) ((va.animatedFraction - 0.45f) / 0.55f).coerceIn(0f, 1f) else 1f
                 invalidate()
@@ -450,12 +494,14 @@ class IslandView(private val svc: Context, private val onTap: (String) -> Unit, 
                 val l = look as IslandShow.Look.Compact
                 val base = r.centerY() - (left.descent() + left.ascent()) / 2
                 right.color = tone(l.tone); right.alpha = a
-                val rw = right.measureText(l.right)
-                c.drawText(l.right, r.right - inset - rw, base, right)
+                val rw = if (l.spin) 16 * d else right.measureText(l.right)
+                if (l.spin) drawSpinner(c, r.right - inset - 7 * d, r.centerY(), 7 * d, tone(l.tone), a) else c.drawText(l.right, r.right - inset - rw, base, right)
                 left.alpha = a
                 val lt = TextUtils.ellipsize(l.left, left, max(0f, r.width() - 2 * inset - rw - 18 * d), TextUtils.TruncateAt.END).toString()
                 c.drawText(lt, r.left + inset, base, left)
             }
+            look is IslandShow.Look.Found -> drawFound(c, r, look as IslandShow.Look.Found, a)
+            look is IslandShow.Look.Added -> drawAdded(c, r, look as IslandShow.Look.Added, a)
             look is IslandShow.Look.Big -> {
                 val b = look as IslandShow.Look.Big
                 val top = r.top + 12 * d
@@ -472,6 +518,64 @@ class IslandView(private val svc: Context, private val onTap: (String) -> Unit, 
                 }
             }
         }
+    }
+
+    // ---------- the Fitness moments (V1.60) ----------
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val arcBox = RectF()
+    /** A spinner: three quarters of a ring turning once a second. */
+    private fun drawSpinner(c: Canvas, cx: Float, cy: Float, rad: Float, color: Int, a: Int) {
+        stroke.color = color; stroke.alpha = a; stroke.strokeWidth = 2.2f * d
+        arcBox.set(cx - rad, cy - rad, cx + rad, cy + rad)
+        c.drawArc(arcBox, (SystemClock.uptimeMillis() % 900) / 900f * 360f, 270f, false, stroke)
+    }
+    /** The little stick figure doing its rep inside the square (x, y, size), white on the island's black. */
+    private fun drawFig(c: Canvas, fig: IslandFig.Fig, x: Float, y: Float, size: Float, a: Int, age: Long) {
+        val pose = IslandFig.blend(fig, IslandFig.repK(age, reduced))
+        val k = size / 100f
+        stroke.color = Color.WHITE; stroke.alpha = a; stroke.strokeWidth = max(1.6f * d, size * 0.045f)
+        for (ln in IslandFig.lines(pose)) c.drawLine(x + ln[0] * k, y + ln[1] * k, x + ln[2] * k, y + ln[3] * k, stroke)
+        c.drawCircle(x + pose[2 * IslandFig.HEAD] * k, y + pose[2 * IslandFig.HEAD + 1] * k, fig.hr * k, stroke)
+    }
+    /** A green ring that sweeps round, then a check that draws itself (reduced motion: finished). */
+    private fun drawTick(c: Canvas, cx: Float, cy: Float, rad: Float, age: Long, a: Int) {
+        val (ring, check) = IslandSpring.tick(age, reduced)
+        val green = tone(IslandShow.Tone.GREEN)
+        stroke.color = green; stroke.alpha = a; stroke.strokeWidth = max(2f * d, rad * 0.14f)
+        arcBox.set(cx - rad, cy - rad, cx + rad, cy + rad)
+        c.drawArc(arcBox, -90f, 360f * ring, false, stroke)
+        if (check <= 0f) return
+        val p0x = cx - rad * 0.42f; val p0y = cy + rad * 0.04f
+        val p1x = cx - rad * 0.10f; val p1y = cy + rad * 0.36f
+        val p2x = cx + rad * 0.46f; val p2y = cy - rad * 0.32f
+        val first = (check / 0.4f).coerceIn(0f, 1f); val second = ((check - 0.4f) / 0.6f).coerceIn(0f, 1f)
+        c.drawLine(p0x, p0y, lerp(p0x, p1x, first), lerp(p0y, p1y, first), stroke)
+        if (second > 0f) c.drawLine(p1x, p1y, lerp(p1x, p2x, second), lerp(p1y, p2y, second), stroke)
+    }
+    private fun drawFound(c: Canvas, r: RectF, f: IslandShow.Look.Found, a: Int) {
+        val age = SystemClock.uptimeMillis() - since
+        val box = 52 * d
+        val bx = r.left + 16 * d
+        if (f.fig != null) drawFig(c, f.fig, bx, r.centerY() - box / 2, box, a, age)
+        val tr = 13 * d
+        val tx = r.right - inset - tr
+        val textL = if (f.fig != null) bx + box + 12 * d else r.left + inset
+        title.alpha = a
+        val name = TextUtils.ellipsize(f.name, title, max(0f, tx - tr - 10 * d - textL), TextUtils.TruncateAt.END).toString()
+        c.drawText(name, textL, r.centerY() - (title.descent() + title.ascent()) / 2, title)
+        drawTick(c, tx, r.centerY(), tr, age, a)
+    }
+    private fun drawAdded(c: Canvas, r: RectF, f: IslandShow.Look.Added, a: Int) {
+        val age = SystemClock.uptimeMillis() - since
+        val cx = r.centerX()
+        var y = r.top + 16 * d
+        if (f.fig != null) { val box = 54 * d; drawFig(c, f.fig, cx - box / 2, y, box, a, age); y += box + 12 * d }
+        else y += 14 * d
+        val rad = if (f.fig != null) 25 * d else 34 * d
+        drawTick(c, cx, y + rad, rad, age, a)
+        title.alpha = a
+        val words = TextUtils.ellipsize(f.title, title, r.width() - 2 * inset, TextUtils.TruncateAt.END).toString()
+        c.drawText(words, cx - title.measureText(words) / 2, r.bottom - 18 * d, title)
     }
 
     private val rows = arrayOf("Hide for 30 minutes" to "hide", "Settings" to "settings")
@@ -516,7 +620,7 @@ class IslandView(private val svc: Context, private val onTap: (String) -> Unit, 
                     else if (hit == null) openMenu(false)
                 } else if (was) {
                     performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                    val open = when (val l = look) { is IslandShow.Look.Compact -> l.open; is IslandShow.Look.Big -> l.open; else -> "list" }
+                    val open = when (val l = look) { is IslandShow.Look.Compact -> l.open; is IslandShow.Look.Big -> l.open; is IslandShow.Look.Found -> l.open; is IslandShow.Look.Added -> l.open; else -> "list" }
                     onTap(open)
                 }
             }

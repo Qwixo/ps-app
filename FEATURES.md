@@ -75,6 +75,7 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 
 ## New in V1.60
 
+- Island in workouts (phone): the island around the camera says Scanning with a spinner while the camera reads a label, grows to show the exercise it found with its little stick figure and a tick, and does a Face ID style "Workout added" moment (big tick, the figure, a chime). Between sets it counts down your rest live. After a set it says "Higher than last time" with how many days ago, or "Same weight as 7 days ago. Try going up next time." (past days only, never your earlier sets today), and before the next set it nudges you to try the higher weight when you matched last time. Each moment has its own sound. Switches: Settings, Fitness, "Island in workouts" and "Island sounds" (on by default). The Mac island does not show the rest countdown yet.
 - Gym scan reads real labels: it turns the picture 90 degrees both ways and tilts it a little (a name written up the side of a label), picks the big title line, and ignores addresses, websites, phone numbers and maker names. Switch: Settings, Fitness, "Show Scan in a workout".
 - A clear Scan button with a camera inside every exercise search box (Add an exercise in a workout, plan editing, setting up your training, the Exercises list). On the phone only. Same switch.
 - New sets start at your last weight and reps for that exercise: this workout first, else the last time. Switch: Settings, Fitness, "New sets start at your last weight" (on by default).

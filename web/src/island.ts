@@ -22,6 +22,7 @@ import { STAND_LEAD_MS, standAskDue, standAskPatch, standIsland, standPrefs } fr
 import { meetBubblePrefs, meetIsland } from "./core/meetbubble";
 import { dndMutes } from "./core/dnd";
 import { runPomoOp } from "./pomodoro";
+import { fitIslandPart } from "./fitness/fitisland";
 
 type Post = (m: object) => void;
 let post: Post = () => {};
@@ -83,7 +84,8 @@ function sync(force = false) {
   const stand = standIsland(standPrefs(st.standup), now, soundOk, (at) => breaks.some(([a, b]) => at >= a && at < b), standTest, standAskDue(st));
   // The next meeting bubble (core/meetbubble.ts): the meetings the Meetings panel already has.
   const meet = meetIsland(cal?.data.events, st.meetHidden, meetBubblePrefs(st.meetBubble), now, !!st.privateMode);
-  send({ ...shown, meets, pomo, stand, meet }, force);
+  // V1.60 Fitness on the phone's island (src/fitness/fitisland.ts): Scanning, Found, Workout added, rest, progress hints. Null off the phone.
+  send({ ...shown, meets, pomo, stand, meet, fit: fitIslandPart(now) }, force);
 }
 function send(state: object, force: boolean) {
   const json = JSON.stringify(state);
