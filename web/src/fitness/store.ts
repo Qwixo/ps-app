@@ -113,11 +113,11 @@ export async function startDay(opts: { dayId?: string | null; week?: number; fre
 }
 export const setPatch = (id: string, exId: string, setId: string, patch: Partial<FitSet>) => editWorkout(id, (w, at) => patchSet(w, exId, setId, patch, at));
 export const setNote = (id: string, exId: string, setId: string, text: string) => editWorkout(id, (w, at) => setComment(w, exId, setId, text, at));
-export const setAdd = (id: string, exId: string) => editWorkout(id, (w, at) => addSet(w, exId, at));
+export const setAdd = (id: string, exId: string) => editWorkout(id, (w, at) => addSet(w, exId, at, fitnessNow().workouts.filter((x) => x.id !== id), fitnessNow().prefs.startLast !== false));
 /** Add set (same kg and reps as the last set) or Drop set (20 percent lighter, tagged DROP). Returns the new set's id. */
 export function setExtra(id: string, exId: string, drop: boolean, step: number): string {
   const setId = uidF();
-  void editWorkout(id, (w, at) => extraSet(w, exId, setId, drop, step, at));
+  void editWorkout(id, (w, at) => extraSet(w, exId, setId, drop, step, at, fitnessNow().workouts.filter((x) => x.id !== id), fitnessNow().prefs.startLast !== false));
   return setId;
 }
 export const setRemove = (id: string, exId: string, setId: string) => editWorkout(id, (w, at) => removeSet(w, exId, setId, at));

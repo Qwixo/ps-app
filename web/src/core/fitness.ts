@@ -112,6 +112,7 @@ export interface FitPrefs {
   setsDefault?: number;                   // sets for an exercise with no planned number (V1.40), 1 to 12, default 3
   setsBy?: Record<string, number>;        // per exercise (exercise key): your own number of sets, before the plan's (V1.40)
   sound?: boolean;                        // Mac: chime when the rest ends
+  startLast?: boolean;                    // V1.60: a new set starts at the last weight and reps of that exercise (default on)
   scan?: boolean;                         // Gym scan (V1.59, src/fitness/Scan.tsx): the Scan button in a workout, default on
   weekGoal?: number;                      // days a week, for "3 of 4 this week"
   // Sleep (V1.40, core/sleep.ts)
@@ -508,11 +509,29 @@ export function setComment(w: FitWorkout, exId: string, setId: string, text: str
     return { ...rest, ...(c ? { comment: c } : {}), at: now };
   }) }) };
 }
-export function addSet(w: FitWorkout, exId: string, now: string): FitWorkout {
+/** Where a new set starts (V1.60, the developer: "each new set starts with the weight and reps of the last set logged for that
+ *  exercise: this workout first, else the last time"). 1) the last set done in this workout (warm ups are lighter on
+ *  purpose and never count; a drop set done just now does, as before: Add set copies the last set), 2) the last set of the last time the exercise was done (`history`: the other
+ *  workouts; drop sets there never count), 3) the last set on the screen even if not done yet (the plan's number), 4) nothing. */
+export function setStart(e: Pick<FitLogEx, "exId" | "name" | "sets">, history: Dated[] = [], on = true): { kg: number | null; reps: number | null } {
+  const live = liveSets(e);
+  // Switched off in Fitness settings: the old way, a copy of the last set on screen.
+  if (!on) { const l = live[live.length - 1]; return { kg: l?.kg ?? null, reps: l?.reps ?? null }; }
+  const done = live.filter((s) => s.done && !s.warm);
+  const prev = done[done.length - 1] ?? null;
+  if (prev) return { kg: prev.kg ?? null, reps: prev.reps ?? null };
+  const lt = lastTime(exKey(e), history);
+  const old = lt ? lt.sets[lt.sets.length - 1] : null;
+  if (old) return { kg: old.kg ?? null, reps: old.reps ?? null };
+  const shown = live.filter((s) => !s.warm && !s.drop);
+  const last = shown[shown.length - 1] ?? live[live.length - 1] ?? null;
+  return { kg: last?.kg ?? null, reps: last?.reps ?? null };
+}
+export function addSet(w: FitWorkout, exId: string, now: string, history: Dated[] = [], on = true): FitWorkout {
   return { ...w, exercises: w.exercises.map((e) => {
     if (e.id !== exId) return e;
-    const last = liveSets(e)[liveSets(e).length - 1];
-    return { ...e, sets: [...e.sets, { id: uidF(), kg: last?.kg ?? null, reps: last?.reps ?? null, rir: null, done: false, at: now }] };
+    const st = setStart(e, history, on);
+    return { ...e, sets: [...e.sets, { id: uidF(), kg: st.kg, reps: st.reps, rir: null, done: false, at: now }] };
   }) };
 }
 // ---------- extra sets after the plan (V1.29, the developer: "Add set" and "Drop set", unlimited) ----------
@@ -527,12 +546,13 @@ export function dropKg(kg: number | null | undefined, step = 2.5): number | null
 }
 /** One more set at the end of an exercise: "Add set" copies the last set's kg and reps; "Drop set" takes the weight
  *  down (dropKg) and is tagged so it never starts a rest and shows DROP in the log and History. */
-export function extraSet(w: FitWorkout, exId: string, setId: string, drop: boolean, step: number, now: string): FitWorkout {
+export function extraSet(w: FitWorkout, exId: string, setId: string, drop: boolean, step: number, now: string, history: Dated[] = [], on = true): FitWorkout {
   return { ...w, exercises: w.exercises.map((e) => {
     if (e.id !== exId || e.sets.some((s) => s.id === setId)) return e;
     const live = liveSets(e), last = live[live.length - 1];
-    const kg = drop ? dropKg(last?.kg, step) : last?.kg ?? null;
-    const set: FitSet = { id: setId, kg, reps: last?.reps ?? null, rir: null, done: false, at: now, extra: true, ...(drop ? { drop: true } : {}) };
+    const st = setStart(e, history, on);
+    const kg = drop ? dropKg(last?.kg ?? st.kg, step) : st.kg;
+    const set: FitSet = { id: setId, kg, reps: drop ? last?.reps ?? st.reps : st.reps, rir: null, done: false, at: now, extra: true, ...(drop ? { drop: true } : {}) };
     return { ...e, sets: [...e.sets, set] };
   }) };
 }

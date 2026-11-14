@@ -262,6 +262,12 @@ export const GLOSSARY = T({
     example: "Set to 3: add any exercise in a free workout and it comes with 3 sets.",
     why: "3 sets is a good start for most people. A program's own number, or yours for one exercise, comes first.",
   },
+  "start-last": {
+    group: "settings", title: "New sets start at your last weight",
+    what: "Each new set starts with the weight and reps of the last set you did on that exercise: this workout first, else the last time.",
+    example: "You did 60 kg x 8 on the leg curl. Tap Add set: the new set already says 60 kg x 8. No tapping plus again and again.",
+    why: "Your hands are busy in the gym. Starting from where you were means you only change what changed. Turn it off to copy the set on screen instead.",
+  },
   look: {
     group: "settings", title: "Look",
     what: "The colours of Fitness. Volt is dark and gold, Chalk is high contrast for a bright gym, Pulse is a deep blue glow.",
@@ -393,6 +399,7 @@ export const PREF_TERMS: { [K in keyof Required<FitPrefs>]: TermKey | null } = {
   restKind: "own-rest",
   setsDefault: "sets-default",
   setsBy: "own-sets",
+  startLast: "start-last",
   sound: "rest-sound",
   scan: "gym-scan",
   weekGoal: "week-goal",
