@@ -7,7 +7,7 @@ let n = 0;
 const ok = (name: string, fn: () => unknown) => { fn(); n++; console.log("ok -", name); };
 const client = { id: "c1", ws: null, kind: "client", data: { name: "Northwind Silk", contactName: "Jane Doe", email: "jane@northwindsilk.example", ws: "w1", createdAt: "2026-10-01T00:00:00Z" } };
 const reply = (id: string, date: string, extra: Record<string, unknown> = {}) => ({ id, ws: null, kind: "reply", data: {
-  clientId: "c1", account: "red@example.com", threadId: "t-" + id, msgIds: ["m"], from: "jane@northwindsilk.example", fromName: "Jane Doe",
+  clientId: "c1", account: "ann@example.com", threadId: "t-" + id, msgIds: ["m"], from: "jane@northwindsilk.example", fromName: "Jane Doe",
   subject: "Homepage draft", snippet: "Hi Sam. Loved the draft! Can we move the banner up? Also the font. And one more thing. Fifth.", date, count: 1, handled: false, ...extra } });
 const since = "2026-10-20T10:00:00.000Z";
 const docs = (...r: ReturnType<typeof reply>[]) => [client, ...r] as never;
@@ -100,8 +100,8 @@ ok("remind picker: 5 minute steps, 5 minutes to 4 hours, plain labels", () => {
   assert.equal(M.remindPatch(reply("r1", at).data as never, 9999, t0).remindAt, new Date(t0 + 240 * 60_000).toISOString(), "never more than 4 hours");
 });
 ok("a colleague's email in a client thread shows a card with his name and the client (4 Nov 2026)", () => {
-  const [c] = M.mailCards(docs(reply("r1", "2026-11-03T19:40:36.000Z", { from: "jan@partnerco.example", fromName: "Jan Partner", subject: "(no subject)" })), since);
-  assert.equal(c.title, "Jan just sent an email");
+  const [c] = M.mailCards(docs(reply("r1", "2026-11-03T19:40:36.000Z", { from: "pat@partnerco.example", fromName: "Pat Partner", subject: "(no subject)" })), since);
+  assert.equal(c.title, "Pat just sent an email");
   assert.equal(c.sub, "Northwind Silk · (no subject)");
 });
 console.log(`mail card tests: ${n} passed`);

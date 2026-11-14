@@ -16,7 +16,7 @@ const src = (p: string) => readFileSync(new URL("../" + p, import.meta.url), "ut
 const NOW = new Date(2026, 10, 14, 1, 0, 0).getTime();
 
 // ---------- fictional email ----------
-const gmailReply = { clientId: "c1", account: "Studio@Example.com", threadId: "t-north-1", msgIds: [], from: "jane@northwind.example", fromName: "Jane Doe",
+const gmailReply = { clientId: "c1", account: "Studio@example.com", threadId: "t-north-1", msgIds: [], from: "jane@northwind.example", fromName: "Jane Doe",
   subject: "Homepage draft", snippet: "Loved it", opening: "Hi Sam, loved the draft. Could the reviews move up?", date: "2026-11-14T00:20:00.000Z", count: 2, handled: false };
 const client = { name: "Northwind", contactName: "Jane" } as unknown as Parameters<typeof M.ctxFromGmail>[2];
 const gctx = () => M.ctxFromGmail("m:r-north", gmailReply as never, client)!;

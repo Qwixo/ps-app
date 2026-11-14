@@ -286,8 +286,8 @@ function Panel({ open, prefs, status, queue }: { open: Open; prefs: Prefs; statu
       </div>
 
       {ask && <div className="rw-ask" role="alertdialog" aria-label="Throw away this reply?">
-        <div className="rw-ask-card"><b>Throw away this reply?</b><span>What you typed is not saved anywhere.</span>
-          <div className="rw-ask-acts"><button className="rw-btn" autoFocus onClick={() => setAsk(false)} data-tip="Keep writing" data-tip-line="Back to your reply, nothing lost.">Keep writing</button>
+        <div className="rw-sure-card"><b>Throw away this reply?</b><span>What you typed is not saved anywhere.</span>
+          <div className="rw-sure-acts"><button className="rw-btn" autoFocus onClick={() => setAsk(false)} data-tip="Keep writing" data-tip-line="Back to your reply, nothing lost.">Keep writing</button>
             <button className="rw-danger" onClick={close} data-tip="Throw away" data-tip-line="Closes the reply. Nothing is sent.">Throw away</button></div></div>
       </div>}
     </div>

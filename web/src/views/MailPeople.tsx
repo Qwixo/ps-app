@@ -58,7 +58,7 @@ export function MailPeople({ overlay }: { overlay?: boolean }) {
         <p className="small muted">Client emails always pop up on your Mac and phone. Add anyone else below, an address or a whole domain like @company.com, and their emails pop up too. Muted senders never pop up, even a client.</p>
       </div>
       <div className="mp-add">
-        <input className="input" value={add} placeholder="name@company.com or @company.com" spellCheck={false} aria-label="Address or domain"
+        <input className="input" value={add} placeholder="name@company.example or @company.example" spellCheck={false} aria-label="Address or domain"
           onChange={(e) => setAdd(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addTo("notify"); }} />
         <button type="button" className="btn primary sm" disabled={!typed || "error" in typed} onClick={() => addTo("notify")}>Notify me</button>
         <button type="button" className="btn quiet sm" disabled={!typed || "error" in typed} onClick={() => addTo("mute")}>Mute</button>

@@ -27,7 +27,7 @@ func unb64url(_ s: String) -> String {
 
 let now = 1_794_000_000_000.0
 func page(_ x: [String: Any] = [:]) -> [String: Any] {
-  var p: [String: Any] = ["id": "job1", "cardId": "m:rep1", "via": "gmail", "account": "Studio@Example.com", "to": "jane@northwind.example", "toName": "Jane Doe",
+  var p: [String: Any] = ["id": "job1", "cardId": "m:rep1", "via": "gmail", "account": "Studio@example.com", "to": "jane@northwind.example", "toName": "Jane Doe",
                           "subject": "Re: Homepage draft", "text": "Hi Jane,\n\nOn it.\n", "html": "<div>Hi Jane,<br><br>On it.</div>", "threadId": "t123", "sendAt": now + 10_000,
                           "draft": ["message": "Hi Jane", "sig": "", "quote": true]]
   for (k, v) in x { p[k] = v }
@@ -171,14 +171,14 @@ GmailSender(http: fakeG4) { _, d in d(.failure(MailTokenError(text: "Sign in aga
 check("gmail-no-sign-in-no-request", got4 == .failed("Sign in again", retry: false) && fakeG4.asked.isEmpty)
 
 // MARK: Instantly against a fake
-let lead = OutJob.from(page(["id": "l1", "cardId": "n:email-9", "via": "instantly", "account": "red@outreach.example", "threadId": NSNull(), "emailId": "email-9"]), undo: false, now: now)!
+let lead = OutJob.from(page(["id": "l1", "cardId": "n:email-9", "via": "instantly", "account": "ann@outreach.example", "threadId": NSNull(), "emailId": "email-9"]), undo: false, now: now)!
 let fakeI = FakeHTTP(); fakeI.answers = [(200, json(["id": "r-1"]), nil)]
 var gotI: SendResult?
 InstantlySender(http: fakeI) { "fake-key" }.send(lead) { gotI = $0 }
 let ib = body(fakeI.asked.first ?? URLRequest(url: URL(string: "about:blank")!))
 check("instantly-sent", gotI == .sent("r-1"))
 check("instantly-endpoint", fakeI.asked.first?.url == MailEndpoints.instantlyReply && fakeI.asked.first?.httpMethod == "POST")
-check("instantly-payload", ib["eaccount"] as? String == "red@outreach.example" && ib["reply_to_uuid"] as? String == "email-9" && ib["subject"] as? String == "Re: Homepage draft"
+check("instantly-payload", ib["eaccount"] as? String == "ann@outreach.example" && ib["reply_to_uuid"] as? String == "email-9" && ib["subject"] as? String == "Re: Homepage draft"
       && (ib["body"] as? [String: Any])?["text"] as? String == "Hi Jane,\n\nOn it.\n")
 check("instantly-bearer", fakeI.asked.first?.value(forHTTPHeaderField: "Authorization") == "Bearer fake-key")
 let fakeI2 = FakeHTTP()
@@ -197,7 +197,7 @@ check("oauth-client-bad", GmailOAuth.client(fromFile: json(["x": 1])) == nil)
 let u2 = GmailOAuth.authURL(clientId: "cid", redirect: "http://127.0.0.1:5555/cb", challenge: "ch", state: "st", account: "studio@example.com")!.absoluteString
 check("oauth-url", u2.hasPrefix("https://accounts.google.com/o/oauth2/v2/auth?") && u2.contains("gmail.send") && u2.contains("gmail.metadata") && u2.contains("code_challenge_method=S256")
       && u2.contains("login_hint=studio@example.com") && u2.contains("access_type=offline") && !u2.contains("gmail.readonly") && !u2.contains("mail.google.com"))
-let payload = MailMime.base64url(json(["email": "Studio@Example.com", "email_verified": true, "name": "Sam Studio"]))
+let payload = MailMime.base64url(json(["email": "Studio@example.com", "email_verified": true, "name": "Sam Studio"]))
 check("oauth-identity", GmailOAuth.identity(idToken: "h.\(payload).s")?.email == "studio@example.com" && GmailOAuth.identity(idToken: "h.\(payload).s")?.name == "Sam Studio")
 check("oauth-identity-bad", GmailOAuth.identity(idToken: "nonsense") == nil)
 let sec = MailSecrets(gmail: ["a@b.example": GmailCred(clientId: "c", clientSecret: "s", refresh: "r", name: nil)], clients: [:], instantly: "k")

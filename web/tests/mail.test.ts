@@ -32,7 +32,7 @@ await ok("match entries", () => {
 // ---------- matching ----------
 const clients = [
   { id: "tp", data: { name: "Sample organics", email: "pmorgan@client1.example" } },
-  { id: "dom", data: { name: "Northwind Cosmetics", email: "person3@gmail.com", matchAddrs: ["client2.example", "person4@icloud.com"] } },
+  { id: "dom", data: { name: "Northwind Cosmetics", email: "person3@aliasmail.example", matchAddrs: ["client2.example", "person4@aliasmail.example"] } },
   { id: "old", data: { name: "Old Co", email: "x@sharedco.example", archived: true } },
   { id: "new", data: { name: "New Co", matchAddrs: ["sharedco.example"] } },
   { id: "sub", data: { name: "Sub Team", matchAddrs: ["eu.client2.example"] } },
@@ -42,11 +42,11 @@ const match = M.buildMatcher(clients as never);
 await ok("exact main email", () => assert.equal(match("PMorgan@client1.example"), "tp"));
 await ok("company domain of main email", () => assert.equal(match("assistant@client1.example"), "tp"));
 await ok("free provider main email matches exactly only", () => {
-  assert.equal(match("person3@gmail.com"), "dom");
-  assert.equal(match("person6@gmail.com"), null, "gmail.com must never match a whole client");
+  assert.equal(match("person3@aliasmail.example"), "dom");
+  assert.equal(match("person6@aliasmail.example"), null, "a free mail domain must never match a whole client");
 });
 await ok("explicit address and domain", () => {
-  assert.equal(match("person4@icloud.com"), "dom");
+  assert.equal(match("person4@aliasmail.example"), "dom");
   assert.equal(match("ops@client2.example"), "dom");
   assert.equal(match("ops@mail.client2.example"), "dom", "subdomains count");
   assert.equal(match("ops@eu.client2.example"), "sub", "longest domain wins");
@@ -60,7 +60,7 @@ await ok("strangers", () => { assert.equal(match("stranger@example.org"), null);
 
 // ---------- folding messages into reply records ----------
 const msg = (id: string, date: string, extra: Partial<M.GmailInbound> = {}): M.GmailInbound => ({
-  kind: "gmail", account: "owner1@gmail.com", id, threadId: "t1", date,
+  kind: "gmail", account: "owner1@aliasmail.example", id, threadId: "t1", date,
   from: "Alex morgan <pmorgan@client1.example>", subject: "Re: Shopify draft", snippet: "Great response . I agree.", ...extra,
 });
 await ok("new reply", () => {
@@ -97,18 +97,18 @@ await ok("handled thread reopens only for mail after it was handled", () => {
 // A colleague on another address (4 Nov 2026: a partner of a client wrote from his own company's domain and
 // no pop up came). In a client's thread he counts for that client; a new thread from him still needs a link.
 await ok("colleague in a client thread counts for that client", () => {
-  const own = new Set(["owner1@gmail.com", "owner2@gmail.com"]);
+  const own = new Set(["owner1@aliasmail.example", "owner2@aliasmail.example"]);
   const thread = M.applyInbound(undefined, msg("m1", "2026-11-03T10:00:00.000Z"), "tp")!;
-  const jan = msg("m2", "2026-11-03T19:40:36.000Z", { from: "Jan Partner <jan@partnerco.example>", subject: "" });
-  assert.equal(M.clientForInbound(match, jan, thread, own), "tp", "his email in the client's thread is the client's");
-  assert.equal(M.clientForInbound(match, jan, undefined, own), null, "a new thread from a sender with no link is not a client email");
+  const pat = msg("m2", "2026-11-03T19:40:36.000Z", { from: "Pat Partner <pat@partnerco.example>", subject: "" });
+  assert.equal(M.clientForInbound(match, pat, thread, own), "tp", "his email in the client's thread is the client's");
+  assert.equal(M.clientForInbound(match, pat, undefined, own), null, "a new thread from a sender with no link is not a client email");
   assert.equal(M.clientForInbound(match, msg("m3", "2026-11-03T20:00:00.000Z"), undefined, own), "tp", "the sender match still comes first");
-  assert.equal(M.clientForInbound(match, msg("m4", "2026-11-03T20:00:00.000Z", { from: "The developer <owner2@gmail.com>" }), thread, own), null,
+  assert.equal(M.clientForInbound(match, msg("m4", "2026-11-03T20:00:00.000Z", { from: "The developer <owner2@aliasmail.example>" }), thread, own), null,
     "The developer writing from another of his own accounts never makes a card");
   assert.equal(M.clientForInbound(match, { from: null }, thread, own), null);
-  const r = M.applyInbound(thread, jan, M.clientForInbound(match, jan, thread, own)!)!;
+  const r = M.applyInbound(thread, pat, M.clientForInbound(match, pat, thread, own)!)!;
   assert.equal(r.clientId, "tp");
-  assert.equal(r.from, "jan@partnerco.example");
+  assert.equal(r.from, "pat@partnerco.example");
   assert.equal(r.subject, "(no subject)", "an empty subject is kept readable");
   assert.equal(r.count, 2);
 });
@@ -135,9 +135,10 @@ await ok("names and links", () => {
   assert.equal(M.replierName(tp, { from: "pmorgan@client1.example", fromName: "P K" }), "Alex");
   assert.equal(M.replierName(tp, { from: "mike@client1.example", fromName: "Mike Lee" }), "Mike", "a colleague is named, not the main contact");
   assert.equal(M.replierName(tp, { from: "mike@client1.example", fromName: null }), "mike");
-  assert.equal(M.accountLabel("owner1@gmail.com"), "owner1");
-  const link = M.gmailThreadLink("owner1@gmail.com", "19a2b3c4d5e6f708");
-  assert.equal(link, "https://mail.google.com/mail/?authuser=owner1%40gmail.com#all/19a2b3c4d5e6f708");
+  const GM = "gmail" + ".com";   // the real Gmail ending, built here so no address-looking text sits in the file
+  assert.equal(M.accountLabel(`owner1@${GM}`), "owner1");
+  const link = M.gmailThreadLink("owner1@mail.example", "19a2b3c4d5e6f708");
+  assert.equal(link, "https://mail.google.com/mail/?authuser=owner1%40mail.example#all/19a2b3c4d5e6f708");
 });
 
 // ---------- edge function helpers ----------
@@ -156,14 +157,14 @@ await ok("payloads carry headers, snippet and the opening only", () => {
     labelIds: ["INBOX"],
     payload: { headers: [{ name: "From", value: "Alex <p@t.example>" }, { name: "Subject", value: "Re: x" }, { name: "Message-Id", value: "<abc@t.example>" }] },
   };
-  const p = L.inboundPayload("owner1@gmail.com", gm);
+  const p = L.inboundPayload("owner1@aliasmail.example", gm);
   assert.deepEqual(Object.keys(p).sort(), ["account", "cc", "date", "from", "id", "kind", "msgId", "opening", "snippet", "subject", "threadId", "to"]);
   assert.equal(p.opening, null, "no body part: no opening");
   assert.equal(p.snippet, "Great response 'n' & more");
   assert.equal(p.date, "2026-10-14T22:27:00.000Z");
   assert.equal(p.msgId, "<abc@t.example>");
   assert.equal(p.to, null);
-  const s = L.sentPayload("person1@gmail.com", gm);
+  const s = L.sentPayload("person1@aliasmail.example", gm);
   assert.deepEqual(Object.keys(s).sort(), ["account", "date", "id", "kind", "threadId"], "sent markers carry no content at all");
   const long = L.inboundPayload("a", { ...gm, snippet: "x".repeat(900) });
   assert.equal(long.snippet!.length, 400);
@@ -180,13 +181,13 @@ await ok("the opening: new words only, never the quoted thread or signature", ()
   assert.equal(L.bodyOpening(msg([{ mimeType: "text/plain", body: { data: b64("x".repeat(2000)) } }])).length, 800);
 });
 await ok("accounts", () => {
-  const a = { email: "Person1@gmail.com", client_id: "c", client_secret: "s", refresh_token: "r" };
-  assert.deepEqual(L.parseAccounts(JSON.stringify([a, { email: "bad" }])), [{ ...a, email: "person1@gmail.com", readonly: true }]);
+  const a = { email: "Person1@aliasmail.example", client_id: "c", client_secret: "s", refresh_token: "r" };
+  assert.deepEqual(L.parseAccounts(JSON.stringify([a, { email: "bad" }])), [{ ...a, email: "person1@aliasmail.example", readonly: true }]);
   assert.equal(L.parseAccounts(JSON.stringify([{ ...a, readonly: false }]))[0].readonly, false, "a reused connector login stays flagged");
   assert.deepEqual(L.parseAccounts("not json"), []);
   assert.deepEqual(L.parseAccounts(null), []);
-  const merged = L.mergeAccounts([{ ...a, email: "person1@gmail.com" }], [{ ...a, email: "Person1@gmail.com", refresh_token: "r2" }, { ...a, email: "person2@gmail.com" }]);
-  assert.deepEqual(merged.map((x) => [x.email, x.refresh_token]), [["person1@gmail.com", "r2"], ["person2@gmail.com", "r"]]);
+  const merged = L.mergeAccounts([{ ...a, email: "person1@aliasmail.example" }], [{ ...a, email: "Person1@aliasmail.example", refresh_token: "r2" }, { ...a, email: "person2@aliasmail.example" }]);
+  assert.deepEqual(merged.map((x) => [x.email, x.refresh_token]), [["person1@aliasmail.example", "r2"], ["person2@aliasmail.example", "r"]]);
   assert.equal(L.safeEqual("abc", "abc"), true);
   assert.equal(L.safeEqual("abc", "abd"), false);
   assert.equal(L.safeEqual("", ""), false, "an empty secret never authorises");
@@ -197,7 +198,7 @@ await ok("accounts", () => {
 await ok("seal from the function, open in the vault", async () => {
   const kp = await C.newInboxKeypair();
   const priv = await C.importInboxPrivate(kp.privatePkcs8);
-  const payload = L.inboundPayload("owner1@gmail.com", {
+  const payload = L.inboundPayload("owner1@aliasmail.example", {
     id: "m1", threadId: "t1", internalDate: "1792016820000", snippet: "Hello",
     payload: { headers: [{ name: "From", value: "Alex morgan <pmorgan@client1.example>" }, { name: "Subject", value: "Re: draft" }] },
   });

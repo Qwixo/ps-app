@@ -108,7 +108,7 @@ ok("chats: the phone's older list keeps the Mac's Dismiss; a NEW finish of the s
   assert.equal(C.chatDoneCards(C.mergeChatDone(mac, again), now).length, 1);
 });
 ok("client email: the phone's older reply record (no seenAt) keeps the Mac's Dismiss", () => {
-  const r = { clientId: "c1", account: "red@example.com", threadId: "th", msgIds: ["a"], from: "jane@example.com", subject: "Hello", snippet: "", date: iso(60), count: 1, handled: false } as any;
+  const r = { clientId: "c1", account: "ann@example.com", threadId: "th", msgIds: ["a"], from: "jane@example.com", subject: "Hello", snippet: "", date: iso(60), count: 1, handled: false } as any;
   const mac = { ...r, seenAt: r.date };
   assert.equal(M.isUnseen(M.mergeReply(r, mac), since), false);
   assert.equal(M.isUnseen(M.mergeReply(mac, r), since), false);
@@ -154,7 +154,7 @@ ok("chat remind: back once at the time, one revision", () => {
   assert.equal(C.nextChatRemind(list, now + 3 * 60_000), 0);
 });
 ok("client email remind: back once at the time, one revision", () => {
-  const r = { clientId: "c1", account: "red@example.com", threadId: "th", msgIds: ["a"], from: "jane@example.com", subject: "Hello", snippet: "", date: iso(60), count: 1, handled: false } as any;
+  const r = { clientId: "c1", account: "ann@example.com", threadId: "th", msgIds: ["a"], from: "jane@example.com", subject: "Hello", snippet: "", date: iso(60), count: 1, handled: false } as any;
   const rr = { ...r, ...M.remindPatch(r, 15, now) };
   const docs = (x: any) => [{ id: "r1", kind: "reply", data: x }] as any;
   assert.equal(M.mailCards(docs(rr), since, 20, now + 10 * 60_000).length, 0);

@@ -113,7 +113,7 @@ export function buildMatcher(clients: ClientLike[]): (email: string | null) => s
 /**
  * Which client an inbound message belongs to. The sender first (buildMatcher). Failing that, the thread: a
  * message in a thread that is already a client's reply record counts for that client, so a colleague writing
- * from another address (a partner, an assistant on Gmail) still shows a card (the developer, 4 Nov 2026: a Jan Lisy
+ * from another address (a partner, an assistant on Gmail) still shows a card (the developer, 4 Nov 2026: an assistant
  * email gave no pop up). Never the developer's own accounts, so his mail between his own inboxes never makes a card.
  */
 export function clientForInbound(
@@ -169,7 +169,7 @@ export function gmailThreadLink(account: string, threadId: string) {
   return `https://mail.google.com/mail/?authuser=${encodeURIComponent(account)}#all/${encodeURIComponent(threadId)}`;
 }
 
-/** "owner1@gmail.com" -> "owner1". */
+/** A Gmail address without its Gmail ending: owner1 plus the Gmail domain gives "owner1". */
 export const accountLabel = (account: string) => account.replace(/@gmail\.com$/i, "");
 
 /** First name from a display name: "Alex morgan" and "Morgan, Alex" both give "Alex". */

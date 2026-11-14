@@ -41,7 +41,7 @@ ok("sending not set up yet still shows Reply (the panel says what to do instead 
 ok("a Gmail row carries the card id the pop up card has, so the reply panel finds the same email", () => {
   const client = { id: "c1", ws: null, kind: "client", data: { name: "Northwind Silk", contactName: "Jane Doe", email: "jane@northwindsilk.example", ws: "w1", createdAt: "2026-10-01T00:00:00Z" } };
   for (const id of ["r1", "x".repeat(60)]) {
-    const reply = { id, ws: null, kind: "reply", data: { clientId: "c1", account: "red@example.com", threadId: "t1", msgIds: ["m"], from: "jane@northwindsilk.example",
+    const reply = { id, ws: null, kind: "reply", data: { clientId: "c1", account: "ann@example.com", threadId: "t1", msgIds: ["m"], from: "jane@northwindsilk.example",
       fromName: "Jane Doe", subject: "Homepage draft", snippet: "Hi Sam.", date: "2026-10-20T11:00:00.000Z", count: 1, handled: false } };
     const [card] = MC.mailCards([client, reply] as never, "2026-10-20T10:00:00.000Z");
     assert.equal(O.gmailCardId(id), card.id);

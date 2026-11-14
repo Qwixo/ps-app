@@ -62,7 +62,7 @@ ok("no quote when it is switched off, no signature block when there is none", ()
 });
 
 // ---------- the email a card is for ----------
-const rep = { clientId: "c1", account: "Studio@Example.com", threadId: "t123", msgIds: ["a"], from: "jane@northwind.example", fromName: "Jane Doe",
+const rep = { clientId: "c1", account: "Studio@example.com", threadId: "t123", msgIds: ["a"], from: "jane@northwind.example", fromName: "Jane Doe",
   subject: "Homepage draft", snippet: "Loved it", opening: "Loved the draft.", date: new Date(now - 600_000).toISOString(), count: 1, handled: false };
 const client = { name: "Northwind", email: "jane@northwind.example", contactName: "Jane Doe" } as never;
 ok("Gmail card: From is the account it came to, To the sender, the thread, the client as {company}", () => {
@@ -74,7 +74,7 @@ ok("Gmail card: From is the account it came to, To the sender, the thread, the c
 });
 ok("Gmail card with no client: the company comes from the sender's own domain, never a free mail domain", () => {
   assert.equal(M.ctxFromGmail("m:r2", rep, undefined)!.company, "Northwind");
-  assert.equal(M.ctxFromGmail("m:r3", { ...rep, from: "person9@gmail.com" }, undefined)!.company, "");
+  assert.equal(M.ctxFromGmail("m:r3", { ...rep, from: "person9@mail.example" }, undefined)!.company, "");
 });
 ok("a card PS cannot answer gives nothing (no thread, no sender address)", () => {
   assert.equal(M.ctxFromGmail("m:x", { ...rep, threadId: "" }, client), null);
@@ -155,7 +155,7 @@ ok("create, edit, delete, reorder (any id the list did not name keeps its place 
 ok("signatures: one for every account, an account's own wins, clearing goes back", () => {
   let p = M.applyMailReplyOp(undefined, { op: "sig", account: null, text: "Sam\nStudio" }, "", now);
   p = M.applyMailReplyOp(p, { op: "sig", account: "studio@example.com", text: "Sam (studio)" }, "", now);
-  assert.equal(M.sigFor(p, "Studio@Example.com"), "Sam (studio)");
+  assert.equal(M.sigFor(p, "Studio@example.com"), "Sam (studio)");
   assert.equal(M.sigFor(p, "other@example.com"), "Sam\nStudio");
   p = M.applyMailReplyOp(p, { op: "sigClear", account: "studio@example.com" }, "", now);
   assert.equal(M.sigFor(p, "studio@example.com"), "Sam\nStudio");
@@ -269,13 +269,13 @@ ok("the random time is picked once, at Send: the job carries a fixed time and no
 const clients = [
   { id: "north", name: "Northwind", email: "jane@northwind.example" },
   { id: "north2", name: "Northwind Retail", email: "ops@northwind.example" },
-  { id: "acme", name: "Acme", email: "person7@gmail.com", matchAddrs: ["sam.work@acme.example", "@acme-group.example"] },
-  { id: "solo", name: "Solo", email: "person5@hotmail.com" },
+  { id: "acme", name: "Acme", email: "person7@aliasmail.example", matchAddrs: ["sam.work@acme.example", "@acme-group.example"] },
+  { id: "solo", name: "Solo", email: "person5@aliasmail.example" },
 ];
 ok("the sender's clients: their exact address first", () => {
   assert.deepEqual(M.clientsForSender("Jane@Northwind.example", clients), ["north"]);
   assert.deepEqual(M.clientsForSender("sam.work@acme.example", clients), ["acme"], "a 'replies come from' address");
-  assert.deepEqual(M.clientsForSender("person5@hotmail.com", clients), ["solo"]);
+  assert.deepEqual(M.clientsForSender("person5@aliasmail.example", clients), ["solo"]);
 });
 ok("the sender's clients: a domain in a match list (subdomains too), then the company domain of a client's email", () => {
   assert.deepEqual(M.clientsForSender("anyone@mail.acme-group.example", clients), ["acme"]);
@@ -283,7 +283,7 @@ ok("the sender's clients: a domain in a match list (subdomains too), then the co
 });
 ok("the sender's clients: an unknown sender or a free mail domain matches no one", () => {
   assert.deepEqual(M.clientsForSender("someone@else.example", clients), []);
-  assert.deepEqual(M.clientsForSender("person8@gmail.com", clients), [], "a client on gmail.com never claims all of gmail.com");
+  assert.deepEqual(M.clientsForSender("person8@aliasmail.example", clients), [], "a client on a free mail domain never claims the whole domain");
   assert.deepEqual(M.clientsForSender("not an email", clients), []);
 });
 const qr = [
