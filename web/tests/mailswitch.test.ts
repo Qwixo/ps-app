@@ -232,4 +232,12 @@ await ok("no mail file is a 'left out' placeholder any more, and no outreach too
   for (const f of ["src/core/mail.ts", "src/core/mailcards.ts", "src/core/mailrules.ts", "src/core/leadcards.ts", "src/core/overlaymail.ts", "src/core/mailreply.ts", "src/mailcards.ts", "src/replyengine.ts", "src/views/MailCards.tsx", "src/views/MailPeople.tsx", "src/views/Replies.tsx", "src/views/ReplyWindow.tsx", "src/views/InstantlyInbox.tsx"]) assert.ok(!/Left out of the public source/.test(file(f)), f);
   for (const f of ["src/core/campaigns.ts", "src/core/radar.ts", "src/views/Radar.tsx"]) assert.match(file(f), /Left out of the public source/, `${f} stays out`);
 });
+await ok("review fix: the reply engine builds, claims and hands over nothing while Client emails is off", () => {
+  const c = file("src/replyengine.ts");
+  assert.match(c, /const mailOwner = \(\) => \{ const s = owner\(\); return s && mailOnSnap\(s\) \? s : null; \};/);
+  assert.match(c, /async function relay\(\) \{\n  const s = mailOwner\(\);/, "the Mac relay of a phone's reply is gated");
+  assert.match(c, /async function handOver\(id: string, o: ReplyOut\) \{\n  if \(!o\.job \|\| !mailOwner\(\)\) return;/, "nothing reaches the Mac queue");
+  assert.match(c, /export async function sendInline[^\n]*\n  const s = mailOwner\(\);/, "no reply is built");
+  assert.ok(!/const s = owner\(\);\n  if \(!s \|\| relaying\)/.test(c));
+});
 console.log(`mail switch tests: ${n} passed`);

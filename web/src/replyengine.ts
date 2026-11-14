@@ -15,6 +15,7 @@ import { ownAccounts } from "./core/mailrules";
 import type { ClientRec, Doc, Reply } from "./core/model";
 import { irepFeed, mailCardMessage } from "./mailcards";
 import { put, remove, sync } from "./core/vault";
+import { mailOnSnap } from "./core/mailsnap";
 import { setReplyHandled } from "./core/actions";
 import { CLAIM_WAIT_MS, canSendFrom, claim, claimWon, cleanOut, failedOut, fromQueue, handed, inlineJob, markStale, newOut, relayPicks, staleOnes, sweepIds, type ReplyOut, type SendStatus } from "./core/inlinereply";
 
@@ -142,19 +143,21 @@ function me(): string {
   return meId;
 }
 const replyDocFor = (cardId: string) => { const s = owner(); return s ? [...s.docs.values()].find((x) => x.kind === "reply" && `m:${x.id}`.slice(0, 40) === cardId) as Doc<Reply> | undefined : undefined; };
+// Client emails off (no switch, not the first owner, or locked): nothing is built, claimed or handed to the Mac queue (fails closed).
+const mailOwner = () => { const s = owner(); return s && mailOnSnap(s) ? s : null; };
 const outs = () => { const s = owner(); return s ? [...s.docs.values()].filter((d) => d.kind === "rout").map((d) => ({ id: d.id, out: cleanOut(d.data) })).filter((x): x is { id: string; out: ReplyOut } => !!x.out) : []; };
 const outById = (id: string) => outs().find((x) => x.id === id)?.out ?? null;
 /** Hand a job to this Mac's queue. Its record says "handed" (and is saved) first, so it is never handed over twice. */
 async function handOver(id: string, o: ReplyOut) {
-  if (!o.job) return;
+  if (!o.job || !mailOwner()) return;
   await put("rout", handed(o, me(), Date.now()), { id, ws: null });
   post({ type: "reply:queue", job: { ...o.job, id, sendAt: Date.now() }, undo: false });
 }
 
 /** Builds the reply for one email and sends it on its way. Throws a plain sentence the box shows. */
 export async function sendInline(cardId: string, message: string, id: string, from: ReplyOut["from"]): Promise<void> {
-  const s = owner();
-  if (!s) throw new Error("Unlock PS app first.");
+  const s = mailOwner();
+  if (!s) throw new Error("Client emails is off. Switch it on in Settings first.");
   const ctx = ctxForCard(cardId);
   if (!ctx) throw new Error("PS app cannot answer this email from here. Use Open.");
   const job = inlineJob(ctx, message, settingsData(s).mailReply, id, Date.now());
@@ -172,7 +175,7 @@ let relaying = false;
 /** A Mac's part for replies typed elsewhere: claim the waiting ones this Mac can send, wait, read again, and send only
  *  when this Mac's claim still stands. Too old: "Not sent". Finished ones are removed after two days. */
 async function relay() {
-  const s = owner();
+  const s = mailOwner();
   if (!s || relaying) return;
   relaying = true;
   try {
