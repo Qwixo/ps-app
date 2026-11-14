@@ -782,6 +782,43 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     }
   }
 
+  /// PS 1.60, a "Did you know?" feature intro from the island (web/src/views/FeatureIntro.tsx; the list and the clock rules are in
+  /// web/src/core/featureintro.ts). The page decides when one is due and asks here (start). The Mac answers {state:"blocked", why}
+  /// (Sentry mode, Sleep mode, screen sharing, a full screen app, the feature off: the page asks again at the next free moment),
+  /// {state:"queued"} (another card is on the island: the shared queue, never one over another), or {state:"go", rect} when it is the
+  /// intro's turn (rect nil when the island cannot do it: the page draws the same card plainly). The island squeezes, bounces and
+  /// chimes first. The page says it is done (start false) when the card or the guide it grows into is closed: the queue moves on.
+  func introFromIsland(start: Bool, id: String) {
+    let qid = "intro:" + id
+    func tell(_ js: String) { overlay.evaluateJavaScript("window.__psIntroIsland&&window.__psIntroIsland(\(js))", completionHandler: nil) }
+    func blocked(_ why: String) { tell("{\"state\":\"blocked\",\"why\":\"\(why)\"}") }
+    if !start {
+      if IslandQueue.shared.finish(qid) { Island.shared.swell(false) }
+      return
+    }
+    // Only a plain id (letters, digits, dashes): it goes into the queue's key and nothing else.
+    guard !id.isEmpty, id.count <= 40, id.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else { return }
+    if let why = IslandIntroCore.blocked(IslandIntro.facts()) { blocked(why); return }
+    func go() {
+      // Asked again at its turn: the moment may have turned quiet while it waited.
+      if let why = IslandIntroCore.blocked(IslandIntro.facts()) { IslandQueue.shared.finish(qid); blocked(why); return }
+      SetupIsland.shared.featureIntro(overlay: panel) { rect in
+        if let r = rect, let d = try? JSONSerialization.data(withJSONObject: ["state": "go", "rect": r]), let t = String(data: d, encoding: .utf8) { tell(t) }
+        else { tell("{\"state\":\"go\"}") }
+      }
+    }
+    // A card or guide the page never closes (a reload, a lost message) must not hold the queue for good.
+    let since = Date()
+    let o = IslandQueue.shared.enqueue(id: qid, kind: "intro", priority: .low, ttl: IslandIntroCore.queueTTL, show: { go() },
+                                       visible: { Date().timeIntervalSince(since) < IslandIntroCore.holdCap }, dropped: { blocked("busy") })
+    switch o {
+    case .showNow: go()
+    case .wait: tell("{\"state\":\"queued\"}")
+    case .updated: break
+    case .dropped: blocked("busy")
+    }
+  }
+
   func sendSettings(error: String? = nil) {
     var d: [String: Any] = ["reboot": AutoReboot.shared.status()]
     if let error { d["error"] = error }
@@ -1584,6 +1621,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       if let st = msg["state"] as? [String: Any] { Island.shared.fromPage(st); SetupIsland.shared.islandState(st) }
     case "setupIsland" where fromMain || fromOverlay:   // the setup menu opened or closed (views/Welcome.tsx, SetupIsland.swift)
       SetupIsland.shared.menu(open: msg["menu"] as? Bool ?? false)
+    case "island:intro" where fromOverlay:               // PS 1.60: a "Did you know?" intro asks to come out of the island (views/FeatureIntro.tsx)
+      introFromIsland(start: (msg["start"] as? Bool) ?? true, id: (msg["id"] as? String) ?? "")
     case "island:whatsnew" where fromOverlay:            // PS 1.60: the What's new panel asks to come out of the island (views/WhatsNew.tsx)
       whatsNewFromIsland(start: (msg["start"] as? Bool) ?? true)
     case "island:edit" where fromMain || fromOverlay:    // the Tab list's Edit mode (views/EditMode.tsx): show it, ready to move

@@ -13,6 +13,7 @@ enum IslandMoment: String, CaseIterable {
   case updateDone     // an update finished installing
   case dbLoaded       // the database finished loading: a green tick
   case whatsNew       // the island says "What's new", then the panel comes out
+  case featureIntro   // a "Did you know?" intro (WhatsApp messages now supported): squeeze, bounce, a soft chime, the card hangs from the island
 }
 
 struct IslandStep: Equatable {
@@ -35,7 +36,7 @@ enum IslandMotionCore {
   static func steps(_ m: IslandMoment, reduceMotion: Bool) -> [IslandStep] {
     if reduceMotion { return [] }
     switch m {
-    case .cardOut, .whatsNew:
+    case .cardOut, .whatsNew, .featureIntro:
       // squeeze in, then bounce out past the full swell, then settle with a springy wobble
       return [IslandStep(at: 0, to: squeeze, response: 0.12, damping: 0.85),
               IslandStep(at: squeezeFor, to: 1.0, response: 0.24, damping: 0.52),
@@ -71,7 +72,7 @@ enum IslandMotionCore {
   static func chimes(_ m: IslandMoment, soundOn: Bool, dndMutesSounds: Bool) -> Bool {
     guard soundOn, !dndMutesSounds else { return false }
     switch m {
-    case .updateDone, .dbLoaded, .whatsNew: return true
+    case .updateDone, .dbLoaded, .whatsNew, .featureIntro: return true
     case .cardOut, .cardBack: return false
     }
   }
@@ -92,6 +93,9 @@ enum IslandMotionCore {
 
   /// How long the island says "What's new" before the panel starts to come out of it.
   static let whatsNewLead: TimeInterval = 0.85
+
+  /// How long after the squeeze starts before a feature intro's card comes out of the island (the squeeze, the bounce, then the card).
+  static let introLead: TimeInterval = 0.3
 
   /// How long the tick shows before the island is itself again.
   static let tickHold: TimeInterval = 1.6

@@ -35,3 +35,13 @@
 .mc-wa .mc-ic { color: #25D366; }
 .tm-wa-quick { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
 .tm-wa-tpl { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+/* PS 1.60: the guide grown out of the island intro (views/FeatureIntro.tsx). Same black, top joined to the island's lower edge (--fi-top),
+   growing out of the island's width (--fi-from) on a spring. Only transform and opacity animate. */
+.wa-guide.isl { display: block; padding: 0; background: rgba(0, 0, 0, .28);
+  --fi-spring: linear(0, 0.016, 0.059, 0.122, 0.198, 0.284, 0.374, 0.465, 0.553, 0.637, 0.715, 0.786, 0.848, 0.903, 0.949, 0.987, 1.018, 1.042, 1.06, 1.072, 1.079, 1.083, 1.083, 1.081, 1.077, 1.071, 1.064, 1.057, 1.049, 1.042, 1.034, 1.028, 1.021, 1.016, 1.011, 1.006, 1.003, 1, 0.998, 0.996, 1); }
+.wa-guide.isl .wa-guide-card { position: absolute; left: var(--fi-left); top: var(--fi-top); width: var(--fi-w); max-width: none; max-height: calc(100vh - var(--fi-top) - 16px);
+  --bg: #000; --fg: #f5f5f7; background: #000; color: #f5f5f7; border-radius: 0 0 26px 26px; box-shadow: 0 18px 50px rgba(0, 0, 0, .5);
+  transform-origin: var(--fi-ox) 0; animation: fi-grow .7s var(--fi-spring) both; }
+.wa-guide.isl .muted { color: rgba(245, 245, 247, .65); }
+@keyframes fi-grow { from { opacity: .6; transform: scale(var(--fi-from, .5), .08); } 35% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .wa-guide.isl .wa-guide-card { animation: none; } }
