@@ -73,6 +73,12 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Export my data | An encrypted backup file, and bringing one back in. | Settings, Sync and account. Only when you click it. |
 | What's new | Shows the changes once per version. | Shown once. |
 
+## New in V1.60
+
+- Gym scan reads real labels: it turns the picture 90 degrees both ways and tilts it a little (a name written up the side of a label), picks the big title line, and ignores addresses, websites, phone numbers and maker names. Switch: Settings, Fitness, "Show Scan in a workout".
+- A clear Scan button with a camera inside every exercise search box (Add an exercise in a workout, plan editing, setting up your training, the Exercises list). On the phone only. Same switch.
+- New sets start at your last weight and reps for that exercise: this workout first, else the last time. Switch: Settings, Fitness, "New sets start at your last weight" (on by default).
+
 ## New in V1.59
 
 - Phone island: on your phone, a small live island around the camera shows over every app: your next meeting, Pomodoro breaks, stand-ups, reminders and AI messages. Tap it to open PS.

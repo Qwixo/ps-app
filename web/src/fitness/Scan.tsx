@@ -6,6 +6,7 @@
 // saved or sent. The matching is pure and tested (scan-logic.ts). Where the phone's reader is missing, or the camera
 // is off, the developer can type what the label says instead.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { appName } from "../core/appname";
 import { haptic } from "../gos/bridge";
 import { gymScan } from "../gos/gymscan";
@@ -16,6 +17,9 @@ import { picFor } from "./pics";
 import { MUSCLE_LABEL } from "./library";
 import { yourExercises } from "./gym-logic";
 import { fold, matchScan, type ScanHit, type ScanResult } from "./scan-logic";
+import { scanSay } from "./scan-state";
+import { Overlay } from "./Overlay";
+import { fitnessNow } from "./store";
 import type { exAdd } from "./store";
 import "./scan.css";
 
@@ -40,6 +44,36 @@ export function newExFor(x: LibEx | null, own: { name: string; exId: string | nu
 /** Gym scan is on (Fitness settings, default on) and this device can read a label (the phone app). */
 export const scanOn = (prefs: FitPrefs) => prefs.scan !== false && gymScan.available();
 
+/** A search box for exercises with a clear Scan button inside it (V1.60). Tap Scan, point the phone at the machine's label, and
+ *  the exercise's name lands in the search. Anywhere an exercise is searched. Without a label reader (the Mac, the website) or
+ *  with Scan off in Fitness settings, it is the plain search box. */
+export function ScanSearch({ value, onChange, className, placeholder, label, autoFocus, prefs }: {
+  value: string; onChange: (v: string) => void; className: string; placeholder?: string; label: string; autoFocus?: boolean; prefs?: FitPrefs;
+}) {
+  const [open, setOpen] = useState(false);
+  const host = useRef<HTMLDivElement>(null);
+  const show = scanOn(prefs ?? fitnessNow().prefs);
+  const input = <input className={cx(className, show && "sc-in-box")} type="search" value={value} autoFocus={autoFocus} enterKeyHint="search"
+    placeholder={placeholder} aria-label={label} onChange={(e) => onChange(e.currentTarget.value)} />;
+  if (!show) return input;
+  const v = open ? fitnessNow() : null;
+  const root = open ? (host.current?.closest(".fit-phone, .fit-desk, .fit") as HTMLElement | null) ?? document.body : null;
+  return (
+    <div className="sc-field" ref={host}>
+      {input}
+      <button type="button" className="sc-field-go" onClick={() => { haptic("press"); setOpen(true); }} aria-label="Scan a machine">
+        <CamIcon size={20} /><span>Scan</span>
+      </button>
+      {v && root && createPortal(
+        <div className="fg fg-scanhost">
+          <Overlay label="Scan a machine" kind="tall" onClose={() => setOpen(false)}>
+            {(close) => <ScanPanel workouts={v.workouts} programs={v.programs} prefs={v.prefs} close={close} onPick={(name) => onChange(name)} />}
+          </Overlay>
+        </div>, root)}
+    </div>
+  );
+}
+
 const ASKED = "ps.fit.scanAsked";
 const asked = () => { try { return localStorage.getItem(ASKED) === "1"; } catch { return false; } };
 const markAsked = () => { try { localStorage.setItem(ASKED, "1"); } catch { /* storage off: asked again next time */ } };
@@ -48,7 +82,9 @@ const LIB_NAMES: ReadonlySet<string> = new Set(LIB.map((x) => x.name.toLowerCase
 type Phase = "ask" | "cam" | "reading" | "result" | "type" | "done";
 const FROM: Record<ScanHit["from"], string> = { plan: "In your plan", yours: "Yours", library: "From the exercise list" };
 
-export function ScanPanel({ workouts, programs, prefs, close, onAdd }: { workouts: Dated[]; programs: { id: string; data: FitProgram }[]; prefs: FitPrefs; close: () => void; onAdd: (ex: NewEx) => void }) {
+/** `onAdd` puts the exercise in the workout (the gym). `onPick` is for a search box instead (V1.60): the exercise's name goes into
+ *  the search, nothing is added. */
+export function ScanPanel({ workouts, programs, prefs, close, onAdd, onPick }: { workouts: Dated[]; programs: { id: string; data: FitProgram }[]; prefs: FitPrefs; close: () => void; onAdd?: (ex: NewEx) => void; onPick?: (name: string) => void }) {
   const camOk = gymScan.available();
   const [phase, setPhase] = useState<Phase>(() => (!camOk ? "type" : asked() ? "cam" : "ask"));
   const [still, setStill] = useState<string | null>(null);
@@ -57,7 +93,7 @@ export function ScanPanel({ workouts, programs, prefs, close, onAdd }: { workout
   const [say, setSay] = useState("");
   const [added, setAdded] = useState<ScanHit | null>(null);
   const live = useRef(true);
-  useEffect(() => { live.current = true; if (camOk) gymScan.warm(); return () => { live.current = false; }; }, [camOk]);
+  useEffect(() => { live.current = true; if (camOk) gymScan.warm(); return () => { live.current = false; scanSay("idle"); }; }, [camOk]);
 
   // The developer's own exercises: his typed names and his plans' names (linked to the library where they are), and the library
   // exercises in his active plan.
@@ -68,34 +104,41 @@ export function ScanPanel({ workouts, programs, prefs, close, onAdd }: { workout
   const judge = (text: string) => {
     const r = matchScan(text, { own, planIds });
     setRes(r); setPick(r.best); setStill(null);
+    scanSay(r.best ? "found" : "notfound", { hit: r.best ? { name: r.best.name, exId: r.best.exId } : null, text: r.text });
     haptic(r.best ? "drop" : "reject");
     setPhase("result");
   };
   const read = async (img: string) => {
     setStill(img); setSay(""); setPhase("reading");
+    scanSay("scanning");
     const a = await gymScan.read(img);
     if (!live.current) return;
     if ("error" in a) {
+      scanSay("idle");
       setStill(null);
       setSay(a.error === "model" ? "The label reader could not start. Type what it says instead." : a.error === "timeout" ? "That took too long. Try again, a little closer." : "That did not work. Try again.");
       setPhase(a.error === "model" ? "type" : "cam");
       return;
     }
-    if (!/\p{L}{2}/u.test(a.text)) { setStill(null); setSay("No words found. Get a little closer, hold still, and try again."); setPhase("cam"); haptic("reject"); return; }
+    if (!/\p{L}{2}/u.test(a.text)) { scanSay("notfound", { hit: null, text: "" }); setStill(null); setSay("No words found. Get a little closer, hold still, and try again."); setPhase("cam"); haptic("reject"); return; }
     judge(a.text);
   };
-  const again = () => { haptic("press"); setRes(null); setPick(null); setSay(""); setPhase(camOk ? "cam" : "type"); };
+  const again = () => { haptic("press"); scanSay("idle"); setRes(null); setPick(null); setSay(""); setPhase(camOk ? "cam" : "type"); };
   const yes = (h: ScanHit) => {
     haptic("drop");
+    if (onPick || !onAdd) { onPick?.(h.name); close(); return; }
     const x = h.from === "library" && h.exId ? libById(h.exId) : null;
     onAdd(newExFor(x, x ? null : { name: h.name, exId: h.exId }, h.name, workouts, prefs));
+    scanSay("added", { hit: { name: h.name, exId: h.exId }, text: res?.text });
     if (!picFor(h.exId, h.name)) { close(); return; }
     setAdded(h); setPhase("done");
   };
   const asWritten = () => {
     if (!res) return;
     haptic("press");
+    if (onPick || !onAdd) { onPick?.(oneLine(res.text)); close(); return; }
     onAdd(newExFor(null, null, oneLine(res.text), workouts, prefs));
+    scanSay("added", { hit: { name: oneLine(res.text), exId: null }, text: res.text });
     close();
   };
 
@@ -155,7 +198,7 @@ export function ScanPanel({ workouts, programs, prefs, close, onAdd }: { workout
                 </div>
               )}
               <div className="sc-row">
-                <button type="button" className="fg-second" onClick={asWritten}>Add as written</button>
+                <button type="button" className="fg-second" onClick={asWritten}>{onPick ? "Search as written" : "Add as written"}</button>
                 <button type="button" className="fg-second" onClick={again}>Try again</button>
               </div>
             </>
@@ -163,7 +206,7 @@ export function ScanPanel({ workouts, programs, prefs, close, onAdd }: { workout
             <>
               <p className="sc-none">Nothing in your list matches this.</p>
               <div className="sc-row">
-                <button type="button" className="sc-big" onClick={asWritten} disabled={!res.text}>Add as written</button>
+                <button type="button" className="sc-big" onClick={asWritten} disabled={!res.text}>{onPick ? "Search as written" : "Add as written"}</button>
                 <button type="button" className="fg-second" onClick={again}>Try again</button>
               </div>
             </>

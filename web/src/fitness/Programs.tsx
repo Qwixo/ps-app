@@ -5,6 +5,7 @@
 // (new, switch, archive, delete), plus the trainer's sheet import and the week export (ImportExport.tsx).
 // Edits land in a local copy at once and are saved 400 ms after the last change (or on blur, on leaving,
 // on closing a panel), so typing never stutters and nothing is lost.
+import { ScanSearch } from "./Scan";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Doc } from "../core/model";
@@ -615,8 +616,7 @@ function LibPicker({ prefs, onPick, onOwn, desk }: { prefs: FitPrefs; onPick: (x
   const ownName = (own ?? q).trim();
   return (
     <div className="fp-lib">
-      <input className="fp-in fp-search" type="search" value={q} autoFocus={desk} enterKeyHint="search" aria-label="Search exercises"
-        placeholder="Search, eg press or chest" onChange={(e) => setQ(e.target.value)} />
+      <ScanSearch className="fp-in fp-search" value={q} onChange={setQ} autoFocus={desk} label="Search exercises" placeholder="Search, eg press or chest" prefs={prefs} />
       <ul className="fp-lib-list">
         {list.map((x) => (
           <li key={x.id} className="fp-lib-li">
