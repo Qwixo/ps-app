@@ -27,7 +27,7 @@ export type IslandMode = "notch" | "pill" | "off";
  *  Nov 2026: "Make it so it's always on the left. Make this adjustable in the dynamic island settings too"). Left
  *  unless set. Before, the resting row drew it on the right and the open row on the left, so it jumped on hover. */
 export type TickSide = "left" | "right";
-export interface IslandPrefs { mode: IslandMode; idle: "next" | "none"; pill: PillLook; notch: NotchLook; hide: number; cards: boolean; top: CardKind[]; fsMove: boolean; tickSide: TickSide }
+export interface IslandPrefs { mode: IslandMode; idle: "next" | "none"; pill: PillLook; notch: NotchLook; hide: number; cards: boolean; top: CardKind[]; fsMove: boolean; tickSide: TickSide; sounds: boolean }
 /** The kinds of card, as ps-mac NoteDropCore.swift (NoteDrop.kinds, NoteDrop.kind) sorts them. red: only the developer's account
  *  ever gets them (his Gmail and Instantly feeds), so nobody else is shown the choice. */
 export type CardKind = "mail" | "chats" | "leads" | "meetings" | "network" | "mac" | "reminders" | "update" | "helper" | "notes" | "sound";
@@ -64,7 +64,7 @@ export function withCardPlace(p: IslandPrefs, k: CardKind, place: "island" | "to
 export const HIDE_DEFAULT = 60, HIDE_MIN = 5, HIDE_MAX = 3600;
 /** The ready made hide times in Settings; anything else from 5 s to 1 hour is a custom time. */
 export const HIDE_CHOICES = [5, 30, 60, 300, 900];
-export const ISLAND_DEFAULT: IslandPrefs = { mode: "notch", idle: "next", pill: PILL_DEFAULT, notch: NOTCH_DEFAULT, hide: HIDE_DEFAULT, cards: true, top: [], fsMove: true, tickSide: "left" };
+export const ISLAND_DEFAULT: IslandPrefs = { mode: "notch", idle: "next", pill: PILL_DEFAULT, notch: NOTCH_DEFAULT, hide: HIDE_DEFAULT, cards: true, top: [], fsMove: true, tickSide: "left", sounds: true };
 
 /** A hide time: whole seconds from 5 s to 1 hour; anything that is not a number is the 1 minute default. */
 export function hideTime(v: unknown): number {
@@ -105,6 +105,8 @@ export interface IslandState {
   fsMove: boolean;
   /** Which side the tick circle sits on in every island state (IslandPrefs.tickSide). */
   tickSide: TickSide;
+  /** The chime of the island's big moments (database loaded, updated, What's new) is on (IslandPrefs.sounds, PS 1.60). */
+  sounds: boolean;
   /** The colours and shape of each look, worked out here (readable text guaranteed) and only painted natively.
    *  Both go every time: a Mac without a notch shows "around the notch" as the pill. */
   pill: Omit<PillTones, "backs">;
@@ -124,6 +126,7 @@ export function islandPrefs(v: unknown): IslandPrefs {
     top: cardsTop(o.top),
     fsMove: o.fsMove !== false,
     tickSide: o.tickSide === "right" ? "right" : "left",
+    sounds: o.sounds !== false,
   };
 }
 
@@ -158,7 +161,7 @@ export function islandState(inp: IslandInput): IslandState {
   const priv = !!inp.settings.privateMode;
   const { backs: _b, ...pill } = pillTones(prefs.pill);
   const { backs: _n, ...notch } = notchTones(prefs.notch);
-  const none: IslandState = { mode: prefs.mode, private: priv, task: null, more: 0, tasks: [], mail: 0, leads: 0, event: null, hide: prefs.hide, cards: prefs.cards, top: prefs.top, fsMove: prefs.fsMove, tickSide: prefs.tickSide, pill, notch };
+  const none: IslandState = { mode: prefs.mode, private: priv, task: null, more: 0, tasks: [], mail: 0, leads: 0, event: null, hide: prefs.hide, cards: prefs.cards, top: prefs.top, fsMove: prefs.fsMove, tickSide: prefs.tickSide, sounds: prefs.sounds, pill, notch };
   if (prefs.mode === "off") return none;
   const byId = new Map(inp.todos.map((d) => [d.id, d]));
   const ids = inp.settings.workingIds ?? (inp.settings.workingOn ? [inp.settings.workingOn] : []);

@@ -18,7 +18,7 @@ import { useWelcomeShowing } from "./Welcome";
 import { catchUpNow, whatsNewBundle, whatsNewHandled } from "./WhatsNew";
 import { NoteGroups } from "../ui/NoteGroups";
 import { useSettingsWanted } from "./SettingsScreen";
-import { setFaceShowing } from "../updateface";
+import { setFaceShowing, useIslandTurn } from "../updateface";
 import { useVault } from "../ui/kit";
 import { PRIVATE_LABEL, privateNotesFor } from "../core/privatenotes";
 import { appName } from "../core/appname";
@@ -37,7 +37,10 @@ export function UpdateFace() {
   // V1.41 Esc always backs out (core/escape.ts): Esc puts the card away until the list goes, whatever it shows.
   const [away, setAway] = useState(false);
   const kind = faceFor(u, { later, blocked: tour || !!settings });
-  const show = listShown && !!kind && !away;
+  const wantShow = listShown && !!kind && !away;
+  // PS 1.60: one card at a time: the update card takes its turn in the page's island queue (core/islandqueue.ts).
+  const turn = useIslandTurn("update-face", wantShow, "normal");
+  const show = wantShow && turn;
 
   // A "done" or "stopped" card on screen long enough counts as seen when the list goes (or on Got it).
   const seenDue = useRef(false);

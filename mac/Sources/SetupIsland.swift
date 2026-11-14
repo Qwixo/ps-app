@@ -41,7 +41,7 @@ enum SetupIslandSound {
 // MARK: - the model and the view
 
 final class SetupIslandModel: ObservableObject {
-  enum Look: Equatable { case hidden, born, travel, hint, tick, loading, finale, handoff }
+  enum Look: Equatable { case hidden, born, travel, hint, tick, loading, finale, handoff, whatsNew }
   @Published var look: Look = .hidden
   @Published var title = ""
   @Published var sub = ""
@@ -67,7 +67,7 @@ final class SetupIslandModel: ObservableObject {
     case .hidden: return CGSize(width: 330, height: 34)
     case .born, .finale: return CGSize(width: 420, height: 104)
     case .travel, .hint: return CGSize(width: 452, height: 58)
-    case .tick: return CGSize(width: 300, height: 52)
+    case .tick, .whatsNew: return CGSize(width: 300, height: 52)
     case .loading: return CGSize(width: 132, height: 132)
     case .handoff: return handoffSize
     }
@@ -195,6 +195,14 @@ struct SetupIslandView: View {
         Spacer(minLength: 0)
       }
       .padding(.bottom, 10)
+    case .whatsNew:
+      // PS 1.60: the island says "What's new" before the panel comes out of it (the same black, no new colour).
+      HStack(spacing: 10) {
+        Image(systemName: "sparkles").font(.system(size: 18, weight: .semibold)).foregroundColor(Color(red: 1.0, green: 0.62, blue: 0.75))
+          .scaleEffect(0.7 + 0.3 * min(1, m.tickDraw * 1.6))
+        Text(m.praise).font(.system(size: 14.5, weight: .semibold, design: .rounded)).foregroundColor(.white).lineLimit(1).minimumScaleFactor(0.8)
+      }
+      .padding(.horizontal, 16)
     case .hidden, .travel, .handoff:
       Color.clear
     }
@@ -266,6 +274,10 @@ final class SetupIsland {
   private var facts = SetupIslandFacts()
   private var loads = SetupIslandLoading()
   private var loadLabel: String?
+  /// The "Loading database" square really showed this run (so Database loaded gets its tick).
+  private var dbShown = false
+  /// Settings, Dynamic Island, "Island sounds" (the page's island state, "sounds"): the chime of the big moments.
+  private var settingSounds = true
   private var panel: SetupIslandPanel?
   private var app = "PS app"
   private weak var anchor: NSWindow?
@@ -351,7 +363,16 @@ final class SetupIsland {
   }
   func vault(unlocked: Bool) {
     guard enabled else { return }
-    if unlocked { endLoad(.database) }
+    if unlocked {
+      // PS 1.60: after quitting and opening PS again, "Loading database" ends with a green tick, a chime and
+      // "Database loaded". Only when the loading square really showed (a quick load gets no praise for nothing).
+      let wasShown = dbShown
+      dbShown = false
+      endLoad(.database)
+      if IslandMotionCore.showDbLoaded(loadingWasShown: wasShown, islandOff: facts.islandOff, featureOn: Features.on("island-moments")) {
+        say(IslandMotionCore.dbLoadedWords, moment: .dbLoaded)
+      }
+    }
     guard facts.signedIn != unlocked else { return }
     facts.signedIn = unlocked
     changed()
@@ -388,6 +409,7 @@ final class SetupIsland {
   func islandState(_ st: [String: Any]) {
     guard enabled, st["hide"] != nil, let mode = st["mode"] as? String else { return }
     let off = mode == "off"
+    settingSounds = (st["sounds"] as? Bool) != false
     if UserDefaults.standard.string(forKey: SetupIsland.modeKey) != mode { UserDefaults.standard.set(mode, forKey: SetupIsland.modeKey) }
     guard off != facts.islandOff else { return }
     facts.islandOff = off
@@ -418,6 +440,8 @@ final class SetupIsland {
     save(); run(fx)
   }
   private func escape() {
+    // Esc ends a short moment (the database tick, "Updated", "What's new") at once.
+    if transient == .tick || transient == .whatsNew { transient = nil; render(); return }
     let fx = guide.escape()
     if !fx.isEmpty { run(fx) }
   }
@@ -576,6 +600,55 @@ final class SetupIsland {
     after(1.4) { [self] in if transient == .tick { transient = nil; render() } }
   }
 
+  /// A short moment of the island's own (PS 1.60): a green tick and a few words ("Database loaded", "Updated to V1.60"),
+  /// with a chime at the big ones (the sound switch in Settings and Do Not Disturb silence it), then the island is itself.
+  func say(_ words: String, moment: IslandMoment) {
+    guard enabled, !facts.islandOff, Features.on("island-moments"), ensurePanel() else { return }
+    psLog("PS island moment: \(moment.rawValue)")
+    log.append("moment:\(moment.rawValue)")
+    model.praise = words
+    model.tickDraw = 0
+    transient = .tick
+    render()
+    after(0.12) { [self] in
+      withAnimation(.easeOut(duration: model.reduce ? 0.15 : 0.38)) { model.tickDraw = 1 }
+      if IslandMotionCore.chimes(moment, soundOn: settingSounds, dndMutesSounds: false) { play("chime", SetupIslandSound.chime, 0.45) }
+      if !model.reduce {
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.5)) { model.sx = 1.07; model.sy = 1.07 }
+        after(0.16) { [self] in withAnimation(.spring(response: 0.4, dampingFraction: 0.45)) { model.sx = 1; model.sy = 1 } }
+      }
+    }
+    busy(IslandMotionCore.tickHold + 0.05)
+    after(IslandMotionCore.tickHold) { [self] in if transient == .tick { transient = nil; render() } }
+  }
+
+  /// What's new from the island (PS 1.60): the island squeezes, bounces and says "What's new" with a chime. `ready` is called
+  /// when the island has said it, and gives the island's place in the page (x centre, y of its bottom edge, width, all in the
+  /// Tab list window's points), so the panel can come out attached to it. `ready(nil)` when the island cannot do it
+  /// (island off, moments off, Reduce Motion, not on screen): the panel then opens as it always did.
+  func whatsNew(overlay: NSWindow?, ready: @escaping ([String: Double]?) -> Void) {
+    guard enabled, !facts.islandOff, Features.on("island-moments"), !model.reduce,
+          let o = overlay, let r = Island.shared.shapeOnScreen(), ensurePanel() else { ready(nil); return }
+    psLog("PS island moment: whatsNew")
+    log.append("moment:whatsNew")
+    Island.shared.moment(.whatsNew)
+    model.praise = IslandMotionCore.whatsNewWords
+    model.tickDraw = 0
+    transient = .whatsNew
+    render()
+    after(0.12) { [self] in
+      withAnimation(.easeOut(duration: 0.38)) { model.tickDraw = 1 }
+      if IslandMotionCore.chimes(.whatsNew, soundOn: settingSounds, dndMutesSounds: false) { play("chime", SetupIslandSound.chime, 0.4) }
+    }
+    busy(IslandMotionCore.whatsNewLead + 0.2)
+    after(IslandMotionCore.whatsNewLead) { [self] in
+      // The island's real shape sits right where this one hands over; the panel hangs from the real island's edge.
+      ready(["x": Double(r.midX - o.frame.minX), "bottom": Double(o.frame.maxY - r.minY), "w": Double(r.width)])
+      // The words fade away behind the panel as it comes out.
+      after(0.35) { [self] in if transient == .whatsNew { transient = nil; render() } }
+    }
+  }
+
   private func nudge() {
     guard model.look == .hint, panel?.isVisible == true else { return }
     psLog("PS setup island: nudge")
@@ -635,7 +708,10 @@ final class SetupIsland {
     if facts.islandOff { loadLabel = nil } else if st.label != loadLabel {
       let was = loadLabel
       loadLabel = st.label
-      if let l = st.label { model.loadLabel = l; psLog("PS setup island: loading (\(l))") }
+      if let l = st.label {
+        model.loadLabel = l; psLog("PS setup island: loading (\(l))")
+        if l == SetupIslandCore.loadLabel(.database, app: app) { dbShown = true }
+      }
       if was != nil && st.label == nil { psLog("PS setup island: loaded") }
       render()
       if st.label == nil { pump() }
