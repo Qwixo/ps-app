@@ -4,6 +4,7 @@
 // Nothing is asked of the Mac until a component that needs it mounts, and the Mac answers "off" until the person says yes.
 import { useSyncExternalStore } from "react";
 import { psPost, PS } from "./ps";
+import { recMessage } from "./recstore";
 import { cleanList, cleanState, patchFor, type PickList, type SRChoices, type ScreenRecState } from "./core/screenrec";
 export type { PickList };
 
@@ -15,6 +16,7 @@ const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f
 
 if (typeof window !== "undefined") {
   (window as Window & { __psScreenRec?: (m: unknown) => void }).__psScreenRec = (m: unknown) => {
+    if (recMessage(m)) return;   // 12c: the recordings list, the cloud state and the delete question
     const l = cleanList(m);
     if (l) { list = l; emit(); return; }
     const s = cleanState(m);

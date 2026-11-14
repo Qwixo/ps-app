@@ -9,6 +9,7 @@ import { DestroyModal, InviteModal, LoginLinkButton, exportFlow, removeAccessFlo
 import { ProjectEditor } from "./project/Editor";
 import { ProjectMap } from "./project/Map";
 import { ClientReplies, MatchField } from "./Replies";
+import { ClientRecordings } from "./ClientRecordings";
 import { mailOnSnap } from "../core/mailsnap";
 import { vaultStore } from "../core/vault";
 import "./clients.css";
@@ -75,6 +76,8 @@ export function ClientDetailView({ clientId, projectId }: { clientId: string; pr
       </header>
 
       {mailOnSnap(vaultStore.get()) && <ClientReplies client={client} onEditMatching={() => setModal("details")} />}
+
+      <ClientRecordings clientId={client.id} />
 
       <section className="panel stack tight cv-notes">
         <div className="row between wrap-ok">

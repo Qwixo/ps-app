@@ -402,6 +402,8 @@ final class MailSend {
 /// The one redirect Google sends back after the developer's sign in: a listener on 127.0.0.1 for 5 minutes, one request, then gone.
 final class LoopbackOnce {
   let fd: Int32, port: UInt16, state: String, account: String
+  /// What the page in the browser says when it worked (Gmail: "Connected for sending: <account>"); the screen recorder's cloud sign in sets its own.
+  var doneText: String?
   private init(fd: Int32, port: UInt16, state: String, account: String) { self.fd = fd; self.port = port; self.state = state; self.account = account }
   static func start(state: String, account: String) -> LoopbackOnce? {
     let fd = socket(AF_INET, SOCK_STREAM, 0)
@@ -439,7 +441,7 @@ final class LoopbackOnce {
         let qi = u.queryItems ?? []
         let code = qi.first { $0.name == "code" }?.value, st = qi.first { $0.name == "state" }?.value, err = qi.first { $0.name == "error" }?.value
         let good = code != nil && st == state
-        let msg = good ? "Connected for sending: \(account)" : err == "access_denied" ? "Not connected: the sign in was cancelled" : "Not connected"
+        let msg = good ? (doneText ?? "Connected for sending: \(account)") : err == "access_denied" ? "Not connected: the sign in was cancelled" : "Not connected"
         let html = "<!doctype html><meta charset=utf-8><body style=\"font:16px -apple-system,system-ui;padding:40px;color:#1B1A1D\"><h2 style=\"color:#C8366B\">\(msg)</h2><p>You can close this tab and go back to PS app.</p></body>"
         let resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(html.utf8.count)\r\nConnection: close\r\n\r\n" + html
         _ = resp.withCString { write(c, $0, strlen($0)) }

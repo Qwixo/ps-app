@@ -100,6 +100,7 @@ enum SRMoment: Equatable {
   case recordAsk(name: String, key: String, choice: SRAskChoice)
   case perfAsk
   case saved(fileName: String)
+  case uploaded(fileName: String)        // 12c: the cloud copy is checked
   case diskStop(why: String)
   case controls(paused: Bool)
 }
@@ -142,6 +143,8 @@ enum SRWords {
   static let perfYes = "Yes, stop recording", perfNo = "No, keep recording"
   static let perfBody = "Your Mac is struggling. PS already made the recording a little lighter."
   static let savedTitle = "Saved"
+  static let uploadedTitle = "Uploaded"      // 12c
+  static let uploadedLine = "The copy is in the cloud and checked."
   static let showInFinder = "Show in Finder", playInPS = "Play"
   static let diskTitle = "Recording stopped and saved"
   static let diskWhy = "The disk was nearly full, so PS stopped and saved the recording before it ran out."
@@ -150,12 +153,12 @@ enum SRWords {
   static let countIn = "Recording starts in"
   /// Added to a recording's details when the performance watch made it lighter.
   static func lowered(_ what: String) -> String { "PS lowered the \(what) because the Mac was struggling." }
-  static let all: [String] = [askTitle, yes, no, perfTitle, perfYes, perfNo, perfBody, savedTitle, showInFinder, playInPS, diskTitle, diskWhy,
+  static let all: [String] = [askTitle, yes, no, perfTitle, perfYes, perfNo, perfBody, savedTitle, showInFinder, playInPS, diskTitle, diskWhy, uploadedTitle, uploadedLine,
                               pause, resume, stop, recording, paused, countIn]
 }
 
 enum SRCards {
-  static let askId = "sr:ask", perfId = "sr:perf", savedId = "sr:saved", diskId = "sr:disk", menuId = "sr:menu"
+  static let askId = "sr:ask", perfId = "sr:perf", savedId = "sr:saved", uploadedId = "sr:uploaded", diskId = "sr:disk", menuId = "sr:menu"
   /// Card text is cut to what Toast.showCard accepts (title 160, sub 200, body 600, labels 24, ids 20, three buttons).
   static func card(_ m: SRMoment, settings: SRSettings? = nil) -> SRCard {
     switch m {
@@ -167,6 +170,8 @@ enum SRCards {
       return SRCard(id: perfId, title: SRWords.perfTitle, sub: nil, body: SRWords.perfBody, actions: [("stop", SRWords.perfYes), ("keep", SRWords.perfNo)])
     case .saved(let f):
       return SRCard(id: savedId, title: SRWords.savedTitle, sub: f, body: nil, actions: [("play", SRWords.playInPS), ("show", SRWords.showInFinder)], sticky: false)
+    case .uploaded(let f):
+      return SRCard(id: uploadedId, title: SRWords.uploadedTitle, sub: f, body: SRWords.uploadedLine, actions: [("play", SRWords.playInPS)], sticky: false)
     case .diskStop(let why):
       return SRCard(id: diskId, title: SRWords.diskTitle, sub: why, body: nil, actions: [("ok", "OK")])
     case .controls(let paused):
@@ -481,6 +486,7 @@ final class SRIslandBrain {
       if action == "stop" { controller.stop(); return .stopNow }
       return .none
     case SRCards.savedId: return action == "show" ? .reveal : action == "play" ? .play : .none
+    case SRCards.uploadedId: return action == "play" ? .play : .none
     case SRCards.menuId:
       switch action { case "pause": controller.pause(); case "resume": controller.resume(); case "stop": controller.stop(); case "mic": return .mic; default: break }
       return .none
@@ -510,6 +516,8 @@ final class SRIslandBrain {
       if let f = controller.snapshot.fileName, controller.snapshot.error == nil, prev == .stopping { show(.saved(fileName: f), sound: "saved") }
     }
   }
+  /// 12c: the upload is checked. Private mode holds the card like the others (no sign, no sound) and it comes out when private mode goes off.
+  func uploaded(fileName: String) { guard controller.gateOpen else { return }; show(.uploaded(fileName: fileName), sound: "saved") }
   /// The island part was clicked: Pause or Resume, Stop, Switch mic.
   func openControls() { if controller.snapshot.isRecording { show(.controls(paused: controller.snapshot.state == .paused), sound: nil) } }
 

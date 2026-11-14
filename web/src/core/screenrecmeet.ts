@@ -10,21 +10,23 @@ export const BEFORE_MS = 60_000, AFTER_MS = 15 * 60_000;
 
 /** The meeting on in the Meetings panel right now (people or a video link, like the private mode question), or null. Hidden meetings
  *  are already left out by the caller (core/meethide.ts). */
-export function liveMeeting(events: CalEvent[], now: number): { name: string; key: string } | null {
+export function liveMeeting(events: CalEvent[], now: number): { name: string; key: string; attendees: string[] } | null {
   const e = events.find((x) => !x.allDay && !!x.start && !!x.end && (!!x.link || x.attendees.some((a) => !a.self))
     && Date.parse(x.start) - BEFORE_MS <= now && now < Date.parse(x.start) + AFTER_MS && Date.parse(x.end) > now);
   if (!e) return null;
-  return { name: (e.title || "").replace(/\s+/g, " ").trim().slice(0, 120) || "Meeting", key: e.id + e.start };
+  // 12c: the other people's addresses, kept with the recording only to match it to a client afterwards
+  const attendees = e.attendees.filter((a) => !a.self && typeof a.email === "string" && a.email.includes("@")).map((a) => String(a.email).toLowerCase()).slice(0, 20);
+  return { name: (e.title || "").replace(/\s+/g, " ").trim().slice(0, 120) || "Meeting", key: e.id + e.start, attendees };
 }
 
 /** What the page tells the Mac about the Meetings panel (every run). Null when screen recording is off: while it is off nothing here is sent,
  *  so no meeting is looked at for recording. `privateAskPending`: "Start private mode?" is on the island or about to come, so the Mac
  *  waits and asks the record question right after (never both at once). */
 export function meetingMessage(a: { st: Pick<ScreenRecState, "enabled" | "featureOn"> | null; events: CalEvent[]; now: number; privateAskPending: boolean }):
-  { type: "screenrec"; op: "meeting"; name: string | null; key: string | null; privateAsk: boolean } | null {
+  { type: "screenrec"; op: "meeting"; name: string | null; key: string | null; privateAsk: boolean; attendees: string[] } | null {
   if (!a.st || !a.st.featureOn || !a.st.enabled) return null;
   const m = liveMeeting(a.events, a.now);
-  return { type: "screenrec", op: "meeting", name: m?.name ?? null, key: m?.key ?? null, privateAsk: a.privateAskPending };
+  return { type: "screenrec", op: "meeting", name: m?.name ?? null, key: m?.key ?? null, privateAsk: a.privateAskPending, attendees: m?.attendees ?? [] };
 }
 
 /** The feature intro "Screen recording now in PS" is for people who said No or have not answered yet. Yes means they know (done, never

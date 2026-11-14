@@ -19,7 +19,7 @@ const ev = (o: Partial<CalEvent> = {}): CalEvent => ({ id: "e1", title: "Call wi
 const st = (o: Record<string, unknown> = {}) => ({ featureOn: true, enabled: true, ...o });
 
 t("a meeting on now with people or a link is found", () => {
-  assert.deepEqual(M.liveMeeting([ev()], NOW), { name: "Call with Sam", key: "e1" + iso(NOW - 60_000) });
+  assert.deepEqual(M.liveMeeting([ev()], NOW), { name: "Call with Sam", key: "e1" + iso(NOW - 60_000), attendees: ["sam@example.com"] });
   assert.equal(M.liveMeeting([ev({ attendees: [], link: "https://example.com/call" })], NOW)?.name, "Call with Sam");
 });
 t("a solo block, an all day event, a finished or a far off meeting is not found", () => {

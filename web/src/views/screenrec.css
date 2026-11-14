@@ -79,3 +79,7 @@
   .sr-dot.pulse { animation: none; }
   .sr-dialog { animation: none; }
 }
+/* PS 1.60 (12c): the Cloud part of the settings */
+.sr-help { display: grid; gap: 6px; font-size: calc(12px * var(--k-fs, 1)); }
+.sr-help ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.sr-help a { color: inherit; text-decoration: underline; }

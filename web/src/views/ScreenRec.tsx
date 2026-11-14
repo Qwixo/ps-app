@@ -19,6 +19,7 @@ import {
 } from "../core/screenrec";
 import { askScreenRec, change, optIn, send, useScreenRec, usePickList } from "../screenrec";
 import { openSettings } from "./SettingsScreen";
+import { CloudSettings } from "./ScreenRecCloud";
 import "./screenrec.css";
 
 // ---------- who opens the picker (the button, its menu and Settings share it) ----------
@@ -388,6 +389,7 @@ export function ScreenRecSettings() {
           <div data-set="screenrec-quality" className="sr-sec"><h4>{SR_WORDS.presets}</h4><Quality st={st} /></div>
           <div data-set="screenrec-leave" className="sr-sec"><h4>{SR_WORDS.leaveTitle}</h4><span className="sr-hint">{SR_WORDS.leaveLine}</span><LeaveOut st={st} /></div>
           <div data-set="screenrec-folder" className="sr-sec"><h4>{SR_WORDS.folderTitle}</h4><Folder st={st} /></div>
+          <div data-set="screenrec-cloud" className="sr-sec"><CloudSettings /></div>
           <div className="sr-sec">
             <div className="sr-field inline"><span><b>{SR_WORDS.remindSwitch}</b><em>{SR_WORDS.remind}</em></span><Switch on={s.remind} set={(v) => change("remind", v)} label={SR_WORDS.remindSwitch} /></div>
             <div className="sr-field inline"><span><b>{SR_WORDS.soundsLabel}</b><em>{SR_WORDS.soundsLine}</em></span><Switch on={s.sounds} set={(v) => change("sounds", v)} label={SR_WORDS.soundsLabel} /></div>

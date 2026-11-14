@@ -188,6 +188,7 @@ enum UpdateHandoff {
       mailSaved = MailSend.handoffSave(mail)
       tgSaved = TelegramBot.handoffSave(tgbot)
       if TaskApi.handoffSave(taskapi) { psLog("PS update: AI task API key handed over") }
+      if let c = o["srcloud"] as? [String: String] { ScreenRecCloud.handoffSave(c) }   // screen recorder cloud: logins and the sealing key (PS 1.60)
     }
     _ = writeLine(fd, #"{"saved":true}"#)
     psLog("PS update: sign in handed over from build \(j.from) (remember=\(remember == nil ? 0 : 1) locked=\(locked == nil ? 0 : 1) netmon=\(netmon == nil ? 0 : 1) second=\(secondSaved)/\(second.count) mail=\(mailSaved)/\(mail.count) tgbot=\(tgSaved ? 1 : 0) localkey=\(o["localkey"] == nil ? 0 : 1))")
@@ -236,6 +237,8 @@ enum UpdateHandoff {
       if !mail.isEmpty { o["mail"] = mail }
       if let t = TelegramBot.handoffCollect() { o["tgbot"] = t }   // Add Telegram Bot: the bot key, so it keeps reading after the update
       if let k = TaskApi.handoffCollect() { o["taskapi"] = k }   // AI task API: the key, so AI tools keep working after the update
+      let src = ScreenRecCloud.handoffCollect()   // screen recorder cloud: logins and the sealing key, so sealed recordings still open after the update
+      if !src.isEmpty { o["srcloud"] = src }
     }
     return (try? JSONSerialization.data(withJSONObject: o)) ?? Data("{}".utf8)
   }

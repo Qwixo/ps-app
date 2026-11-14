@@ -407,7 +407,9 @@ final class ScreenRec {
     return f.fallback.freeBytes
   }
   /// 12b: "Play" on the Saved card opens the last file in the Mac's own player until PS's own player (part 7) takes over.
-  func playLast() { if let u = capture.lastFile { NSWorkspace.shared.open(u) } }
+  func playLast() { ScreenRecCloud.shared.playLast() }
+  /// 12c: the last finished file.
+  var lastFileURL: URL? { capture.lastFile }
   /// 12b: "Switch mic" on the controls card goes to the next microphone (the Mac's own first), remembered like the picker's choice.
   func cycleMic() {
     let ids: [String?] = [nil] + Mic.inputs().map { Optional($0.uid) }
@@ -436,6 +438,7 @@ final class ScreenRec {
     start()
     let op = m["op"] as? String ?? "get"
     let f = m["patch"] as? [String: Any] ?? [:]
+    if op.hasPrefix("cloud") || op.hasPrefix("rec") { ScreenRecCloud.shared.handle(op, m); return }   // 12c: the cloud, the recordings list and the player
     switch op {
     case "optin":
       controller.setEnabled(m["on"] as? Bool == true)

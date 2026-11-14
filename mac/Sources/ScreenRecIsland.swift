@@ -22,7 +22,7 @@ final class ScreenRecIsland {
   private(set) var brain: SRIslandBrain?
   private weak var capture: SRRealCapture?
   private var meetTimer: Timer?, perfTimer: Timer?
-  private var page: (name: String?, key: String?, privateAsk: Bool, at: Date)?
+  private var page: (name: String?, key: String?, privateAsk: Bool, at: Date, attendees: [String])?
   private var memSource: DispatchSourceMemoryPressure?
   private var mem: SRMemory = .normal
   private var cpuPrev: (busy: UInt64, total: UInt64)?
@@ -47,7 +47,7 @@ final class ScreenRecIsland {
     b.screenH = { ScreenRec.screenInfoNow().height }
     b.emit = { [weak self] card, sound in self?.show(card, sound: sound) }
     brain = b
-    PrivateHold.shared.watch { [weak self] in self?.brain?.privateChanged(); self?.syncPart() }
+    PrivateHold.shared.watch { [weak self] in self?.brain?.privateChanged(); self?.syncPart(); ScreenRecCloud.shared.syncRing() }
   }
 
   // ----- the recorder or the switches changed -----
@@ -62,6 +62,9 @@ final class ScreenRecIsland {
     lastState = s
     sync()
     syncPart()
+    // 12c: the cloud side learns the recorder state (uploads never run during a recording) and picks up a finished file
+    let who = page.flatMap { $0.name != nil && $0.name == b.meetingName && Date().timeIntervalSince($0.at) < 600 ? $0.attendees : nil } ?? []
+    ScreenRecCloud.shared.recorderChanged(state: s, meeting: b.meetingName, attendees: who)
   }
 
   /// Starts and stops the two clocks. Nothing runs while the gate is closed.
@@ -82,13 +85,16 @@ final class ScreenRecIsland {
       perfTimer?.invalidate(); perfTimer = nil; memSource?.cancel(); memSource = nil; cpuPrev = nil; mem = .normal
     }
     if !on { part.hide(); }
+    ScreenRecCloud.shared.sync()   // 12c: the cloud queue and its timers follow the same gate
   }
 
   // ----- the page says a meeting is on (src/meetwatch.ts) -----
   func pageMeeting(_ m: [String: Any]) {
     guard brain?.controller.gateOpen == true else { return }
     let name = (m["name"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(120)) }
-    page = (name, (m["key"] as? String).map { String($0.prefix(120)) }, m["privateAsk"] as? Bool == true, Date())
+    // 12c: who is on the call (email addresses from the calendar entry), kept only to match the recording to a client afterwards
+    let who = ((m["attendees"] as? [String]) ?? []).filter { $0.contains("@") && $0.count < 200 }.prefix(20).map { String($0).lowercased() }
+    page = (name, (m["key"] as? String).map { String($0.prefix(120)) }, m["privateAsk"] as? Bool == true, Date(), who)
     if name != nil { meetingLook() }
   }
 

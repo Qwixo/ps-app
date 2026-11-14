@@ -8,6 +8,7 @@
 //  - Play at a time (7:07am, days, once or loop, how loud), Use as my alarm sound, Share in the G Squad, Rename, Remove;
 //  - the gear: where the files are kept (choose another folder, back to the default), Keep playing when closed.
 // Esc (and the phone's back) steps back one layer at a time: a menu, a sheet, full screen, the queue, then the screen.
+import { RecordingsPanel, useRecItems } from "./Recordings";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { GOS, haptic } from "../gos/bridge";
 import {
@@ -52,6 +53,7 @@ const I = {
 const tap = () => { if (GOS) haptic("press"); };
 /** A colour for a file with no picture, from its id (the same file always the same colour). */
 const hue = (id: string) => (parseInt(id.slice(0, 6), 16) % 360);
+const REC = "\u0000rec";   // the "Recordings" tab (screen recordings, PS 1.60 pull request 12c; not a real folder name either)
 const SQUAD = "\u0000squad";   // the "From your squad" tab (not a real folder name: no folder can hold \u0000)
 
 type Menu = { x: number; y: number; item: MediaItem | null };
@@ -70,7 +72,9 @@ export function Soundboard({ onClose }: { onClose: () => void }) {
   const view: View = full ? "full" : prefs.view;
   const folders = useMemo(() => foldersOf(lib.items), [lib.items]);
   const squadTab = prefs.folder === SQUAD;
-  const shown = useMemo(() => squadTab ? [] : filterItems(lib.items, q, prefs.folder, prefs.kind), [lib.items, q, prefs.folder, prefs.kind, squadTab]);
+  const rec = useRecItems();
+  const recTab = prefs.folder === REC && rec.on;
+  const shown = useMemo(() => squadTab || recTab ? [] : filterItems(lib.items, q, prefs.folder, prefs.kind), [lib.items, q, prefs.folder, prefs.kind, squadTab, recTab]);
   const cur = current(prefs.queue);
   const curItem = cur ? lib.items.find((i) => i.id === cur.media) ?? null : null;
   useEffect(() => { setOpen(true); prime(); return () => setOpen(false); }, []);
@@ -171,7 +175,8 @@ export function Soundboard({ onClose }: { onClose: () => void }) {
             <Chip key={f} on={prefs.folder === f} onClick={() => setPrefs({ folder: f })} title={f}>{I.folder}{f.split("/").pop()}</Chip>
           ))}
           {shareHere() && <Chip on={squadTab} onClick={() => { setPrefs({ folder: SQUAD }); sbOp({ op: "list" }); }}>{I.squad}Shared in your squad</Chip>}
-          {!squadTab && shown.length > 1 && <button type="button" className="sb-playall" onClick={() => { tap(); playAll(shown.map((i) => i.id)); }}>{I.play}Play all {shown.length}</button>}
+          {rec.on && <Chip on={recTab} onClick={() => setPrefs({ folder: REC })}>{I.play}Recordings</Chip>}
+          {!squadTab && !recTab && shown.length > 1 && <button type="button" className="sb-playall" onClick={() => { tap(); playAll(shown.map((i) => i.id)); }}>{I.play}Play all {shown.length}</button>}
         </nav>
         <div className="sb-side">
           <Player item={curItem} view={view} onView={(v) => { if (v === "full") setFull(true); else { setFull(false); setPrefs({ view: v }); } }}
@@ -179,7 +184,7 @@ export function Soundboard({ onClose }: { onClose: () => void }) {
           {queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
         </div>
         <main className="sb-main">
-          {squadTab ? <SquadShared /> : !sb.ready ? <p className="sb-empty">Loading your files</p> : !lib.items.length ? (
+          {squadTab ? <SquadShared /> : recTab ? <RecordingsPanel query={q} /> : !sb.ready ? <p className="sb-empty">Loading your files</p> : !lib.items.length ? (
             <div className="sb-empty sb-first">
               <div className="sb-first-ic">{I.note}</div>
               <h3>Your Soundboard is empty</h3>
