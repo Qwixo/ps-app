@@ -9,13 +9,16 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { isRedAccount } from "../core/account";
+import { MWEB } from "../gos/bridge";
+import { disablePush, enablePush, pushStatus } from "../remweb";
+import { PUSH_WORDS, type PushState } from "../core/webpush";
 import { remindRec } from "../core/select";
 import { saveRemind } from "../core/actions";
 import { HOME_COMMON, DEVICE_TZ, tzLabel } from "../core/tz";
 import {
-  REM_COLOURS, REM_LABEL_MAX, REM_MAX, REM_SNOOZE_MAX, REM_SNOOZE_MIN, REM_SOUNDS, REM_TEXT_MAX, ALL_DAYS, FIRST_ID, REPEAT_KINDS, TASK_PILL,
+  REM_COLOURS, REM_LABEL_MAX, REM_MAX, REM_SNOOZE_MAX, REM_SNOOZE_MIN, REM_SOUNDS, REM_TEXT_MAX, ALL_DAYS, REPEAT_KINDS, TASK_PILL,
   addReminder, addAlarm, alarmsOf, alarmText, ALARM_LATER, ALARM_RING_MIN, ALARM_TITLE, ALARM_YES, alarmLook, freshId, laterOf, remLook, moveReminder, okSnooze, oneLine, patchReminder, pillOf, plainOf, onTasksOf, remPlan, remindOrDefault,
-  removeReminder, remStatus, repeatOf, repeatPatch, taskQuestion, windowWords, wordOf, yesOf, defaultQuestion, type Reminder, type RemindRec, type PlanItem,
+  removeReminder, remStatus, repeatOf, repeatPatch, taskQuestion, windowWords, wordOf, yesOf, type Reminder, type RemindRec, type PlanItem,
 } from "../core/remind";
 import type { Doc, Todo } from "../core/model";
 import { todayISO } from "../ui/kit";
@@ -43,6 +46,27 @@ function useRemind() {
   return { rec, red, ready: s.status === "unlocked", saved: !!saved, change };
 }
 
+/** 1.60: "Allow reminders on this iPhone" (Web Push while the web app is closed). Only on the iPhone web app. */
+function IphoneReminders() {
+  const [st, setSt] = useState<PushState>("feature-off");
+  const [note, setNote] = useState("");
+  useEffect(() => { void pushStatus().then(setSt); }, []);
+  if (st === "feature-off" || st === "unsupported") return null;
+  const msg = st === "old-ios" ? PUSH_WORDS.old : st === "needs-home-screen" ? PUSH_WORDS.needHome : st === "blocked" ? PUSH_WORDS.blocked : note;
+  return (
+    <div className="rm-iphone">
+      {st === "on" ? <>
+        <p className="rm-help">{PUSH_WORDS.on}</p>
+        <button type="button" className="rm-btn" onClick={() => { void disablePush().then(setSt); }}>{PUSH_WORDS.turnOff}</button>
+      </> : st === "ask" ? <>
+        <button type="button" className="rm-btn" onClick={() => { void enablePush().then((r) => { setSt(r.state); setNote(r.note ?? ""); }); }}>{PUSH_WORDS.button}</button>
+        <p className="rm-help">{PUSH_WORDS.help}</p>
+      </> : null}
+      {msg && <p className="rm-help" role="status">{msg}</p>}
+    </div>
+  );
+}
+
 export function RemindSettings() {
   const { rec, red, ready, saved, change } = useRemind();
   const plain = plainOf(rec), onTasks = onTasksOf(rec), alarms = alarmsOf(rec);
@@ -58,6 +82,7 @@ export function RemindSettings() {
   };
   return (
     <div className="rm-wrap">
+      {MWEB && <IphoneReminders />}
       <p className="rm-intro">
         Pop-ups that keep coming back until you answer. {WHERE_LINE} Remind me in puts one away for its snooze, then it comes back.
       </p>
@@ -115,7 +140,7 @@ function ReminderItem({ r, red, rec, first, last, isNew, open, setOpen, change, 
   // Done, Snoozed or Showing only once the list is saved (before that nothing pops up anywhere).
   const status = ready && saved ? remStatus(r, rec.state[r.id], Date.now(), DEVICE_TZ) : "closed";
   const title = useTaskTitle(r.task);
-  const question = r.alarm ? alarmText(r) : r.task ? taskQuestion(r, title) : r.id === FIRST_ID ? r.text || defaultQuestion(red) : r.text;
+  const question = r.alarm ? alarmText(r) : r.task ? taskQuestion(r, title) : r.text;
   const [sure, setSure] = useState(false);
   useEffect(() => { if (!sure) return; const t = window.setTimeout(() => setSure(false), 4000); return () => clearTimeout(t); }, [sure]);
   return (
@@ -225,7 +250,7 @@ export function RemEditor({ r, red, set, ready, taskTitle, whenExtra }: { r: Rem
   const note = snd.note?.id === r.id ? snd.note.text : null;
   const [vol, setVol] = useState(r.vol);
   useEffect(() => { setVol(r.vol); }, [r.vol]);
-  const fallbackQ = onTask ? taskQuestion({ text: "" }, taskTitle) : r.id === FIRST_ID ? defaultQuestion(red) : "HAVE YOU DONE IT YET?";
+  const fallbackQ = onTask ? taskQuestion({ text: "" }, taskTitle) : "HAVE YOU DONE IT YET?";
 
   return (
     <div className={`rm-ed${ready ? "" : " rm-notyet"}`}>

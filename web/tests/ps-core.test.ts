@@ -47,7 +47,7 @@ ok("every migration in the repo is either core or the developer only, never both
 ok("every edge function in the repo is either core or the developer only", () => {
   const all = readdirSync(join(ROOT, "supabase/functions")).filter((f) => statSync(join(ROOT, "supabase/functions", f)).isDirectory()).sort();
   assert.deepEqual([...m.functions.map((f) => f.slug), ...m.redOnly.functions].sort(), all);
-  assert.deepEqual(m.functions.map((f) => f.slug), ["vault-auth"], "the only function a personal project needs is vault-auth");
+  assert.deepEqual(m.functions.map((f) => f.slug), ["vault-auth", "rem-push"], "a personal project needs vault-auth and, since 1.60, rem-push (iPhone reminders)");
 });
 
 ok("The developer's own feeds never reach a personal project", () => {

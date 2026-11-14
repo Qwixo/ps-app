@@ -15,10 +15,12 @@
     "025_multi_owner.sql",
     "026_second.sql",
     "029_phone_signin.sql",
-    "030_no_ip.sql"
+    "030_no_ip.sql",
+    "040_web_push.sql"
   ],
   "functions": [
-    { "slug": "vault-auth", "entry": "index.ts", "files": ["index.ts"], "verify_jwt": false, "secrets": [] }
+    { "slug": "vault-auth", "entry": "index.ts", "files": ["index.ts"], "verify_jwt": false, "secrets": [] },
+    { "slug": "rem-push", "entry": "index.ts", "files": ["index.ts", "logic.ts"], "verify_jwt": false, "secrets": ["VAPID_PRIVATE_KEY", "VAPID_SUBJECT"] }
   ],
   "redOnly": {
     "migrations": [

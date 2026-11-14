@@ -252,4 +252,21 @@ ok("the Mac card and Fitness say Yes, I'm going", () => {
   assert.equal(G.YES_WORDS, "Yes, I'm going");
 });
 
+// ---------- 1.60: the phone only follows the SAVED gym settings ----------
+ok("no gym plan before the saved settings have loaded (the 08:00 default must never reach the phone)", () => {
+  assert.equal(G.gymReady({ hasSettings: false, syncing: true, lastSync: null }), false);    // just unlocked, first sync running
+  assert.equal(G.gymReady({ hasSettings: false, syncing: false, lastSync: null }), false);   // nothing here yet, no sync finished
+  assert.equal(G.gymReady({ hasSettings: false, syncing: true, lastSync: "2026-11-10T10:00:00Z" }), false);
+  assert.equal(G.gymReady({ hasSettings: true, syncing: true, lastSync: null }), true);      // the saved (cached) settings are here
+  assert.equal(G.gymReady({ hasSettings: false, syncing: false, lastSync: "2026-11-10T10:00:00Z" }), true);   // synced: nothing was ever saved
+});
+ok("a gym saved for the night gives a plan with night times only, the default only when nothing is saved", () => {
+  const tz = "Asia/Dubai", now = Date.parse("2026-11-10T01:00:00+04:00");
+  const night = G.gymPlan(G.gymPrefs({ on: true, time: "23:00", end: "01:00", ringAt: "22:55" }), now, tz, []);
+  assert.ok(night.items.length > 0);
+  assert.ok(night.items.every((i) => new Date(i.ring + 4 * 3_600_000).getUTCHours() === 22), "every ring is at 22:55 Dubai, none in the morning");
+  assert.equal(night.time, "23:00");
+  assert.equal(G.gymPlan(G.gymPrefs(undefined, true), now, tz, []).time, "08:00", "an unsaved gym is the default, which is why it must not be handed over before the settings load");
+});
+
 console.log(`\n${n} gym tests passed`);

@@ -157,13 +157,17 @@ object GymClock {
         return d.toString()
     }
 
+    /** Is this gym day (its time) still in the plan? A ring or a notice made from an older plan, for a time the saved
+     *  gym settings no longer have (the gym moved from the morning to the night), is not followed any more. */
+    fun planHas(p: GymPlan?, day: String, at: Long): Boolean = p?.items?.any { it.day == day && it.at == at } == true
+
     /** Where the ring stands. Acknowledge (here, on the Mac: the plan's acked) ends it at any time, ringing or snoozed. */
     fun ringNow(r: GymRing?, p: GymPlan?, now: Long, localAcked: Set<String>, alarmAcked: Set<String> = emptySet()): RingNow = when {
         r == null -> RingNow.NONE
         // An alarm: done once acknowledged here, or once the page's plan no longer has it (acknowledged on the Mac,
         // switched off or removed).
         r.alarmId != null -> if (alarmOf(p, r) == null || "${r.alarmId}:${r.day}" in alarmAcked) RingNow.DONE else ringing(r, now)
-        p == null || !p.on || r.day in p.acked || r.day in localAcked -> RingNow.DONE
+        p == null || !p.on || r.day in p.acked || r.day in localAcked || !planHas(p, r.day, r.at) -> RingNow.DONE
         else -> ringing(r, now)
     }
     private fun ringing(r: GymRing, now: Long): RingNow = when {

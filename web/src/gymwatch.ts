@@ -12,9 +12,9 @@
 //           V1.57: the plan also carries the alarms (Settings, Annoying 15 min reminder, Alarms; core/remind.ts
 //           alarmRings), so the same ring rings for them; their Acknowledge comes back as {type:"remAct"} (remwatch).
 import { vaultStore } from "./core/vault";
-import { remindRec, settingsData } from "./core/select";
+import { remindRec, settings, settingsData } from "./core/select";
 import { saveSettings } from "./core/actions";
-import { ackGym, gymCard, gymCardText, gymDue, gymEnd, gymLater, gymNextWake, gymPlan, gymPrefs, gymQuiet, gymRingAt, gymSnoozed, pruneFired, YES_WORDS, type GymSnooze } from "./core/gym";
+import { ackGym, gymReady, gymCard, gymCardText, gymDue, gymEnd, gymLater, gymNextWake, gymPlan, gymPrefs, gymQuiet, gymRingAt, gymSnoozed, pruneFired, YES_WORDS, type GymSnooze } from "./core/gym";
 import { alarmRings } from "./core/remind";
 import { DEVICE_TZ } from "./core/tz";
 import { homeTz, setHomeTz } from "./core/tz";
@@ -55,6 +55,9 @@ function run() {
   const s = vaultStore.get();
   if (!unlocked()) { if (!PHONE) hide(); return; }
   if (waiting.length) { const w = waiting; waiting = []; w.forEach(ackGymDay); }
+  // 1.60: only ever from the SAVED gym settings. Before they have loaded the 08:00 default would go to the phone as a
+  // plan and it would ring in the morning for a gym that is set for the night. The phone keeps the plan it has.
+  if (!gymReady({ hasSettings: !!settings(s), syncing: s.syncing, lastSync: s.lastSync })) return;
   const st = settingsData(s);
   setHomeTz(st.tmHomeTz);
   const tz = homeTz(), now = Date.now(), p = prefsOf(st), acked = st.gymAck || [];

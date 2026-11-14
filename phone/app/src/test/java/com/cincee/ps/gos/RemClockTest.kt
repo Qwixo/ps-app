@@ -181,7 +181,7 @@ class RemClockTest {
 
     // ---------- the plan ----------
     @Test fun aBrokenItemIsSkippedNeverThePlan() {
-        val good = JSONObject().put("id", "fu").put("on", true).put("pill", "Daily reminder").put("text", "HAVE YOU RAN FOLLOW UP SYSTEM YET?")
+        val good = JSONObject().put("id", "mine1").put("on", true).put("pill", "Daily reminder").put("text", "HAVE YOU STRETCHED YET?")
             .put("at", "02:00").put("until", "06:00").put("days", JSONArray(listOf(0, 1, 2, 3, 4, 5, 6))).put("tz", "Asia/Dubai")
             .put("snooze", 15).put("later", "Remind me in 15 mins").put("yes", "Yes").put("word", "Yes").put("click", false)
             .put("bg", "#28121E").put("accent", "#ec4e86").put("ink", "#ffffff").put("sound", "soft").put("vol", 0.8)
@@ -191,14 +191,14 @@ class RemClockTest {
             .put(JSONObject().put("id", "BAD!").put("at", "09:00").put("until", "10:00"))                 // bad id
             .put(JSONObject().put("id", "late").put("at", "25:00").put("until", "10:00"))                 // bad start
             .put("not an item")
-            .put(JSONObject(good.toString()).put("text", "a second fu"))                                    // the same id again
+            .put(JSONObject(good.toString()).put("text", "a second mine1"))                                    // the same id again
             .put(JSONObject().put("id", "bare").put("at", "09:00").put("until", "21:00").put("days", JSONArray(listOf(1, 9, "x", 3)))
                 .put("tz", "Not/AZone").put("snooze", 999).put("vol", "loud").put("sound", "trumpet").put("bg", "pink").put("done", "yesterday")))
         val items = RemClock.parse(plan)
-        assertEquals(listOf("fu", "bare"), items.map { it.id })
+        assertEquals(listOf("mine1", "bare"), items.map { it.id })
         val fu = items[0]
         assertEquals("Asia/Dubai", fu.tz); assertEquals("#28121e", fu.bg); assertEquals("soft", fu.sound)
-        assertEquals("2026-11-09", fu.done); assertEquals(1700L, fu.stateAt); assertEquals("HAVE YOU RAN FOLLOW UP SYSTEM YET?", fu.text)
+        assertEquals("2026-11-09", fu.done); assertEquals(1700L, fu.stateAt); assertEquals("HAVE YOU STRETCHED YET?", fu.text)
         val bare = items[1]
         assertEquals(listOf(1, 3), bare.days); assertEquals("", bare.tz); assertEquals(240, bare.snooze); assertEquals(0.8, bare.vol, 0.0)
         assertEquals("none", bare.sound); assertEquals(RemClock.BG, bare.bg); assertEquals("", bare.done)
@@ -263,5 +263,60 @@ class RemClockTest {
             assertEquals(44 + x.size * 2, wav.size)
             assertTrue(SleepClock.okOwnWav(wav))
         }
+    }
+
+    // ---------- 1.60: the retired built in reminder, and the ring ----------
+    @Test fun theRetiredFuIsNeverInAStoredOrNewPlan() {
+        val plan = JSONObject().put("items", JSONArray()
+            .put(JSONObject().put("id", "fu").put("at", "02:00").put("until", "06:00").put("text", "OLD"))
+            .put(JSONObject().put("id", "mine1").put("at", "09:00").put("until", "21:00")))
+        assertEquals(listOf("mine1"), RemClock.parse(plan).map { it.id })
+        assertEquals(listOf("mine1"), RemClock.parseList(plan.getJSONArray("items").toString()).map { it.id })   // an old plan kept in prefs
+        assertEquals("fu", RemClock.RETIRED_ID)
+    }
+
+    private val Z = TB
+    @Test fun ringsWhenTheWindowOpensThenEverySnoozeLengthUntilDone() {
+        val r = rem("09:00", "12:00", "Asia/Dubai", snooze = 15)
+        assertEquals(tb("2026-11-10", "09:00"), RemClock.nextRing(r, tb("2026-11-10", "08:00"), Z, 0))   // before: at the start
+        assertEquals(tb("2026-11-10", "09:00"), RemClock.nextRing(r, tb("2026-11-10", "09:00"), Z, 0))   // opens: now
+        val rang = tb("2026-11-10", "09:00")
+        assertEquals(tb("2026-11-10", "09:15"), RemClock.nextRing(r, tb("2026-11-10", "09:05"), Z, rang))
+        assertEquals(tb("2026-11-10", "09:30"), RemClock.nextRing(r, tb("2026-11-10", "09:16"), Z, tb("2026-11-10", "09:15")))
+        // Unanswered and late (phone was off): due now, not in the past.
+        assertEquals(tb("2026-11-10", "10:00"), RemClock.nextRing(r, tb("2026-11-10", "10:00"), Z, rang))
+        // The last re-ring would land after the window: none.
+        assertEquals(0L, RemClock.nextRing(r, tb("2026-11-10", "11:50"), Z, tb("2026-11-10", "11:50")))
+    }
+
+    @Test fun doneOffAndSnoozedDoNotRingNow() {
+        val t = tb("2026-11-10", "09:30")
+        assertEquals(0L, RemClock.nextRing(rem("09:00", "12:00", "Asia/Dubai", done = "2026-11-10"), t, Z, 0))
+        assertEquals(0L, RemClock.nextRing(rem("09:00", "12:00", "Asia/Dubai", on = false), t, Z, 0))
+        val sn = rem("09:00", "12:00", "Asia/Dubai", snoozeUntil = tb("2026-11-10", "09:45"))
+        assertEquals(tb("2026-11-10", "09:45"), RemClock.nextRing(sn, t, Z, tb("2026-11-10", "09:00")))     // Later: rings when it is over
+        // After that snooze it rings at once (the snooze ended after the last ring), then every snooze length again.
+        assertEquals(tb("2026-11-10", "09:46"), RemClock.nextRing(sn, tb("2026-11-10", "09:46"), Z, tb("2026-11-10", "09:00")))
+        assertEquals(tb("2026-11-10", "10:01"), RemClock.nextRing(sn, tb("2026-11-10", "09:50"), Z, tb("2026-11-10", "09:46")))
+        // A snooze that runs past the window does not come back, as on the Mac.
+        val late = rem("09:00", "10:00", "Asia/Dubai", snoozeUntil = tb("2026-11-10", "10:30"))
+        assertEquals(0L, RemClock.nextRing(late, tb("2026-11-10", "09:50"), Z, tb("2026-11-10", "09:00")))
+    }
+
+    @Test fun aClosedWindowRingsAtTheNextStartAndTheNewDayRingsAgain() {
+        val r = rem("09:00", "12:00", "Asia/Dubai")
+        assertEquals(tb("2026-11-11", "09:00"), RemClock.nextRing(r, tb("2026-11-10", "13:00"), Z, tb("2026-11-10", "11:45")))
+        assertEquals(tb("2026-11-11", "09:00"), RemClock.nextRing(r, tb("2026-11-11", "09:00"), Z, tb("2026-11-10", "11:45")))   // yesterday's ring does not count
+    }
+
+    @Test fun ringsDueSaysWhichAreDueAndSoonestCoversRings() {
+        val a = rem("09:00", "12:00", "Asia/Dubai").copy(id = "a1"); val b = rem("09:00", "12:00", "Asia/Dubai", done = "2026-11-10").copy(id = "b1")
+        val now = tb("2026-11-10", "09:01")
+        assertEquals(listOf("a1"), RemClock.ringsDue(listOf(a, b), now, Z, emptyMap()).map { it.id })
+        assertTrue(RemClock.ringsDue(listOf(a, b), now, Z, mapOf("a1" to now)).isEmpty())
+        assertEquals(tb("2026-11-10", "09:16"), RemClock.soonest(listOf(a), tb("2026-11-10", "09:02"), Z, mapOf("a1" to tb("2026-11-10", "09:01"))))
+        assertEquals(mapOf("a1" to 5L), RemClock.keepLast(listOf(a), mapOf("a1" to 5L, "gone" to 9L)))
+        assertEquals(mapOf("a1" to 5L), RemClock.lastFrom(RemClock.lastJson(mapOf("a1" to 5L)).toString()))
+        assertTrue(RemClock.lastFrom("not json").isEmpty())
     }
 }

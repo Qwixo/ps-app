@@ -34,3 +34,34 @@ self.addEventListener("fetch", (e) => {
     })));
   }
 });
+
+// 1.60 Reminders while the app is closed (Web Push, iOS 16.4+). The push carries only {t:"rem", id, at}; the words come from a
+// small copy this phone keeps itself (IndexedDB psm-rem, written by the app), never from the server.
+function remWords() {
+  return new Promise((ok) => {
+    try {
+      const q = indexedDB.open("psm-rem", 1);
+      q.onupgradeneeded = () => q.result.createObjectStore("kv");
+      q.onerror = () => ok({});
+      q.onsuccess = () => { const g = q.result.transaction("kv").objectStore("kv").get("words"); g.onsuccess = () => ok(g.result || {}); g.onerror = () => ok({}); };
+    } catch (e) { ok({}); }
+  });
+}
+self.addEventListener("push", (e) => {
+  let d = null;
+  try { d = e.data ? e.data.json() : null; } catch (x) { d = null; }
+  if (!d || d.t !== "rem" || typeof d.id !== "string" || !/^[a-z0-9]{1,16}$/.test(d.id)) return;
+  e.waitUntil(remWords().then((w) => {
+    const x = w[d.id] || {};
+    // iOS needs every push to show something. Same tag: a repeat replaces the one before.
+    return self.registration.showNotification(x.pill || "Reminder", { body: x.text || "Open PS to answer.", tag: "rem:" + d.id, renotify: true, data: { id: d.id } });
+  }));
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const id = (e.notification.data && e.notification.data.id) || "";
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    for (const c of list) if (c.url.indexOf(SHELL) >= 0 && "focus" in c) return c.focus();
+    return self.clients.openWindow(SHELL + (id ? "?rem=" + encodeURIComponent(id) : ""));
+  }));
+});

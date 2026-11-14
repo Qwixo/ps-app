@@ -116,7 +116,7 @@ enum RemMath {
   static func items(_ plan: Any?) -> [Item] {
     guard let p = plan as? [String: Any], let list = p["items"] as? [Any] else { return [] }
     var out: [Item] = []
-    for x in list { if let i = item(x), !out.contains(where: { $0.id == i.id }), out.count < maxItems { out.append(i) } }
+    for x in list { if let i = item(x), i.id != retiredId, !out.contains(where: { $0.id == i.id }), out.count < maxItems { out.append(i) } }
     return out
   }
 
@@ -206,34 +206,8 @@ enum RemMath {
     i.click || typed.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == i.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
   }
 
-  // ---------- the old daily reminder (FollowUp.swift, V1.38 to V1.45) ----------
-  static let redQuestion = "HAVE YOU RAN FOLLOW UP SYSTEM YET?"
-  static let publicQuestion = "HAVE YOU DONE YOUR DAILY TASK YET?"
-  /// What this Mac kept for the old card (UserDefaults fu.prefs, fu.doneFor, fu.snoozeUntil), as the page's
-  /// core/remind.ts cleanLegacy reads it. Missing prefs mean the old defaults: on, 02:00 to 06:00, the default words.
-  static func legacy(prefs: Data?, doneFor: String?, snoozeUntil: Date?) -> [String: Any] {
-    var o: [String: Any] = ["on": true, "at": "02:00", "until": "06:00", "text": ""]
-    if let p = prefs, let j = try? JSONSerialization.jsonObject(with: p) as? [String: Any] {
-      if let b = j["on"] as? Bool { o["on"] = b }
-      if let a = okTime(j["at"]) { o["at"] = a }
-      if let u = okTime(j["until"]), u != o["at"] as? String { o["until"] = u }
-      o["text"] = line(j["text"], 80)
-    }
-    if let d = doneFor, d.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil { o["doneFor"] = d }
-    if let s = snoozeUntil { o["snoozeUntil"] = (s.timeIntervalSince1970 * 1000).rounded() }
-    return o
-  }
-  /// Reminder one made from the old settings, for this Mac to keep using until the page's plan comes (the same as
-  /// core/remind.ts firstReminder + remPlan).
-  static func legacyItem(_ l: [String: Any], red: Bool) -> Item {
-    var i = Item(id: "fu")
-    i.on = l["on"] as? Bool ?? true
-    i.at = okTime(l["at"]) ?? "02:00"; i.until = okTime(l["until"]) ?? "06:00"
-    let t = line(l["text"], 80)
-    i.text = t.isEmpty ? (red ? redQuestion : publicQuestion) : t
-    i.tz = red ? "Asia/Dubai" : ""
-    i.done = l["doneFor"] as? String ?? ""
-    i.snoozeUntil = num(l["snoozeUntil"]) ?? 0
-    return i
-  }
+  // ---------- the retired built in reminder (1.60) ----------
+  /// The old built in daily reminder (id "fu", the follow up question) is gone for everyone. A plan or a stored list
+  /// that still carries it never shows it: reminders people made themselves have other ids and stay.
+  static let retiredId = "fu"
 }

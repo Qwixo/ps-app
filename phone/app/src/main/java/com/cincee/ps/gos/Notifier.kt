@@ -57,6 +57,8 @@ object Notifier {
             NotificationChannel(Sleep.BACK, "Sleep mode clock", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Brings the clock back over the lock screen after you press the power button. Silent."; setSound(null, null); enableVibration(false); setShowBadge(false) },
             // The Annoying 15 min reminder (Remind.kt): PS plays each reminder's own sound itself, so the channel is silent.
+            NotificationChannel(Remind.RING_CH, "Reminder ring", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "A reminder rings like an alarm for a minute and shows a full screen card. PS plays the sound itself."; setSound(null, null); enableVibration(false); setBypassDnd(false) },
             NotificationChannel(Remind.CH, "Annoying reminders", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Pops up from its start time until you confirm it. Remind me in, or swiping it away, brings it back later."; setSound(null, null); enableVibration(true) },
             // The Soundboard's timed plays (Soundboard.kt): PS plays the file itself on the alarm stream, so the channel is silent.

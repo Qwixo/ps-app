@@ -5,6 +5,7 @@
 import App from "../App";
 import { GosLayer } from "../gos/GosLayer";
 import { startMobileWeb } from "../gos/bridge";
+import { RemCard } from "./RemCard";
 import { startKeyboard } from "../gos/keyboard";
 import { startCalm } from "../gos/calm";
 import { startGosLayout } from "../gos/layout";
@@ -20,5 +21,5 @@ startWebKeyboard();
 startCalm();
 
 export default function MobileApp() {
-  return <><App /><GosLayer /></>;
+  return <><App /><GosLayer /><RemCard /></>;
 }

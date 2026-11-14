@@ -257,4 +257,39 @@ class GymClockTest {
     @Test fun alarmRingIdsArePrunedByTheirDay() {
         assertEquals(setOf("a:al1:2026-11-02", "$day:n3"), GymClock.prune(setOf("a:al1:2026-11-01", "a:al1:2026-11-02", "$day:n3"), day))
     }
+
+    // ---------- 1.60: the phone only follows the saved gym settings ----------
+    /** The saved gym moved from 08:00 to 23:00 (Dubai: 19:00 UTC). The old morning plan is replaced by this one. */
+    private val nightAt = java.time.Instant.parse("2026-11-03T19:00:00Z").toEpochMilli()
+    private fun nightPlan() = GymClock.from(JSONObject().put("on", true).put("time", "23:00")
+        .put("items", JSONArray().put(JSONObject().put("day", day).put("at", nightAt)))
+        .put("acked", JSONArray()).put("before", JSONArray(listOf(120, 60, 30, 10))).put("ring", 16).put("grace", 120_000))
+
+    @Test fun aMorningRingFromAnOlderPlanEndsWhenTheGymIsAtNight() {
+        val morning = GymRing(day, gym, hm(7, 44, 1))
+        assertEquals(RingNow.RINGING, GymClock.ringNow(morning, plan(), hm(7, 45), emptySet()))
+        assertEquals(RingNow.DONE, GymClock.ringNow(morning, nightPlan(), hm(7, 45), emptySet()))   // no morning ring for a night gym
+    }
+
+    @Test fun theNightGymHasNoMorningStepsAtAll() {
+        val steps = GymClock.steps(nightPlan())
+        assertTrue(steps.none { it.due < nightAt - 130 * 60_000L })               // the earliest is the 2 h notice at 21:00
+        assertEquals(nightAt - 120 * 60_000L, steps.first().due)
+        assertTrue(GymClock.dueNow(nightPlan(), hm(7, 44, 1), emptySet()).isEmpty())   // 07:44 Dubai: nothing is due
+        assertTrue(GymClock.next(nightPlan(), hm(5, 0), emptySet())!!.due > hm(20, 0))
+    }
+
+    @Test fun planHasMatchesTheDayAndTheTimeNotJustTheDay() {
+        assertTrue(GymClock.planHas(plan(), day, gym))
+        assertFalse(GymClock.planHas(plan(), day, nightAt))        // same day, another time: the old reminder is stale
+        assertFalse(GymClock.planHas(null, day, gym))
+        assertFalse(GymClock.planHas(plan(on = false).copy(items = emptyList()), day, gym))
+    }
+
+    @Test fun aPlanSwitchedOffRingsNothingAndAnEmptyPlanHasNoNextAlarm() {
+        val off = plan(on = false)
+        assertTrue(GymClock.steps(off).isEmpty())
+        assertNull(GymClock.next(off, hm(5, 0), emptySet()))
+        assertEquals(RingNow.DONE, GymClock.ringNow(GymRing(day, gym, hm(7, 44, 1)), off, hm(7, 45), emptySet()))
+    }
 }

@@ -44,16 +44,10 @@ let its = RemMath.items(plan)
 ok("plan: broken fields fall back, no id twice, bad ids left out", its.map(\.id) == ["a", "b"] && its[0].text == "Hi" && its[0].at == "09:00" && its[0].until == "21:00"
    && its[0].days == [1] && its[0].snooze == 240 && its[0].vol == 1 && its[0].bg == "#28121e" && its[0].accent == "#abcdef" && its[0].sound == "none"
    && its[1].done == "2026-11-10" && its[1].snoozeUntil == 5 && its[1].stateAt == 7)
-let l = RemMath.legacy(prefs: try! JSONSerialization.data(withJSONObject: ["on": true, "at": "02:00", "until": "06:00", "text": ""]), doneFor: "2026-11-10", snoozeUntil: nil)
-let r1 = RemMath.legacyItem(l, red: true)
-ok("the old card on the developer's Mac: his words, Dubai, today's Yes", r1.id == "fu" && r1.text == "HAVE YOU RAN FOLLOW UP SYSTEM YET?" && r1.tz == "Asia/Dubai" && r1.done == "2026-11-10"
-   && st(r1, tb("2026-11-10", "04:00"), done: r1.done) == "done" && l["doneFor"] as? String == "2026-11-10")
-let l2 = RemMath.legacy(prefs: nil, doneFor: nil, snoozeUntil: Date(timeIntervalSince1970: 9))
-let r2 = RemMath.legacyItem(l2, red: false)
-ok("never touched: the old defaults, the neutral words, this Mac's zone", l2["on"] as? Bool == true && l2["at"] as? String == "02:00" && r2.text == "HAVE YOU DONE YOUR DAILY TASK YET?"
-   && r2.tz == "" && l2["snoozeUntil"] as? Double == 9000)
-let l3 = RemMath.legacy(prefs: try! JSONSerialization.data(withJSONObject: ["on": false, "at": "07:00", "until": "08:30", "text": "Did you stretch?"]), doneFor: nil, snoozeUntil: nil)
-ok("edited: kept as edited", l3["on"] as? Bool == false && l3["until"] as? String == "08:30" && RemMath.legacyItem(l3, red: false).text == "Did you stretch?")
+// 1.60: the built in daily reminder (id "fu") is gone for everyone; ones people made themselves stay.
+let withFu = RemMath.items(["v": 1, "items": [["id": "fu", "text": "OLD", "at": "02:00", "until": "06:00"], ["id": "mine", "text": "STRETCH?", "at": "09:00", "until": "21:00"]]])
+ok("retired: a plan that still carries fu never shows it, a reminder of your own stays", withFu.map(\.id) == ["mine"] && RemMath.retiredId == "fu")
+ok("retired: a plan of only fu is an empty list", RemMath.items(["v": 1, "items": [["id": "fu"]]]).isEmpty)
 // ---------- V1.55: reminders on tasks (web tests/taskremind.test.ts) ----------
 let once = item { $0.at = "09:00"; $0.until = "12:00"; $0.date = "2026-11-12"; $0.task = "0b7e6c1a-1111"; $0.days = [] }
 ok("once: only on its day, never the week after", st(once, tb("2026-11-12", "10:00")) == "show" && st(once, tb("2026-11-19", "10:00")) == "closed"

@@ -6,8 +6,8 @@
 //
 // A list of reminders. Each one pops up (a card on the Mac, a notification on the phone) from its start time until it
 // is confirmed, on the days picked; "Remind me in N mins" puts it away for its snooze length. The daily reminder card
-// of V1.38 to V1.45 (ps-mac FollowUp.swift, Settings > Daily reminder) is reminder number one, id "fu", with its words,
-// window and time zone kept (the developer's: Dubai time and "HAVE YOU RAN FOLLOW UP SYSTEM YET?").
+// of V1.38 to V1.45 was reminder number one, id "fu". It is gone since 1.60 (Red's answer 24a): nobody gets a built in
+// reminder any more, a stored "fu" is dropped on every load (RETIRED_ID) and the devices cancel its alarm.
 //
 // Storage: ONE small encrypted vault record per account (kind "remind", owner private), never inside the big settings
 // record, so a change uploads a couple of KB and only when something changed (egress rule). It holds the list and each
@@ -29,10 +29,10 @@ export const REM_LABEL_MAX = 30;           // the small pill on top, and each bu
 export const REM_SNOOZE_DEF = 15, REM_SNOOZE_MIN = 1, REM_SNOOZE_MAX = 240;
 export const REM_VOL_DEF = 0.8, REM_VOL_MIN = 0.1;
 export const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];   // 0 Sunday to 6 Saturday
-export const RED_QUESTION = "HAVE YOU RAN FOLLOW UP SYSTEM YET?";     // The developer's exact words (his default)
-export const PUBLIC_QUESTION = "HAVE YOU DONE YOUR DAILY TASK YET?";  // anyone else's default
-export const RED_TZ = "Asia/Dubai";
-export const FIRST_ID = "fu";
+export const PUBLIC_QUESTION = "HAVE YOU DONE YOUR DAILY TASK YET?";  // the words of a reminder saved without any
+/** The built in daily reminder of V1.38 to V1.59. Removed for everyone in 1.60: never kept, never planned, its
+ *  alarm and card cancelled on every device. Reminders people made themselves have random ids and stay. */
+export const RETIRED_ID = "fu";
 
 /** The built in sounds (core/alarmsound.ts tone tables at the one level), none, or this device's own file. */
 export type RemSound = "none" | "soft" | "alarm" | "own";
@@ -44,7 +44,7 @@ export interface Reminder {
   id: string;
   on: boolean;
   label: string;        // the small pill on the card ("Daily reminder"); empty = that
-  text: string;         // the question; empty = the default question (reminder one only: the developer's or the public one)
+  text: string;         // the question; empty = the default question
   at: string;           // "HH:MM" it starts popping up
   until: string;        // "HH:MM" it stops opening (a card already up stays until answered); may run past midnight
   days: number[];       // the days a window may START on, 0 Sunday to 6 Saturday
@@ -59,7 +59,6 @@ export interface Reminder {
   sound: RemSound;
   vol: number;          // 0.1 to 1: the sound's share of the device's volume
   edited: number;       // ms: last change to these settings (merging two devices)
-  seed?: boolean;       // reminder one made from the defaults, not yet from a Mac's old daily reminder
   // Reminders ON tasks (V1.55, the developer 12 Nov 2026: "So it blends tasks with the reminders, so I get reminders ON my tasks").
   task?: string;        // the task's id: the pop-up shows its name (text empty), Done ticks it, Open task opens it
   date?: string;        // "YYYY-MM-DD": once, on that day only (its window starts that day). None: on the days picked
@@ -225,7 +224,6 @@ export function cleanReminder(v: unknown, now = 0): Reminder | null {
     click: o.click === true, bg: okHex(o.bg, REM_BG), accent: okHex(o.accent, REM_ACCENT), sound, vol: okVol(o.vol),
     edited: typeof o.edited === "number" && Number.isFinite(o.edited) ? o.edited : now,
   };
-  if (o.seed === true) r.seed = true;
   if (typeof o.task === "string" && TASK_ID.test(o.task)) r.task = o.task;
   if (r.task && typeof o.date === "string" && DAY.test(o.date)) r.date = o.date;
   if (o.alarm === true && !r.task) Object.assign(r, { alarm: true, until: plusMin(r.at, ALARM_RING_MIN), snooze: ALARM_LATER_MIN, later: ALARM_LATER, click: true });
@@ -246,7 +244,7 @@ export function cleanRemind(v: unknown): RemindRec {
   let plain = 0, onTasks = 0;
   for (const x of Array.isArray(o.list) ? o.list : []) {
     const r = cleanReminder(x);
-    if (!r || list.some((y) => y.id === r.id)) continue;
+    if (!r || r.id === RETIRED_ID || list.some((y) => y.id === r.id)) continue;
     if (r.task ? onTasks >= REM_TASK_MAX : plain >= REM_MAX) continue;
     if (r.task) onTasks++; else plain++;
     list.push(r);
@@ -258,6 +256,11 @@ export function cleanRemind(v: unknown): RemindRec {
   const g = (o.gone && typeof o.gone === "object" ? o.gone : {}) as Record<string, unknown>;
   for (const [id, t] of Object.entries(g).slice(0, 160)) if (ID.test(id) && typeof t === "number" && Number.isFinite(t)) gone[id] = t;
   return { v: 1, list, state, gone, at: typeof o.at === "number" && Number.isFinite(o.at) ? o.at : 0 };
+}
+/** Does a stored record still carry the retired built in reminder (so the next save should rewrite it without)? */
+export function hasRetired(v: unknown): boolean {
+  const o = (v && typeof v === "object" ? v : {}) as { list?: unknown };
+  return Array.isArray(o.list) && o.list.some((x) => !!x && typeof x === "object" && (x as { id?: unknown }).id === RETIRED_ID);
 }
 export const sameRemind = (a: RemindRec, b: RemindRec) => JSON.stringify(cleanRemind(a)) === JSON.stringify(cleanRemind(b));
 
@@ -273,8 +276,7 @@ export function minsWords(n: number): string {
 export const pillOf = (r: Pick<Reminder, "label"> & { task?: string; alarm?: boolean }) => r.label || (r.task ? TASK_PILL : r.alarm ? ALARM_TITLE : "Daily reminder");
 /** An alarm's words: its own, else "Alarm at 07:44". */
 export const alarmText = (r: Pick<Reminder, "text" | "at">) => r.text || `Alarm at ${r.at}`;
-export const defaultQuestion = (red: boolean) => (red ? RED_QUESTION : PUBLIC_QUESTION);
-export const questionOf = (r: Pick<Reminder, "text">, red: boolean) => r.text || defaultQuestion(red);
+export const questionOf = (r: Pick<Reminder, "text">) => r.text || PUBLIC_QUESTION;
 /** The snooze button: its own words with {n} as the minutes, else "Remind me in 15 mins" (the number follows the length). */
 export const laterOf = (r: Pick<Reminder, "later" | "snooze">) => (r.later ? r.later.replace(/\{n\}/g, String(okSnooze(r.snooze))) : `Remind me in ${minsWords(r.snooze)}`);
 export const yesOf = (r: Pick<Reminder, "yes"> & { alarm?: boolean }) => r.yes || (r.alarm ? ALARM_YES : "Yes");
@@ -354,6 +356,42 @@ export function remNextWake(r: Reminder, s: RemState | undefined, now: number, d
   return t.length ? Math.min(...t) : 0;
 }
 
+// ---------- ringing (1.60: the full screen card on the phone and the iPhone web app) ----------
+type RingShape = Pick<Reminder, "at" | "until" | "tz" | "days" | "snooze" | "on"> & { date?: string };
+/** When it next RINGS (0 never), the same rules as the phone's RemClock.nextRing: when its window opens and when a snooze
+ *  ends, then every snooze length until it is answered, inside the window. `last`: when it last rang (0 = never). */
+export function remNextRing(r: Reminder, s: RemState | undefined, now: number, deviceTz: string, last: number): number {
+  const w = openWindow(r, now, deviceTz);
+  switch (remStatus(r, s, now, deviceTz)) {
+    case "off": case "done": return 0;
+    case "show": {
+      if (!w) return 0;
+      if (last < w.start || (s?.snoozeUntil ?? 0) > last) return now;
+      const t = last + okSnooze(r.snooze) * 60_000;
+      return t >= w.end ? 0 : Math.max(t, now);
+    }
+    case "snoozed": return w && (s?.snoozeUntil ?? 0) < w.end ? s!.snoozeUntil! : 0;
+    default: return nextStart(r, now, deviceTz);
+  }
+}
+/** The moments a closed web app should be pushed for this reminder, from `from` on (never more than `max`, none later than
+ *  `from + horizon`): each window's start (or a snooze's end) and every snooze length after, inside the window. A window
+ *  already confirmed is left out. The server keeps only these times and the id. */
+export function remRingTimes(r: RingShape, s: RemState | undefined, from: number, horizon: number, deviceTz: string, max = 12): number[] {
+  if (!r.on) return [];
+  const out: number[] = [];
+  const day0 = cycleDay(r, from, deviceTz), step = okSnooze(r.snooze) * 60_000;
+  for (let i = 0; i <= 3 && out.length < max; i++) {
+    const day = addDays(day0, i);
+    if (!startsOn(r, day) || s?.done === day) continue;
+    const w = windowOn(r, day, deviceTz);
+    let t = Math.max(w.start, from);
+    if (i === 0 && s?.snoozeUntil && s.snoozeUntil > t && s.snoozeUntil < w.end) t = s.snoozeUntil;
+    for (; t < w.end && t <= from + horizon && out.length < max; t += step) if (t > from) out.push(t);
+  }
+  return out;
+}
+
 // ---------- answers (on any device) ----------
 export type RemAct = { id: string; act: "done" | "snooze"; day?: string; until?: number; at: number; by?: RemState["by"] };
 /** Confirm: done for the window it is in now. */
@@ -387,7 +425,7 @@ export function emptyRemind(): RemindRec { return { v: 1, list: [], state: {}, g
 export function patchReminder(rec: RemindRec, id: string, patch: Partial<Reminder>, now: number): RemindRec {
   const list = rec.list.map((r) => {
     if (r.id !== id) return r;
-    const { seed: _seed, ...rest } = { ...r, ...patch, id, edited: Math.max(now, r.edited + 1) };
+    const rest = { ...r, ...patch, id, edited: Math.max(now, r.edited + 1) };
     return cleanReminder(rest, now) ?? r;
   });
   // A new start time or new days: what was confirmed or snoozed for the old window no longer holds.
@@ -463,63 +501,9 @@ export function mergeRemind(a: RemindRec, b: RemindRec): RemindRec {
   return { v: 1, list, state, gone, at: Math.max(a.at, b.at) };
 }
 
-// ---------- the old daily reminder (V1.38 to V1.45) becomes reminder one ----------
-/** What a Mac's ps-mac FollowUp.swift kept (UserDefaults fu.prefs, fu.doneFor, fu.snoozeUntil), sent by the Mac as
- *  psSettings rem.legacy. Absent when that Mac never had it, or already handed it over. */
-export interface Legacy { on: boolean; at: string; until: string; text: string; doneFor?: string; snoozeUntil?: number }
-export function cleanLegacy(v: unknown): Legacy | null {
-  const o = (v && typeof v === "object" ? v : null) as Record<string, unknown> | null;
-  if (!o) return null;
-  const at = typeof o.at === "string" && HHMM.test(o.at) ? o.at : "02:00", until = typeof o.until === "string" && HHMM.test(o.until) ? o.until : "06:00";
-  const l: Legacy = { on: o.on !== false, at, until: until === at ? "06:00" : until, text: oneLine(o.text, REM_TEXT_MAX) };
-  if (typeof o.doneFor === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.doneFor)) l.doneFor = o.doneFor;
-  if (typeof o.snoozeUntil === "number" && Number.isFinite(o.snoozeUntil) && o.snoozeUntil > 0) l.snoozeUntil = o.snoozeUntil;
-  return l;
-}
-const FIRST_DEFAULT = { on: true, at: "02:00", until: "06:00", text: "" };
-/** Reminder one, as the old card was: its words, its window, its time zone (the developer: Dubai, everyone else: the device's),
- *  no sound, the old pink. `legacy` absent: the defaults, marked seed (a Mac's old settings may still fill it in). */
-export function firstReminder(red: boolean, legacy: Legacy | null, now: number): Reminder {
-  const l = legacy ?? FIRST_DEFAULT;
-  const r: Reminder = { id: FIRST_ID, on: l.on, label: "", text: l.text, at: l.at, until: l.until, days: [...ALL_DAYS], tz: red ? RED_TZ : "",
-    snooze: REM_SNOOZE_DEF, later: "", yes: "", word: "", click: false, bg: REM_BG, accent: REM_ACCENT, sound: "none", vol: REM_VOL_DEF, edited: legacy ? now : 0 };
-  if (!legacy) r.seed = true;
-  return r;
-}
-function legacyState(l: Legacy, now: number): RemState | null {
-  if (!l.doneFor && !(l.snoozeUntil && l.snoozeUntil > now)) return null;
-  const s: RemState = { at: now, by: "mac" };
-  if (l.doneFor) s.done = l.doneFor;
-  if (l.snoozeUntil && l.snoozeUntil > now) s.snoozeUntil = l.snoozeUntil;
-  return s;
-}
-/** What Settings shows and edits when there is no record yet: reminder one from the defaults (not saved until a change). */
-export function remindOrDefault(rec: RemindRec | null, red: boolean): RemindRec {
-  return rec ?? { v: 1, list: [firstReminder(red, null, 0)], state: {}, gone: {}, at: 0 };
-}
-/** The Mac hands its old daily reminder over, once. Returns the record to save, or null when nothing changes:
- *  - no record yet: reminder one from the old settings, with today's Yes or snooze kept (nothing pops up again);
- *  - a record whose reminder one is still the untouched default (made on the phone or the website first): the old
- *    settings fill in what was never changed there;
- *  - anything else (reminder one edited or removed, no old settings): nothing. */
-export function migrateLegacy(rec: RemindRec | null, legacy: Legacy | null, red: boolean, now: number): RemindRec | null {
-  if (!legacy) return null;
-  if (!rec) {
-    const s = legacyState(legacy, now);
-    return { v: 1, list: [firstReminder(red, legacy, now)], state: s ? { [FIRST_ID]: s } : {}, gone: {}, at: now };
-  }
-  const i = rec.list.findIndex((r) => r.id === FIRST_ID);
-  if (i < 0 || !rec.list[i].seed) return null;
-  const r = rec.list[i];
-  const keep = (k: keyof typeof FIRST_DEFAULT) => (r[k] === FIRST_DEFAULT[k] ? legacy[k] : r[k]);
-  const { seed: _s, ...rest } = r;
-  const next: Reminder = { ...rest, on: keep("on") as boolean, at: keep("at") as string, until: keep("until") as string, text: keep("text") as string, edited: Math.max(now, r.edited + 1) };
-  if (next.at === next.until) next.until = r.until;
-  const list = [...rec.list]; list[i] = next;
-  const state = { ...rec.state };
-  const s = legacyState(legacy, now);
-  if (s && !state[FIRST_ID]) state[FIRST_ID] = s;
-  return { ...rec, list, state, at: Math.max(now, rec.at) };
+/** What Settings shows and edits when there is no record yet: an empty list (not saved until a change). */
+export function remindOrDefault(rec: RemindRec | null, _red?: boolean): RemindRec {
+  return rec ?? emptyRemind();
 }
 
 // ---------- what each shell gets ----------
@@ -543,14 +527,14 @@ const clip = (t: string, max: number) => { const x = oneLine(t, 400); return x.l
 export function taskQuestion(r: Pick<Reminder, "text">, title: string | undefined): string {
   return r.text || (title ? clip(title, REM_TEXT_MAX) : "YOUR TASK");
 }
-export function remPlan(rec: RemindRec | null, red: boolean, ctx?: PlanCtx): { v: 1; items: PlanItem[] } {
+export function remPlan(rec: RemindRec | null, _red: boolean, ctx?: PlanCtx): { v: 1; items: PlanItem[] } {
   if (!rec) return { v: 1, items: [] };
   return {
     v: 1,
     items: rec.list.map((r) => {
       const s = rec.state[r.id];
       let on = r.on, done = s?.done ?? "", stateAt = s?.at ?? 0;
-      let text = r.alarm ? alarmText(r) : r.id === FIRST_ID ? questionOf(r, red) : r.text || PUBLIC_QUESTION;
+      let text = r.alarm ? alarmText(r) : questionOf(r);
       if (r.task) {
         const t = ctx?.tasks.get(r.task);
         text = taskQuestion(r, t?.title);
@@ -584,11 +568,12 @@ function daysWords(days: number[]): string {
 // ---------- the record in the vault ----------
 /** This account's reminders record: the newest copy kept, every copy merged (two devices that each made one before
  *  they synced), the others to remove on the next save. */
-export function pickRemind<D extends { id: string; data: unknown }>(docs: D[]): { keep: D | null; extra: D[]; rec: RemindRec | null } {
-  if (!docs.length) return { keep: null, extra: [], rec: null };
+export function pickRemind<D extends { id: string; data: unknown }>(docs: D[]): { keep: D | null; extra: D[]; rec: RemindRec | null; stale: boolean } {
+  if (!docs.length) return { keep: null, extra: [], rec: null, stale: false };
+  const stale = docs.some((d) => hasRetired(d.data));
   const all = docs.map((d) => ({ d, r: cleanRemind(d.data) })).sort((a, b) => b.r.at - a.r.at || (a.d.id < b.d.id ? -1 : 1));
   const rec = all.slice(1).reduce((m, x) => mergeRemind(m, x.r), all[0].r);
-  return { keep: all[0].d, extra: all.slice(1).map((x) => x.d), rec };
+  return { keep: all[0].d, extra: all.slice(1).map((x) => x.d), rec, stale };
 }
 export type RemindOp = { op: "put"; id: string; data: RemindRec };
 /** The Tab list holds no keys: its save goes to the main page as this, checked again there. */

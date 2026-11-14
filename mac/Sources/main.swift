@@ -425,8 +425,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     AutoApprove.shared.onChange = { [weak self] in self?.sendSettings() }
     AutoApprove.shared.start(testDir: ProcessInfo.processInfo.environment["PS_SELFTEST"])
     // The Annoying 15 min reminders (Sources/Reminders.swift, V1.46): the cards of every reminder in Settings >
-    // Annoying 15 min reminder (web views/RemindSettings.tsx). Everyone's. Reminder one is the old daily
-    // reminder ("HAVE YOU RAN FOLLOW UP SYSTEM YET?" on the developer's PS), handed over to the page once (rem.legacy).
+    // Annoying 15 min reminder (web views/RemindSettings.tsx). Everyone's. The built in daily reminder
+    // is gone since 1.60.
     Reminders.shared.onSettings = { [weak self] in self?.sendSettings() }
     Reminders.shared.onAnswer = { [weak self] json in self?.sendCardAction(json) }
     // V1.55 Open task on a reminder card: the Tab list opens (pinned, like a tap of Tab) and the task glows. The id was
@@ -766,7 +766,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     d["afk"] = Afk.shared.settingsJSON()
     d["mediaGuard"] = MediaGuard.shared.settingsJSON()
     d["ays"] = AreYouSure.shared.settingsJSON()
-    d["rem"] = Reminders.shared.settingsJSON()   // the Annoying 15 min reminders: the old daily reminder to hand over
+    d["rem"] = Reminders.shared.settingsJSON()   // the Annoying 15 min reminders
     d["middleClick"] = MiddleClick.shared.settingsJSON()
     d["aiDone"] = AiDone.shared.settingsJSON()        // Notifications > AI chat finished cards: which tools are on (AiDone.swift)
     d["autoApprove"] = AutoApprove.shared.settingsJSON()   // Sentry mode > Auto approve: switches, state and log (AutoApprove.swift)
@@ -1348,8 +1348,6 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       if MeetingTime.shared.set(msg["windows"]) { psLog("PS afk: meeting times updated (\((msg["windows"] as? [Any])?.count ?? 0))") }
     case "rem:plan" where fromMain:                            // the Annoying 15 min reminders' plan (Sources/Reminders.swift)
       Reminders.shared.setPlan(msg["plan"])
-    case "rem:legacyDone" where fromMain:                      // the old daily reminder is reminder one now
-      Reminders.shared.legacyDone()
     case "mediaGuard" where fromMain || fromOverlay:           // PS > Settings > AirPods controls card (Sources/MediaGuard.swift)
       MediaGuard.shared.handle(msg); sendSettings()
     case "middleClick" where fromMain || fromOverlay:          // PS > Settings > Force Touch middle click (Sources/MiddleClick.swift)

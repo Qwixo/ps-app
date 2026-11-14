@@ -38,10 +38,10 @@ ok("cleaning keeps an alarm an alarm: 10 minute window, Later 5 minutes, one cli
   assert.equal(R.cleanReminder({ id: "x3", at: "09:00", until: "21:00" })!.alarm, undefined);
 });
 ok("alarms are kept apart from the list's reminders, and count with them towards the 20", () => {
-  let rec = R.remindOrDefault(null, false);
+  let rec = R.addReminder(R.remindOrDefault(null, false), "rm1", 0);
   rec = R.addAlarm(rec, "al1", 1);
   rec = R.addReminder(rec, "rm2", 2);
-  assert.deepEqual(R.plainOf(rec).map((r) => r.id), ["fu", "rm2"]);
+  assert.deepEqual(R.plainOf(rec).map((r) => r.id), ["rm1", "rm2"]);
   assert.deepEqual(R.alarmsOf(rec).map((r) => r.id), ["al1"]);
   for (let i = 0; i < 30; i++) rec = R.addAlarm(rec, `z${i}`, 10 + i);
   assert.equal(rec.list.filter((r) => !r.task).length, R.REM_MAX);

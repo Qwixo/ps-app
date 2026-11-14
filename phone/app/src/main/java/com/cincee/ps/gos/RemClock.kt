@@ -49,6 +49,12 @@ object RemClock {
 
     fun okId(id: String?) = id != null && ID.matches(id)
 
+    /** The built in daily reminder of V1.38 to V1.59 (web core/remind.ts RETIRED_ID). Removed for everyone in 1.60: an old
+     *  stored plan that still has it never arms an alarm, and anything it left up is cleaned away (Remind.settle). */
+    const val RETIRED_ID = "fu"
+    /** How long one ring plays its sound and buzz. The card and the notification stay until it is answered. */
+    const val RING_FOR = 60_000L
+
     // ---------- the plan ----------
     /** {v:1, items:[...]}: every item that is good, at most MAX, no id twice. A broken item is skipped, never the plan. */
     fun parse(plan: JSONObject?): List<RemItem> {
@@ -56,7 +62,7 @@ object RemClock {
         val out = ArrayList<RemItem>()
         for (i in 0 until a.length()) {
             val it = a.optJSONObject(i)?.let { o -> runCatching { item(o) }.getOrNull() } ?: continue
-            if (out.none { o -> o.id == it.id } && out.size < MAX) out.add(it)
+            if (it.id != RETIRED_ID && out.none { o -> o.id == it.id } && out.size < MAX) out.add(it)
         }
         return out
     }
@@ -183,8 +189,44 @@ object RemClock {
         if (r.snoozeUntil > now) t.add(r.snoozeUntil)
         return t.minOrNull() ?: 0
     }
-    /** The one alarm for every reminder: the soonest wake, 0 when none. */
-    fun soonest(items: List<RemItem>, now: Long, device: ZoneId): Long = items.map { nextWake(it, now, device) }.filter { it > 0 }.minOrNull() ?: 0
+    /**
+     * When this reminder next RINGS (the full screen card, the loud sound), 0 never. `last` is when it last rang
+     * (0 = never). It rings when its window opens and when a snooze ends, then again every snooze length until it
+     * is answered, as long as the window is open. Done, off, a snooze that runs past the window and a closed window
+     * do not ring (the notification already up stays, the Mac keeps its card the same way).
+     */
+    fun nextRing(r: RemItem, now: Long, device: ZoneId, last: Long): Long {
+        val w = openWindow(r, now, device)
+        return when (status(r, now, device)) {
+            RemStatus.OFF, RemStatus.DONE -> 0
+            RemStatus.SHOW -> {
+                w ?: return 0
+                if (last < w.start || r.snoozeUntil > last) now
+                else (last + r.snooze * 60_000L).let { if (it >= w.end) 0 else maxOf(it, now) }
+            }
+            RemStatus.SNOOZED -> if (w != null && r.snoozeUntil < w.end) r.snoozeUntil else 0
+            RemStatus.CLOSED -> nextStart(r, now, device)
+        }
+    }
+    /** The one alarm for every reminder: the soonest wake or ring, 0 when none. */
+    fun soonest(items: List<RemItem>, now: Long, device: ZoneId, last: Map<String, Long> = emptyMap()): Long =
+        // A ring due right now is settled by the caller (it rings, or waits for the ring in progress): never a wake at `now`,
+        // or the alarm would fire over and over.
+        items.flatMap { listOf(nextWake(it, now, device), nextRing(it, now, device, last[it.id] ?: 0)) }.filter { it > now }.minOrNull() ?: 0
+
+    /** The reminders due to ring right now, in the order they were listed. Only status SHOW rings on the spot. */
+    fun ringsDue(items: List<RemItem>, now: Long, device: ZoneId, last: Map<String, Long>): List<RemItem> =
+        items.filter { status(it, now, device) == RemStatus.SHOW && nextRing(it, now, device, last[it.id] ?: 0).let { t -> t in 1..now } }
+
+    /** When each reminder last rang, kept in prefs as {"id": ms}; only ids still in the plan. */
+    fun lastFrom(s: String?): Map<String, Long> {
+        val o = runCatching { JSONObject(s ?: return emptyMap()) }.getOrNull() ?: return emptyMap()
+        val out = HashMap<String, Long>()
+        for (k in o.keys()) if (okId(k)) o.optLong(k, 0).takeIf { it > 0 }?.let { out[k] = it }
+        return out
+    }
+    fun lastJson(m: Map<String, Long>): JSONObject = JSONObject().apply { m.forEach { (k, v) -> put(k, v) } }
+    fun keepLast(items: List<RemItem>, m: Map<String, Long>): Map<String, Long> = m.filterKeys { id -> items.any { it.id == id } }
 
     // ---------- answers ----------
     /** Does what was typed clear it? Any case, spaces at the ends trimmed; one tap when `click`. */
