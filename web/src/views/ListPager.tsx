@@ -789,21 +789,32 @@ export function ListDots({ ids, index, names }: { ids: string[]; index: number; 
       press.current = pd.press(e.clientX, performance.now(), curReal);
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* gone */ }
       setHeld(true);
+      // The dots do not take touches themselves on the phone, so the pill starts the long press menu for the dot under the finger.
+      const x = e.clientX, y = e.clientY, el = e.currentTarget;
+      window.clearTimeout(hold.current);
+      hold.current = window.setTimeout(() => {
+        const p = press.current;
+        if (!p || p.scrubbing) { hold.current = 0; return; }
+        const id = real[pd.dotAt(x, geo())];
+        if (id) { hold.current = -1; menuAt(x, y, id, el); } else hold.current = 0;
+      }, pd.LONG_MS);
     },
     onPointerMove: (e: React.PointerEvent) => {
       const p = press.current; if (!p) return;
       const m = pd.move(p, e.clientX, geo());
       press.current = m.p;
+      if (m.started && hold.current > 0) { window.clearTimeout(hold.current); hold.current = 0; }
       if (m.to != null) { gosHaptic("tick"); go(first + m.to); }
     },
     onPointerUp: (e: React.PointerEvent) => {
       const p = press.current; press.current = null; setHeld(false);
+      if (hold.current > 0) { window.clearTimeout(hold.current); hold.current = 0; }
       if (!p) return;
       if (hold.current === -1) { hold.current = 0; return; }   // the long press menu already opened
       const r = pd.release(p, e.clientX, performance.now(), geo());
       if (r.kind === "tap" && r.to !== curReal) { gosHaptic("tick"); sfx.hover(); go(first + r.to); }
     },
-    onPointerCancel: () => { press.current = null; setHeld(false); },
+    onPointerCancel: () => { press.current = null; setHeld(false); if (hold.current > 0) { window.clearTimeout(hold.current); hold.current = 0; } },
   } : {};
   const dot = (id: string, i: number) => (
     <button key={id} type="button" role="tab" aria-selected={i === index} data-page={id}
