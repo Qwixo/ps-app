@@ -1196,6 +1196,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     }
     function remove(c){
       var i=cards.indexOf(c);if(i<0)return;
+      if(SquadMsg.hold(c))return;   // a G Squad reply waiting out its Undo keeps its card until it is sent (SquadMessageCard.swift)
       if(c.group)groupEnd(c,true);
       var back=into(c)&&!calm();
       cards.splice(i,1);fly(c);layout();

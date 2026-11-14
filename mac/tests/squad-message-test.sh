@@ -13,5 +13,6 @@ node "$HERE/tests/squad-message-card-test.mjs"
 T="$HERE/Sources/Toast.swift"; M="$HERE/Sources/main.swift"
 grep -q 'SquadMessageCore.held(sentry: Sentry.shared.isUp, sleep: SleepScreen.shared.isUp)' "$T" || { echo "held-hook=FAIL"; exit 1; }
 grep -q 'SquadMsg.focus()' "$T" && grep -q 'SquadMsg.esc()' "$T" && grep -q 'case "sqreply"' "$T" || { echo "keyboard-hooks=FAIL"; exit 1; }
+grep -q 'if(SquadMsg.hold(c))return;' "$T" || { echo "hold-hook=FAIL (Toast remove() must ask SquadMsg.hold first)"; exit 1; }
 grep -q 'Toast.shared.onSquadReply' "$M" && grep -q 'SquadMessageCore.opensChat' "$M" || { echo "main-hooks=FAIL"; exit 1; }
 echo "hooks=ok"

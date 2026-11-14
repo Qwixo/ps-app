@@ -182,6 +182,30 @@ ok("the view and the Tab list's requests carry the two switches", () => {
   assert.equal(d.notify, false); assert.equal(d.notifyOn, true); assert.equal(d.noteSound, true);
 });
 
+// ---------- review: a card that leaves during the Undo ----------
+const readF = (p: string) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
+ok("a card that left during the Undo is still drawn (held), after the live ones, once", () => {
+  const live = [{ id: "g:a" }, { id: "g:b" }], held = [{ id: "g:b" }, { id: "g:c" }];
+  assert.deepEqual(N.withHeld(live, held).map((c) => c.id), ["g:a", "g:b", "g:c"]);
+  assert.deepEqual(N.withHeld([], held).map((c) => c.id), ["g:b", "g:c"]);
+  assert.deepEqual(N.withHeld(live, []).map((c) => c.id), ["g:a", "g:b"]);
+});
+ok("the Undo promise holds: the reply goes only when its time is up, whatever happens to the card", () => {
+  let st: any = N.REPLY_IDLE, r;
+  for (const ev of [{ e: "open" }, { e: "type", text: "ok" }, { e: "send" }] as const) { r = N.replyStep(st, ev as any, 1000); st = r.state; }
+  assert.equal(st.k, "undo");
+  assert.equal(N.replyStep(st, { e: "tick" }, 1000 + N.REPLY_UNDO_MS - 1).send, null);
+  assert.equal(N.replyStep(st, { e: "tick" }, 1000 + N.REPLY_UNDO_MS).send?.op, "send");
+});
+ok("the website card holds itself while an Undo waits and lets go when it ends", () => {
+  const f = readF("src/views/SquadNoteCards.tsx");
+  assert.ok(f.includes("withHeld(live, keep)") && f.includes('hold(c, st.k === "undo")') && f.includes("() => () => hold(c, false)"));
+});
+ok("the Mac card holds itself through Toast's remove() while an Undo waits", () => {
+  assert.ok(readF("../mac/Sources/Toast.swift").includes("if(SquadMsg.hold(c))return;"));
+  assert.ok(!/sqUndo&&c\.sqText\)\{var t=c\.sqText;c\.sqText='';if\(c\.data\.id\)post/.test(readF("../mac/Sources/SquadMessageCard.swift")));
+});
+
 // ---------- wiring (the files say what the tests above rely on) ----------
 const read = (p: string) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
 ok("the feature entry is there: owner jan, shared, since 1.60, on by default, parts web mac phone", () => {

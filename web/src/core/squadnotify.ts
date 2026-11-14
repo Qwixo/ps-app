@@ -118,6 +118,13 @@ export function noteCard(m: NoteMsg) {
 export type NoteCard = ReturnType<typeof noteCard>;
 export const isNoteCard = (id: unknown): id is string => typeof id === "string" && id.startsWith(NOTE_PREFIX) && id.length > 2 && id.length <= 40;
 
+/** Cards to draw: the live ones, then any card that left while its reply waits out the Undo (it stays, with its Undo, until
+ *  the Undo ends: a swipe, or another device reading the chat, must not send the reply early or lose it). */
+export function withHeld<T extends { id: string }>(live: T[], held: T[]): T[] {
+  const have = new Set(live.map((c) => c.id));
+  return [...live, ...held.filter((h) => !have.has(h.id))];
+}
+
 // ---------- the reply box ----------
 export type ReplyState =
   | { k: "idle" }

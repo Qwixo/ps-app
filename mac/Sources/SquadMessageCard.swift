@@ -88,10 +88,17 @@ enum SquadMessageCard {
         post({type:'typing',on:false});
       },
       fire:function(c){
-        clearInterval(c.sqTimer);c.sqTimer=0;
-        var text=c.sqText;c.sqText='';c.sqUndo=false;c.sqOpen=false;if(SquadMsg.cur===c)SquadMsg.cur=null;
+        clearInterval(c.sqTimer);c.sqTimer=0;c.sqFiring=true;
+        var text=c.sqText;c.sqText='';c.sqUndo=false;c.sqOpen=false;c.sqKeep=false;if(SquadMsg.cur===c)SquadMsg.cur=null;
         if(text&&c.data.id)post({type:'sqreply',id:c.data.id,text:text});
         remove(c);
+      },
+      // The card is asked to leave (a swipe, another device read the chat, Clear all) while a Send waits for its Undo: the card
+      // stays, with its Undo, until the Undo time is up. Toast's remove() asks first. True: it stays.
+      hold:function(c){
+        if(!c.sqUndo||!c.sqText||c.sqFiring)return false;
+        c.sqKeep=true;c.dx=0;if(c.el&&c.el.classList)c.el.classList.remove('drag');layout();
+        return true;
       },
       undo:function(c){
         if(!c.sqUndo)return;
@@ -110,12 +117,15 @@ enum SquadMessageCard {
         layout();
       },
       esc:function(){if(SquadMsg.cur)SquadMsg.close(SquadMsg.cur)},
-      // The card leaves another way (the page took it back, a swipe) while a Send waits for its Undo: it was the person's own
-      // Send, so it goes now. Anything else just closes.
+      // The card is gone for good (it moved to the other stack, or nothing could keep it) while a Send waits for its Undo: it was
+      // the person's own Send, so it still goes, but only when the Undo time is up, never early. Anything else just closes.
       gone:function(c){
         if(!c.sqOpen)return;
-        if(c.sqUndo&&c.sqText){var t=c.sqText;c.sqText='';if(c.data.id)post({type:'sqreply',id:c.data.id,text:t})}
-        clearInterval(c.sqTimer);c.sqTimer=0;c.sqUndo=false;c.sqOpen=false;if(SquadMsg.cur===c)SquadMsg.cur=null;
+        if(c.sqUndo&&c.sqText&&c.data.id){
+          var t=c.sqText,id=c.data.id;c.sqText='';
+          setTimeout(function(){post({type:'sqreply',id:id,text:t})},Math.max(0,c.sqUntil-Date.now()));
+        }
+        clearInterval(c.sqTimer);c.sqTimer=0;c.sqUndo=false;c.sqOpen=false;c.sqKeep=false;if(SquadMsg.cur===c)SquadMsg.cur=null;
         post({type:'typing',on:false});
       }
     };

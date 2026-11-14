@@ -7,14 +7,29 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { noteAction, noteStore } from "../squad/chatengine";
 import { sendChat } from "./GSquadComposer";
 import { useBack } from "../squad/back";
-import { REPLY_IDLE, replyStep, type NoteCard, type ReplyEvent, type ReplyState } from "../core/squadnotify";
+import { REPLY_IDLE, replyStep, withHeld, type NoteCard, type ReplyEvent, type ReplyState } from "../core/squadnotify";
 import { MAX_TEXT } from "../core/squadchat";
 import { PS } from "../ps";
 import "./mailcards.css";
 import "./squadnote.css";
 
+// A card whose reply is waiting out its Undo is held here, so it stays on screen (with its Undo) even when the message
+// itself is gone (read on another device, Do Not Disturb, the chat opened). The reply goes only when the Undo time is up.
+const held = new Map<string, NoteCard>();
+let heldList: NoteCard[] = [];
+const heldSubs = new Set<() => void>();
+const heldStore = { subscribe: (f: () => void) => { heldSubs.add(f); return () => { heldSubs.delete(f); }; }, get: () => heldList };
+function hold(c: NoteCard, on: boolean) {
+  if (on === held.has(c.id)) return;
+  if (on) held.set(c.id, c); else held.delete(c.id);
+  heldList = [...held.values()];
+  heldSubs.forEach((f) => f());
+}
+
 export function SquadNoteCards() {
-  const list = useSyncExternalStore(noteStore.subscribe, noteStore.get);
+  const live = useSyncExternalStore(noteStore.subscribe, noteStore.get);
+  const keep = useSyncExternalStore(heldStore.subscribe, heldStore.get);
+  const list = withHeld(live, keep);
   if (PS || !list.length) return null;
   return (
     <aside className="mc mc-sq" aria-label="New G Squad messages">
@@ -40,6 +55,8 @@ function Note({ c }: { c: NoteCard }) {
     const t = window.setInterval(() => go({ e: "tick" }), 250);
     return () => window.clearInterval(t);
   }, [st.k]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { hold(c, st.k === "undo"); }, [st.k]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => hold(c, false), []);   // eslint-disable-line react-hooks/exhaustive-deps
   const art = useRef<HTMLElement>(null), was = useRef<ReplyState["k"]>("idle");
   useEffect(() => {
     if (st.k === "typing") box.current?.focus();

@@ -30,10 +30,10 @@ function mk(tag, cls = "") {
 }
 const el = (tag, cls, text) => { const e = mk(tag, cls || ""); if (text != null) e.textContent = text; return e; };
 
-let posted = [], answers = [], removed = [], laid = 0;
+let posted = [], answers = [], removed = [], laid = 0, held = 0;
 const post = (m) => posted.push(m);
 const answer = (c, a) => answers.push([c.data.id, a]);
-const remove = (c) => { removed.push(c.data.id); SquadMsg.gone(c); };
+const remove = (c) => { if (SquadMsg.hold(c)) { held++; return; } removed.push(c.data.id); SquadMsg.gone(c); };   // like Toast's remove()
 const layout = () => { laid++; };
 const ICON = {};
 let now = 1_000_000;
@@ -41,8 +41,10 @@ const realNow = Date.now; Date.now = () => now;
 const timers = []; let tid = 0;
 const setIntervalF = (f) => { timers.push({ id: ++tid, f }); return tid; };
 const clearIntervalF = (id) => { const i = timers.findIndex((t) => t.id === id); if (i >= 0) timers.splice(i, 1); };
-const advance = (ms) => { for (let s = 0; s < ms; s += 250) { now += 250; [...timers].forEach((t) => t.f()); } };
-const SquadMsg = new Function("ICON", "el", "post", "answer", "remove", "layout", "setInterval", "clearInterval", `${js}\nreturn SquadMsg;`)(ICON, el, post, answer, remove, layout, setIntervalF, clearIntervalF);
+const lates = [];
+const setTimeoutF = (f, ms) => { lates.push({ at: now + ms, f }); return lates.length; };
+const advance = (ms) => { for (let s = 0; s < ms; s += 250) { now += 250; [...timers].forEach((t) => t.f()); for (const l of [...lates]) if (l.at <= now) { lates.splice(lates.indexOf(l), 1); l.f(); } } };
+const SquadMsg = new Function("ICON", "el", "post", "answer", "remove", "layout", "setInterval", "clearInterval", "setTimeout", `${js}\nreturn SquadMsg;`)(ICON, el, post, answer, remove, layout, setIntervalF, clearIntervalF, setTimeoutF);
 
 function card(id = "g:11111111-2222-4333-8444-555555555555") {
   const full = el("div", "full"), mb = el("div", "acts"); full.appendChild(mb);
@@ -52,7 +54,7 @@ function card(id = "g:11111111-2222-4333-8444-555555555555") {
 }
 const btn = (root, sq) => root.find((x) => x.tagName === "BUTTON" && x.dataset.sq === sq);
 const press = (c, root, sq) => SquadMsg.click(c, btn(root, sq));
-const reset = () => { posted = []; answers = []; removed = []; laid = 0; };
+const reset = () => { posted = []; answers = []; removed = []; laid = 0; held = 0; };
 
 ok("the icon is a fixed path and the style sheet has no url or import", typeof ICON.chat === "string" && ICON.chat.startsWith("<path") && !/url\(|@import/.test(css));
 ok("the script never writes HTML", !/innerHTML|outerHTML|insertAdjacentHTML/.test(js));
@@ -119,8 +121,26 @@ ok("the script never writes HTML", !/innerHTML|outerHTML|insertAdjacentHTML/.tes
 }
 { reset(); const { c, full, mb } = card();
   press(c, mb, "reply"); c.sqTa.value = "keep going"; press(c, full, "send"); advance(1000);
-  SquadMsg.gone(c);
-  ok("a card that leaves during the Undo (the person's own Send) sends now, once", posted.filter((m) => m.type === "sqreply").length === 1 && timers.length === 0);
+  remove(c);   // asked to leave during the Undo (a swipe, another device read the chat)
+  ok("a card asked to leave during the Undo stays, nothing is sent yet", held === 1 && removed.length === 0 && !posted.some((m) => m.type === "sqreply") && c.sqUndo);
+  advance(3000);
+  ok("still waiting before the Undo time is up", !posted.some((m) => m.type === "sqreply"));
+  advance(1500);
+  ok("sent once when the Undo time is up, and then the card goes", posted.filter((m) => m.type === "sqreply").length === 1 && removed.length === 1 && timers.length === 0);
+}
+{ reset(); const { c, full, mb } = card();
+  press(c, mb, "reply"); c.sqTa.value = "wait for it"; press(c, full, "send"); advance(1000);
+  remove(c); press(c, full, "undo");
+  ok("Undo on a held card still works: nothing is sent, the box is back", !posted.some((m) => m.type === "sqreply") && !c.sqUndo && !!c.sqTa && c.sqTa.value === "wait for it");
+  advance(10000);
+  ok("and nothing goes later either", !posted.some((m) => m.type === "sqreply"));
+}
+{ reset(); const { c, full, mb } = card();
+  press(c, mb, "reply"); c.sqTa.value = "moved stack"; press(c, full, "send"); advance(1000);
+  SquadMsg.gone(c);   // the card is really gone (it moved to the other stack)
+  ok("a card really gone during the Undo does not send at once", !posted.some((m) => m.type === "sqreply"));
+  advance(4500);
+  ok("it sends once, when the Undo time is up", posted.filter((m) => m.type === "sqreply").length === 1 && posted.find((m) => m.type === "sqreply").text === "moved stack");
 }
 { reset(); const { c, mb } = card();
   press(c, mb, "reply"); SquadMsg.gone(c);
