@@ -148,7 +148,7 @@ ok("the card's Reply and the panel's Reply go the same way, and nothing in it se
 ok("the pop up cards keep their Reply on the Mac (mailcards.ts reply: true in PS mode)", () => {
   const m = src("src/mailcards.ts");
   assert.match(m, /const REPLY = import\.meta\.env\.MODE === "ps" \? \{ reply: true \} : \{\};/);
-  assert.equal((m.match(/\.\.\.REPLY/g) || []).length, 2);
+  assert.equal((m.match(/\.\.\.REPLY/g) || []).length, 3);   // client email, lead and WhatsApp cards;
 });
 ok("the Reply window route is still there after the V1.44 web app merge", () => {
   const a = src("src/App.tsx");

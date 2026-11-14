@@ -332,7 +332,7 @@ const src = (f: string) => readFileSync(new URL(`../src/${f}`, import.meta.url),
 ok("the Mac's cards get a Reply button, the phone and the website do not", () => {
   const m = src("mailcards.ts");
   assert.match(m, /const REPLY = import\.meta\.env\.MODE === "ps" \? \{ reply: true \} : \{\};/);
-  assert.equal((m.match(/\.\.\.REPLY/g) || []).length, 2, "client email cards and lead cards");
+  assert.equal((m.match(/\.\.\.REPLY/g) || []).length, 3, "client email cards, lead cards and WhatsApp cards");
 });
 ok("the main page never sends: it only hands the email to the Mac, saves prefs, and dismisses a card the Mac sent", () => {
   const e = src("replyengine.ts");

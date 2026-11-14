@@ -3,6 +3,7 @@
 // hours". Send shows "Sending in 10 s, Undo" first; only when that runs out does the reply leave. After the 24 hour window
 // closes, Reply becomes "Send a template" (approved templates the person made in Meta). Reads the same chat records the cards read.
 import { useEffect, useMemo, useState } from "react";
+import { onWaReply, peekWaReply, takeWaReply } from "../core/wareplyopen";
 import { settingsData } from "../core/select";
 import { startUndoSend, type UndoSend } from "../core/inlinereply";
 import { responsesFor, responsesOf } from "../core/mailreply";
@@ -37,6 +38,12 @@ export function WaMail({ s }: { s: ReturnType<typeof useVault> }) {
   // Templates are saved in the WhatsApp settings (not secret): refreshed here when a window has closed and none are known (the Tab list reads them).
   const needTpl = rows.some((r) => r.plan === "template") && !(prefs.templates?.length) && !(prefs.templatesAt && Date.now() - Date.parse(prefs.templatesAt) < 3600_000);
   useEffect(() => { if (needTpl && import.meta.env.MODE !== "ps") void refreshWaTemplates(); }, [needTpl]);
+  // A pop up card's Reply (the Mac brings this list up): the reply box opens on that chat, once, only when it is a chat we show.
+  useEffect(() => {
+    const take = () => { const id = peekWaReply(); if (id && rows.some((r) => r.cardId === id)) { takeWaReply(); if (!undo.has(id)) setOpenId(id); } };
+    take();
+    return onWaReply(take);
+  }, [rows, undo]);
   if (!rows.length) return null;
   const names: Record<string, string> = {};
   for (const d of s.docs.values()) if (d.kind === "client") names[d.id] = (d as Doc<ClientRec>).data.name;

@@ -140,6 +140,7 @@ import { mailOnSnap } from "./core/mailsnap";
 import { irepFeed, mailCardMessage, startMailCards } from "./mailcards";
 import { cleanReplyCardId, leadRows, setLeadMirror } from "./core/overlaymail";
 import { leadCards } from "./core/leadcards";
+import { requestWaReply } from "./core/wareplyopen";
 import { cleanReplyPatch, openReplyFor, openReplySetup, replyMessage, runMailReplyOp, sendInlineOrSay, startReplyEngine } from "./replyengine";
 import { cleanInlineSend } from "./core/inlinereply";
 import { cleanWaOp, runWaOp } from "./core/waops";
@@ -291,6 +292,7 @@ type ShellMsg = { type: "tick"; id: string; done?: boolean } | { type: "work"; i
   | { type: "add"; title: string; due: string | null; kind: "once" | "daily"; order?: number; repeat?: unknown; p1?: unknown; clientId?: unknown; notes?: unknown; unranked?: unknown; sqOn?: unknown; sqAnon?: unknown; group?: unknown } | { type: "sync" } | { type: "tap"; on: boolean }
   | { type: "psSettings"; data: PsSettings }
   | { type: "tab"; enabled: boolean; trusted: boolean; on: boolean }
+  | { type: "waReply"; id: string }
   | { type: "remember"; username: string; auth: string; kek: string }
   | { type: "rememberStatus"; exists: boolean; locked?: boolean } | { type: "touchid"; ok: boolean }
   | { type: "lock" } | { type: "suggest"; id: string; action: "add" | "dismiss" | "aware" | "dimx"; place?: { type?: string; order?: number; p1?: boolean }; zone?: unknown } | { type: "workStyle"; style: string }
@@ -523,6 +525,7 @@ export function startPsOverlay() {
     apply(m) {
       if (apiOverlayMessage(m as { type?: string })) return;   // Settings, AI task API: the key, shown when asked (src/taskapi.ts)
       if (m.type === "tab") { tabState = { enabled: m.enabled, trusted: m.trusted }; settingsListeners.forEach((l) => l()); }
+      else if (m.type === "waReply") requestWaReply((m as { id?: unknown }).id);   // a WhatsApp card's Reply: the reply box opens on that chat (core/wareplyopen.ts)
       else if (m.type === "rememberStatus") { remembered = m.exists; touchLocked = m.locked === true; settingsListeners.forEach((l) => l()); }
       else if (m.type === "mic") setMic(m);
       else if (m.type === "psSettings") { psSettings = m.data; settingsListeners.forEach((l) => l()); }   // Mac settings in the Tab list (V1.23)

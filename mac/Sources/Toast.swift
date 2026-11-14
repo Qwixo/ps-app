@@ -380,7 +380,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     // V1.55: a card that goes by itself after this many seconds (AI chat cards, Settings), with a line that runs down.
     if let l = NoteDrop.life(c["life"]) { card["life"] = l }
     // Reply from PS (V1.44, MailSend.swift): a client email or a lead's reply can be answered from its card.
-    if (c["reply"] as? Bool) == true && (tone == "mail" || tone == "lead") { card["reply"] = true }
+    if (c["reply"] as? Bool) == true && (tone == "mail" || tone == "lead") { card["reply"] = true }   // a WhatsApp card (icon whatsapp, tone mail) too: its Reply opens the Tab list's reply box
     // Remind me in: where it starts and how far one wheel step moves it (chat cards 2 and 1, emails 15 and 5).
     if let r = c["remind"] as? [String: Any], let st = r["start"] as? Int, let sp = r["step"] as? Int, let lo = r["min"] as? Int, let hi = r["max"] as? Int {
       let f = { (v: Int) in max(1, min(240, v)) }

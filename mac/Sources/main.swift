@@ -487,6 +487,11 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       if id.hasPrefix("sk:") { Second.shared.keyAction(id, action); return }   // Allow PS to use its Second Computer key
       if id.hasPrefix("rh:") { AutoReboot.shared.cardAction(id, action); return }   // the restart helper was switched off by an update: open System Settings
       if id.hasPrefix("bg:") { Backgrounds.shared.cardAction(id, action); return }   // a background video problem: Copy error code
+      // V1.60 a WhatsApp card's Reply: the Tab list comes up and opens the reply box on that chat (never sends, the person's own Send does).
+      if WhatsAppCardCore.opensReply(id: id, action: action), let d = try? JSONSerialization.data(withJSONObject: ["type": "waReply", "id": id]), let j = String(data: d, encoding: .utf8) {
+        self?.showOverlay()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self?.sendToOverlay(j) }
+      }
       guard let d = try? JSONSerialization.data(withJSONObject: ["type": "cardAction", "id": id, "action": action]),
             let json = String(data: d, encoding: .utf8) else { return }
       self?.sendCardAction(json)

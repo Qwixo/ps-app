@@ -50,7 +50,8 @@ export const prefsOf = (st: Pick<Settings, "wa"> | null | undefined): WaPrefs =>
  *  typed with a leading 0 (national form) needs the person's own calling code (`country`); without one it is not guessed. */
 export function normalizePhone(input: unknown, country?: string | null): string | null {
   if (typeof input !== "string") return null;
-  const raw = input.trim().replace(/\s*(?:ext\.?|x)\s*\d+$/i, "");   // an extension is not part of the number
+  // An extension is not part of the number; "tel:" is a link prefix; "+44 (0)7700 ..." writes the dropped trunk 0 in brackets, it is not dialled from abroad.
+  const raw = input.trim().replace(/^tel:/i, "").replace(/\s*(?:ext\.?|x)\s*\d+$/i, "").replace(/(^\+\s*\d{1,3}\s*)\(0\)/, "$1");
   if (!raw || /[a-z]/i.test(raw)) return null;
   const plus = raw.startsWith("+");
   let d = raw.replace(/\D/g, "");

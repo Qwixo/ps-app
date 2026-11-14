@@ -26,6 +26,9 @@ await ok("phone numbers: international form, national form needs the calling cod
   assert.equal(W.normalizePhone("+1 (650) 555-1234"), "16505551234");
   assert.equal(W.normalizePhone("001 650 555 1234"), "16505551234");
   assert.equal(W.normalizePhone("16505551234"), "16505551234");
+  assert.equal(W.normalizePhone("+44 (0)7700 900123"), "447700900123");   // review: the bracketed trunk 0 is not dialled
+  assert.equal(W.normalizePhone("+44 (0) 7700 900123"), "447700900123");
+  assert.equal(W.normalizePhone("tel:+16505551234"), "16505551234");
   assert.equal(W.normalizePhone("0905 123 456", "421"), "421905123456", "a leading 0 becomes the calling code");
   assert.equal(W.normalizePhone("0905 123 456"), null, "no calling code known: not guessed");
   assert.equal(W.normalizePhone("0905 123 456", "+421"), "421905123456");

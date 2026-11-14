@@ -143,7 +143,7 @@ function sync(force = false) {
   for (const c of [...wa].reverse()) {   // WhatsApp: tone "mail" with the green bubble icon (Toast.swift), Open in WhatsApp, Remind me in, Dismiss on every device
     if (held(c.id)) continue;
     if ((justDismissed.get(c.id) || 0) > Date.now() - 15_000) continue;
-    const card = { id: c.id, rev: c.rev, tone: "mail", icon: "whatsapp", title: c.title, sub: c.sub, body: c.body, url: c.url, at: c.at, discreetText: "New WhatsApp message" };
+    const card = { id: c.id, rev: c.rev, tone: "mail", icon: "whatsapp", title: c.title, sub: c.sub, body: c.body, url: c.url, at: c.at, discreetText: "New WhatsApp message", ...REPLY };
     const json = JSON.stringify(card);
     if (!force && shown.get(c.id) === json) continue;
     // Each message notifies once per device: keyed by the WhatsApp message id (the chat's newest incoming message), and again when a Remind comes due.

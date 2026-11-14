@@ -98,6 +98,7 @@ function sendPrefs(force = false) {
 
 /** Messages from the Mac for this half. True when handled. */
 export function replyMessage(m: { type?: string; id?: unknown; action?: unknown; cardId?: unknown }): boolean {
+  if (m.type === "cardAction" && m.action === "reply" && typeof m.id === "string" && m.id.startsWith("w:")) return true;   // a WhatsApp card's Reply: the Mac opens the Tab list's reply box (waReply), never the email compose window
   if (m.type === "cardAction" && m.action === "reply" && typeof m.id === "string") { openReplyFor(m.id); return true; }
   if (m.type === "reply:sent" && typeof m.cardId === "string") {
     // Really sent (the Mac says so only after Gmail or Instantly accepted it): the card is dealt with.
