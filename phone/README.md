@@ -27,8 +27,15 @@ cincee.com/client/gos/, and its updates from GitHub (github.com/RedbyPS/ps).
 - Remember me: the derived vault keys (never the passphrase) sealed by a Keystore key that needs the
   fingerprint or the phone PIN.
 - Notifications without Google: WorkManager about every 15 minutes asks `vault_probe` (a few hundred
-  bytes); only a change wakes the page for one change only sync. Calls ring 10 minutes before
-  through AlarmManager, on time even while the phone sleeps.
+  bytes); only a change wakes the page for one change only sync. Since V1.59 Instant notifications
+  (LiveLink.kt, on by default) also keeps one quiet Supabase Realtime connection in a foreground service
+  and hears the server's empty "something new" signals, so a card shows within seconds (LiveClock.kt says
+  why it was late before). Calls ring 10 minutes before through AlarmManager, on time even while the
+  phone sleeps.
+- Dynamic island (V1.59, Island.kt, IslandShow.kt): a black pill around the camera over every app, with
+  the next meeting, Pomodoro breaks, stand-ups, reminders and AI messages from the same island state the
+  Mac gets. Tap opens PS, hold gives Hide for 30 minutes and Settings. Needs Display over other apps;
+  never on the lock screen; on the developer's build never over Signal or 1Password.
 - Fitness (Fitness.kt, RestClock.kt): a ticked set starts a rest. A foreground service shows a big
   countdown on the lock screen (system chronometer, no wake ups) with +15 s and Skip; an exact alarm
   ends it on time through Doze with a strong buzz (even on silent) and a short chime (not on silent).

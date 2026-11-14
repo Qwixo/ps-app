@@ -240,6 +240,11 @@ export const CONTROLS: Controls = {
   // AI task API (views/TaskApi.tsx): on or off, the key, the switches, Copy for AI, always open.
   "task-api": function TaskApi({ e }) { return <SetRow e={e} body={<TaskApiSettings />} open plain />; },
   // Reply from PS: no settings page of its own (the developer, 8 Nov 2026); this opens the reply panel with no email in it.
+  // V1.59 Reply in the email panel (core/inlinereply.ts): on unless switched off, on every device.
+  "reply-in-panel": function ReplyInPanel({ e }) {
+    const v = useVault();
+    return <SetRow e={e} right={<OnOff label={e.name} on={settingsData(v).replyInPanel !== false} ready={v.status === "unlocked"} set={(on) => save({ replyInPanel: on })} />} />;
+  },
   "reply-from-ps": row(() => <button className="btn quiet sm" onClick={() => psPost({ type: "looks", patch: { replySetup: true } })}
     data-tip="Open the reply panel" data-tip-line="Quick replies, your signature, Send now or at a random time, and the accounts that can send.">Open</button>),
   "gmail-replies": block(() => <MailPeople overlay={PS} />, false),

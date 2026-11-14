@@ -105,7 +105,7 @@ object Receivers {
             val updated = i.action == Intent.ACTION_MY_PACKAGE_REPLACED
             val done = goAsync()
             Work.post { try { Alarms.restore(app); if (updated) Updater.cleanup(app) } finally { done.finish() } }
-            Pulse.schedule(c); Quiet.sync(c); WatchService.sync(c); Reminds.restore(c); Fitness.restore(c); Gym.restore(c); Sleep.restore(c); Remind.restore(c); Soundboard.restore(c)
+            Pulse.schedule(c); Quiet.sync(c); WatchService.sync(c); LiveService.sync(c); Reminds.restore(c); Fitness.restore(c); Gym.restore(c); Sleep.restore(c); Remind.restore(c); Soundboard.restore(c)
             if (updated) {
                 Notifier.updated(c, BuildConfig.VERSION_NAME)
                 // Back on screen by itself where GrapheneOS allows it (it does with Display over other apps).
@@ -149,14 +149,15 @@ object Reminds {
     /** After a reboot or an update: arm the next reminded card again. */
     fun restore(c: Context) { val n = sp(c).getLong("next", 0); if (n > 0) next(c, n) }
     /** The alarm: one background check now (the page then shows the card again). */
-    fun fire(c: Context) { WorkManager.getInstance(c).enqueueUniqueWork(NOW, ExistingWorkPolicy.REPLACE, work(0)) }
+    fun fire(c: Context) { if (Prefs.background(c)) Pulse.now(c, force = true, why = "remind") else WorkManager.getInstance(c).enqueueUniqueWork(NOW, ExistingWorkPolicy.REPLACE, work(0)) }
     /** A remind tapped here: make sure a check runs by then, even before the page has saved it. */
     fun wakeBy(c: Context, at: Long) {
         val n = sp(c).getLong("next", 0)
         if (n in 1..at && n > System.currentTimeMillis()) return
         next(c, at)
     }
-    fun saveSoon(c: Context) { if (Prefs.background(c)) WorkManager.getInstance(c).enqueueUniqueWork(NOW, ExistingWorkPolicy.REPLACE, work(0)) }
+    // V1.59: at once rather than a WorkManager job, which may wait while the phone dozes (the job stays as the fallback).
+    fun saveSoon(c: Context) { if (Prefs.background(c)) { Pulse.now(c, force = true, why = "remind tapped"); WorkManager.getInstance(c).enqueueUniqueWork(NOW, ExistingWorkPolicy.REPLACE, work(60_000)) } }
     /** A reminded card is due now (the periodic check looks even when nothing changed in the vault). */
     fun due(c: Context): Boolean = sp(c).getLong("next", 0) in 1..System.currentTimeMillis()
 }

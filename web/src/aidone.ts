@@ -6,7 +6,7 @@
 // ever sees it. Only while the vault is open: otherwise nothing is taken and PS on the Mac keeps the items until it
 // is. Taken items go back as {type:"aiDone:taken", keys}, and the Mac deletes them.
 import { psPost } from "./ps";
-import { vaultStore } from "./core/vault";
+import { pokeCardsAfterSave, vaultStore } from "./core/vault";
 import { settingsData } from "./core/select";
 import { saveSettings } from "./core/actions";
 import { addChatDone, aiDoneItems } from "./core/chatdone";
@@ -23,6 +23,7 @@ export function aiDoneMessage(m: { type?: string; items?: unknown }): boolean {
       const cur = settingsData(s);
       let list = cur.chatDone;
       for (const d of done) list = addChatDone(list, d, Date.now(), cur.dnd);
+      pokeCardsAfterSave();   // V1.59: the phone shows it within seconds (core/vault.ts)
       await saveSettings({ chatDone: list });
     }
     if (keys.length) psPost({ type: "aiDone:taken", keys });

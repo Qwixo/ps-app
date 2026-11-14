@@ -16,7 +16,10 @@ struct TPomo: Equatable {
   var id: String; var phase: String; var endsAt: Double; var left: Double?; var wait: Bool; var clock: Bool; var sound: Bool; var back: TBack?
   var isBreak: Bool { phase != "work" }
 }
-struct TStand: Equatable { var at: Double; var len: Double; var sound: Bool; var test = false }
+struct TStand: Equatable { var at: Double; var len: Double; var sound: Bool; var test = false
+  /// V1.59: the person has never seen the first stand-up's question (IslandBubbleCore.swift StandAsk).
+  var ask = false
+}
 struct TMeet: Equatable { var id: String; var title: String; var start: Double; var end: Double; var from: Double; var link: String? }
 struct TimersIn: Equatable {
   var pomo: TPomo?
@@ -81,7 +84,7 @@ enum TimersCore {
       }
     }
     if let s = d["stand"] as? [String: Any], let at = num(s["at"]), let len = num(s["len"]), len > 0, len <= 3_600_000 {
-      t.stand = TStand(at: at, len: len, sound: (s["sound"] as? Bool) == true, test: (s["test"] as? Bool) == true)
+      t.stand = TStand(at: at, len: len, sound: (s["sound"] as? Bool) == true, test: (s["test"] as? Bool) == true, ask: (s["ask"] as? Bool) == true)
     }
     if let m = d["meet"] as? [String: Any], let start = num(m["start"]), let end = num(m["end"]), let from = num(m["from"]), end > start {
       let title = str(m["title"], 80)

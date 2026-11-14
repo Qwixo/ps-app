@@ -9,7 +9,7 @@ import { put, remove, setMerger, vaultStore, type Snapshot } from "../core/vault
 import { useVault, todayISO } from "../ui/kit";
 import { fitPush } from "./sync";
 import {
-  addSet, endExercise, extraSet, fitSetCount, mergePrefs, mergeProgram, mergeWorkout, nextDay, patchSet, removeSet, startWorkout, stampPrefs, uidF,
+  addSet, endExercise, extraSet, fitSetCount, mergePrefs, mergeProgram, mergeWorkout, nextDay, patchSet, removeSet, setComment, startWorkout, stampPrefs, uidF,
   type FitDay, type FitLogEx, type FitPrefs, type FitProgram, type FitSet, type FitWorkout, type NextDay,
 } from "../core/fitness";
 
@@ -112,6 +112,7 @@ export async function startDay(opts: { dayId?: string | null; week?: number; fre
   return queue(() => put<FitWorkout>("fwork", w, { ws: null }));
 }
 export const setPatch = (id: string, exId: string, setId: string, patch: Partial<FitSet>) => editWorkout(id, (w, at) => patchSet(w, exId, setId, patch, at));
+export const setNote = (id: string, exId: string, setId: string, text: string) => editWorkout(id, (w, at) => setComment(w, exId, setId, text, at));
 export const setAdd = (id: string, exId: string) => editWorkout(id, (w, at) => addSet(w, exId, at));
 /** Add set (same kg and reps as the last set) or Drop set (20 percent lighter, tagged DROP). Returns the new set's id. */
 export function setExtra(id: string, exId: string, drop: boolean, step: number): string {

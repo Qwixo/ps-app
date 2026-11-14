@@ -86,6 +86,7 @@ export function GosLayer() {
   useEffect(() => onShell((m) => {
     if (m.type !== "open") return;
     if (m.what === "settings") { settingsRef.current(); return; }
+    if (m.what === "island-settings") { settingsRef.current("phone"); return; }   // V1.59 the island's hold menu, Settings
     openSettings(null);
     if (m.what === "fitness") { fitPop.open(); return; }   // the rest timer's notification (ps-gos Fitness.kt)
     // V1.55 Open task on a reminder's notification (ps-gos Remind.kt): the list, with that task glowing (views/TaskMap.tsx).
@@ -95,7 +96,7 @@ export function GosLayer() {
       window.setTimeout(() => window.dispatchEvent(new CustomEvent("ps-open-task", { detail: id })), 300);
       return;
     }
-    setView(m.what === "inbox" ? "inbox" : "list");
+    setView(m.what === "inbox" ? "inbox" : m.what === "plan" ? "plan" : "list");   // V1.59 plan: a tap on the island's meeting
     if (m.what === "add") window.setTimeout(() => openAddTask("tab"), 260);
   }), []);
   // An older link to the phone's own sheet (V1.43 to V1.46) lands on Settings, This phone.

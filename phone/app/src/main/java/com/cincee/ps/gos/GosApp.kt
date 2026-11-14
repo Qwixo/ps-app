@@ -19,6 +19,7 @@ class GosApp : Application(), Configuration.Provider {
         val app = this
         Work.post { Alarms.restore(app) }
         WatchService.sync(this)
+        LiveService.sync(this)   // V1.59 the island and the live link (Island.kt)
         Quiet.sync(this)
     }
 

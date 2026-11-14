@@ -87,12 +87,34 @@ export function nextStand(p: StandPrefs, now: number, skip: Skip = () => false):
   return null;
 }
 
-/** What the island is told: the stand-up on now or next (wall clock), its length, and whether to chime. */
-export interface StandIsland { at: number; len: number; sound: boolean; test?: boolean }
-export function standIsland(p: StandPrefs, now: number, soundOk: boolean, skip?: Skip, test?: number | null): StandIsland | null {
+/** What the island is told: the stand-up on now or next (wall clock), its length, whether to chime, and (V1.59) ask:
+ *  the person has never seen the first stand-up's question, so the Mac asks it during this one. */
+export interface StandIsland { at: number; len: number; sound: boolean; test?: boolean; ask?: boolean }
+export function standIsland(p: StandPrefs, now: number, soundOk: boolean, skip?: Skip, test?: number | null, ask = false): StandIsland | null {
   const len = p.len * 60_000;
-  // "Try it now" in Settings: one stand-up 15 seconds from the press, whatever the schedule says.
+  // "Try it now" in Settings: one stand-up 15 seconds from the press, whatever the schedule says. Never asks.
   if (test && now < test + len) return { at: test, len, sound: p.sound && soundOk, test: true };
   const at = nextStand(p, now, skip);
-  return at === null ? null : { at, len, sound: p.sound && soundOk };
+  if (at === null) return null;
+  return ask ? { at, len, sound: p.sound && soundOk, ask: true } : { at, len, sound: p.sound && soundOk };
+}
+
+// ---------- V1.59: the first stand-up asks once ----------
+// Stand-up reminders are on for everyone unless they switched them off (standPrefs: on unless false, so new people and
+// people who never touched the setting have them). The first real stand-up the island shows, a card comes out of the
+// island just below it (ps-mac IslandBubble.swift StandAskWindow) with these words. Seen once, never again: kept in
+// the person's synced settings (settings.standAsk), so every Mac they use knows.
+export const STAND_ASK_WORDS = {
+  title: "Do you want to turn stand-up reminders off?",
+  off: "Turn off",
+  settings: "See settings",
+  keep: "Keep them on",
+} as const;
+export type StandAnswer = "seen" | "off" | "settings" | "keep";
+/** Ask during the next stand-up? Only while the person has never seen the question and has stand-ups on. */
+export const standAskDue = (st: { standAsk?: boolean; standup?: unknown }): boolean => st.standAsk !== true && standPrefs(st.standup).on;
+/** What an answer from the Mac saves. Every answer marks it seen; Turn off also switches stand-ups off. null: not an answer. */
+export function standAskPatch(answer: unknown, current: unknown): { standAsk: true; standup?: StandPrefs } | null {
+  if (answer !== "seen" && answer !== "off" && answer !== "settings" && answer !== "keep") return null;
+  return answer === "off" ? { standAsk: true, standup: { ...standPrefs(current), on: false } } : { standAsk: true };
 }

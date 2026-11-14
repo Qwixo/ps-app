@@ -149,10 +149,14 @@ export const SETTINGS: SetEntry[] = [
   { id: "meetings", group: "notify", name: "Meetings", line: "Alerts before a meeting, private mode and your notes during a call.", on: MAC, words: ["meeting", "call", "zoom", "calendar", "reminder", "notes", "private", "alert"] },
   { id: "calendar", group: "notify", name: "Meetings from this Mac's Calendar", line: "Show the meetings in the Calendar app on this Mac.", on: MAC, notRed: true, words: ["calendar", "ical", "events", "meetings"] },
   { id: "phone-checks", group: "notify", name: "Background checks", line: "How this phone hears about client emails and calls, with no Google services.", ...GOS_ONLY, words: ["background", "battery", "notifications", "sync", "push", "google", "check", "emails", "calls"] },
+  { id: "phone-live", group: "notify", name: "Instant notifications", line: "Client emails, AI messages and finished chats within seconds, through one quiet connection.", ...GOS_ONLY, words: ["instant", "live", "fast", "laggy", "late", "slow", "push", "notifications", "realtime", "seconds", "battery"] },
   { id: "phone-perms", group: "notify", name: "Phone permissions", line: "Notifications, calls on the minute, the gym alarm and running while the phone sleeps.", ...GOS_ONLY, words: ["permission", "permissions", "allow", "notifications", "exact alarm", "calls on the minute", "gym alarm", "lock screen", "battery", "sleep", "full screen"] },
   { id: "mweb-alerts", group: "notify", name: "Alerts", line: "Meetings and new tasks show while the app is open.", ...MWEB_ONLY, words: ["notifications", "alerts", "push", "closed"] },
   // V1.46: the daily reminder is reminder one of the Annoying 15 min reminder tab; this row points there.
   { id: "daily-reminder", group: "notify", name: "Daily reminder", line: "Now in its own tab, Annoying 15 min reminder, with as many as you like.", on: MAC, words: ["daily", "follow up", "fup", "nudge"] },
+  // V1.59 (the developer, 14 Nov 2026: "make it so you can click to reply IN the email panel, same thing on the desktop too").
+  { id: "reply-in-panel", group: "notify", name: "Reply in the email panel", line: "A Reply button on each email in the email panel: type and send right there, with a short Undo.",
+    words: ["reply", "inline", "email panel", "inbox", "emails", "send", "answer", "respond", "quick reply", "gmail", "instantly", "undo"] },
   { id: "reply-from-ps", group: "notify", name: "Reply from PS app", line: "Quick replies, your signature, when Send sends, and the accounts that can send.", on: MAC, mail: true,
     words: ["reply", "send", "email", "gmail", "instantly", "signature", "responses", "templates", "canned", "schedule", "scheduled", "send later", "outbox", "api key", "quick replies", "random", "delay", "robot"] },
   { id: "gmail-replies", group: "notify", name: "Who emails me", line: "Whose Gmail replies show as cards.", on: MAC, red: true, more: true, words: ["gmail", "email", "mail", "client", "replies", "inbox"] },
@@ -311,6 +315,7 @@ export const SETTINGS: SetEntry[] = [
   { id: "phone-open", group: "phone", name: "Open your list from", line: "Quick Settings tile, quiet notification, home screen widget or bubble.", ...GOS_ONLY, words: ["widget", "tile", "bubble", "notification", "home screen", "shortcut", "open"] },
   { id: "phone-haptics", group: "phone", name: "Haptics", line: "A light tap when you tick, lift or drop a task.", on: PHONE, words: ["vibration", "vibrate", "buzz", "haptic", "feel"] },
   { id: "mweb-install", group: "phone", name: "Add to your Home Screen", line: "Opens full screen like an app and works offline.", ...MWEB_ONLY, words: ["install", "home screen", "app", "pwa", "add to home screen"] },
+  { id: "phone-island", group: "phone", name: "Dynamic island", line: "A live island around the camera, over every app: meetings, Pomodoro, stand-ups, reminders, AI messages.", ...GOS_ONLY, words: ["island", "dynamic island", "pill", "camera", "overlay", "over other apps", "countdown", "pomodoro", "meeting", "stand up", "reminder", "ai message"] },
   { id: "phone-macs", group: "phone", name: "Your Macs", line: "Restart, shut down or lock your Macs from this phone.", ...GOS_ONLY, red: true, words: ["mac", "macs", "restart", "shut down", "lock", "remote", "second computer"] },
   { id: "phone-not-here", group: "phone", name: "Left on the Mac", line: "The keyboard tap, middle click, the mixer and AirPods switching stay on the Mac.", ...GOS_ONLY, more: true, words: ["keyboard", "mixer", "airpods", "middle click", "vpn", "network", "missing"] },
 

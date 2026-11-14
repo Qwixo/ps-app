@@ -493,7 +493,12 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     }
     // Reply from PS (V1.44): the sign ins and the queue live here (MailSend.swift); only the developer's Send or schedule sends.
     MailSend.shared.app = self
-    MailSend.shared.onChange = { [weak self] in self?.sendSettings(); self?.replyWin.status(); self?.replyWin.queue() }
+    MailSend.shared.onChange = { [weak self] in
+      self?.sendSettings(); self?.replyWin.status(); self?.replyWin.queue()
+      // V1.59 Reply in the email panel: the queue's rows (state and any problem, never the words) to the main page, which
+      // writes "Replied" or "Not sent" on the reply's vault record so the phone and the Tab list show it too.
+      if let d = try? JSONSerialization.data(withJSONObject: ["type": "reply:rows", "rows": MailSend.shared.rows]), let json = String(data: d, encoding: .utf8) { self?.sendToMain(json) }
+    }
     MailSend.shared.onSent = { [weak self] card in   // really sent: the card is dismissed on every device
       guard let d = try? JSONSerialization.data(withJSONObject: ["type": "reply:sent", "cardId": card]), let json = String(data: d, encoding: .utf8) else { return }
       self?.sendCardAction(json)
@@ -514,6 +519,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // island settings window (web views/IslandSettings.tsx; the usual Settings if that page is older).
     Island.shared.onAway = { [weak self] in self?.sendSettings() }
     Island.shared.onSettings = { [weak self] in self?.openList(then: Island.openSettingsJS) }
+    // V1.59: See settings on the first stand-up's question: the Tab list, Settings open on Stand-up reminders.
+    IslandTimers.shared.onStandSettings = { [weak self] in self?.openList(then: StandAsk.settingsJS) }
     // V1.53 island clearance: the list hears where the island is, so Keep overlay and Hover mode slide out of its way.
     Island.shared.onShape = { [weak self] in self?.pushIsland() }
     // The Dynamic Island's tick and Undo go back to the main window, which ticks the task as the list does.
@@ -1515,6 +1522,10 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // Reply from PS (V1.44, ReplyWindow.swift, MailSend.swift, web src/replyengine.ts).
     case "reply:open" where fromMain:           // a card's Reply: the compose window for that email
       if let ctx = msg["ctx"], let prefs = msg["prefs"] { replyWin.lastPrefs = prefs; replyWin.open(ctx: ctx, prefs: prefs) }
+    // V1.59 Reply in the email panel (web src/replyengine.ts handOver): the developer's own reply from the email panel's
+    // box, handed over only after his Send and its 10 second Undo ran out on the page. Checked by OutJob.from like any job.
+    case "reply:queue" where fromMain:
+      if let j = msg["job"] as? [String: Any] { MailSend.shared.queue(j, undo: false) }
     case "reply:prefs" where fromMain:          // signatures and saved responses changed
       if let p = msg["prefs"] { replyWin.lastPrefs = p; replyWin.prefs(p) }
     case "reply:cannot" where fromMain:

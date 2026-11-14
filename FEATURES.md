@@ -73,6 +73,18 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Export my data | An encrypted backup file, and bringing one back in. | Settings, Sync and account. Only when you click it. |
 | What's new | Shows the changes once per version. | Shown once. |
 
+## New in V1.59
+
+- Phone island: on your phone, a small live island around the camera shows over every app: your next meeting, Pomodoro breaks, stand-ups, reminders and AI messages. Tap it to open PS.
+- Faster phone notifications: client emails, AI messages and finished chats now arrive within seconds instead of up to 15 minutes.
+- Scan a machine: in a workout, point your phone at a machine's label, even in German, and PS finds the exercise, adds it to your workout and shows how it is done. The picture stays on your phone.
+- Comments on sets: after a set, add a short note like 'seat at 4' and see it later in your workout history.
+- New exercise: Abs cable crunch, with its own little figure.
+- Reply in the email panel: write a reply right in the email card on your phone, the website or your Mac, with a few seconds to undo.
+- Stand-up reminders are now on for everyone and show big in the middle of the island. The first time, PS asks if you want them off.
+- The next meeting bubble on the island now always shows its full time.
+- Completed tasks open on the last 24 hours, with More at the bottom for the rest.
+
 ## New in V1.58
 
 - Pomodoro timer: a new button in the Tab overlay. Set your own work and break times, and during a break the island turns into a countdown, then shows a green tick and "Now back to work".

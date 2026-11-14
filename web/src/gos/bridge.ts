@@ -28,6 +28,8 @@ import { remShellMessage, remWake, startRemWatch } from "../remwatch";
 import { calRefreshIfStale, startCalRefresh } from "../calrefresh";
 import { visibleEvents } from "../core/meethide";
 import { startTgBot } from "../tgbot";
+import { startIsland } from "../island";
+import { isRedAccount } from "../core/account";
 
 export const GOS = import.meta.env.MODE === "gos";
 /** The mobile web app (cincee.com/todolist-mobile, src/mobile/): the same phone home as PS GOS in a phone's browser
@@ -60,9 +62,13 @@ export type GosPrefs = {
   ays: boolean; aysApps: string[];                      // "Are you sure" for YouTube and Netflix
   haptics: boolean;
   stay: boolean;                                         // Stay signed in: no fingerprint each open, no lock by itself
+  island?: boolean;                                      // V1.59 the Dynamic island over other apps (missing = on; an older shell has none)
+  live?: boolean;                                        // V1.59 Instant notifications: the shell's live link (missing = on)
   screenTime?: boolean;                                  // Track my screen time (open source build): false = the shell reads no usage and nothing is saved (missing = on)
 };
-export type GosPerms = { notifications: boolean; usage: boolean; overlay: boolean; battery: boolean; exactAlarm: boolean; install: boolean; fullScreen?: boolean };
+export type GosPerms = { notifications: boolean; usage: boolean; overlay: boolean; battery: boolean; exactAlarm: boolean; install: boolean; fullScreen?: boolean;
+  /** V1.59: this build keeps the island off 1Password and Signal, so it needs Usage access. live: the live link is up. */
+  islandUsage?: boolean; live?: boolean };
 export type GosUpdate = { state: "idle" | "checking" | "none" | "available" | "downloading" | "verifying" | "ready" | "installing" | "error";
   version?: string; keyword?: string; current?: string; currentKeyword?: string; notes?: string; history?: unknown; size?: number; progress?: number; error?: string;
   by?: string };   // V1.58: who made the update ("jan", "gsquad"); shown only when it is a profile name (core/releaseby.ts)
@@ -248,6 +254,7 @@ export function startGos() {
     if (t === "meetCard" || t === "cardHide" || t === "aysMeeting") gosPost(m);
   };
   let cardsOn = false, lastStatus = "", wasOpen = false;
+  let lastRed: boolean | null = null;
   vaultStore.subscribe(() => {
     const s = vaultStore.get();
     // Locked on screen (the Lock button, or the website's own Lock): the next open asks for the fingerprint
@@ -274,7 +281,13 @@ export function startGos() {
         startSquad();   // G Squad (V1.40): the phone counts as working while PS runs on it, and shares tasks (src/squad/engine.ts)
         startGymSquad();   // G Squad Fitness (V1.40): your Fitness and Sleep cards and the boards (src/squad/gym.ts)
         startCalRefresh(() => state.visible);   // the calendar every 2 minutes, only while PS is on screen; the server reads Google every minute (src/calrefresh.ts)
+        // V1.59 the phone's Dynamic island (ps-gos Island.kt): the same island state the Mac gets (src/island.ts), drawn by
+        // the shell around the camera over every app. Locked or signed out, it is told "off" and shows nothing of the vault.
+        startIsland(gosPost);
       }
+      // Whose account: the island's 1Password and Signal rule starts from it (the developer's own: never over them, core/profile.ts).
+      const red = isRedAccount(s);
+      if (red !== lastRed) { lastRed = red; gosPost({ type: "islandRule", red }); }
       sendSchedule();
       sendTasks();
     } else { lastSchedule = ""; lastTasks = ""; }

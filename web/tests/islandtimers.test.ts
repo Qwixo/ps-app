@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { BACK_SHOW_MS, ISLAND_TONES, dropsStand, standBackId, timersShow } from "../src/core/islandtimers.ts";
-import { STAND_DEFAULT, STAND_LEAD_MS, STAND_WORDS, inHours, nextStand, standIsland, standPrefs } from "../src/core/standup.ts";
+import { STAND_ASK_WORDS, STAND_DEFAULT, STAND_LEAD_MS, STAND_WORDS, inHours, nextStand, standAskDue, standAskPatch, standIsland, standPrefs } from "../src/core/standup.ts";
 import { MEET_WORDS, meetBubblePrefs, meetIsland, shortLeft } from "../src/core/meetbubble.ts";
 import { POMO_DEFAULT, applyOp, breakWindows, pomoIsland, pomoPrefs, resolve } from "../src/core/pomodoro.ts";
 import { FOLLOWS, SLOTS, followStyle, emptyLayout } from "../src/core/tablayout.ts";
@@ -167,4 +167,55 @@ ok("plain words, no long dashes, in every new file", () => {
   }
 });
 
+// ---------- V1.59: on by default for everyone, and the first stand-up asks once ----------
+ok("stand-ups are on for a new person (no settings at all)", () => {
+  assert.equal(standPrefs(undefined).on, true);
+  assert.notEqual(standIsland(standPrefs(undefined), at(10, 7), true), null);
+});
+ok("stand-ups are on for someone who changed other stand-up settings but never the switch", () => {
+  assert.equal(standPrefs({ every: 45, sound: false }).on, true);
+  assert.equal(standPrefs({ on: undefined, len: 3 }).on, true);
+  assert.equal(standPrefs(null).on, true);
+});
+ok("someone who switched them off keeps them off", () => {
+  assert.equal(standPrefs({ on: false }).on, false);
+  assert.equal(standIsland(standPrefs({ on: false }), at(10, 7), true), null);
+});
+ok("the page's settings cleaner keeps standAsk only as true", () => {
+  const src = readFileSync(new URL("../src/ps.ts", import.meta.url), "utf8");
+  assert.match(src, /if \(p\.standAsk === true\) o\.standAsk = true;/);
+});
+ok("ask: due until seen, only with stand-ups on", () => {
+  assert.equal(standAskDue({}), true, "a new person");
+  assert.equal(standAskDue({ standup: { every: 20 } }), true, "never touched the switch");
+  assert.equal(standAskDue({ standAsk: true }), false, "seen: never again");
+  assert.equal(standAskDue({ standup: { on: false } }), false, "already off: nothing to ask");
+});
+ok("ask: sent with the next real stand-up, never with Try it now", () => {
+  const p = standPrefs({});
+  assert.equal(standIsland(p, at(10, 7), true, undefined, null, true)?.ask, true);
+  assert.equal(standIsland(p, at(10, 7), true, undefined, null, false)?.ask, undefined);
+  const tried = standIsland(p, at(10, 7), true, undefined, at(10, 7), true);
+  assert.equal(tried?.test, true); assert.equal(tried?.ask, undefined);
+});
+ok("ask: every answer marks it seen; Turn off also switches stand-ups off and keeps the rest", () => {
+  assert.deepEqual(standAskPatch("seen", undefined), { standAsk: true });
+  assert.deepEqual(standAskPatch("keep", undefined), { standAsk: true });
+  assert.deepEqual(standAskPatch("settings", undefined), { standAsk: true });
+  assert.deepEqual(standAskPatch("off", { every: 45, len: 3 }), { standAsk: true, standup: { ...standPrefs({ every: 45, len: 3 }), on: false } });
+  assert.equal(standAskPatch("nonsense", undefined), null);
+  assert.equal(standAskPatch(undefined, undefined), null);
+});
+ok("ask: the words (the Mac's copy is ps-mac IslandBubbleCore.swift StandAsk) with no long dashes", () => {
+  assert.equal(STAND_ASK_WORDS.title, "Do you want to turn stand-up reminders off?");
+  assert.deepEqual([STAND_ASK_WORDS.off, STAND_ASK_WORDS.settings, STAND_ASK_WORDS.keep], ["Turn off", "See settings", "Keep them on"]);
+  for (const w of Object.values(STAND_ASK_WORDS)) assert.ok(!/[\u2013\u2014]/.test(w));
+});
+ok("ask: the island page saves the answer and Settings opens on a tab by name", () => {
+  const isl = readFileSync(new URL("../src/island.ts", import.meta.url), "utf8");
+  assert.match(isl, /m\.action === "standAsk"/);
+  assert.match(isl, /standAskDue\(st\)/);
+  const set = readFileSync(new URL("../src/views/SettingsScreen.tsx", import.meta.url), "utf8");
+  assert.match(set, /__psOpenSettings = \(to\?: unknown\)/);
+});
 console.log(`\n${n} passed`);

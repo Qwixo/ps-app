@@ -140,6 +140,13 @@ object Notifier {
                 PendingIntent.getActivity(c, nid(id + k), Intent(Intent.ACTION_VIEW, android.net.Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE)).build())
         }
         c.getSystemService(NotificationManager::class.java).notify(id, nid(id), b.build())
+        timing(quiet)
+    }
+    /** V1.59: how long a new card took from the live link's signal to the shade (logcat "PSGOS", no names). */
+    private fun timing(quiet: Boolean) {
+        val at = LiveLink.lastSignalAt
+        val ms = android.os.SystemClock.elapsedRealtime() - at
+        if (!quiet && at > 0 && ms < 120_000) Plog.i("live: notification shown $ms ms after the signal")
     }
     /** A Claude Code chat finished (src/core/chatdone.ts): its name, Dismiss clears it on the Mac too. */
     private fun chat(c: Context, id: String, card: JSONObject, quiet: Boolean) {
@@ -164,6 +171,7 @@ object Notifier {
             runCatching { java.time.Instant.parse(s).toEpochMilli() }.getOrNull()?.let { at = it; b.setWhen(it).setShowWhen(true) }
         }
         c.getSystemService(NotificationManager::class.java).notify(id, nid(id), b.build())
+        timing(quiet)
         chatSummary(c, posted = ChatGroup.Row(id, name, if (Ays.inMeeting) "" else card.optString("sub"), at))
     }
 

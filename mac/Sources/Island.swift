@@ -297,6 +297,11 @@ final class IslandModel: ObservableObject {
   @Published var meetOpen: TMeet?
   var timerOn: Bool { !tshow.middle.isTask || meetOpen != nil }
   var bigTimer: Bool { tshow.middle.isStand || meetOpen != nil }
+  /// V1.59 (the developer: "the island grows like Face ID on an iPhone"): a stand-up opens the island into a rounder, taller
+  /// shape with the little man big in its middle (IslandTimerLayout.face).
+  var faceID: Bool { tshow.middle.isStand && meetOpen == nil }
+  /// The open shape's corner radius: rounder for the stand-up.
+  var openRadius: CGFloat { faceID ? IslandTimerLayout.faceRadius : 24 }
   /// The cards hang from the island at rest: its hover view opens over them for a moment and is never measured.
   fileprivate var restOnly = false
   /// A full screen app on a screen with a notch (V1.40): the island sits in the black bar left of the notch, one
@@ -366,7 +371,7 @@ final class IslandModel: ObservableObject {
     let n = geo.notchW, h = geo.notchH
     let slim = notchStyle == "slim"
     let neck = slim ? n + IslandModel.slimWing * 2 : n
-    if expanded { return NotchParts(neckW: neck, neckH: h, bodyW: max(400, neck), bodyH: expandedH(), ear: slim ? 7 : 0, radius: 24) }
+    if expanded { return NotchParts(neckW: neck, neckH: h, bodyW: max(faceID ? IslandTimerLayout.faceW : 400, neck), bodyH: expandedH(), ear: slim ? 7 : 0, radius: openRadius) }
     switch notchStyle {
     case "slim": return NotchParts(neckW: neck, neckH: h, bodyW: neck, bodyH: 0, ear: 7, radius: 11)
     case "halo": return NotchParts(neckW: n, neckH: h, bodyW: n, bodyH: 0, ear: 0, radius: 10)
@@ -384,7 +389,7 @@ final class IslandModel: ObservableObject {
       return CGRect(x: (W - barW) / 2, y: (geo.notchH - h) / 2, width: barW, height: h)
     }
     if pill {
-      w = expanded ? pillOpenW : pillW
+      w = expanded ? (faceID ? IslandTimerLayout.faceW : pillOpenW) : pillW
       h = expanded ? expandedH() : pillH
       if free, fs == .off, let a = anchor { return IslandPlace.movedShape(anchor: a, w: w, h: h, pillW: pillW, pillH: pillH, up: growUp) }
       // Moved: the pill sits at the panel's top edge, or (lower half) its bottom edge, so it opens away from the screen's edge.
@@ -405,7 +410,8 @@ final class IslandModel: ObservableObject {
   }
   func expandedH() -> CGFloat {
     if popping != nil { return 78 }
-    if bigTimer { return IslandTimerLayout.bigBody }   // V1.58: Stand up, or a meeting opened from its bubble
+    if faceID { return pill ? IslandTimerLayout.faceH : IslandTimerLayout.faceBody }   // V1.59: the stand-up's Face ID look
+    if bigTimer { return IslandTimerLayout.bigBody }   // V1.58: a meeting opened from its bubble
     let badges: CGFloat = st.mail > 0 || st.leads > 0 ? 34 : 0
     let undo: CGFloat = undoable ? 34 : 0
     let rowsH: CGFloat = CGFloat(max(rows.count, 1)) * 42
@@ -546,7 +552,7 @@ struct IslandView: View {
               barRow(r).frame(width: r.width, height: r.height).clipShape(Capsule())
             }
           } else if m.pill {
-            let shape = IslandShape(top: m.expanded ? 24 : r.height / 2, bottom: m.expanded ? 24 : r.height / 2)
+            let shape = IslandShape(top: m.expanded ? m.openRadius : r.height / 2, bottom: m.expanded ? m.openRadius : r.height / 2)
             ZStack(alignment: .top) {
               pillBack(shape)
               shape.stroke(edgeC.opacity(m.glowing ? 0.75 : 0), lineWidth: 1.4)
@@ -571,8 +577,8 @@ struct IslandView: View {
         .offset(x: r.minX, y: r.minY)
         .opacity(m.hasContent ? 1 : 0)
         gripLayer
-        // V1.58: the bubble that splits off the island's right side (a stand-up in 15 seconds, the next meeting).
-        TimerBubble(m: m, r: r, fg: fg, tap: { IslandTimers.shared.tapBubble($0) })
+        // The bubble beside the island (a stand-up in 15 seconds, the next meeting) has its own window since V1.59, sized
+        // to its words (IslandBubble.swift BubbleWindow), so it is never cut by this window's edge.
       }
       .frame(width: IslandModel.panelW, height: IslandModel.panelH, alignment: .topLeading)
       // Hidden by the grab line: up into the notch (or the menu bar) and gone, and back down the same way.
@@ -1235,7 +1241,17 @@ final class Island {
     let r = model.shapeRect()
     return NSRect(x: f.minX + r.minX, y: f.maxY - r.maxY, width: r.width, height: r.height)
   }
+  /// V1.59: where the timer bubble and the first stand-up's question hang from: the island's shape on screen, the
+  /// bubble's bottom (centred on the pill, or on the menu bar's height beside the notch), the screen, and the window
+  /// they belong to (IslandBubble.swift BubbleWindow and StandAskWindow). Nil while the island is not on screen.
+  func timerAnchor() -> (shape: NSRect, bubbleY: CGFloat, screen: CGRect, panel: NSWindow)? {
+    guard let p = panel, let r = shapeOnScreen() else { return nil }
+    let band = model.pill ? model.pillH : model.geo.notchH
+    let y = model.pill ? r.maxY - (band + BubbleFit.h) / 2 : frameFor(model.geo).maxY - (band + BubbleFit.h) / 2
+    return (r, y, (screen ?? NSScreen.main)?.frame ?? r, p)
+  }
   private func shapeChanged() {
+    IslandTimers.shared.syncBubble()   // V1.59: the bubble and the stand-up question follow the island
     guard drag?.moving != true else { return }
     let k = shapeOnScreen().map { "\(Int($0.minX.rounded())),\(Int($0.minY.rounded())),\(Int($0.width.rounded())),\(Int($0.height.rounded()))" } ?? "none"
     // V1.55: the cards follow the island (they ignore the hover view themselves). V1.56 hang fix: only when their spot,
@@ -1626,10 +1642,9 @@ final class Island {
   private func refreshMouse() {
     guard let p = panel, p.isVisible, !test, hiddenUntil == nil, drag?.moving != true else { return }
     let at = NSEvent.mouseLocation
-    let onBubble = bubbleHit(at)   // V1.58: the timer bubble takes clicks but never opens the island on hover
-    let inside = !onBubble && hitRects().contains { $0.contains(at) }
+    let inside = hitRects().contains { $0.contains(at) }   // V1.59: the timer bubble has its own window, which takes its clicks
     trackMenuBar(at, onIsland: inside)
-    if p.ignoresMouseEvents == (inside || onBubble) { p.ignoresMouseEvents = !(inside || onBubble) }
+    if p.ignoresMouseEvents == inside { p.ignoresMouseEvents = !inside }
     gripPointer(inside ? at : nil)
     if inside {
       leaveAt = nil
@@ -1654,19 +1669,8 @@ final class Island {
         withAnimation(anim) { model.hovering = false }
         hoverTimer?.invalidate(); hoverTimer = nil; leaveAt = nil
       }
-    } else if onBubble {
-      if hoverTimer == nil { hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in self?.refreshMouse() } }
     } else { hoverTimer?.invalidate(); hoverTimer = nil }
   }
-  /// V1.58: the pointer on the timer bubble beside the island (IslandTimers.swift TimerBubble).
-  private func bubbleHit(_ at: NSPoint) -> Bool {
-    guard let p = panel, !model.tshow.right.isNone, model.meetOpen == nil, !model.expanded, !model.inBar else { return false }
-    let r = model.shapeRect(), g = IslandTimerLayout.bubbleGap, h = IslandTimerLayout.bubbleH
-    let y = model.pill ? r.minY + (model.pillH - h) / 2 : max(0, (model.geo.notchH - h) / 2)
-    let b = CGRect(x: r.maxX + g, y: y, width: IslandModel.panelW - r.maxX - g, height: h)
-    return NSRect(x: p.frame.minX + b.minX, y: p.frame.maxY - b.maxY, width: b.width, height: b.height).insetBy(dx: -2, dy: -3).contains(at)
-  }
-
   /// The pointer on the grab line: a stronger grey at once, the tip after half a second.
   private func gripPointer(_ at: NSPoint?) {
     var on = false

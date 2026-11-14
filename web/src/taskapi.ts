@@ -7,7 +7,7 @@
 // The Tab list's Settings shows the key only when asked: PS sends {type:"api:key"} to that page alone (apiOverlayMessage).
 import { useSyncExternalStore } from "react";
 import { psPost } from "./ps";
-import { vaultStore } from "./core/vault";
+import { pokeCardsAfterSave, vaultStore } from "./core/vault";
 import { remindRec, settingsData, todos } from "./core/select";
 import { addTodo, deleteTodo, saveRemind, saveSettings, setTodoDone, updateTodo } from "./core/actions";
 import { isRedAccount } from "./core/account";
@@ -32,7 +32,8 @@ const store: ApiStore = {
   update: (id, patch) => updateTodo(id, patch),
   setDone: (id, done) => setTodoDone(id, done),
   remove: (id) => deleteTodo(id),
-  saveSettings: (p) => saveSettings(p),
+  // V1.59: an AI message (aiMsgs) reaches the phone within seconds (core/vault.ts pokeCardsAfterSave)
+  saveSettings: (p) => { if ("aiMsgs" in p) pokeCardsAfterSave(); return saveSettings(p); },
   saveRemind: (change) => saveRemind(change),
   newGroupId: () => newGroupId(),
   startSentry: () => startSentryForApi(),   // start only (views/Sentry.tsx): there is no stop

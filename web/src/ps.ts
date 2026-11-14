@@ -76,6 +76,7 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   // Pomodoro (core/pomodoro.ts, V1.58): its Settings section; switched off, a timer that is running stops too.
   if (p.pomodoro && typeof p.pomodoro === "object") { o.pomodoro = pomoPrefs(p.pomodoro); if (!o.pomodoro.on) o.pomoRun = null; }
   if (p.pomoIntro === true) o.pomoIntro = true;                                    // the first Pomodoro card was answered
+  if (p.standAsk === true) o.standAsk = true;                                      // the first stand-up's question was seen (core/standup.ts, V1.59)
   if (p.standup && typeof p.standup === "object") o.standup = standPrefs(p.standup);   // Stand-up reminders (core/standup.ts, V1.58)
   if (p.meetBubble && typeof p.meetBubble === "object") o.meetBubble = meetBubblePrefs(p.meetBubble);   // the next meeting bubble (core/meetbubble.ts, V1.58)
   if (Array.isArray(p.tmGroups)) o.tmGroups = cleanGroups(p.tmGroups);
@@ -110,6 +111,7 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (typeof p.squadAutoJoin === "boolean") o.squadAutoJoin = p.squadAutoJoin;
   if (typeof p.psPresence === "boolean") o.psPresence = p.psPresence;
   if (typeof p.tipsShow === "boolean") o.tipsShow = p.tipsShow;
+  if (typeof p.replyInPanel === "boolean") o.replyInPanel = p.replyInPanel;   // Settings, Reply in the email panel (V1.59)
   if (typeof p.swipeInvert === "boolean") o.swipeInvert = p.swipeInvert;   // Settings, Controls, Invert swipe (V1.57)
   if (p.squadFeatures && typeof p.squadFeatures === "object") o.squadFeatures = cleanSwitches(p.squadFeatures);   // Settings, From the squad (V1.58, core/features.ts)
   // V1.56 Saved looks: only the device kinds this change names, merged into the vault's newest (core/looksprofiles.ts).
@@ -137,7 +139,8 @@ import { cleanRules } from "./core/rules";
 import { irepFeed, mailCardMessage, startMailCards } from "./mailcards";
 import { cleanReplyCardId, leadRows, setLeadMirror } from "./core/overlaymail";
 import { leadCards } from "./core/leadcards";
-import { cleanReplyPatch, openReplyFor, openReplySetup, replyMessage, runMailReplyOp, startReplyEngine } from "./replyengine";
+import { cleanReplyPatch, openReplyFor, openReplySetup, replyMessage, runMailReplyOp, sendInlineOrSay, startReplyEngine } from "./replyengine";
+import { cleanInlineSend } from "./core/inlinereply";
 import { notesCardMessage, startNotesCard } from "./notescard";
 import { rebootWarnMessage, startRebootWarn } from "./rebootwarn";
 import { ackGymDay, gymCardMessage, gymWake, startGymWatch } from "./gymwatch";
@@ -651,6 +654,9 @@ export function startPsBridge() {
         // The Tab list's email panel (core/overlaymail.ts, 10 Nov 2026): Reply opens the panel with that email loaded
         // (never sends), and a lead reply's Done dismisses it on every device, as the card's Dismiss does.
         { const id = cleanReplyCardId(patch.replyOpen); if (id) openReplyFor(id); }
+        // V1.59 Reply in the email panel (core/inlinereply.ts): the Tab list's reply box, after its Undo ran out. Built
+        // and sent on its way here; the Tab list sees how it went through the vault ("Replied" or "Not sent").
+        { const r = cleanInlineSend(patch.replyInline); if (r) void sendInlineOrSay(r.cardId, r.text, r.id, "mac").catch(() => psPost({ type: "log", text: "reply: a reply from the email panel was not sent" })); }
         { const id = cleanReplyCardId(patch.leadDone); if (id && id.startsWith("n:")) mailCardMessage({ type: "cardAction", id, action: "dismiss" }); }
         { const o = cleanReplyPatch(patch.mailReplyOp); if (o) void runMailReplyOp(o).catch(() => psPost({ type: "log", text: "reply: a signature or response change failed to save" })); }   // Reply from PS (src/replyengine.ts)
         { const o = cleanMailRuleOp(patch.mailRuleOp); if (o) void (o.clientId ? addMatchAddr(o.clientId, o.entry) : setMailRule(o.entry, o.list)).catch(() => {}); }
@@ -880,6 +886,8 @@ export function startPsBridge() {
       || d.kind === "remind"    // Settings > Annoying 15 min reminder: the reminders and their answers (a few KB)
       || (d.kind === "stline" && Number((d.data as { hour?: number }).hour) > Date.now() - 25 * 3600_000)) : [];
     if (cal) docs.push(cal);
+    // V1.59 Reply in the email panel (core/inlinereply.ts): how each reply went ("Replied", "Not sent"), never its words.
+    if (s.status === "unlocked") for (const d of s.docs.values()) if (d.kind === "rout") { const { job: _j, ...rest } = d.data as { job?: unknown }; docs.push({ ...d, data: rest }); }
     // And the newest morning brief, for the Tab list's brief window (the sun button).
     const brief = s.status === "unlocked" ? latestBrief(s) : null;
     if (brief) docs.push(brief);
@@ -945,7 +953,7 @@ export function startPsBridge() {
   // The developer's own background videos come from his vault onto this Mac (src/core/bgvault.ts).
   startBgVault({ post: psPost, listen: (f) => { bgShell.add(f); } });
   startMailCards(psPost);   // client email cards that stay until dismissed (src/mailcards.ts)
-  startReplyEngine(psPost);   // Reply from PS: the compose window's email, signatures and responses (src/replyengine.ts)
+  startReplyEngine(psPost, () => psSettingsNow()?.mailSend ?? null);   // Reply from PS: the compose window's email, signatures and responses (src/replyengine.ts)
   startNotesCard(psPost);   // meeting notes pop-up, top left (src/notescard.ts)
   startMeetAlerts(psPost);   // meeting alert cards (src/meetwatch.ts)
   startGymWatch(psPost);   // the gym reminder card (src/gymwatch.ts, core/gym.ts)

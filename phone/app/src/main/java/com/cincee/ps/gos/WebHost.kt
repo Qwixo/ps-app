@@ -261,6 +261,7 @@ object WebHost {
         val c = app
         if (type.startsWith("sleep:")) Plog.i("sleep: got $type (running=${Sleep.running(c)})")   // V1.41: each Sleep mode message in the log
         if (TgBot.handle(c, type, m, ::post)) return   // tg:* Add Telegram Bot (TgBot.kt, V1.47): the key in the Keystore, the relay on its own threads
+        if (GymScan.handle(c, type, m, ::post)) return   // gymscan:* Gym scan (GymScan.kt, V1.59): reads a label on its own thread
         when (type) {
             "ready" -> hello()
             "log" -> Plog.i("web: " + m.optString("text"))
@@ -321,6 +322,9 @@ object WebHost {
             "rem:sound:save" -> Remind.soundSave(c, m.optString("id"), m.optString("name"), m.optDouble("secs", 0.0), m.optString("b64"))
             "rem:sound:remove" -> Remind.soundRemove(c, m.optString("id"))
             "aysMeeting" -> Ays.inMeeting = m.optBoolean("on")
+            // V1.59 the Dynamic island (Island.kt): the same state the Mac's island gets (web src/island.ts).
+            "island" -> Island.fromPage(c, m.optJSONObject("state"))
+            "islandRule" -> Island.setRed(c, m.optBoolean("red", true))
             // The Soundboard (Soundboard.kt, V1.47): handed to its own threads at once, never the main thread.
             in Soundboard.TYPES -> Soundboard.onMessage(c, type, m)
             // Screen time now (V1.31): the page asks once its vault is open, so the count sent 1.5 s after
@@ -370,6 +374,8 @@ object WebHost {
         if (p.has("background")) { Pulse.schedule(c); if (!Prefs.background(c)) Remember.dropBackground(c) }
         if (p.has("stay") && !Prefs.stay(c)) Remember.dropStay(c)
         if (p.has("notification") || p.has("bubble") || p.has("ays")) { Quiet.sync(c); WatchService.sync(c) }
+        if (p.has("island") || p.has("live") || p.has("background")) { LiveService.sync(c); Quiet.sync(c) }
+        if (p.optBoolean("island") && !android.provider.Settings.canDrawOverlays(c)) onMain { activity?.openPermission("overlay") }
         if (p.optBoolean("tile")) onMain { activity?.offerTile() }
         if (p.optBoolean("widget")) onMain { activity?.offerWidget() }
         if (p.optBoolean("bubble") && !android.provider.Settings.canDrawOverlays(c)) onMain { activity?.openPermission("overlay") }

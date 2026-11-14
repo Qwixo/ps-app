@@ -64,7 +64,7 @@ object Quiet {
     private fun refresh(c: Context) {
         val nm = c.getSystemService(NotificationManager::class.java)
         if (Nuke.done(c)) { nm.cancel(ID); return }
-        if (WatchService.running) { nm.notify(ID, build(c)); return }   // the watcher's own notification is this line
+        if (WatchService.running || LiveService.running) { nm.notify(ID, build(c)); return }   // the watcher's (and the island's) own notification is this line
         if (Prefs.notification(c) && c.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) nm.notify(ID, build(c))
         else nm.cancel(ID)
     }

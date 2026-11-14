@@ -801,8 +801,32 @@ html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > *, html:not(.gos) .tm-over
 .tm-mail-a .tm-mail-reply:hover { filter: brightness(1.08); }
 .tm-mail-a a.tm-mail-done { text-decoration: none; display: inline-flex; align-items: center; }
 .tm-mail-who .tm-mail-via { color: var(--k-acc-t, #F49BBE); }
+/* V1.59 Reply in the email panel (views/ReplyBox.tsx): the box opens in the row; the row's line says how the reply went. */
+.tm-rb { grid-column: 1 / -1; display: flex; flex-direction: column; gap: calc(7px * var(--k-dn, 1)); margin-top: 6px; animation: tm-mail-in .35s cubic-bezier(.22,1,.36,1) both; }
+.tm-rb-last { margin: 0; padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-left: 2px solid color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent);
+  font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(76% * var(--k-ia, 1))), transparent);
+  max-height: 9.5em; overflow: auto; white-space: pre-wrap; }
+.tm-rb-last b { display: block; font-size: calc(11px * var(--k-fs, 1)); font-weight: 700; margin-bottom: 2px; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.tm-rb-ta { width: 100%; box-sizing: border-box; resize: vertical; min-height: 5.5em; max-height: 40vh; font: inherit; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(22% * var(--k-ia, 1))), transparent);
+  border-radius: calc(12px * var(--k-rd, 1)); padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); outline: none; }
+.tm-rb-ta:focus { border-color: var(--k-acc, #EC4E86); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); }
+.tm-rb-err { margin: 0; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; color: var(--k-acc-t, #F49BBE); }
+.tm-rb-acts { display: flex; gap: calc(6px * var(--k-dn, 1)); }
+.tm-rb-acts .tm-rb-send { border: 0; cursor: pointer; font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; padding: calc(4px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1));
+  background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.tm-mail-st { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); }
+.tm-mail-st.failed { color: var(--k-acc-t, #F49BBE); font-weight: 650; white-space: normal; }
+.tm-mail-st.replied::before { content: ""; width: 12px; height: 12px; flex: none; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center / contain no-repeat; }
+.tm-mail-undo { border: 1px solid var(--k-acc, #EC4E86); background: transparent; color: var(--k-fg, #FFFFFF); border-radius: calc(99px * var(--k-rd, 1)); padding: 2px 12px; font: inherit; font-weight: 750; cursor: pointer; }
+.tm-mail-undo:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 24%, transparent); }
+.tm-mail li.replied { opacity: .62; }
+.tm-mail li.replied .tm-mail-s, .tm-mail li.replied .tm-mail-p { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
 @keyframes tm-mail-in { from { opacity: 0; transform: translateY(-6px); } }
-@media (prefers-reduced-motion: reduce) { .tm-mail li { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .tm-mail li, .tm-rb { animation: none; } }
 
 /* ---------- Priority 1: one outline around the whole group (core/prio.ts, Settings picks the look) ----------
    Only transforms and opacity animate; the frame is measured by the page, never per frame. */
@@ -1445,6 +1469,14 @@ html.gos .tm-done-bar :is(.tm-all, .tm-all-ask), html.gos .tm-done-bar .slp-row 
 .tm-done-all b { font-size: calc(12px * var(--k-fs, 1)); font-weight: 800; padding: calc(1px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: 999px; background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent); }
 .tm-done-less { border-style: solid; opacity: .8; }
 .tm-done-more { text-align: center; font-size: calc(12px * var(--k-fs, 1)); opacity: .55; padding: calc(8px * var(--k-dn, 1)) 0; }
+/* V1.59: Completed opens on the last 24 hours; More slides the older ticks open (a grid row 0fr to 1fr). Closed, the fold takes
+   no room: its margin cancels one of the two grid gaps around it. */
+.tm-done-quiet { margin: 0; text-align: center; font-size: calc(13px * var(--k-fs, 1)); opacity: .55; padding: calc(6px * var(--k-dn, 1)) 0; }
+.tm-done-fold { display: grid; grid-template-rows: 0fr; margin-top: calc(-10px * var(--k-dn, 1)); opacity: 0; transition: grid-template-rows .32s cubic-bezier(.2, .8, .2, 1), margin-top .32s cubic-bezier(.2, .8, .2, 1), opacity .24s ease; }
+.tm-done-fold.open { grid-template-rows: 1fr; margin-top: 0; opacity: 1; }
+.tm-done-fold-in { min-height: 0; overflow: hidden; }
+.tm-done-fold.open .tm-done-fold-in { overflow: visible; transition: overflow 0s .32s; }
+@media (prefers-reduced-motion: reduce) { .tm-done-fold { transition: none; } .tm-done-fold.open .tm-done-fold-in { transition: none; } }
 html.gos .tm-done-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .tm-ed .tp-wrap > .tm-ed-title { width: 100%; }
 .tm-ed-seg button:not(.on):hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); }

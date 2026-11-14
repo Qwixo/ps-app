@@ -60,6 +60,7 @@ export interface FitSet {
   extra?: boolean;            // added after the planned sets with Add set or Drop set (V1.29)
   drop?: boolean;             // a drop set (V1.29): about 20 percent lighter straight after a set, no rest before it, tagged DROP
   gone?: boolean;             // taken out (kept, so a merge with the other device's copy never brings it back)
+  comment?: string;           // V1.59: the developer's short note on a done set ("left knee felt off", "seat at 4"). Sealed with the workout like every other field.
 }
 export interface FitLogEx {
   id: string;                 // the plan row id when it came from the program, else a new id
@@ -111,6 +112,7 @@ export interface FitPrefs {
   setsDefault?: number;                   // sets for an exercise with no planned number (V1.40), 1 to 12, default 3
   setsBy?: Record<string, number>;        // per exercise (exercise key): your own number of sets, before the plan's (V1.40)
   sound?: boolean;                        // Mac: chime when the rest ends
+  scan?: boolean;                         // Gym scan (V1.59, src/fitness/Scan.tsx): the Scan button in a workout, default on
   weekGoal?: number;                      // days a week, for "3 of 4 this week"
   // Sleep (V1.40, core/sleep.ts)
   sleepTarget?: number;                   // minutes, 7 to 9 h (default 7 h)
@@ -490,6 +492,21 @@ export function mergeProgram(a: FitProgram, b: FitProgram): FitProgram { return 
 // ---------- editing a workout (pure; the store saves the result) ----------
 export function patchSet(w: FitWorkout, exId: string, setId: string, patch: Partial<FitSet>, now: string): FitWorkout {
   return { ...w, exercises: w.exercises.map((e) => e.id !== exId ? e : { ...e, sets: e.sets.map((s) => s.id !== setId ? s : { ...s, ...patch, at: now, ...(patch.done === true && !s.done ? { doneAt: now } : patch.done === false ? { doneAt: null } : {}) }) }) };
+}
+/** V1.59: the longest set comment (a short line, not an essay). */
+export const COMMENT_MAX = 200;
+/** What gets saved for a typed set comment: one line, trimmed, cut at COMMENT_MAX; "" when there is nothing. */
+export function cleanComment(t: string | null | undefined): string {
+  return (t ?? "").replace(/\s+/g, " ").trim().slice(0, COMMENT_MAX).trim();
+}
+/** Saves (or, with empty text, clears) the comment on a set. The set's `at` moves, so the offline merge keeps it. */
+export function setComment(w: FitWorkout, exId: string, setId: string, text: string, now: string): FitWorkout {
+  const c = cleanComment(text);
+  return { ...w, exercises: w.exercises.map((e) => e.id !== exId ? e : { ...e, sets: e.sets.map((s) => {
+    if (s.id !== setId) return s;
+    const { comment: _old, ...rest } = s;
+    return { ...rest, ...(c ? { comment: c } : {}), at: now };
+  }) }) };
 }
 export function addSet(w: FitWorkout, exId: string, now: string): FitWorkout {
   return { ...w, exercises: w.exercises.map((e) => {

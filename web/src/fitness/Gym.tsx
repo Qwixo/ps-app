@@ -10,11 +10,13 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 import { discardWorkout, exAdd, exEnd, exMove, exPatch, exSetCount, exSwap, finishWorkout, savePlanFrom, savePrefs, setAdd, setExtra, setPatch, setRemove, setsBack, startDay, type FitView } from "./store";
 import type { FitTab } from "./FitnessApp";
 import { rest, useKeepAwake, useRest, useRestLeft, type RestNow } from "./rest";
-import { LIB, libById, planFromLib, searchLib, type LibEx } from "./lib";
+import { LIB, libById, searchLib, type LibEx } from "./lib";
 import { ExPic, picCardOpen } from "./ExPic";
+import { CamIcon, newExFor, ScanPanel, scanOn } from "./Scan";
 import { Info } from "./Info";
+import { CommentBox, CommentBtn, CommentLine } from "./SetComment";
 import {
-  bestsInWorkout, clampRest, currentSpot, dayLabel, exKey, fmtClock, fmtKg, lastTime, liveSets, prefillSets, REST_STEP, restDefault, restFor,
+  bestsInWorkout, clampRest, currentSpot, dayLabel, exKey, fmtClock, fmtKg, lastTime, liveSets, REST_STEP, restDefault, restFor,
   restLong, restShort, RIR_VALUES, RIR_WORDS, rirLabel, setLine, setsFor, SETS_HI, SETS_LO, targetLine, weekStats,
   type BestKind, type FitLogEx, type FitPrefs, type FitProgram, type FitSet, type FitWorkout, type RestPick,
 } from "../core/fitness";
@@ -163,7 +165,7 @@ function StartCard({ v, desk, onOpen, onSleep, pickFirst }: { v: FitView; desk: 
 // ======================================================================================================
 // A workout open: one screen
 // ======================================================================================================
-type Panel = { k: "add"; swap?: string } | { k: "finish" } | { k: "rest" } | { k: "menu"; exId: string } | null;
+type Panel = { k: "add"; swap?: string } | { k: "scan" } | { k: "finish" } | { k: "rest" } | { k: "menu"; exId: string } | null;
 interface Ask { exId: string; setId: string; fromTick: boolean }
 
 interface Ctx {
@@ -185,6 +187,8 @@ interface Ctx {
   endEx: (e: FitLogEx) => void;
   menu: (e: FitLogEx) => void;
   addEx: () => void;
+  /** Gym scan (V1.59): null when it is off or this device cannot read a label. */
+  scan: (() => void) | null;
   extra: (e: FitLogEx, drop: boolean, step: number) => void;
 }
 
@@ -349,6 +353,7 @@ function Live({ v, onFinished }: { v: FitView; onFinished: (s: Summary, label: s
     },
     menu: (e) => setPanel({ k: "menu", exId: e.id }),
     addEx: () => setPanel({ k: "add" }),
+    scan: scanOn(v.prefs) ? () => { haptic("press"); setPanel({ k: "scan" }); } : null,
     extra,
   };
 
@@ -399,6 +404,7 @@ function Live({ v, onFinished }: { v: FitView; onFinished: (s: Summary, label: s
                 </button>
               ))}
               <button type="button" className="fg-chip add" onClick={() => setPanel({ k: "add" })} aria-label="Add an exercise"><PlusIcon size={20} /></button>
+              {ctx.scan && <button type="button" className="fg-chip add" onClick={ctx.scan} aria-label="Scan a machine"><CamIcon size={20} /></button>}
             </div>
             <button type="button" className="fg-arrow" onClick={() => goto(idx + 1)} disabled={idx >= list.length - 1} aria-label="Next exercise"><ChevronIcon dir="r" /></button>
           </nav>
@@ -412,6 +418,7 @@ function Live({ v, onFinished }: { v: FitView; onFinished: (s: Summary, label: s
           <div className="fg-empty">
             <h2 className="fg-hero">No exercises yet</h2>
             <p className="fg-lead">Add the first one: search by name or by muscle.</p>
+            {scanOn(v.prefs) && <button type="button" className="fg-second fg-scan-go" onClick={() => { haptic("press"); setPanel({ k: "scan" }); }}><CamIcon /> Scan a machine</button>}
           </div>
         )}
       </div>
@@ -444,11 +451,17 @@ function Live({ v, onFinished }: { v: FitView; onFinished: (s: Summary, label: s
         <Overlay label={panel.swap ? "Swap exercise" : "Add an exercise"} kind="tall" onClose={() => setPanel(null)}>
           {(close) => {
             const swap = panel.swap ? list.find((e) => e.id === panel.swap) ?? null : null;
-            return <AddPanel workouts={v.workouts} programs={v.programs} prefs={v.prefs} swapFor={swap?.name ?? null} close={close} onAdd={(ex) => {
+            return <AddPanel workouts={v.workouts} programs={v.programs} prefs={v.prefs} swapFor={swap?.name ?? null} close={close}
+              onScan={!swap && scanOn(v.prefs) ? () => setPanel({ k: "scan" }) : undefined} onAdd={(ex) => {
               if (swap) { if (r?.exId === swap.id) rest.cancel(); setPinned(null); void exSwap(id, swap.id, ex); return; }
               jump.current = list.length; void exAdd(id, ex);
             }} />;
           }}
+        </Overlay>
+      )}
+      {panel?.k === "scan" && (
+        <Overlay label="Scan a machine" kind="tall" onClose={() => setPanel(null)}>
+          {(close) => <ScanPanel workouts={v.workouts} programs={v.programs} prefs={v.prefs} close={close} onAdd={(ex) => { jump.current = list.length; void exAdd(id, ex); }} />}
         </Overlay>
       )}
       {panel?.k === "menu" && menuEx && (
@@ -638,7 +651,12 @@ function ExPage({ e, i, n, ctx }: { e: FitLogEx; i: number; n: number; ctx: Ctx 
           {doneN > 0 && <Info k="finish-exercise" className="fg-endex-i" />}
         </div>
       )}
-      <button type="button" className="fg-add-ex" onClick={ctx.addEx}><PlusIcon size={20} /> Exercise</button>
+      {ctx.scan ? (
+        <div className="fg-add-row">
+          <button type="button" className="fg-add-ex" onClick={ctx.addEx}><PlusIcon size={20} /> Exercise</button>
+          <button type="button" className="fg-add-ex" onClick={ctx.scan}><CamIcon size={20} /> Scan</button>
+        </div>
+      ) : <button type="button" className="fg-add-ex" onClick={ctx.addEx}><PlusIcon size={20} /> Exercise</button>}
     </div>
   );
 }
@@ -681,6 +699,13 @@ function SetRow({ e, s, j, total, big, current, step, lastText, ctx }: {
     </button>
   );
   const badge = best && <BestBadge kind={best} party={party} />;
+  // V1.59: a comment on a done set ("left knee felt off"). The button is on the done row, the text shows under it.
+  const [cm, setCm] = useState(false);
+  const cmOpen = cm && s.done;
+  const cmBtn = s.done && <CommentBtn n={j + 1} has={!!s.comment} open={cmOpen} onClick={() => { haptic("press"); setCm((x) => !x); }} />;
+  const cmBlock = s.done && (cmOpen
+    ? <CommentBox wid={ctx.id} exId={e.id} setId={s.id} n={j + 1} value={s.comment ?? ""} onClose={() => setCm(false)} />
+    : s.comment ? <CommentLine text={s.comment} onClick={() => setCm(true)} /> : null);
 
   if (big) {
     return (
@@ -697,6 +722,7 @@ function SetRow({ e, s, j, total, big, current, step, lastText, ctx }: {
             <button type="button" className="fg-undo-tick" onClick={() => ctx.untick(e, s)} aria-pressed="true">
               <span className="fg-tick on" aria-hidden="true"><TickIcon /></span> Done. Tap to undo
             </button>
+            {cmBtn}
             {rirSpot}
           </div>
         ) : (
@@ -704,6 +730,7 @@ function SetRow({ e, s, j, total, big, current, step, lastText, ctx }: {
             <TickIcon size={30} /> <span>Done</span>
           </button>
         )}
+        {cmBlock}
       </li>
     );
   }
@@ -713,18 +740,20 @@ function SetRow({ e, s, j, total, big, current, step, lastText, ctx }: {
         <span className="fg-set-n f-num">{j + 1}</span>
         <span className="fg-set-txt">
           <span className="fg-set-val f-num">
-            {s.kg != null ? fmtKg(s.kg) : "?"}<small> {unit}</small><span className="fg-times"> x </span>{s.reps ?? "?"}
+            {s.kg != null ? fmtKg(s.kg) : "?"}<small> {s.done ? "kg" : unit}</small><span className="fg-times"> x </span>{s.reps ?? "?"}
             {s.drop && <em className="fg-drop-tag">DROP</em>}
           </span>
           {lastText && <span className="fg-last">{lastText}</span>}
           {badge}
         </span>
       </button>
+      {cmBtn}
       {rirSpot}
       <button type="button" className={cx("fg-tick", s.done && "on")} onClick={() => (s.done ? ctx.untick(e, s) : ctx.tick(e, s))}
         aria-pressed={s.done} aria-label={s.done ? `Set ${j + 1} done. Tap to undo` : `Tick set ${j + 1} done`}>
         <TickIcon />
       </button>
+      {cmBlock}
     </li>
   );
 }
@@ -1028,7 +1057,7 @@ function RirPanel({ ex, set, n, onPick, onClose }: { ex: FitLogEx; set: FitSet; 
 // ---------- add an exercise mid workout ----------
 type NewEx = Parameters<typeof exAdd>[1];
 const LIB_NAMES: ReadonlySet<string> = new Set(LIB.map((x) => x.name.toLowerCase()));
-function AddPanel({ workouts, programs, prefs, swapFor, close, onAdd }: { workouts: Dated[]; programs: { data: FitProgram }[]; prefs: FitPrefs; swapFor: string | null; close: () => void; onAdd: (ex: NewEx & { sets: FitSet[] }) => void }) {
+function AddPanel({ workouts, programs, prefs, swapFor, close, onAdd, onScan }: { workouts: Dated[]; programs: { data: FitProgram }[]; prefs: FitPrefs; swapFor: string | null; close: () => void; onAdd: (ex: NewEx & { sets: FitSet[] }) => void; onScan?: () => void }) {
   const [q, setQ] = useState("");
   const res = useMemo(() => searchLib(q, 30), [q]);
   // The developer's own names first (typed in the gym before, or in his plans): one tap brings back last time's weights.
@@ -1036,17 +1065,9 @@ function AddPanel({ workouts, programs, prefs, swapFor, close, onAdd }: { workou
   const name = q.trim();
   const exact = res.some((x) => x.name.toLowerCase() === name.toLowerCase()) || mine.some((x) => x.name.toLowerCase() === name.toLowerCase());
   const add = (x: LibEx | null, own?: YourEx) => {
-    const now = new Date().toISOString();
-    const link = own?.exId ? libById(own.exId) : null;
-    const nm = own?.name ?? x?.name ?? name;
-    const lx = x ?? link;
-    const plan = { exId: lx?.id ?? null, name: nm, sets: own ? [] : [0, 1, 2].map(() => ({ reps: 10, kg: null })) };
     haptic("press");
-    onAdd({
-      exId: lx?.id ?? null, name: nm, kind: lx?.kind, perSide: lx?.perSide ?? false, step: lx?.step ?? null,
-      // How many: the developer's own number for this exercise, else his default (V1.40); the weights come from last time.
-      target: [], rir: null, rest: null, sets: prefillSets(x ? planFromLib(x) : plan, workouts, now, null, setsFor({ exId: lx?.id ?? null, name: nm }, 0, prefs)),
-    });
+    // How many: the developer's own number for this exercise, else his default (V1.40); the weights come from last time.
+    onAdd(newExFor(x, own ?? null, name, workouts, prefs));
     close();
   };
   return (
@@ -1054,6 +1075,7 @@ function AddPanel({ workouts, programs, prefs, swapFor, close, onAdd }: { workou
       <h3 className="fg-h3">{swapFor ? `Swap ${swapFor} for` : "Add an exercise"}</h3>
       <input className="fg-search" type="search" placeholder="Search: curl, chest, squat" value={q} autoFocus enterKeyHint="search"
         onChange={(e) => setQ(e.currentTarget.value)} aria-label="Search exercises" />
+      {onScan && !q && <button type="button" className="fg-second fg-scan-go" onClick={() => { haptic("press"); onScan(); }}><CamIcon /> Scan a machine</button>}
       {mine.length > 0 && (
         <ul className="fg-results fg-mine" aria-label="Your exercises">
           {mine.map((x) => (

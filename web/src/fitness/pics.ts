@@ -432,6 +432,11 @@ const PAT: Record<string, Make> = {
     return { a, b: { ...a, hip: [50, 62.5] }, eq: [], hold2: true };
   },
   crunch: ({ e, v }) => {
+    if (v === "kneel") {
+      // Kneeling on a mat facing a high cable, rope by the head. The trunk curls down, the hips stay put.
+      const a = side({ hip: [43, 64], t: 172, arm: relS(5, -2, -1), leg: [0, -90] });
+      return { a, b: { ...a, t: 100, hd: -12 }, eq: [...tower(80, 8), ["pad", 22, 82.6, 52, 82.6]], hold: "rope", cable: [80, 8] };
+    }
     if (e === "cable") {
       const a = side({ hip: [44, 66], t: 168, arm: relS(4, -4, -1), leg: [0, -90] });
       return { a, b: { ...a, t: 105 }, eq: [...tower(78, 8), ["pad", 26, 82.5, 48, 82.5]], hold: "rope", cable: [78, 8] };
@@ -533,7 +538,7 @@ const MAP: Record<string, [string, string?]> = {
   "leg-press-calf-raise": ["legPress", "calf"], "smith-machine-calf-raise": ["calf"], "dumbbell-calf-raise": ["calf"],
   "kettlebell-swing": ["swing"],
 
-  "plank": ["plank"], "side-plank": ["sidePlank"], "crunch": ["crunch"], "decline-sit-up": ["crunch", "decline"], "cable-crunch": ["crunch"],
+  "plank": ["plank"], "side-plank": ["sidePlank"], "crunch": ["crunch"], "decline-sit-up": ["crunch", "decline"], "cable-crunch": ["crunch"], "abs-cable-crunch": ["crunch", "kneel"],
   "machine-crunch": ["crunch"], "hanging-leg-raise": ["legRaise"], "captains-chair-knee-raise": ["legRaise", "captain"],
   "lying-leg-raise": ["legRaise", "lying"], "ab-wheel-rollout": ["abWheel"], "russian-twist": ["twist"], "pallof-press": ["pallof"],
   "cable-woodchop": ["chop"], "dead-bug": ["deadBug"], "farmers-carry": ["carry"],

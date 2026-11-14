@@ -26,6 +26,13 @@ html.gos .gos-home .tm-right .tm-mail-done {
 }
 html.gos .gos-home .tm-right .tm-mail-done { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); }
 html.gos .gos-home .tm-right .tm-mail-a .tm-meet-j:active, html.gos .gos-home .tm-right .tm-mail-done:active { transform: scale(.95); }
+/* V1.59 Reply in the email panel: a 16 px box (no zoom on focus), finger sized Send, Cancel and Undo. */
+html.gos .gos-home .tm-right .tm-rb-ta { font-size: 16px; min-height: 7em; border-radius: calc(16px * var(--k-rd, 1)); padding: 12px 14px; }
+html.gos .gos-home .tm-right .tm-rb-last { font-size: calc(14px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-rb-acts { gap: calc(10px * var(--k-dn, 1)); }
+html.gos .gos-home .tm-right .tm-rb-acts .tm-rb-send { flex: 1; min-height: 44px; font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 750; border-radius: calc(99px * var(--k-rd, 1)); }
+html.gos .gos-home .tm-right .tm-mail-st { font-size: calc(14px * var(--k-fs, 1)); }
+html.gos .gos-home .tm-right .tm-mail-undo { min-height: 40px; padding: 0 20px; font-size: calc(14.5px * var(--k-fs, 1)); }
 
 /* Meeting notes during a call: a calmer title, finger sized rows, a tap that presses in. */
 html.gos .gos-home .tm-right .tm-mn { padding: calc(18px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(22px * var(--k-rd, 1)); gap: calc(12px * var(--k-dn, 1)); }

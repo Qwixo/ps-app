@@ -127,6 +127,17 @@
   font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; color: var(--f-best);
 }
 
+/* a comment on a set (V1.59) */
+.fh-set-cmt { grid-column: 2 / -1; display: flex; align-items: flex-start; gap: calc(6px * var(--k-dn, 1)); margin-top: 4px; font-size: calc(14px * var(--k-fs, 1)); font-weight: 650; line-height: 1.3; color: var(--f-ink-2); overflow-wrap: anywhere; }
+.fh-set-cmt svg { flex: none; margin-top: 2px; color: var(--f-accent); }
+.fh-cmt-field { grid-column: 1 / -1; }
+.fh-cmt-field input {
+  width: 100%; box-sizing: border-box; min-height: 48px; padding: 0 calc(12px * var(--k-dn, 1)); border-radius: var(--f-r-s);
+  background: var(--f-bg); color: var(--f-ink); border: var(--f-line-w) solid var(--f-line); font: inherit; font-size: calc(16px * var(--k-fs, 1)); font-weight: 650;
+}
+.fh-cmt-field input::placeholder { color: var(--f-ink-3); }
+.fh-cmt-field input:focus { border-color: var(--f-accent); outline: none; }
+
 /* editing a set: big boxes, big chips */
 .fh-set-edit { grid-template-columns: 30px minmax(0, 1fr); align-items: start; padding: calc(12px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
 .fh-set-edit .fh-set-n { padding-top: calc(30px * var(--k-dn, 1)); }

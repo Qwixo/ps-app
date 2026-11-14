@@ -140,7 +140,21 @@ class MainActivity : FragmentActivity() {
         if (isShown && Fitness.Awake.wanted()) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
-    override fun onResume() { super.onResume(); WebHost.sendPerms(); WatchService.sync(this) }
+    override fun onResume() { super.onResume(); WebHost.sendPerms(); WatchService.sync(this); LiveService.sync(this) }
+
+    /** V1.59: the first time the vault is open with the island on and no Display over other apps, say what it is for once. */
+    fun askIsland() {
+        if (!isShown || isFinishing || Settings.canDrawOverlays(this) || !Prefs.island(this)) return
+        val sp = getSharedPreferences("island", MODE_PRIVATE)
+        if (sp.getBoolean("asked", false)) return
+        sp.edit().putBoolean("asked", true).apply()
+        android.app.AlertDialog.Builder(this, android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("Dynamic island")
+            .setMessage("PS app can show a small live island around your camera, over every app: your next meeting, Pomodoro breaks, stand-ups, reminders and AI messages. Tap it to open PS app.\n\nAndroid calls this Display over other apps. It never shows over the lock screen. You can switch it off in Settings, This phone.")
+            .setPositiveButton("Allow") { _, _ -> openPermission("overlay") }
+            .setNegativeButton("Not now", null)
+            .show()   // Back closes it (Not now)
+    }
     /** V1.47: a log line when the system asks for memory back while PS is open (it can take the background video's
      *  decoder; the page then reloads the video, web src/core/bgwatch.ts). 10 is "running low" and up. */
     override fun onTrimMemory(level: Int) { super.onTrimMemory(level); if (level >= 10) Plog.i("memory trim $level (shown=$isShown)") }

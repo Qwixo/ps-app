@@ -6,12 +6,13 @@ import { SquadChip } from "./Squad";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Doc } from "../core/model";
 import {
-  bestsFor, dayLabel, exKey, exerciseProgress, exercisesLogged, fmtKg, liveSets, rirLabel, RIR_VALUES,
+  bestsFor, dayLabel, exKey, exerciseProgress, exercisesLogged, fmtKg, liveSets, rirLabel, RIR_VALUES, COMMENT_MAX, cleanComment,
   weekStats, workoutSetsDone, workoutVolume, type BestKind, type FitLogEx, type FitSet, type FitWorkout, type ProgressPoint,
 } from "../core/fitness";
 import { todayISO } from "../ui/kit";
 import { haptic } from "../gos/bridge";
-import { discardWorkout, setPatch, workoutPatch, type FitView } from "./store";
+import { discardWorkout, setNote, setPatch, workoutPatch, type FitView } from "./store";
+import { BubbleIcon } from "./SetComment";
 import {
   BEST_WORDS, bestCount, bestsThen, chartScale, fmtDay, fmtDayShort, fmtDuration, fmtThousands, fmtVolume, groupByWeek,
   labelIndexes, parseKgInput, parseRepsInput, plural, sessionLines, sparkPath, weekDots,
@@ -282,6 +283,7 @@ function SetView({ s, n, perSide, best }: { s: FitSet; n: number; perSide?: bool
         {s.drop && <span className="fh-drop">DROP</span>}
       </span>
       {best && <span className="fh-best-tag"><Star /> {BEST_WORDS[best]}</span>}
+      {s.comment && <span className="fh-set-cmt"><BubbleIcon size={14} filled /><span>{s.comment}</span></span>}
     </li>
   );
 }
@@ -290,7 +292,15 @@ function SetView({ s, n, perSide, best }: { s: FitSet; n: number; perSide?: bool
 function SetEditor({ wid, exId, s, n, perSide }: { wid: string; exId: string; s: FitSet; n: number; perSide?: boolean }) {
   const [kg, setKg] = useState(fmtKg(s.kg));
   const [reps, setReps] = useState(s.reps == null ? "" : String(s.reps));
-  const focus = useRef<"kg" | "reps" | null>(null);
+  const focus = useRef<"kg" | "reps" | "cmt" | null>(null);
+  const [cmt, setCmt] = useState(s.comment ?? "");
+  useEffect(() => { if (focus.current !== "cmt") setCmt(s.comment ?? ""); }, [s.comment]);
+  const saveCmt = () => {
+    focus.current = null;
+    const c = cleanComment(cmt);
+    if (c !== (s.comment ?? "")) { haptic("tick"); void setNote(wid, exId, s.id, c); }
+    setCmt(c);
+  };
   useEffect(() => { if (focus.current !== "kg") setKg(fmtKg(s.kg)); }, [s.kg]);
   useEffect(() => { if (focus.current !== "reps") setReps(s.reps == null ? "" : String(s.reps)); }, [s.reps]);
   const saveKg = () => {
@@ -327,6 +337,11 @@ function SetEditor({ wid, exId, s, n, perSide }: { wid: string; exId: string; s:
               onClick={() => { haptic("tick"); void setPatch(wid, exId, s.id, { rir: s.rir === r ? null : r }); }}>{rirLabel(r)}</button>
           ))}
         </div>
+        <label className="fh-field fh-cmt-field">
+          <span>Comment</span>
+          <input type="text" maxLength={COMMENT_MAX} value={cmt} placeholder="e.g. left knee felt off, seat at 4" aria-label={`Set ${n} comment`}
+            onFocus={() => { focus.current = "cmt"; }} onChange={(e) => setCmt(e.target.value)} onBlur={saveCmt} onKeyDown={enter} />
+        </label>
       </div>
     </li>
   );

@@ -274,6 +274,12 @@ export const GLOSSARY = T({
     example: "Training with your laptop open: the chime tells you to start the next set.",
     why: "You do not have to watch the timer. Turn it off for a quiet room.",
   },
+  "gym-scan": {
+    group: "settings", title: "Gym scan",
+    what: "In a workout on the phone, Scan reads the label on a machine, puts German into English, and finds the exercise in your list.",
+    example: "Point it at a sign that says Beinpresse: it shows Leg press with a big green Yes, adds it, and shows how it is done.",
+    why: "You do not have to know what a machine is called. The picture is read on the phone and thrown away, never saved or sent.",
+  },
   "gym-reminder": {
     group: "settings", title: "Gym reminder",
     what: "Reminders before your gym time on the days you pick: cards on the Mac, notifications and a ring on the phone. Nag mode reminds you every few minutes until you say Yes.",
@@ -388,6 +394,7 @@ export const PREF_TERMS: { [K in keyof Required<FitPrefs>]: TermKey | null } = {
   setsDefault: "sets-default",
   setsBy: "own-sets",
   sound: "rest-sound",
+  scan: "gym-scan",
   weekGoal: "week-goal",
   sleepTarget: "sleep-settings",
   sleepAsk: "sleep-settings",
@@ -409,6 +416,7 @@ export const SETTINGS_SECTIONS: Record<string, TermKey> = {
   "Which day": "repeat-day",
   "Gym reminder": "gym-reminder",
   "Sleep": "sleep-settings",
+  "Gym scan": "gym-scan",
   "On the Mac": "rest-sound",
   "G Squad sharing": "squad-sharing",
   "Set up your training": "setup",

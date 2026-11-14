@@ -20,7 +20,9 @@ import { StTimeline } from "./StTimeline";
 import { GoalsWindow } from "./Goals";
 import type { Timeline } from "../ps";
 import { buildMatcher, gmailThreadLink, replierName } from "../core/mail";
-import { gmailCardId, leadMirror, leadRows, mailRows, replyButtonShows, type MailRow } from "../core/overlaymail";
+import { cleanReplyCardId, gmailCardId, leadMirror, leadRows, mailRows, replyButtonShows, type MailRow } from "../core/overlaymail";
+import { cleanOut, panelStatus, repliedRows, replyInPanelOn, sinkReplied, startUndoSend, type ReplyOut, type UndoSend } from "../core/inlinereply";
+import { ReplyBox, drafts as replyDrafts } from "./ReplyBox";
 import { leadCards } from "../core/leadcards";
 import { irepFeed, mailCardMessage } from "../mailcards";
 import { DAY_ENDS_DEFAULT, workDayOf } from "../core/daylog";
@@ -190,6 +192,9 @@ export const taskMapActions: {
   replyHandled: (id: string) => Promise<unknown>;
   /** Reply in the email panel (core/overlaymail.ts): opens the reply panel with that email loaded. Never sends. */
   replyOpen: (cardId: string) => Promise<unknown>;
+  /** V1.59 Reply in the email panel (core/inlinereply.ts): the box's Send, once its Undo has run out. The reply goes
+   *  from the account and in the thread the email came in on, through the Mac's queue. Only the developer's own click gets here. */
+  replyInline: (cardId: string, text: string, id: string) => Promise<unknown>;
   /** Done on a lead reply in the email panel: dismissed on every device, like the card's Dismiss. */
   leadDone: (cardId: string) => Promise<unknown>;
   aware: (list: AwareItem[]) => Promise<unknown>;
@@ -291,7 +296,9 @@ export const taskMapActions: {
   bury: (ids, cleared) => buryTodos(ids, cleared),
   restore: (id, data) => restoreTodo(id, data),
   replyHandled: (id) => setReplyHandled(id, true),
-  replyOpen: (cardId) => import("../replyengine").then((m) => m.openReplyFor(cardId)),   // PS main window; the overlay posts it (PsApp.tsx)
+  replyOpen: (cardId) => import("../replyengine").then((m) => m.openReplyFor(cardId)),
+  // The PS main window hands it to this Mac's queue; the phone and the website write it to the vault for a Mac to send.
+  replyInline: (cardId, text, id) => import("../replyengine").then((m) => m.sendInlineOrSay(cardId, text, id, import.meta.env.MODE === "ps" ? "mac" : isPhoneBuild() ? "phone" : "web")),   // PS main window; the overlay posts it (PsApp.tsx)
   leadDone: async (cardId) => mailCardMessage({ type: "cardAction", id: cardId, action: "dismiss" }),
   work: (id) => setWorkingOn(id),
   reorder: (ids, p1) => setTodoOrder(ids, p1),
@@ -3504,7 +3511,8 @@ export function Editor({ d, clients, onDone, ranked }: { d: Doc<Todo>; clients: 
 // Only what the vault already keeps: who, subject and Gmail's short preview, never the body.
 // Open goes to the thread in Gmail; Done marks it handled (answering in Gmail does that too).
 // Reply (PS on the Mac, 10 Nov 2026, core/overlaymail.ts): opens the reply panel with that email loaded; the developer writes
-// and sends it himself. Open lead replies from Instantly sit here too (Done dismisses them everywhere, like the card).
+// and sends it himself. V1.59 (core/inlinereply.ts, Settings "Reply in the email panel", on unless switched off): Reply
+// opens a small box right in the panel instead, on the phone and the website too (views/ReplyBox.tsx). Open lead replies from Instantly sit here too (Done dismisses them everywhere, like the card).
 const ago = (iso: string) => {
   const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
   return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
@@ -3524,30 +3532,80 @@ function ClientMail({ s, red }: { s: ReturnType<typeof useVault>; red: boolean }
     const leads = feed ? leadRows(leadCards(feed, settingsData(s).leadCards)) : mirrored;
     return { list: mailRows(gmail, leads), total: gmail.length + leads.length };
   }, [s, mirrored]);
-  if (!list.length) return null;
+  // V1.59 Reply in the email panel (core/inlinereply.ts): the box, its Undo, and how each reply went (from the vault).
+  const inline = replyInPanelOn(settingsData(s));
+  const outs = useMemo(() => [...s.docs.values()].filter((d) => d.kind === "rout").map((d) => cleanOut(d.data)).filter((o): o is ReplyOut => !!o), [s]);
+  const status = useMemo(() => panelStatus(outs), [outs]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [undo, setUndo] = useState<Map<string, UndoSend>>(() => new Map());
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!undo.size) return;
+    const t = window.setInterval(() => tick((n) => n + 1), 500);
+    return () => clearInterval(t);
+  }, [undo.size]);
+  // A reply that has really gone: its words are let go on this device.
+  useEffect(() => { for (const [id, st] of status) if (st.kind === "replied" && replyDrafts.has(id) && !undo.has(id)) replyDrafts.clear(id); }, [status, undo]);
+  const openIds = useMemo(() => new Set(list.map((r) => r.cardId)), [list]);
+  const replied = useMemo(() => inline ? repliedRows(outs, openIds, Date.now()) : [], [inline, outs, openIds]);
+  if (!list.length && !replied.length) return null;
   const leadsIn = list.some((r) => r.via === "instantly");
+  const dropUndo = (id: string) => setUndo((m) => { const n = new Map(m); n.delete(id); return n; });
+  const sendFrom = (r: MailRow, text: string) => {
+    setOpenId(null);
+    const id = crypto.randomUUID();
+    const u = startUndoSend(() => {
+      dropUndo(r.cardId);
+      void taskMapActions.replyInline(r.cardId, text, id).catch(() => {});   // a problem comes back as a "Not sent" record
+    });
+    setUndo((m) => new Map(m).set(r.cardId, u));
+  };
+  const undoIt = (cardId: string) => { if (undo.get(cardId)?.undo()) { dropUndo(cardId); setOpenId(cardId); } };
+  const rows = inline ? sinkReplied(list, status) : list;
   return (
     <aside className="tm-meet tm-mail" aria-label={leadsIn ? "Emails" : "Client emails"} onMouseDown={(e) => e.stopPropagation()}>
       <span className="tm-meet-h">{leadsIn ? "Emails" : "Client emails"}<em> · {total} new</em></span>
       <ul className="tm-mail-list">
-        {list.map((r) => {
+        {rows.map((r) => {
           const fresh = Date.now() - Date.parse(r.at) < 3600_000;
-          const canReply = replyButtonShows({ mode: import.meta.env.MODE, red, cardId: r.cardId });
+          const canInline = inline && !!cleanReplyCardId(r.cardId);
+          const canReply = !canInline && replyButtonShows({ mode: import.meta.env.MODE, red, cardId: r.cardId });
+          const u = undo.get(r.cardId), st = status.get(r.cardId), boxOpen = canInline && openId === r.cardId;
+          const busy = !!u || st?.kind === "sending";
           return (
-            <li key={r.cardId} className={fresh ? "fresh" : ""}>
+            <li key={r.cardId} className={`${fresh ? "fresh" : ""}${st?.kind === "replied" && !u ? " replied" : ""}`}>
               <span className="tm-mail-who">{r.who}{r.company && <em> · {r.company}</em>}{r.via === "instantly" && <em className="tm-mail-via"> · Instantly</em>}</span>
               <span className="tm-mail-t num" title={new Date(r.at).toLocaleString()}>{ago(r.at)}{r.count > 1 ? ` · ${r.count} emails` : ""}</span>
               <span className="tm-mail-s">{r.subject || "(no subject)"}</span>
-              {r.preview && <span className="tm-mail-p">{firstSentences(r.preview, 4)}</span>}
-              <span className="tm-mail-a">
-                {canReply && <button type="button" className="tm-meet-j tm-mail-reply" title="Opens the reply panel with this email in it. Nothing is sent until you press Send."
-                  onClick={() => { sfx.click(); void taskMapActions.replyOpen(r.cardId); }}>Reply</button>}
-                <a className={canReply ? "tm-mail-done" : "tm-meet-j"} href={r.url} target="_blank" rel="noopener noreferrer">Open</a>
-                <button type="button" className="tm-mail-done" onClick={() => { sfx.click(); void (r.replyId ? taskMapActions.replyHandled(r.replyId) : taskMapActions.leadDone(r.cardId)); }}>Done</button>
-              </span>
+              {r.preview && !boxOpen && <span className="tm-mail-p">{firstSentences(r.preview, 4)}</span>}
+              {u ? (
+                <span className="tm-mail-st" role="status">Sending in {u.left()} s
+                  <button type="button" className="tm-mail-undo" onClick={() => { sfx.click(); undoIt(r.cardId); }}>Undo</button></span>
+              ) : st && canInline ? (
+                <span className={`tm-mail-st ${st.kind}`} role="status" title={st.error || undefined}>{st.kind === "failed" && st.error ? `Not sent: ${st.error}` : st.text}</span>
+              ) : null}
+              {boxOpen && <ReplyBox cardId={r.cardId} who={r.who} last={r.preview} onClose={() => setOpenId(null)} onSent={(text) => sendFrom(r, text)} />}
+              {!boxOpen && (
+                <span className="tm-mail-a">
+                  {canInline && !busy && <button type="button" className="tm-meet-j tm-mail-reply" title="Reply right here. Nothing is sent until you press Send, and Undo shows for a few seconds after."
+                    onClick={() => { sfx.click(); setOpenId(r.cardId); }}>{replyDrafts.has(r.cardId) ? "Reply (draft)" : "Reply"}</button>}
+                  {canReply && <button type="button" className="tm-meet-j tm-mail-reply" title="Opens the reply panel with this email in it. Nothing is sent until you press Send."
+                    onClick={() => { sfx.click(); void taskMapActions.replyOpen(r.cardId); }}>Reply</button>}
+                  <a className={canReply || canInline ? "tm-mail-done" : "tm-meet-j"} href={r.url} target="_blank" rel="noopener noreferrer">Open</a>
+                  <button type="button" className="tm-mail-done" onClick={() => { sfx.click(); void (r.replyId ? taskMapActions.replyHandled(r.replyId) : taskMapActions.leadDone(r.cardId)); }}>Done</button>
+                </span>
+              )}
             </li>
           );
         })}
+        {replied.map((r) => (
+          <li key={`replied-${r.cardId}`} className="replied">
+            <span className="tm-mail-who">{r.who || "Email"}</span>
+            <span className="tm-mail-t num" title={new Date(r.at).toLocaleString()}>{ago(r.at)}</span>
+            {r.subject && <span className="tm-mail-s">{r.subject}</span>}
+            <span className="tm-mail-st replied" role="status">Replied</span>
+          </li>
+        ))}
       </ul>
     </aside>
   );

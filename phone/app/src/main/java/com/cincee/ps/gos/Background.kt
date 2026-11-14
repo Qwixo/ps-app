@@ -14,6 +14,8 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import javax.crypto.Cipher
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 /**
  * "Remember me": the DERIVED vault keys (login password and key encryption key, never the
@@ -62,6 +64,13 @@ object Session {
         if (last.same(text) && Keys.file(c, F).exists()) return
         Keys.write(c, F, text)
         last.wrote(text)
+        LiveLink.kick()   // V1.59: the live link joins (or renews) with the new token at once
+    }
+    /** The token and when it ends (ms), whatever is left of it. Off the main thread (Keystore). */
+    fun current(c: Context): Pair<String, Long>? {
+        val j = Keys.read(c, F)?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return null
+        val t = j.optString("access").takeIf { it.isNotEmpty() } ?: return null
+        return t to j.optLong("exp") * 1000
     }
     /** A token with at least two minutes left, else null (then the page refreshes it during the check). */
     fun token(c: Context): String? {
@@ -85,6 +94,30 @@ object Pulse {
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         wm.enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, req)
+    }
+
+    /** Run the check now, outside WorkManager (PulseNow). force: wake the page even when the probe did not move. */
+    fun now(c: Context, force: Boolean, why: String) { if (Prefs.background(c) && !Nuke.done(c)) PulseNow.start(c, force, why) }
+
+    /** One check: the tiny probe, and only on a change (or force) the page's change only sync. Off the main thread. */
+    private val gate = kotlinx.coroutines.sync.Mutex()
+    suspend fun run(c: Context, force0: Boolean, why: String) = gate.withLock { runOnce(c, force0, why) }
+    private suspend fun runOnce(c: Context, force0: Boolean, why: String) {
+        // The screen is open: the page syncs by itself (its own Realtime socket and the card pokes).
+        if (WebHost.activity?.isShown == true) return
+        val t0 = android.os.SystemClock.elapsedRealtime()
+        val sp = c.getSharedPreferences("pulse", Context.MODE_PRIVATE)
+        val before = probe(c)
+        val last = sp.getString("probe", null)
+        val stale = System.currentTimeMillis() - sp.getLong("at", 0) > 6 * 3600_000   // at least one full look every 6 hours
+        // A reminded email card is due, or a remind tapped while the page slept waits to be saved (Reminds).
+        val force = force0 || Reminds.due(c)
+        if (before != null && before == last && !stale && !force) return
+        val keys = Remember.background(c)
+        if (keys == null && !WebHost.unlocked) { if (before != null) sp.edit().putString("probe", before).apply(); return }
+        val ok = WebHost.pulse(c, keys)
+        Plog.i("pulse ($why): ${if (before == null) "token renewed" else if (before != last) "change" else "asked"} -> ${if (ok) "ok" else "failed"} in ${android.os.SystemClock.elapsedRealtime() - t0} ms")
+        if (ok) sp.edit().putString("probe", probe(c) ?: before).putLong("at", System.currentTimeMillis()).apply()
     }
 
     /** vault_probe with the saved token: the answer's hash, or null when it could not ask. */
@@ -113,20 +146,35 @@ class PulseWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
         if (!Prefs.background(c)) return Result.success()
         // Updates first, screen open or not (due every 5 minutes, so every run of this job; a failed look waits 5, 10, 20, 30 minutes: UpdateClock).
         Updater.maybe(c, open = false)
-        // The screen is open: the page syncs by itself.
-        if (WebHost.activity?.isShown == true) return Result.success()
-        val sp = c.getSharedPreferences("pulse", Context.MODE_PRIVATE)
-        val before = Pulse.probe(c)
-        val last = sp.getString("probe", null)
-        val stale = System.currentTimeMillis() - sp.getLong("at", 0) > 6 * 3600_000   // at least one full look every 6 hours
-        // A reminded email card is due, or a remind tapped while the page slept waits to be saved (Reminds).
-        val force = inputData.getBoolean("force", false) || Reminds.due(c)
-        if (before != null && before == last && !stale && !force) return Result.success()
-        val keys = Remember.background(c)
-        if (keys == null && !WebHost.unlocked) { if (before != null) sp.edit().putString("probe", before).apply(); return Result.success() }
-        val ok = WebHost.pulse(c, keys)
-        Plog.i("pulse: ${if (before == null) "token renewed" else "change"} -> ${if (ok) "ok" else "failed"}")
-        if (ok) sp.edit().putString("probe", Pulse.probe(c) ?: before).putLong("at", System.currentTimeMillis()).apply()
+        Pulse.run(c, inputData.getBoolean("force", false), "check")
         return Result.success()
+    }
+}
+
+/**
+ * V1.59: the same check started at once (the live link heard a signal, a reminded card is due, a remind tapped while
+ * the page slept), instead of a WorkManager job that Android may hold back while the phone dozes. One at a time; a
+ * request during a run makes one more run after it. A short wake lock keeps the phone up until the page has synced.
+ */
+object PulseNow {
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+    private val lock = Any()
+    private var busy = false
+    private var again = false
+    private var againForce = false
+    fun start(c: Context, force: Boolean, why: String) {
+        val app = c.applicationContext
+        synchronized(lock) { if (busy) { again = true; againForce = againForce || force; return }; busy = true }
+        scope.launch {
+            val wl = app.getSystemService(android.os.PowerManager::class.java).newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "ps:pulse")
+            runCatching { wl.acquire(100_000) }
+            var f = force; var w = why
+            try {
+                while (true) {
+                    try { Pulse.run(app, f, w) } catch (e: Exception) { Plog.i("pulse failed: ${e.javaClass.simpleName}") }
+                    synchronized(lock) { if (!again) { busy = false; return@launch }; again = false; f = againForce; againForce = false; w = "again" }
+                }
+            } finally { runCatching { if (wl.isHeld) wl.release() } }
+        }
     }
 }

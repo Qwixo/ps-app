@@ -7,8 +7,11 @@
 // show the section or not, and how long it keeps ticks.
 // V1.57: "Show all completed" at the end of the area opens every task ever ticked, a page at a time as it scrolls; Cmd +
 // click (Ctrl + click off a Mac, a long press on the phone) picks tasks, and Resurrect then brings back only those.
+// V1.59: Completed opens on the last 24 hours; "More" at its end slides the older ticks the keep setting holds open
+// (core/completed.ts completedView). Nothing in the last 24 hours: a quiet line and More. The section opens on 24
+// hours every time it is mounted again. Resurrect and Clear act on the rows shown.
 import type { Doc, Settings, Todo } from "../core/model";
-import { COMPLETE_ALL_ASK, KEEP_LABEL, LONG_PRESS_MS, historySlice, isPickClick, listPrefs, longPressMoved, moreCompleted, resurrectTargets, type KeepFor } from "../core/completed";
+import { COMPLETE_ALL_ASK, KEEP_LABEL, LONG_PRESS_MS, completedView, historySlice, isPickClick, listPrefs, longPressMoved, moreCompleted, nextAgeOutAt, resurrectTargets, type KeepFor } from "../core/completed";
 import { TICK_SOUNDS, tickSoundOf } from "../core/ticksound";
 import { ADD_ANIMS, ADD_COLORS, ADD_COLOR_DEFAULT, addAnimOf, addColorOf, addInkOn, type AddAnim } from "../core/addbutton";
 import { p1Color } from "../core/prio";
@@ -45,17 +48,30 @@ const ALL_ICON = (
 /** The end of the list (V1.34, V1.47): one row with Resurrect (whenever something can come back: `back`), Clear (while
  *  Completed shows tasks), Complete all (while the list has open tasks: `open`) and Sleep (`extra`), then Completed. */
 export function Completed({ list, back, history, open, keep, editing, onEdit, clients, extra, title }: { list: Doc<Todo>[]; back: Doc<Todo>[]; history: Doc<Todo>[]; open: string[]; keep: KeepFor; editing: string | null; onEdit: (id: string | null) => void; clients: ClientOpt[]; extra?: ReactNode; title?: ReactNode }) {
-  const ids = list.map((d) => d.id);
-  const name = (l: Doc<Todo>[]) => (l.length === 1 ? l[0].data.title : `${l.length} tasks`);
+  const [expanded, setExpanded] = useState(false);   // "More": everything the keep setting holds (V1.59)
   const [all, setAll] = useState(false);
   const [pages, setPages] = useState(1);
+  const [tick, setTick] = useState(0);
+  // A tick turns 24 hours old while the list is open: move it down at that moment, with no refresh.
+  const clock = Date.now();
+  const age = nextAgeOutAt(completedView(list, clock, false).recent, clock);
+  useEffect(() => {
+    if (age === null) return;
+    const id = window.setTimeout(() => setTick((x) => x + 1), Math.max(1000, Math.min(age - Date.now(), 3600_000)));
+    return () => window.clearTimeout(id);
+  }, [age, tick]);
+  const view = completedView(list, clock, expanded);
+  const shownList = view.shown;
+  const ids = shownList.map((d) => d.id);
+  const name = (l: Doc<Todo>[]) => (l.length === 1 ? l[0].data.title : `${l.length} tasks`);
   const picked = useSelection();
   const more = moreCompleted(history, list);
   const showAll = all && history.length > 0;
-  const slice = showAll ? historySlice(history, pages) : { rows: list, more: false };
-  // Resurrect: the picked completed tasks when any are picked, otherwise everything it brought back before.
-  const targets = resurrectTargets(back, showAll ? history : list, picked);
-  const picking = targets.some((d) => picked.has(d.id)) && targets !== back;
+  const slice = showAll ? historySlice(history, pages) : { rows: shownList, more: false };
+  // Resurrect: the picked completed tasks when any are picked, otherwise the rows shown (or what it brought back before).
+  const base = shownList.length ? shownList : back;
+  const targets = resurrectTargets(base, showAll ? history : shownList, picked);
+  const picking = targets.some((d) => picked.has(d.id)) && targets !== base;
   const resurrect = () => {
     if (!targets.length) return;
     const r = targets.map((d) => d.id), cleared = targets.filter((d) => !!d.data.clearedAt).map((d) => d.id);
@@ -68,14 +84,17 @@ export function Completed({ list, back, history, open, keep, editing, onEdit, cl
     if (!ids.length) return;
     sfx.click();
     sendClear(ids, true);
-    pushUndoAction(`clr:${ids[0]}:${ids.length}`, `Clear ${name(list)}`, () => sendClear(ids, false));
+    pushUndoAction(`clr:${ids[0]}:${ids.length}`, `Clear ${name(shownList)}`, () => sendClear(ids, false));
   };
   const backTitle = picking
     ? `Bring back only the ${targets.length === 1 ? "task" : `${targets.length} tasks`} you picked (Esc lets them go; Undo takes ${targets.length === 1 ? "it" : "them"} off again)`
-    : list.length
-      ? "Put every task in Completed back on your list (Undo brings them back here). Cmd + click tasks to bring back only some."
+    : shownList.length
+      ? "Put every task shown in Completed back on your list (Undo brings them back here). Cmd + click tasks to bring back only some."
       : `Bring back the ${back.length === 1 ? "task" : `${back.length} tasks`} you ticked off lately (Undo takes ${back.length === 1 ? "it" : "them"} off again)`;
   const rows = slice.rows;
+  const renderRow = (d: Doc<Todo>) => editing === d.id
+    ? <Editor key={d.id} d={d} clients={clients} onDone={() => onEdit(null)} />
+    : <DoneRow key={d.id} d={d} picked={picked.has(d.id)} any={picked.size > 0} />;
   const hasArea = list.length > 0 || more > 0 || showAll;
   // A click on the empty space around the rows lets every pick go.
   const bare = (e: React.MouseEvent<HTMLElement>) => { const t = e.target as HTMLElement; if (t === e.currentTarget || t.classList.contains("tm-done-bar") || t.classList.contains("tm-done-area")) clearSel(); };
@@ -87,22 +106,34 @@ export function Completed({ list, back, history, open, keep, editing, onEdit, cl
             {RESURRECT_ICON}<span>{picking ? "Resurrect picked" : "Resurrect"}</span><b className="num">{targets.length}</b>
           </button>
         )}
-        {list.length > 0 && <button type="button" className="tm-done-clear" onClick={clear} title="Take these off Completed (Undo brings them back)">Clear</button>}
+        {shownList.length > 0 && <button type="button" className="tm-done-clear" onClick={clear} title="Take these off Completed (Undo brings them back)">Clear</button>}
         <CompleteAll open={open} />
         {extra}
       </div>
       {hasArea && (
         <div className="tm-done-area" onClick={bare}>
-          <h3 className="tm-sec-h tm-done-h">{title ?? "Completed"}<span className="tm-sec-note">{showAll ? `all ${history.length}` : keep === "today" ? "today" : `last ${KEEP_LABEL[keep]}`}</span></h3>
-          {rows.length > 0 && (
-            <ul className="tm-list tm-done-list">
-              {rows.map((d) => editing === d.id
-                ? <Editor key={d.id} d={d} clients={clients} onDone={() => onEdit(null)} />
-                : <DoneRow key={d.id} d={d} picked={picked.has(d.id)} any={picked.size > 0} />)}
-            </ul>
-          )}
+          <h3 className="tm-sec-h tm-done-h">{title ?? "Completed"}<span className="tm-sec-note">{showAll ? `all ${history.length}` : !expanded ? "last 24 hours" : keep === "today" ? "today" : `last ${KEEP_LABEL[keep]}`}</span></h3>
+          {showAll ? (
+            rows.length > 0 && <ul className="tm-list tm-done-list">{rows.map(renderRow)}</ul>
+          ) : (<>
+            {view.quiet
+              ? <p className="tm-done-quiet">Nothing completed in the last 24 hours</p>
+              : <ul className="tm-list tm-done-list">{view.recent.map(renderRow)}</ul>}
+            {view.older.length > 0 && (
+              <div className={`tm-done-fold${expanded ? " open" : ""}`} aria-hidden={!expanded} inert={!expanded}>
+                <div className="tm-done-fold-in"><ul className="tm-list tm-done-list">{view.older.map(renderRow)}</ul></div>
+              </div>
+            )}
+            {view.canMore && (
+              <button type="button" className="tm-done-all tm-done-moreb" aria-expanded={false} onClick={() => { sfx.click(); setExpanded(true); }}
+                title={`Show the older ticks too (everything from the last ${keep === "today" ? "day" : KEEP_LABEL[keep]})`}>More<b className="num">{view.older.length}</b></button>
+            )}
+            {view.canLess && (
+              <button type="button" className="tm-done-all tm-done-less" aria-expanded={true} onClick={() => { sfx.click(); setExpanded(false); }}>Last 24 hours only</button>
+            )}
+          </>)}
           {showAll && slice.more && <HistoryEnd pages={pages} onMore={() => setPages((p) => p + 1)} />}
-          {!showAll && more > 0 && (
+          {!showAll && more > 0 && !view.canMore && (
             <button type="button" className="tm-done-all" onClick={() => { sfx.click(); setAll(true); setPages(1); }}
               title="Every task you have ever ticked off, newest first">Show all completed<b className="num">{history.length}</b></button>
           )}

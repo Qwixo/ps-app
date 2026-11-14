@@ -207,11 +207,15 @@ export function SettingsScreen({ owner, ctx, controls, onGo, phone = false }: {
     restBehind(root, "settings", rests);
     return () => restBehind(root, "settings", false);
   }, [rests, owner]);
-  // PS asks for Mac settings by name (the "PS is active" pop up's Settings button, ps-mac NoWindow.swift).
+  // PS asks for Mac settings by name (the "PS is active" pop up's Settings button, ps-mac NoWindow.swift). V1.59: or a
+  // tab by its id (the first stand-up's See settings asks for "standup", ps-mac IslandBubbleCore.swift StandAsk).
   useEffect(() => {
     if (owner !== "tab") return;
-    const g = window as Window & { __psOpenSettings?: () => boolean };
-    g.__psOpenSettings = () => { openSettings(ctx.where === "mac" ? "mac" : "list", { owner: "tab" }); return true; };
+    const g = window as Window & { __psOpenSettings?: (to?: unknown) => boolean };
+    g.__psOpenSettings = (to?: unknown) => {
+      openSettings(typeof to === "string" && isGroup(to) ? to : ctx.where === "mac" ? "mac" : "list", { owner: "tab" });
+      return true;
+    };
     return () => { if (g.__psOpenSettings) delete g.__psOpenSettings; };
   }, [owner, ctx.where]);
   // Follows what was asked. Also runs when a close finishes: a click on the gear while the screen was still shrinking

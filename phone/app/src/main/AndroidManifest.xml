@@ -27,6 +27,8 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- V1.59: a short wake lock while a live signal wakes the page for its sync (Background.kt PulseNow). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <!-- Only to name the apps in screen time and to find YouTube and Netflix: PS never touches Signal or 1Password. -->
@@ -96,6 +98,17 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Shows the floating to-do bubble and the 'Are you sure' pause before YouTube and Netflix." />
+        </service>
+
+        <!-- V1.59: the Dynamic island over other apps and the live link that brings notifications within seconds (Island.kt,
+             LiveLink.kt). Runs while either is on; its notification is the quiet PS line. -->
+        <service
+            android:name=".LiveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Shows the PS Dynamic island over other apps and keeps one quiet connection that brings client emails and AI messages within seconds, without Google push." />
         </service>
 
         <!-- Fitness: the countdown between sets, only while a rest runs (Fitness.kt). -->

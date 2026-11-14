@@ -143,6 +143,8 @@ export function PsOverlay() {
     taskMapActions.replyHandled = async (id) => psPost({ type: "replyHandled", id });
     // The email panel's Reply and a lead's Done: the main window has the vault and opens the reply panel (src/replyengine.ts).
     taskMapActions.replyOpen = async (cardId) => psPost({ type: "looks", patch: { replyOpen: cardId } });
+    // V1.59 Reply in the email panel: the box's Send after its Undo; the main window builds it and sends it on its way.
+    taskMapActions.replyInline = async (cardId, text, id) => psPost({ type: "looks", patch: { replyInline: { cardId, text, id } } });
     taskMapActions.leadDone = async (cardId) => psPost({ type: "looks", patch: { leadDone: cardId } });
     taskMapActions.workStyle = async (style) => psPost({ type: "workStyle", style });
     taskMapActions.reset = async () => psPost({ type: "reset" });

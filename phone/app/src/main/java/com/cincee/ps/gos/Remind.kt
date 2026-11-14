@@ -153,6 +153,7 @@ object Remind {
             .addRemoteInput(RemoteInput.Builder("word").setLabel("Type ${r.word}").build())
             .setAllowGeneratedReplies(false).build())
         nm(c).notify(tag(r.id), NID, b.build())
+        Island.reminder(c, r.id, r.pill, r.text, r.task.takeIf { RemClock.okTask(it) })   // V1.59: the island pops it too
         return true
     }
     private fun away(c: Context, id: String) { nm(c).cancel(tag(id), NID); if (playing == id) stopSound() }

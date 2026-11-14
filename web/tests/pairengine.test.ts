@@ -201,8 +201,8 @@ await ok("wiring: the card asks the main window from the Tab list, ps.ts runs an
 
 await ok("live: the phone layout and phone records poke, phones and the Mac's main window listen from unlock", () => {
   const v = read("src/core/vault.ts");
-  assert.match(v, /phonePokeKinds = new Set<string>\(\["phonelayout", "phonedev"\]\)/);
-  assert.match(v, /LIVE_POKES = new Set\(\["fit", "pl"\]\)/);
+  assert.match(v, /phonePokeKinds = new Set<string>\(\["phonelayout", "phonedev", "rout"\]\)/);
+  assert.match(v, /LIVE_POKES = new Set\(\["fit", "pl", "card"\]\)/);
   assert.match(v, /if \(LISTEN_FROM_UNLOCK && snap\.role === "owner"\) listenFitPoke\(\);   \/\/ V1\.57: the phone layout pokes/);
   assert.match(v, /if \(fitCh \|\| secondCh \|\| !meta/, "never two joins of the same topic");
   assert.equal(P.POLL_MS, 1_000);

@@ -41,6 +41,10 @@ export function FitSettings({ v, desk, onLooks, onSetup }: { v: FitView; desk?: 
       <Goal v={v} />
       <Day v={v} />
       <GymReminder />
+      <Section title="Gym scan" term="gym-scan">
+        <p className="fs-help fs-help-top">A Scan button in a workout on the phone: point the camera at a machine's label and {appName()} finds the exercise. The picture stays on the phone and is never saved.</p>
+        <Toggle label="Show Scan in a workout" on={v.prefs.scan ?? true} onChange={(on) => void savePrefs({ scan: on })} />
+      </Section>
       <Section title="Sleep" term="sleep-settings"><SleepPrefs v={v} /></Section>
       {desk && (
         <Section title="On the Mac" term="rest-sound">
@@ -389,7 +393,7 @@ function Section({ title, term, children }: { title: string; term: TermKey; chil
 }
 /** V1.43: every setting group named at the top, a tap scrolls to it, so nothing hides at the bottom of the page. */
 function Jump({ desk, setup }: { desk: boolean; setup: boolean }) {
-  const groups = [...(setup ? ["Set up your training"] : []), "Look", "Rest between sets", "Sets", "Week goal", "Which day", "Gym reminder", "Sleep", ...(desk ? ["On the Mac"] : []), "G Squad sharing", "Every word explained"];
+  const groups = [...(setup ? ["Set up your training"] : []), "Look", "Rest between sets", "Sets", "Week goal", "Which day", "Gym reminder", "Gym scan", "Sleep", ...(desk ? ["On the Mac"] : []), "G Squad sharing", "Every word explained"];
   return (
     <nav className="fs-jump" aria-label="Settings groups">
       {groups.map((t) => (

@@ -144,6 +144,7 @@ export const CUES: Record<string, string> = {
   "crunch": "Curl your shoulders off the floor towards your hips, lower back stays down.",
   "decline-sit-up": "Feet hooked, curl up to sitting, lower slowly.",
   "cable-crunch": "Kneel, rope by your head, curl your chest towards your knees.",
+  "abs-cable-crunch": "Kneel at a high cable, rope by your head, curl down with your abs and keep your hips still.",
   "machine-crunch": "Curl forward using your abs, not your arms, return slowly.",
   "hanging-leg-raise": "Hang from a bar, lift your legs or knees up without swinging.",
   "captains-chair-knee-raise": "Back on the pad, lift your knees to your chest, lower slowly.",

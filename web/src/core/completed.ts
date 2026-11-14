@@ -72,6 +72,43 @@ export function completedList<T extends Task>(all: Doc<T>[], keep: KeepFor, now:
   return all.filter((d) => isCompleted(d.data, since)).sort((a, b) => doneMs(b.data) - doneMs(a.data)).slice(0, COMPLETED_MAX);
 }
 
+// ---------- The last 24 hours first, "More" for the rest (V1.59) ----------
+// The developer: "when you click completed tasks, by default it only displays the last 24 hours of tasks, and you have to click
+// 'More' at the bottom to expand it." Completed opens on the ticks of the last 24 hours (24 real hours back from now,
+// not a calendar day, so no time zone or clock change moves the cut); "More" opens everything the keep setting holds
+// (Today / 7 / 30 days). Opened again, it is back on 24 hours (the open state lives only as long as the section is on screen).
+
+/** The short view of Completed: 24 hours. */
+export const RECENT_MS = 24 * 3600_000;
+
+/** The start of the short view (ms): a tick exactly 24 hours old is still in it. */
+export function recentSince(now: number): number { return now - RECENT_MS; }
+
+/** Completed (newest tick first) cut into the last 24 hours and the older ones the keep setting still holds.
+ *  A task with no readable tick time counts as older. */
+export function splitRecent<T extends Task>(list: Doc<T>[], now: number): { recent: Doc<T>[]; older: Doc<T>[] } {
+  const since = recentSince(now), recent: Doc<T>[] = [], older: Doc<T>[] = [];
+  for (const d of list) { const at = doneMs(d.data); (Number.isFinite(at) && at >= since ? recent : older).push(d); }
+  return { recent, older };
+}
+
+/** What Completed shows: the last 24 hours until "More" is pressed (`expanded`), then everything in `list`.
+ *  `quiet`: nothing in the last 24 hours (a quiet line shows instead of rows); `canMore` / `canLess`: which button shows. */
+export function completedView<T extends Task>(list: Doc<T>[], now: number, expanded: boolean) {
+  const { recent, older } = splitRecent(list, now);
+  return { recent, older, shown: expanded ? list : recent, quiet: recent.length === 0, canMore: !expanded && older.length > 0, canLess: expanded && older.length > 0 };
+}
+
+/** When the next task in `recent` turns 24 hours old (ms), so the view can move it down by itself; null when none will. */
+export function nextAgeOutAt<T extends Task>(recent: Doc<T>[], now: number): number | null {
+  let best: number | null = null;
+  for (const d of recent) {
+    const at = doneMs(d.data);
+    if (Number.isFinite(at)) { const t = at + RECENT_MS + 1; if (t > now && (best === null || t < best)) best = t; }
+  }
+  return best;
+}
+
 // ---------- Complete all and Resurrect at the end of the list (V1.47) ----------
 // The developer, 10 Nov 2026: "At the bottom of the to-do list, next to the Sleep button, add a button that says Complete all,
 // and it marks all tasks as complete." And: "I can't seem to find the Resurrect button anymore. Resurrect that

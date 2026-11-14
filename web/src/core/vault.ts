@@ -61,7 +61,7 @@ export const sb = createClient(SB_URL, SB_KEY, {
   db: { schema: PROJECT.schema as "public" },
 });
 
-const OWNER_KINDS = new Set<Kind>(["client", "pprivate", "todo", "meeting", "draft", "settings", "reply", "brief", "calendar", "iemail", "ithread", "agenda", "journal", "quote", "note", "daylog", "screentime", "stline", "cstats", "cpage", "fup", "irep", "msender", "fprog", "fwork", "fit", "psnote", "tzperson", "tzzones", "tablayout", "remind", "fsleep", "squad", "squadask", "squadjoin", "fact", "phonelayout", "phonedev",
+const OWNER_KINDS = new Set<Kind>(["client", "pprivate", "todo", "meeting", "draft", "settings", "reply", "brief", "calendar", "iemail", "ithread", "agenda", "journal", "quote", "note", "daylog", "screentime", "stline", "cstats", "cpage", "fup", "irep", "msender", "fprog", "fwork", "fit", "psnote", "tzperson", "tzzones", "tablayout", "remind", "fsleep", "squad", "squadask", "squadjoin", "fact", "phonelayout", "phonedev", "rout",
   "sdev", "spair", "sjob", "sjobst", "smsg", "sfile", "sack", "sstat", "scmd", "sidx", "sget", "sgot", "sbudget", "sojob", "sores"]);   // f*: Fitness (core/fitness.ts); s*: Second Computer (core/second.ts)
 // Offline merge (Fitness, 31 Oct 2026): records two devices may change at the same time (a workout logged
 // on the phone with no signal while the Mac fixes a weight in it) merge instead of the last write winning.
@@ -1930,8 +1930,8 @@ export async function pokeSecond(k: "job" | "msg" | "file" | "stat" | "cmd" | "i
 // (its phonedev record) shows up in the Mac's Link your phone card at once. Phones (PS GOS, the iPhone web app) and the
 // Mac's main window listen from unlock (startLoops); the Tab list has no session and gets it through the main window.
 const pokeKinds = new Set<string>(["fprog", "fwork", "fit", "fsleep", "fact"]);
-const phonePokeKinds = new Set<string>(["phonelayout", "phonedev"]);
-const LIVE_POKES = new Set(["fit", "pl"]);
+const phonePokeKinds = new Set<string>(["phonelayout", "phonedev", "rout"]);   // V1.59 rout: a reply from the email panel reaches the Mac that sends it at once
+const LIVE_POKES = new Set(["fit", "pl", "card"]);   // V1.59 "card": a card changed on another device (pokeCardsAfterSave)
 let fitCh: ReturnType<typeof sb.channel> | null = null;
 let fitPokeTimer: number | null = null;
 /** Listen for the other devices' Fitness pokes (idempotent; kept until the vault locks, an idle channel costs nothing). */
@@ -1942,12 +1942,22 @@ export function listenFitPoke() {
     .subscribe();
 }
 let pokeWhat = new Set<string>();
+// V1.59 (gos-island-159, the developer: "the notifications are laggy"): a card change made here (a finished chat or an AI message
+// kept, a Dismiss or a Remind me in) pokes {k: "card"} on the owner's own "second:<uid>" topic once it is saved, so PS on
+// the phone, which listens for it natively while its island or its live link runs (ps-gos LiveLink.kt), shows or clears
+// the notification within seconds instead of at its next background check. Only the empty poke goes out, as for "fit".
+let cardPokeWanted = false;
+/** Ask for a {k: "card"} poke after the next save reaches the server (see above). */
+export function pokeCardsAfterSave() { cardPokeWanted = true; }
 function pokeSaved(kinds: Set<string>) {
   const list = [...kinds];
   const fit = list.some((k) => pokeKinds.has(k)), pl = list.some((k) => phonePokeKinds.has(k));
-  if (!meta || meta.local || (!fit && !pl)) return;
+  const card = cardPokeWanted;
+  cardPokeWanted = false;
+  if (!meta || meta.local || (!fit && !pl && !card)) return;
   if (fit) pokeWhat.add("fit");
   if (pl) pokeWhat.add("pl");
+  if (card) pokeWhat.add("card");
   if (fitPokeTimer) return;
   // One poke per kind for a burst of saves, sent once they are all on the server.
   fitPokeTimer = window.setTimeout(() => {

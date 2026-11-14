@@ -1,3 +1,4 @@
+import java.security.MessageDigest
 import java.util.Properties
 
 plugins {
@@ -47,6 +48,8 @@ android {
         // The keyword of this PS version (web ps-version.json), shown next to the name.
         buildConfigField("String", "KEYWORD", "\"${versionProps.getProperty("keyword", "")}\"")
         buildConfigField("String", "SUPABASE_URL", "\"https://mxusokxekkecebwqgeru.supabase.co\"")
+        // Gym scan's text reader (Tesseract) is native code: only the Pixel's arm64, plus x86_64 for the emulator.
+        ndk { abiFilters += setOf("arm64-v8a", "x86_64") }
         buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_ahKGz1mm0oJyCeVJ_LKs6A_uMjYzW6B\"")
     }
 
@@ -91,6 +94,24 @@ android {
     dependenciesInfo { includeInApk = false; includeInBundle = false }
 }
 
+// Gym scan: the copied Tesseract4Android AAR must be exactly the 4.8.0 release (docs/gym-scan.md has where it came from).
+val tesseractAar = file("libs/tesseract4android-4.8.0.aar")
+val tesseractAarSha256 = "5bcff63c12baf46bfad9776292c93df62421cec3fe52eb62f03202f49bda8c34"
+val checkTesseractAar = tasks.register("checkTesseractAar") {
+    inputs.file(tesseractAar)
+    doLast {
+        val got = MessageDigest.getInstance("SHA-256").digest(tesseractAar.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        check(got == tesseractAarSha256) { "app/libs/tesseract4android-4.8.0.aar is not the pinned file (sha256 $got)" }
+    }
+}
+tasks.named("preBuild") { dependsOn(checkTesseractAar) }
+
+// Gym scan: the developer's phone is arm64, so the release leaves the emulator's x86_64 copy of the text reader out (about 8 MB).
+androidComponents {
+    onVariants(selector().withBuildType("release")) { it.packaging.jniLibs.excludes.add("lib/x86_64/**") }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.activity:activity-ktx:1.13.0")
@@ -99,6 +120,11 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    // Gym scan (V1.59, GymScan.kt): Tesseract OCR on the phone (Apache 2.0). No Google, no network, no Play services.
+    // Tesseract4Android 4.8.0, copied into the repo (app/libs) so the build has no extra download source; its SHA-256 is
+    // checked before every build (checkTesseractAar below). Its one runtime dependency, androidx.annotation, comes from
+    // Google's Maven through androidx.core already.
+    implementation(files("libs/tesseract4android-4.8.0.aar"))
     testImplementation("junit:junit:4.13.2")   // local JVM unit tests only (RestClock); not in the APK
     testImplementation("org.json:json:20240303")   // CmdKeyTest: org.json is a stub on the JVM
 }

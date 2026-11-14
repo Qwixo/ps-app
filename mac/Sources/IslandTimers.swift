@@ -139,7 +139,7 @@ struct TimerMiddle: View {
           switch m.tshow.middle {
           case .back(_, let words): row { IslandTick(size: m.bigTimer ? 22 : 18); Text(words).font(.system(size: 13, weight: .bold)).foregroundColor(fg).lineLimit(1).fixedSize() }
           case .brk(let phase, let endsAt, let left, let ready): breakRow(phase, endsAt, left, ready)
-          case .stand(_, let endsAt): standBig(endsAt)
+          case .stand(_, let endsAt): standFace(endsAt)
           case .task: Color.clear
           }
         }
@@ -173,16 +173,31 @@ struct TimerMiddle: View {
       }
     }
   }
-  private func standBig(_ endsAt: Double) -> some View {
-    HStack(spacing: 14) {
-      StandMan(size: 40, color: green)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(TimersCore.wStandUp).font(.system(size: 16, weight: .heavy)).foregroundColor(fg)
-        IslandCountdown(endsAt: endsAt, size: 13, color: dim)
+  /// V1.59 (the developer: "the island grows like Face ID on an iPhone: the content is much bigger and in the centre of the island,
+  /// with small text at the top saying Stand up plus the time, and the little standing man"). The island itself grows to
+  /// IslandTimerLayout.face; this is what fills it.
+  private func standFace(_ endsAt: Double) -> some View {
+    let calm = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    return VStack(spacing: 2) {
+      HStack(spacing: 6) {
+        Text(TimersCore.wStandUp).font(.system(size: 11.5, weight: .semibold, design: .rounded)).foregroundColor(dim).lineLimit(1).fixedSize()
+        IslandCountdown(endsAt: endsAt, size: 11.5, color: green)
       }
-      Spacer(minLength: 0)
+      ZStack {
+        // A soft glow that breathes behind him (still with Reduce Motion).
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: calm)) { ctx in
+          let k = calm ? 0.5 : (1 - cos(ctx.date.timeIntervalSinceReferenceDate * 2 * .pi / 2.4)) / 2
+          Circle().fill(RadialGradient(colors: [green.opacity(0.18 + 0.12 * k), green.opacity(0)], center: .center, startRadius: 4, endRadius: 50))
+            .frame(width: 100, height: 100).scaleEffect(0.92 + 0.08 * k)
+        }
+        StandMan(size: IslandTimerLayout.faceMan, color: green)
+      }
+      .frame(height: IslandTimerLayout.faceMan + 8)
     }
-    .padding(.horizontal, 20).frame(height: IslandTimerLayout.bigBody)
+    .padding(.top, m.pill ? 12 : 6)
+    .frame(maxWidth: .infinity)
+    .frame(height: m.pill ? IslandTimerLayout.faceH : IslandTimerLayout.faceBody, alignment: .top)
+    .accessibilityElement(children: .combine)
   }
   private func meetBig(_ mt: TMeet) -> some View {
     let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none
@@ -207,70 +222,12 @@ struct TimerMiddle: View {
 }
 
 enum IslandTimerLayout {
-  /// The open island's body for Stand up and an opened meeting (below the notch, or the whole pill).
+  /// The open island's body for an opened meeting (below the notch, or the whole pill).
   static let bigBody: CGFloat = 62
-  static let bubbleH: CGFloat = 24, bubbleGap: CGFloat = 6
-}
-
-/// The bubble that splits off the island's right side: the last 15 seconds before a stand-up, or the next meeting.
-struct TimerBubble: View {
-  @ObservedObject var m: IslandModel
-  var r: CGRect
-  var fg: Color
-  var tap: (TBubble) -> Void
-  private let green = Color(red: 0.2, green: 0.83, blue: 0.6), blue = Color(red: 0.38, green: 0.65, blue: 0.98)
-  var body: some View {
-    let room = max(40, IslandModel.panelW - r.maxX - IslandTimerLayout.bubbleGap - 4)
-    let y = m.pill ? r.minY + (m.pillH - IslandTimerLayout.bubbleH) / 2 : max(0, (m.geo.notchH - IslandTimerLayout.bubbleH) / 2)
-    ZStack(alignment: .topLeading) {
-      Color.clear
-      if !m.tshow.right.isNone, m.meetOpen == nil, !m.expanded, m.hasContent, !m.inBar {   // not in the black band over a full screen app
-        Button(action: { tap(m.tshow.right) }) { content.frame(maxWidth: room, alignment: .leading) }
-          .buttonStyle(.plain)
-          .padding(.horizontal, 9).frame(height: IslandTimerLayout.bubbleH)
-          .background(Capsule().fill(Color.black))
-          .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.8))
-          .fixedSize()
-          .offset(x: r.maxX + IslandTimerLayout.bubbleGap, y: y)
-          .transition(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? .opacity
-            : .scale(scale: 0.2, anchor: .leading).combined(with: .opacity).combined(with: .offset(x: -18)))
-          .id(bubbleKey)
-          .opacity(m.opacity)
-      }
-    }
-    .frame(width: IslandModel.panelW, height: IslandModel.panelH, alignment: .topLeading)
-    .allowsHitTesting(!m.tshow.right.isNone)
-  }
-  private var bubbleKey: String {
-    switch m.tshow.right { case .none: return "none"; case .standSoon: return "stand"; case .meet(let mode, let mt): return "meet-\(mt.id)-\(mode == "join" ? "j" : "c")" }
-  }
-  @ViewBuilder private var content: some View {
-    switch m.tshow.right {
-    case .standSoon(let at):
-      HStack(spacing: 5) {
-        Image(systemName: "figure.stand").font(.system(size: 11, weight: .bold)).foregroundColor(green)
-        TimelineView(.periodic(from: .now, by: 1)) { ctx in
-          Text("\(max(0, Int(((at - ctx.date.timeIntervalSince1970 * 1000) / 1000).rounded(.up))))")
-            .font(.system(size: 12, weight: .heavy)).monospacedDigit().foregroundColor(fg)
-        }
-      }
-    case .meet(let mode, let mt):
-      HStack(spacing: 5) {
-        Image(systemName: "video.fill").font(.system(size: 10, weight: .bold)).foregroundColor(blue)
-        if mode == "join" {
-          Text(TimersCore.wJoin).font(.system(size: 11.5, weight: .heavy)).foregroundColor(blue).fixedSize()
-          IslandCountdown(endsAt: mt.start, short: true, size: 11, color: fg.opacity(0.7))
-        } else if mode == "now" {
-          IslandCountdown(endsAt: mt.end, short: true, size: 11.5, color: fg)
-          Text("left").font(.system(size: 11, weight: .semibold)).foregroundColor(fg.opacity(0.7)).fixedSize()
-        } else {
-          Text(TimersCore.wIn(mt.title)).font(.system(size: 11, weight: .semibold)).foregroundColor(fg.opacity(0.8)).lineLimit(1).truncationMode(.tail)
-          IslandCountdown(endsAt: mt.start, short: true, size: 11.5, color: fg)
-        }
-      }
-    case .none: EmptyView()
-    }
-  }
+  static let bubbleH: CGFloat = BubbleFit.h, bubbleGap: CGFloat = BubbleFit.gap
+  /// V1.59 the stand-up's Face ID look: narrower and taller than the open island, rounder, the man big in the middle.
+  /// faceH is the whole pill, faceBody the part below the notch.
+  static let faceW: CGFloat = 236, faceH: CGFloat = 124, faceBody: CGFloat = 112, faceRadius: CGFloat = 36, faceMan: CGFloat = 70
 }
 
 /// The time left beside the task during a Pomodoro work session (Settings, "Time left on the island while you work", off
@@ -304,8 +261,14 @@ final class IslandTimers {
   /// When the middle last changed: the green tick and the little man animate from here.
   private(set) var changedAt = Date()
 
+  /// V1.59: the first stand-up's question was put up since PS started (the page's own "seen" may still be on its way).
+  private var askedStand = false
+  /// See settings on the question: the Tab list shows with Settings open on Stand-up reminders (main.swift).
+  var onStandSettings: (() -> Void)?
+
   private init() {
     NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in self?.check() }
+    StandAskWindow.shared.onAnswer = { [weak self] a in self?.standAnswer(a) }
   }
   private var model: IslandModel { Island.shared.model }
   private var nowMs: Double { Date().timeIntervalSince1970 * 1000 }
@@ -337,6 +300,7 @@ final class IslandTimers {
       if !onScreen && words == TimersCore.wBack { Toast.shared.show(title: TimersCore.wBack) }
     }
     apply(s)
+    askIfDue(s)
     // The next moment anything can change: the earliest boundary, or the tick's end.
     var next = TimersCore.nextChange(input, now).map { ($0 - now) / 1000 }
     if let h = holding { next = min(next ?? .infinity, h.until.timeIntervalSinceNow) }
@@ -386,6 +350,45 @@ final class IslandTimers {
     } else {
       withAnimation(calm ? .easeInOut(duration: 0.2) : .spring(response: 0.42, dampingFraction: 0.7)) { model.tshow = s }
       Island.shared.timersChanged()
+    }
+  }
+
+  // ---------- V1.59: the bubble's own window, and the first stand-up's question ----------
+  /// The bubble beside the island and the question below it follow the island (Island.shapeChanged, after each change).
+  func syncBubble() {
+    let m = model
+    let want = !m.tshow.right.isNone && m.meetOpen == nil && !m.expanded && m.hasContent && !m.inBar && !m.dragging
+    let a = Island.shared.timerAnchor()
+    BubbleWindow.shared.sync(m.tshow.right, want: want, anchor: a, opacity: m.opacity)
+    StandAskWindow.shared.follow(m.dragging ? nil : a)
+  }
+  /// Once in a person's life (their synced settings say whether): after the island has grown for a real stand-up, the
+  /// question comes out of it. Seen as soon as it shows; it goes when answered, on Esc, or when the stand-up ends.
+  private func askIfDue(_ s: TShow) {
+    if StandAsk.over(middle: s.middle) { if StandAskWindow.shared.isOpen { StandAskWindow.shared.close() }; return }
+    guard StandAsk.due(input, middle: s.middle, onScreen: onScreen, askedThisRun: askedStand) else { return }
+    askedStand = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + StandAsk.delay) { [weak self] in
+      guard let self else { return }
+      guard self.model.tshow.middle.isStand, self.onScreen, let a = Island.shared.timerAnchor() else { self.askedStand = false; return }
+      StandAskWindow.shared.show(anchor: a)
+      Island.shared.onAction?("standAsk", StandAsk.Answer.seen.rawValue)
+      // The island lets the card drop out of it: a small swell and a spring back (as the cards do, V1.55).
+      if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+        withAnimation(.spring(response: 0.16, dampingFraction: 0.9)) { self.model.swell = 0.7 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) { withAnimation(.spring(response: 0.5, dampingFraction: 0.45)) { self.model.swell = 0 } }
+      }
+    }
+  }
+  private func standAnswer(_ a: StandAsk.Answer) {
+    Island.shared.onAction?("standAsk", a.rawValue)
+    if a == .settings { onStandSettings?() }
+    if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+      // The card goes back up into the island: a smaller gulp.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+        withAnimation(.spring(response: 0.14, dampingFraction: 0.9)) { self?.model.swell = 0.35 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { withAnimation(.spring(response: 0.45, dampingFraction: 0.5)) { self?.model.swell = 0 } }
+      }
     }
   }
 

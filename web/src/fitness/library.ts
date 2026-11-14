@@ -199,6 +199,8 @@ export const EXERCISES: readonly Exercise[] = [
   ex("Crunch", "bodyweight", "I", "abs", "crunches|floor crunch"),
   ex("Decline sit up", "bodyweight", "I", "abs", "sit up|situps|decline crunch"),
   ex("Cable crunch", "cable", "I", "abs", "kneeling cable crunch|rope crunch"),
+  // V1.59 (the developer): the way he types it. Kneeling at a high cable, so "abs", "cable" and "crunch" all find it.
+  ex("Abs cable crunch", "cable", "I", "abs", "abs crunch|ab cable crunch|cable abs|high cable crunch|cable ab crunch|kneeling rope crunch"),
   ex("Machine crunch", "machine", "I", "abs", "ab crunch machine|ab machine"),
   ex("Hanging leg raise", "bodyweight", "I", "abs", "hanging knee raise|leg raises|toes to bar"),
   ex("Captains chair knee raise", "bodyweight", "I", "abs", "roman chair leg raise|knee raise|captains chair"),

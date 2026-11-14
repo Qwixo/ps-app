@@ -36,7 +36,14 @@ export const PHONE_CONTROLS: Controls = {
   "phone-checks": function Checks({ e }: RowProps) {
     const p = useGos().prefs;
     return <SetRow e={e} right={<Switch on={!!p?.background} onChange={(v) => setP({ background: v })} label={e.name} />}
-      body={<Note>Every 15 minutes or so (less while the phone sleeps) PS app asks the vault one tiny question: did anything change? Only then does it fetch the changes. No Google services, no push servers.</Note>} />;
+      body={<Note>Every 15 minutes or so (less while the phone sleeps) PS app asks the vault one tiny question: did anything change? Only then does it fetch the changes. No Google services, no push servers. Instant notifications make it seconds.</Note>} />;
+  },
+  "phone-live": function Live({ e }: RowProps) {
+    const g = useGos(), p = g.prefs, on = p?.live !== false;
+    return <SetRow e={e} right={<Switch on={on} onChange={(v) => setP({ live: v })} label={e.name} />}
+      body={<Note>{!p?.background ? "Needs Background checks on." : on
+        ? `PS app keeps one quiet connection to your vault and hears the moment something new arrives, so notifications come within seconds. Only an empty signal travels; the email itself comes through the normal sync.${g.perms?.live ? " Connected now." : ""}`
+        : "Off: notifications come with the background check, every 15 minutes or so."}</Note>} open />;
   },
   "phone-perms": function Perms({ e }: RowProps) {
     const perms = useGos().perms;
@@ -109,6 +116,17 @@ export const PHONE_CONTROLS: Controls = {
           extra={o.k === "bubble" && p?.bubble && perms && !perms.overlay ? <PermBtn which="overlay" text="Allow Display over other apps" /> : null} />
       ))}
     </Card>} open />;
+  },
+  "phone-island": function IslandRow({ e }: RowProps) {
+    const g = useGos(), p = g.prefs, perms = g.perms, on = p?.island !== false;
+    const needOverlay = on && perms && !perms.overlay;
+    const needUsage = on && perms && !needOverlay && perms.islandUsage && !perms.usage;
+    return <SetRow e={e} right={<Switch on={on} onChange={(v) => setP({ island: v })} label={e.name} />}
+      body={<div className="gs-phone-need">
+        <Note>Your next meeting, Pomodoro breaks, stand-ups, reminders and AI messages show around the camera, over every app. Tap it to open PS app, hold it to hide it for 30 minutes. Never on the lock screen; it steps aside while an app is full screen.</Note>
+        {needOverlay && <><Note>It needs one permission, called Display over other apps.</Note><PermBtn which="overlay" text="Allow Display over other apps" /></>}
+        {needUsage && <><Note>On your build it stays away from 1Password and Signal. To know when they are open it needs Usage access.</Note><PermBtn which="usage" text="Allow Usage access" /></>}
+      </div>} open={on} />;
   },
   "phone-haptics": function Haptics({ e }: RowProps) {
     const p = useGos().prefs;

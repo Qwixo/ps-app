@@ -18,7 +18,7 @@ import { irepFeed } from "./mailcards";
 import { ISLAND_EVENT_MS, ISLAND_FRESH_MS, canPrivateOff, canTick, canUndo, islandState, pickEvent, type IslandCard, type IslandEvent, type IslandState, type IslandTick } from "./core/island";
 import { todayISO } from "./ui/kit";
 import { breakWindows, cleanRun, pomoIsland, pomoPrefs } from "./core/pomodoro";
-import { STAND_LEAD_MS, standIsland, standPrefs } from "./core/standup";
+import { STAND_LEAD_MS, standAskDue, standAskPatch, standIsland, standPrefs } from "./core/standup";
 import { meetBubblePrefs, meetIsland } from "./core/meetbubble";
 import { dndMutes } from "./core/dnd";
 import { runPomoOp } from "./pomodoro";
@@ -80,7 +80,7 @@ function sync(force = false) {
   const pomo = pomoIsland(run, pp, now, soundOk);
   // Stand-up reminders (core/standup.ts): the one on now or next; one that falls in a Pomodoro break is skipped.
   const breaks = breakWindows(run, pp, now);
-  const stand = standIsland(standPrefs(st.standup), now, soundOk, (at) => breaks.some(([a, b]) => at >= a && at < b), standTest);
+  const stand = standIsland(standPrefs(st.standup), now, soundOk, (at) => breaks.some(([a, b]) => at >= a && at < b), standTest, standAskDue(st));
   // The next meeting bubble (core/meetbubble.ts): the meetings the Meetings panel already has.
   const meet = meetIsland(cal?.data.events, st.meetHidden, meetBubblePrefs(st.meetBubble), now, !!st.privateMode);
   send({ ...shown, meets, pomo, stand, meet }, force);
@@ -99,6 +99,13 @@ export function islandMessage(m: { type?: string; action?: string; id?: string }
   if (s.status !== "unlocked" || s.role !== "owner") return true;
   // Pomodoro: the island's Start on a break that waits (Start the next one by itself is off).
   if (m.action === "pomoBegin") { void runPomoOp("begin"); return true; }
+  // V1.59 the first stand-up's question (ps-mac IslandBubble.swift): seen as it shows, then the answer. Saved once.
+  if (m.action === "standAsk") {
+    const st = settingsData(s);
+    const patch = standAskPatch(m.id, st.standup);
+    if (patch && (st.standAsk !== true || patch.standup)) void saveSettings(patch).then(() => sync(true));
+    return true;
+  }
   if (m.action === "privateOff") {
     if (canPrivateOff(shown, settingsData(s).privateMode)) void saveSettings({ privateMode: false }).then(() => sync(true));
     return true;
