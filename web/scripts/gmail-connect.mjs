@@ -87,12 +87,11 @@ args.forEach((x, i) => { if (i === pi || i === pi + 1 || x.startsWith("--")) ret
 if (!Object.keys(ACCOUNTS).length) { console.log("Add at least one <name>=<path to your OAuth client file>."); process.exit(1); }
 const wanted = Object.keys(ACCOUNTS);
 const pending = load();
-const fallback = [];
 const have = new Set(Object.values(pending).map((v) => v.email));
 const todo = wanted.filter((n) => ACCOUNTS[n] && !have.has(`${n}@gmail.com`));
 for (const n of wanted) if (have.has(`${n}@gmail.com`)) console.log(`${n}: already signed in, skipping`);
 
-if (todo.length && !useConnector) {
+if (todo.length) {
   const runs = [];
   for (const name of todo) runs.push({ name, ...(await prepare(name, oauthClient(ACCOUNTS[name]))) });
   console.log(`\nOpen each link in the browser profile that is signed in to that account.`);
@@ -124,11 +123,11 @@ if (todo.length && !useConnector) {
 const list = Object.values(pending);
 if (!list.length) { console.log("\nNothing to send."); process.exit(1); }
 const codeFile = join(DIR, "enroll-code");
-if (!existsSync(codeFile)) { console.log(`\nMissing ${codeFile}. Settings, Client emails, step 3 shows how to make one.`); process.exit(1); }
+if (!existsSync(codeFile)) { console.log(`\nMissing ${codeFile}. Settings, Client emails, step 5 shows how to make one.`); process.exit(1); }
 const res = await fetch(FN, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ op: "enroll", code: readFileSync(codeFile, "utf8").trim(), accounts: list, allowWrite: fallback }),
+  body: JSON.stringify({ op: "enroll", code: readFileSync(codeFile, "utf8").trim(), accounts: list }),
 });
 const out = await res.json().catch(() => ({}));
 console.log("\nSupabase says:");
