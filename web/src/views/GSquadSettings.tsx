@@ -9,7 +9,7 @@ import { squadOp } from "../squad/mirror";
 import { chatOp, useChat } from "../squad/chatmirror";
 import { useBack } from "../squad/back";
 import { SETTINGS_PAGES, THE_SQUAD, type SettingsPage } from "../squad/single";
-import { ACCENTS, BGS, BUBBLES, looksStore, setLooks, TEXTS, THEMES, type GsLooks } from "../squad/looks";
+import { ACCENTS, BGS, BUBBLES, LOOK_STYLES, looksStore, setLooks, TEXTS, THEMES, type GsLooks } from "../squad/looks";
 import type { SquadView } from "../squad/view";
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
@@ -173,6 +173,7 @@ function LooksPage() {
         <div className="gc-line first last"><span className="gc-av"><Avatar id="preview-sam" name="Sam" size={30} /></span><div className="gc-col"><div className="gc-bubble"><span className="gc-who t2">Sam</span><span className="gc-text">Gym at 6, who is in?</span></div></div></div>
         <div className="gc-line mine first last"><div className="gc-col"><div className="gc-bubble"><span className="gc-text">In. See you there</span></div></div></div>
       </div>
+      <Choice label="G Squad look" list={LOOK_STYLES} value={l.look} onPick={(look) => setLooks({ look })} />
       <Choice label="Light or dark" list={THEMES} value={l.theme} onPick={(theme) => setLooks({ theme })} />
       <Choice label="Colour" list={ACCENTS} value={l.accent} onPick={(accent) => setLooks({ accent })}
         swatch={(id) => { const a = ACCENTS.find((x) => x.id === id)!; return <i className={`gss-sw${id === "ps" ? " ps" : ""}`} style={id === "ps" ? undefined : { background: `linear-gradient(140deg, ${a.c}, ${a.c2})` }} />; }} />

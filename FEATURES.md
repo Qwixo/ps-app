@@ -74,6 +74,10 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Export my data | An encrypted backup file, and bringing one back in. | Settings, Sync and account. Only when you click it. |
 | What's new | Shows the changes once per version. | Shown once. |
 
+## New in V1.60
+
+- G Squad new look: G Squad now looks like a calm messenger. A list with round pictures, the last line, the time and an unread count, and a chat with flat bubbles, small names, day lines and one rounded box with a round send button. Messages from one person a few minutes apart sit in one group. Off switch: Squad settings, Appearance, "G Squad look": Classic.
+
 ## New in V1.59
 
 - Phone island: on your phone, a small live island around the camera shows over every app: your next meeting, Pomodoro breaks, stand-ups, reminders and AI messages. Tap it to open PS.

@@ -7,7 +7,8 @@ export type GsTheme = "ps" | "light" | "dark";
 export type GsBubbles = "round" | "soft" | "square";
 export type GsText = "m" | "l" | "xl" | "xxl";
 export type GsBg = "glow" | "dots" | "plain" | "wash";
-export interface GsLooks { theme: GsTheme; accent: string; bubbles: GsBubbles; text: GsText; bg: GsBg }
+export type GsLook = "new" | "classic";
+export interface GsLooks { look: GsLook; theme: GsTheme; accent: string; bubbles: GsBubbles; text: GsText; bg: GsBg }
 
 /** "ps" follows the PS look's own accent; the rest are fixed colours with readable text on them. */
 export const ACCENTS: { id: string; label: string; c: string; c2: string; on: string }[] = [
@@ -20,6 +21,8 @@ export const ACCENTS: { id: string; label: string; c: string; c2: string; on: st
   { id: "amber", label: "Amber", c: "#F5A524", c2: "#EF5B3A", on: "#2A1700" },
   { id: "coral", label: "Coral", c: "#F2604B", c2: "#E8457F", on: "#FFFFFF" },
 ];
+/** PR 11: "New" is the quiet messenger layout (flat round pictures, calm rows, flat bubbles); "Classic" is the look before it. */
+export const LOOK_STYLES: { id: GsLook; label: string }[] = [{ id: "new", label: "New" }, { id: "classic", label: "Classic" }];
 export const THEMES: { id: GsTheme; label: string }[] = [
   { id: "ps", label: "Follow PS app" }, { id: "light", label: "Light" }, { id: "dark", label: "Dark" },
 ];
@@ -33,13 +36,14 @@ export const TEXTS: { id: GsText; label: string; scale: number }[] = [
 export const BGS: { id: GsBg; label: string }[] = [
   { id: "glow", label: "Glow" }, { id: "dots", label: "Dots" }, { id: "wash", label: "Colour wash" }, { id: "plain", label: "Plain" },
 ];
-export const DEFAULT_LOOKS: GsLooks = { theme: "ps", accent: "ps", bubbles: "round", text: "l", bg: "glow" };
+export const DEFAULT_LOOKS: GsLooks = { look: "new", theme: "ps", accent: "ps", bubbles: "round", text: "l", bg: "glow" };
 
 const pick = <T extends string>(v: unknown, list: { id: T }[], d: T): T => (list.some((x) => x.id === v) ? (v as T) : d);
 /** Anything unknown falls back to the default, field by field. */
 export function cleanLooks(v: unknown): GsLooks {
   const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   return {
+    look: pick(o.look, LOOK_STYLES, DEFAULT_LOOKS.look),
     theme: pick(o.theme, THEMES, DEFAULT_LOOKS.theme),
     accent: pick(o.accent, ACCENTS, DEFAULT_LOOKS.accent),
     bubbles: pick(o.bubbles, BUBBLES, DEFAULT_LOOKS.bubbles),
@@ -51,7 +55,7 @@ export const textScale = (t: GsText) => TEXTS.find((x) => x.id === t)?.scale ?? 
 
 /** The classes on the G Squad screen. */
 export function looksClass(l: GsLooks): string {
-  return `th-${l.theme} bb-${l.bubbles} bg-${l.bg}${l.accent !== "ps" ? " acc-own" : ""}`;
+  return `lk-${l.look} th-${l.theme} bb-${l.bubbles} bg-${l.bg}${l.accent !== "ps" ? " acc-own" : ""}`;
 }
 /** The CSS variables on the G Squad screen (set on it, so everything inside follows): the text size times PS's own
  *  text size, and the accent unless it follows PS. Every G Squad style already reads these look tokens. */

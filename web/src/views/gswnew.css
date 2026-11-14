@@ -1,0 +1,88 @@
+/* G Squad, the New look (PR 11): a calm messenger layout on top of gswin.css and gschat.css. Every rule starts with
+   .gsw.lk-new, so the Classic look (Settings, G Squad, Appearance, "G Squad look") is exactly what it was. PS's own
+   colours (the --k-* tokens, light and dark), PS's own icons, no borrowed brand marks. Layout and feel only:
+   - the list: round pictures, a name, the last line, the time, an unread count; the open row is a soft grey, not a colour block
+   - the chat: flat bubbles (yours in the accent, others quiet grey), no tails, small names, day lines as plain text
+   - the box: one rounded field with a round send button
+   Only transform and opacity animate; reduced motion switches the small animations off at the end. */
+
+/* ---------- the list ---------- */
+.gsw.lk-new { --gw-side: var(--gw-main); }
+.gsw.lk-new .gsw-side { background: var(--gw-main); }
+.gsw.lk-new .gsw-squad { padding-bottom: calc(10px * var(--k-dn, 1)); }
+.gsw.lk-new .gsw-orb { width: 46px; height: 46px; background: var(--k-acc, #EC4E86); box-shadow: none; }
+.gsw.lk-new .gsw-orb svg { width: 24px; height: 24px; }
+.gsw.lk-new .gsw-squad-t { font-size: calc(19px * var(--k-fs, 1)); font-weight: 750; }
+.gsw.lk-new .gsw-squad-t em { font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 500; }
+.gsw.lk-new .gsw-rows { gap: 0; padding: 0 calc(8px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); }
+.gsw.lk-new .gsw-rows-end { border-top: 0; }
+.gsw.lk-new .gsw-row { min-height: 68px; gap: calc(13px * var(--k-dn, 1)); padding: calc(9px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); }
+.gsw.lk-new .gsw-row.on { background: var(--gw-hover); color: inherit; }
+.gsw.lk-new .gsw-row:active { transform: none; background: var(--gw-hover); }
+.gsw.lk-new .gsw-row.on .gsw-row-t time, .gsw.lk-new .gsw-row.on .gsw-row-s > span { color: var(--gw-muted); }
+.gsw.lk-new .gsw-row.on .gsw-row-s > span.strong { color: var(--k-fg, #FFFFFF); }
+.gsw.lk-new .gsw-row.on .gsw-count { background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
+.gsw.lk-new .gsw-row.on .gsw-dot { background: var(--k-acc, #EC4E86); box-shadow: none; }
+.gsw.lk-new .gsw-row.on .gsw-ico { box-shadow: none; }
+.gsw.lk-new .gsw-row-t b { font-size: calc(16px * var(--k-fs, 1)); font-weight: 650; }
+.gsw.lk-new .gsw-row-t time { font-size: calc(12px * var(--k-fs, 1)); font-weight: 500; }
+.gsw.lk-new .gsw-row-s > span { font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 450; }
+.gsw.lk-new .gsw-row-s > span.strong { font-weight: 650; }
+.gsw.lk-new .gsw-row:has(.gsw-count) .gsw-row-t b { font-weight: 800; }
+.gsw.lk-new .gsw-row:has(.gsw-count) .gsw-row-t time { color: var(--k-acc-t, var(--k-acc, #EC4E86)); font-weight: 650; }
+.gsw.lk-new .gsw-count { min-width: 22px; height: 22px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 700; }
+.gsw.lk-new .gsw-dot { width: 10px; height: 10px; box-shadow: none; }
+/* flat round pictures, one colour each */
+.gsw.lk-new .gsw-ico { width: 48px; height: 48px; background: var(--c); }
+.gsw.lk-new .gsw-ico svg { width: 23px; height: 23px; }
+.gsw.lk-new .gsw-ico.big { width: 42px; height: 42px; }
+.gsw.lk-new .gsw-ico.big svg { width: 21px; height: 21px; }
+.gsw.lk-new .gsa { background: var(--c); }
+
+/* ---------- the header of the open section ---------- */
+.gsw.lk-new .gsw-head { min-height: 68px; padding: calc(8px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)); gap: calc(12px * var(--k-dn, 1)); background: var(--gw-main); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.gsw.lk-new .gsw-head-t { font-size: calc(17px * var(--k-fs, 1)); font-weight: 700; }
+.gsw.lk-new .gsw-head-t em { margin-top: 1px; font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 500; }
+.gsw.lk-new .gsw-stack .gsa { margin-left: -8px; box-shadow: 0 0 0 2px var(--gw-main); }
+.gsw.lk-new .gsw-main { background: var(--gw-paper); }
+.gsw.lk-new.bg-glow .gsw-bg { opacity: .4; }
+
+/* ---------- the chat ---------- */
+.gsw.lk-new .gc-list { padding: calc(12px * var(--k-dn, 1)) calc(18px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); }
+.gsw.lk-new .gc-lines { gap: calc(2px * var(--k-dn, 1)); }
+.gsw.lk-new .gc-line.first { margin-top: calc(10px * var(--k-dn, 1)); }
+.gsw.lk-new .gc-col { max-width: min(72%, 560px); }
+.gsw.lk-new .gc-bubble { padding: calc(8px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); box-shadow: none; }
+.gsw.lk-new .gc-line .gc-bubble::before { display: none; }
+.gsw.lk-new .gc-line.mine .gc-bubble { background: var(--k-acc, #EC4E86); }
+.gsw.lk-new.bb-round .gc-lines .gc-line .gc-bubble { border-radius: calc(18px * var(--k-rd, 1)); }
+.gsw.lk-new.bb-round .gc-lines .gc-line:not(.mine):not(.first) .gc-bubble { border-top-left-radius: calc(5px * var(--k-rd, 1)); }
+.gsw.lk-new.bb-round .gc-lines .gc-line:not(.mine):not(.last) .gc-bubble { border-bottom-left-radius: calc(5px * var(--k-rd, 1)); }
+.gsw.lk-new.bb-round .gc-lines .gc-line.mine:not(.first) .gc-bubble { border-top-right-radius: calc(5px * var(--k-rd, 1)); }
+.gsw.lk-new.bb-round .gc-lines .gc-line.mine:not(.last) .gc-bubble { border-bottom-right-radius: calc(5px * var(--k-rd, 1)); }
+.gsw.lk-new .gc-who { margin-bottom: 1px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; }
+.gsw.lk-new .gc-text { font-size: calc(14px * var(--k-fs, 1)); line-height: 1.4; }
+.gsw.lk-new .gc-meta { font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 500; opacity: .6; }
+.gsw.lk-new .gc-day { margin: calc(16px * var(--k-dn, 1)) 0 calc(6px * var(--k-dn, 1)); }
+.gsw.lk-new .gc-day span { padding: 0; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 0;
+  font-size: calc(12px * var(--k-fs, 1)); font-weight: 600; color: var(--gw-muted); }
+
+/* ---------- the box ---------- */
+.gsw.lk-new .gc-compose { padding: calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-top: 1px solid var(--gw-line); background: var(--gw-main); }
+.gsw.lk-new .gc-row { padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(26px * var(--k-rd, 1)); background: var(--gw-soft); border-color: transparent; }
+.gsw.lk-new .gc-row:focus-within { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); box-shadow: none; }
+.gsw.lk-new .gc-box { min-height: 38px; font-size: calc(14px * var(--k-fs, 1)); }
+.gsw.lk-new .gc-send { min-width: 44px; height: 44px; border-radius: 50%; padding: 0 calc(12px * var(--k-dn, 1)); }
+.gsw.lk-new .gc-send svg { width: 18px; height: 18px; }
+.gsw.lk-new .gc-foot, .gsw.lk-new .gc-sound { margin-left: calc(14px * var(--k-dn, 1)); margin-right: calc(14px * var(--k-dn, 1)); }
+
+/* ---------- a phone, and one narrow pane ---------- */
+.gsw.lk-new.narrow .gsw-head { min-height: 64px; }
+.gsw.lk-new.narrow .gc-list { padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.gsw.lk-new.narrow .gc-col { max-width: 80%; }
+.gsw.lk-new.narrow .gc-compose { padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.gsw.lk-new.phone .gsw-row { min-height: 72px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gsw.lk-new .gsw-row, .gsw.lk-new .gc-send, .gsw.lk-new .gc-row { transition: none; }
+}
