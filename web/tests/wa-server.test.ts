@@ -192,6 +192,7 @@ await ok("the webhook: signature before anything is parsed, never calls Meta, no
   assert.match(hook, /rpc\("whatsapp_get_config"\)/);
   assert.ok(!/Deno\.env\.get\("(WA|WHATSAPP)[A-Z_]*(TOKEN|SECRET|ID)/.test(hook + send), "no secret in an environment variable");
   assert.match(hook, /\.insert\(rows\)/);
+  assert.match(hook, /eq\("source", "whatsapp"\)\.lt\("created_at"/, "unopened sealed messages are pruned");
   assert.match(hook, /bad signature" }, 401\)/);
 });
 await ok("send: owner only, window checked before the text goes out, the token never returned", () => {

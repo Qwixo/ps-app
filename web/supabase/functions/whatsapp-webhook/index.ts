@@ -72,6 +72,8 @@ Deno.serve(async (req) => {
     if (Math.random() < 0.02) {
       await admin.from("whatsapp_seen").delete().lt("at", new Date(Date.now() - 30 * 86_400_000).toISOString());
       await admin.from("whatsapp_window").delete().lt("at", new Date(Date.now() - 8 * 86_400_000).toISOString());
+      // Sealed messages nobody opened (WhatsApp switched off in PS, or no device signed in) go after 14 days.
+      await admin.from("inbox").delete().eq("source", "whatsapp").lt("created_at", new Date(Date.now() - 14 * 86_400_000).toISOString());
     }
     return json({ ok: true, sealed: rows.length });
   } catch {
