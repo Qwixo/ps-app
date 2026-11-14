@@ -31,6 +31,9 @@ import { heldDismissed, type Dismissed } from "./core/cardsync";
 import { notePrefs, noteSoundName, pickChime } from "./core/notelook";
 import type { Snapshot } from "./core/vault";
 import { mailOnSnap } from "./core/mailsnap";
+import { waOnSnap } from "./core/wasnap";
+import { isWaCard, nextWaRemind, prefsOf, waCards } from "./core/whatsapp";
+import { saveWaPrefs, setWaRemind, setWaSeen } from "./core/waactions";
 import { cleanLedger, ledgerDecide, noteKey, type Ledger } from "./core/maildedupe";
 
 /** The Instantly reply feed (one "irep" record: replies and the developer's own Unibox sends). */
@@ -90,11 +93,13 @@ function sync(force = false) {
   const mailOn = mailOnSnap(s);
   if (mailOn && !st.mailCardsSince) { void saveSettings({ mailCardsSince: new Date().toISOString() }); return; }   // first run: start from now
   if (mailOn && !st.leadCards?.since) { void saveSettings({ leadCards: { since: new Date().toISOString() } }); return; }   // the same for Instantly replies
+  const waOn = waOnSnap(s), waPrefs = prefsOf(st);
+  if (waOn && !waPrefs.since) { void saveWaPrefs({ since: new Date().toISOString() }); return; }   // first run: start from now
   if (waiting.length) { const w = waiting; waiting = []; w.forEach((a) => apply(a.id, a.action)); }
   // The next reminded card: back on time here, and the phone shell wakes this page for it.
   // Do Not Disturb ending by itself counts too: the held cards come back on time (and the phone wakes for them).
   const now = Date.now();
-  const next = [mailOn ? nextRemind(s.docs.values(), st.mailCardsSince) : 0, nextChatRemind(st.chatDone), nextAiMsgRemind(st.aiMsgs), mailOn ? nextLeadRemind(st.leadCards) : 0, dndEndsAt(st.dnd, now)].filter(Boolean).sort((a, b) => a - b)[0] || 0;
+  const next = [mailOn ? nextRemind(s.docs.values(), st.mailCardsSince) : 0, nextChatRemind(st.chatDone), nextAiMsgRemind(st.aiMsgs), mailOn ? nextLeadRemind(st.leadCards) : 0, waOn ? nextWaRemind(s.docs.values(), waPrefs.since, waPrefs) : 0, dndEndsAt(st.dnd, now)].filter(Boolean).sort((a, b) => a - b)[0] || 0;
   clearTimeout(nextTimer);
   if (next) nextTimer = window.setTimeout(() => sync(), Math.min(Math.max(next - Date.now() + 300, 300), 2 ** 31 - 1));
   if (next !== lastNext) { lastNext = next; onNext(next); }
@@ -104,6 +109,7 @@ function sync(force = false) {
   // V1.43: people the focus mode on now always lets through (its "Always gets through" list) are never held.
   const letThrough = new Set(mailAll.filter((c) => dndLetsSender(st.dnd, c.from, c.fromName, now)).map((c) => c.id));
   const held = (id: string) => { if (letThrough.has(id)) return false; const k = cardKind(id); return !!k && muted(k); };
+  const waAll = waOn ? waCards(s.docs.values(), waPrefs.since, waPrefs) : [];   // WhatsApp (core/whatsapp.ts): the same cards, one per chat
   const ai = aiCardsNow(st, now);   // V1.58: the plain finished cards still to show, and the AI messages
   const doneAll = ai.chats;
   const leadsAll = mailOn ? leadCards(irepFeed(s), st.leadCards) : [];
@@ -113,9 +119,9 @@ function sync(force = false) {
     if ((reapplied.get(c.id) || 0) < now - 60_000) { reapplied.set(c.id, now); apply(c.id, "dismiss"); }
     return true;
   };
-  const want = mailAll.filter((c) => !gone(c)), done = doneAll.filter((c) => !gone(c)), leads = leadsAll.filter((c) => !gone(c)), msgs = ai.msgs.filter((c) => !gone(c));
-  for (const c of [...want, ...done, ...leads, ...msgs]) cardAt.set(c.id, c.at);
-  const ids = new Set([...want.map((c) => c.id), ...done.map((c) => c.id), ...leads.map((c) => c.id), ...msgs.map((c) => c.id)]);
+  const wa = waAll.filter((c) => !gone(c)), want = mailAll.filter((c) => !gone(c)), done = doneAll.filter((c) => !gone(c)), leads = leadsAll.filter((c) => !gone(c)), msgs = ai.msgs.filter((c) => !gone(c));
+  for (const c of [...want, ...wa, ...done, ...leads, ...msgs]) cardAt.set(c.id, c.at);
+  const ids = new Set([...want.map((c) => c.id), ...wa.map((c) => c.id), ...done.map((c) => c.id), ...leads.map((c) => c.id), ...msgs.map((c) => c.id)]);
   // Held by Do Not Disturb: off the Mac's stack until it ends; a notification already in the phone's shade stays.
   for (const id of [...shown.keys()]) if (!ids.has(id) || (DEVICE === "mac" && held(id))) { post({ type: "cardHide", id }); shown.delete(id); }
   const look = notePrefs(st);
@@ -131,6 +137,18 @@ function sync(force = false) {
     if (!force && shown.get(c.id) === json) continue;   // forced: send again anyway (the stack ignores an identical card)
     // New, or back from Remind me in, and never announced on this device before: one chime per email (core/maildedupe.ts ledger).
     if (!shown.has(c.id) && primed && announce(noteKey(c.rev.split("|")[0], c.rev.split("|")[1] || null))) chimes.push({ at: c.at, name: noteSoundName(look.mail) });
+    shown.set(c.id, json);
+    post({ type: "meetCard", card });
+  }
+  for (const c of [...wa].reverse()) {   // WhatsApp: tone "mail" with the green bubble icon (Toast.swift), Open in WhatsApp, Remind me in, Dismiss on every device
+    if (held(c.id)) continue;
+    if ((justDismissed.get(c.id) || 0) > Date.now() - 15_000) continue;
+    const card = { id: c.id, rev: c.rev, tone: "mail", icon: "whatsapp", title: c.title, sub: c.sub, body: c.body, url: c.url, at: c.at, discreetText: "New WhatsApp message" };
+    const json = JSON.stringify(card);
+    if (!force && shown.get(c.id) === json) continue;
+    // Each message notifies once per device: keyed by the WhatsApp message id (the chat's newest incoming message), and again when a Remind comes due.
+    if (!shown.has(c.id) && primed && waPrefs.sound !== false && announce(`wa:${noteKey(c.rev.split("|")[0], c.rev.split("|")[1] || null)}`)) chimes.push({ at: c.at, name: noteSoundName(look.mail) });
+    else if (!shown.has(c.id)) announce(`wa:${noteKey(c.rev.split("|")[0], c.rev.split("|")[1] || null)}`);
     shown.set(c.id, json);
     post({ type: "meetCard", card });
   }
@@ -193,6 +211,14 @@ function apply(id: string, action: string): boolean {
     if (list) void saveSettings({ chatDone: list });
     return true;
   }
+  if (isWaCard(id)) {   // WhatsApp: Dismiss or Remind me in, on every device (saved on the chat record)
+    if (!waOnSnap(s)) return true;
+    const chat = [...s.docs.values()].find((x) => x.kind === "wachat" && `w:${x.id}`.slice(0, 40) === id);
+    if (!chat) return true;
+    if (action === "dismiss") void setWaSeen(chat.id);
+    else if (mins > 0) void setWaRemind(chat.id, Math.round(mins));
+    return true;
+  }
   if ((id.startsWith("n:") || id.startsWith("m:")) && !mailOnSnap(s)) return true;   // Client emails is off: nothing to answer
   if (id.startsWith("n:")) {   // an Instantly reply: Dismiss or Remind me in, on every device (nothing changes in Instantly)
     if (action !== "dismiss" && !(mins > 0)) return true;
@@ -215,7 +241,7 @@ function apply(id: string, action: string): boolean {
 
 /** The card's Dismiss or Remind button (or Clear all) in the pop-up stack, or the phone's notification. */
 export function mailCardMessage(m: { type?: string; id?: string; action?: string }) {
-  if (m.type === "cardAction" && typeof m.id === "string" && (m.id.startsWith("m:") || m.id.startsWith("c:") || m.id.startsWith("n:"))) {
+  if (m.type === "cardAction" && typeof m.id === "string" && (m.id.startsWith("m:") || m.id.startsWith("c:") || m.id.startsWith("n:") || m.id.startsWith("w:"))) {
     const action = String(m.action || "");
     if (action === "dismiss" || action.startsWith("remind")) {
       shown.delete(m.id);

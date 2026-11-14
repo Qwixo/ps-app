@@ -210,7 +210,7 @@ await ok("the functions' allowed origins come from the PS_SITE_ORIGINS secret (h
 });
 await ok("ps-core.json lists the new migrations in order and the four functions; none is still redOnly", () => {
   const m = JSON.parse(file("supabase/ps-core.json"));
-  assert.deepEqual(m.migrations.slice(-7), ["031_gmail_inbox.sql", "032_gmail_readonly_flag.sql", "033_instantly_inbox.sql", "034_instantly_webhook.sql", "035_instantly_threads_content_hash.sql", "036_pg_net_to_extensions.sql", "037_instantly_replies_cron.sql"]);
+  assert.deepEqual(m.migrations.slice(-8, -1), ["031_gmail_inbox.sql", "032_gmail_readonly_flag.sql", "033_instantly_inbox.sql", "034_instantly_webhook.sql", "035_instantly_threads_content_hash.sql", "036_pg_net_to_extensions.sql", "037_instantly_replies_cron.sql"]);
   for (const f of ["gmail-inbox", "instantly-inbox", "instantly-replies", "instantly-webhook"]) {
     const e = m.functions.find((x: { slug: string }) => x.slug === f); assert.ok(e, f); assert.equal(e.verify_jwt, false);
     assert.ok(!m.redOnly.functions.includes(f), f);

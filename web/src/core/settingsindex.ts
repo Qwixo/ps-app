@@ -159,6 +159,9 @@ export const SETTINGS: SetEntry[] = [
   // V1.59 (the developer, 14 Nov 2026: "make it so you can click to reply IN the email panel, same thing on the desktop too").
   { id: "client-emails", group: "notify", name: "Client emails", line: "Client emails and Instantly replies as cards and in the email panel. Needs your own Supabase project.", mailCan: true,
     words: ["client", "emails", "email", "gmail", "instantly", "replies", "inbox", "cards", "mail", "oauth", "google cloud", "connect"] },
+  // PS 1.60 WhatsApp replies: the "WhatsApp settings" tab (status, Link WhatsApp, switches, quick replies, who messages me).
+  { id: "whatsapp", group: "notify", name: "WhatsApp settings", line: "Reply to WhatsApp messages from PS. Link your number, then messages show as cards and in the email panel.", mailCan: true,
+    words: ["whatsapp", "wa", "messages", "message", "chat", "link", "number", "meta", "cloud api", "reply", "quick replies", "mute"] },
   { id: "reply-in-panel", group: "notify", name: "Reply in the email panel", line: "A Reply button on each email in the email panel: type and send right there, with a short Undo.",
     words: ["reply", "inline", "email panel", "inbox", "emails", "send", "answer", "respond", "quick reply", "gmail", "instantly", "undo"] },
   { id: "reply-from-ps", group: "notify", name: "Reply from PS app", line: "Quick replies, your signature, when Send sends, and the accounts that can send.", on: MAC, mail: true,

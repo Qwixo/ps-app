@@ -373,7 +373,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     if let sub = c["sub"] as? String, !sub.isEmpty { card["sub"] = String(sub.prefix(200)) }
     if let body = c["body"] as? String, !body.isEmpty { card["body"] = String(body.prefix(tone == AiMessageCard.tone ? AiMessageCard.detailMax : 600)) }
     if let at = c["callAt"] as? String, ISO8601DateFormatter().date(from: at) != nil || at.count < 40 { card["callAt"] = at }
-    if let icon = c["icon"] as? String, ["shield", "globe", "wifi", "plug", "swap", "mail", "done", "reply", AiMessageCard.icon].contains(icon) { card["icon"] = icon }
+    if let icon = c["icon"] as? String, ["shield", "globe", "wifi", "plug", "swap", "mail", "done", "reply", "whatsapp", AiMessageCard.icon].contains(icon) { card["icon"] = icon }
     if let at = c["at"] as? String, at.count < 40 { card["at"] = at }
     if let u = Toast.openable(c["url"] as? String) { card["url"] = u }
     if let j = Toast.openable(c["join"] as? String) { card["join"] = j }
@@ -937,6 +937,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       msg:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
       soon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'};
     ICON.cancel=ICON.declined;ICON['soon-warn']=ICON.soon;
+    // WhatsApp: a plain green speech bubble drawn here (Meta's brand rules do not let a lookalike of their logo or a changed copy of it be used), never their logo.
+    ICON.whatsapp='<path fill="#25D366" stroke="none" d="M12 2.5c5.2 0 9.5 3.9 9.5 8.7s-4.3 8.7-9.5 8.7c-1.2 0-2.3-.2-3.4-.6L3.5 21l1.6-4.1C3.4 15.4 2.5 13.4 2.5 11.2 2.5 6.4 6.8 2.5 12 2.5z"/>';
     ICON.shield='<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>';
     ICON.globe='<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>';
     ICON.wifi='<path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a15 15 0 0 1 20 0"/><path d="M12 19.5h.01"/>';
@@ -1399,7 +1401,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
           if(d.sub)full.appendChild(el('div','sub',d.sub));
           if(d.body)full.appendChild(el('div','b',d.body));
           if(d.callAt){c.cd=el('span','cd',until(d.callAt));full.appendChild(c.cd)}
-          var ma=[];if(d.url)ma.push({id:'open',label:d.url.indexOf('instantly')>0?'Open in Instantly':'Open in Gmail'});if(d.join)ma.push({id:'join',label:'Join call'});
+          var ma=[];if(d.url)ma.push({id:'open',label:d.url.indexOf('instantly')>0?'Open in Instantly':(d.url.indexOf('wa.me')>0||d.url.indexOf('whatsapp.com')>0)?'Open in WhatsApp':'Open in Gmail'});if(d.join)ma.push({id:'join',label:'Join call'});
           if(ma.length||d.dismiss||d.reply){var mb=el('div','acts');ma.forEach(function(a,i){var b=el('button',i===0?'main':'',a.label);b.dataset.link=a.id;mb.appendChild(b)});
             if(d.reply){var rp=el('button','rep','Reply');rp.dataset.reply='1';mb.appendChild(rp)}
             if(d.dismiss){mb.appendChild(remind(c));var db=el('button','dis','Dismiss');db.dataset.act='dismiss';mb.appendChild(db)}

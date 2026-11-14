@@ -3,7 +3,7 @@
 //  GET  Meta's verify handshake: answers hub.challenge when hub.verify_token matches the token in your Vault.
 //  POST checks X-Hub-Signature-256 (HMAC-SHA256 of the exact body with your app secret, from Vault) and refuses
 //       anything that fails. Each new message is SEALED to your vault key and stored in the inbox (source 'whatsapp';
-//       delivery statuses 'whatsapp'). Plaintext exists only in this function's memory; no text is kept after sealing.
+//       delivery statuses the same source, type 'status'). Plaintext exists only in this function's memory; no text is kept after sealing.
 //       Deduped by the WhatsApp message id (sha256 only, 30 days). Read only: it never calls Meta back.
 // Secrets (app secret, verify token) live in Supabase Vault, read via whatsapp_get_config, never printed.
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
@@ -52,8 +52,8 @@ Deno.serve(async (req) => {
     const rows = await Promise.all(items.map(async (i) => ({
       source: "whatsapp",
       sealed: await seal(k.public_key, i.m
-        ? { kind: "whatsapp", v: 1, at: now(), event: i.m }
-        : { kind: "whatsapp-status", v: 1, at: now(), event: i.st }),
+        ? { kind: "whatsapp", v: 1, type: "message", at: now(), event: i.m }
+        : { kind: "whatsapp", v: 1, type: "status", at: now(), event: i.st }),
     })));
     const { error } = await admin.from("inbox").insert(rows);
     if (error) { await admin.from("whatsapp_seen").delete().in("h", [...newH]); return json({ error: "store failed" }, 500); }

@@ -47,6 +47,8 @@ import { applyMeetHide, meetKey, visibleEvents, MEET_HIDE, type MeetHideOp } fro
 import { ackGym } from "../core/gym";
 import { isRedAccount } from "../core/account";
 import { mailOnSnap } from "../core/mailsnap";
+import { waOnSnap } from "../core/wasnap";
+import { WaMail } from "./WaMail";
 import { PhoneTilesHost } from "../gos/PhonePages";
 import { usePhoneBg } from "../gos/phonepage";
 import { CopySlots, EditButton, EditLayer, EditScope, Inner, Slot, editingNow, setMacAccounts, setOverviewPages, useEditing, useInst, useTabLayout } from "./EditMode";
@@ -198,6 +200,10 @@ export const taskMapActions: {
   replyInline: (cardId: string, text: string, id: string) => Promise<unknown>;
   /** Done on a lead reply in the email panel: dismissed on every device, like the card's Dismiss. */
   leadDone: (cardId: string) => Promise<unknown>;
+  /** WhatsApp in the same panel (core/waactions.ts): Send after the Undo, a template, and Done. The server sends it, so any device can. */
+  waSend: (chatId: string, text: string) => Promise<unknown>;
+  waTemplate: (chatId: string, name: string, language: string) => Promise<unknown>;
+  waDone: (chatId: string) => Promise<unknown>;
   aware: (list: AwareItem[]) => Promise<unknown>;
   /** Urgent: ticked (off Urgent, on the list as a finished task todoId), its Undo, and dragged onto the list. */
   awareDone: (id: string, todoId: string) => Promise<unknown>;
@@ -301,6 +307,9 @@ export const taskMapActions: {
   // The PS main window hands it to this Mac's queue; the phone and the website write it to the vault for a Mac to send.
   replyInline: (cardId, text, id) => import("../replyengine").then((m) => m.sendInlineOrSay(cardId, text, id, import.meta.env.MODE === "ps" ? "mac" : isPhoneBuild() ? "phone" : "web")),   // PS main window; the overlay posts it (PsApp.tsx)
   leadDone: async (cardId) => mailCardMessage({ type: "cardAction", id: cardId, action: "dismiss" }),
+  waSend: (chatId, text) => import("../core/waactions").then((m) => m.sendWaReply(chatId, text)),
+  waTemplate: (chatId, name, language) => import("../core/waactions").then((m) => m.sendWaTemplate(chatId, name, language)),
+  waDone: (chatId) => import("../core/waactions").then((m) => m.setWaSeen(chatId)),
   work: (id) => setWorkingOn(id),
   reorder: (ids, p1) => setTodoOrder(ids, p1),
   scale: (percent) => saveSettings({ tmScale: percent }),
@@ -1364,7 +1373,7 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
         </div>
       </div>
       <div className="tm-side tm-right">
-        {mailOnSnap(s) && <Slot id="mail"><ClientMail s={s} mail /></Slot>}
+        {(mailOnSnap(s) || waOnSnap(s)) && <Slot id="mail">{mailOnSnap(s) && <ClientMail s={s} mail />}{waOnSnap(s) && <WaMail s={s} />}</Slot>}   {/* WhatsApp rides in the same place as client emails (PS 1.60) */}
         <Slot id="meetnotes"><LiveMeetingNotes meet={meet} notes={st.meetingNotes || []} standing={st.standingNotes || []} /></Slot>
         <Slot id="leftovers"><NotesLeftovers /></Slot>
         <Slot id="undo"><UndoButton docked={docked} /></Slot>

@@ -7,6 +7,8 @@ import type { CalendarSnap, ClientRec, Doc, IEmail, IThread, Kind, Reply, Settin
 import { replyIdFor } from "./maildedupe";
 import { mailOnSnap } from "./mailsnap";
 import { setMailAllowed } from "./mailflag";
+import { waOnSnap } from "./wasnap";
+import { applyInbound as applyWaInbound, applyStatus, chatKey, groupChats, matchClient, prefsOf, waChatIdFor, type WaChat, type WaEvent, type WaStatusEvent } from "./whatsapp";
 import { applyInbound, applySent, buildMatcher, clientForInbound, parseAddress, type GmailInbound, type GmailSent } from "./mail";
 import { logInbound, mailVerdict, ownAccounts, staleSenders, type MailSender } from "./mailrules";
 import { DEFAULT_SETTINGS, uid } from "./model";
@@ -64,7 +66,7 @@ export const sb = createClient(SB_URL, SB_KEY, {
   db: { schema: PROJECT.schema as "public" },
 });
 
-const OWNER_KINDS = new Set<Kind>(["client", "pprivate", "todo", "meeting", "draft", "settings", "reply", "brief", "calendar", "iemail", "ithread", "agenda", "journal", "quote", "note", "daylog", "screentime", "stline", "cstats", "cpage", "fup", "irep", "msender", "fprog", "fwork", "fit", "psnote", "tzperson", "tzzones", "tablayout", "remind", "fsleep", "squad", "squadask", "squadjoin", "fact", "phonelayout", "phonedev", "rout",
+const OWNER_KINDS = new Set<Kind>(["client", "pprivate", "todo", "meeting", "draft", "settings", "reply", "brief", "calendar", "iemail", "ithread", "agenda", "journal", "quote", "note", "daylog", "screentime", "stline", "cstats", "cpage", "fup", "irep", "msender", "fprog", "fwork", "fit", "psnote", "tzperson", "tzzones", "tablayout", "remind", "fsleep", "squad", "squadask", "squadjoin", "fact", "phonelayout", "phonedev", "rout", "wachat",
   "sdev", "spair", "sjob", "sjobst", "smsg", "sfile", "sack", "sstat", "scmd", "sidx", "sget", "sgot", "sbudget", "sojob", "sores"]);   // f*: Fitness (core/fitness.ts); s*: Second Computer (core/second.ts)
 // Offline merge (Fitness, 31 Oct 2026): records two devices may change at the same time (a workout logged
 // on the phone with no signal while the Mac fixes a weight in it) merge instead of the last write winning.
@@ -186,7 +188,8 @@ const listeners = new Set<() => void>();
 function emit(patch: Partial<Snapshot> = {}) {
   if (patch.red && !onRedProject()) patch = { ...patch, red: false };   // The developer's features: the developer's project only (fails closed)
   snap = { ...snap, ...patch, version: snap.version + 1 };
-  setMailAllowed(snap.primary && mailOnSnap(snap));   // the layout, Do Not Disturb and island choices follow the Client emails switch (core/mailflag.ts)
+  setMailAllowed(snap.primary && (mailOnSnap(snap) || waOnSnap(snap)));   // WhatsApp shares the email panel's place (PS 1.60)
+    // the layout, Do Not Disturb and island choices follow the Client emails switch (core/mailflag.ts)
   listeners.forEach((l) => l());
 }
 export const vaultStore = {
@@ -1374,6 +1377,32 @@ async function applyHook(ev: HookEvent) {
   await flush();
   if (outbox.has(rid)) throw new Error("not on the server yet");
 }
+// WhatsApp (source "whatsapp", core/whatsapp.ts): one chat record per number. A message folds into it (the same message id
+// twice changes nothing); a delivery status moves the ticks of a reply the person sent. Only with WhatsApp on (core/wasnap.ts).
+async function applyWhatsApp(pkg: Record<string, unknown>) {
+  const ev = pkg.event as (WaEvent & WaStatusEvent) | undefined;
+  if (!ev?.id) return;
+  const all = groupChats(docs("wachat"));
+  if (pkg.type === "status") {
+    const g = all.find((x) => x.chat.msgs.some((m) => m.id === ev.id && m.dir === "out"));
+    // The status can beat the person's own record of the reply: wait for the next pull, give up after ten minutes.
+    if (!g) { if (Date.now() - Date.parse(String(pkg.at || "")) < 600_000) throw new Error("reply not recorded yet"); return; }
+    const next = applyStatus(g.chat, ev);
+    if (next) { const rid = await put("wachat", next, { id: g.id, ws: null }); await flush(); if (outbox.has(rid)) throw new Error("not on the server yet"); }
+    return;
+  }
+  const key = chatKey({ from: ev.from, userId: ev.userId });
+  if (!key) return;
+  const id = all.find((x) => (x.chat.wa || `u:${x.chat.userId}`) === key)?.id ?? await waChatIdFor(key);
+  const ex = all.find((x) => x.id === id)?.chat as WaChat | undefined;
+  const country = prefsOf(docs<Settings>("settings")[0]?.data).country;
+  const next = applyWaInbound(ex, ev, matchClient(docs<ClientRec>("client"), ev.from, country));
+  if (!next) return;
+  const rid = await put("wachat", next, { id, ws: null });
+  await flush();
+  if (outbox.has(rid)) throw new Error("not on the server yet");
+}
+const WHATSAPP: QueuedPkg["h"] = { kind: "whatsapp", field: "event", whole: true, fn: (p) => applyWhatsApp(p as Record<string, unknown>) };
 const IHOOK: QueuedPkg["h"] = { kind: "instantly-hook", field: "event", fn: (e) => applyHook(e as HookEvent) };
 const FOLLOWUP: QueuedPkg["h"] = { kind: "followup", field: "leads", whole: true, fn: (p) => applySnapshot("fup", p as Record<string, unknown>) };
 const IREPLIES: QueuedPkg["h"] = { kind: "instantly-replies", field: "replies", whole: true, fn: (p) => applySnapshot("irep", p as Record<string, unknown>) };
@@ -1628,7 +1657,7 @@ function handlerReady(src: string) {
   if (src === "import" || src === "telegram") return !!packageHandlers[src];
   return true;
 }
-const PKG_SOURCES = new Set(["import", "ops", "ops2", "ops3", "followup", "instantly-replies", "instantly-hook", "instantly", "instantly2", "calendar", "telegram", "fireflies"]);
+const PKG_SOURCES = new Set(["import", "ops", "ops2", "ops3", "followup", "instantly-replies", "instantly-hook", "instantly", "instantly2", "calendar", "telegram", "fireflies", "whatsapp"]);
 /** V1.55: "calendar:<feed>" is one more Google calendar linked to one Meetings panel (calendar-inbox pollFeed). */
 const pkgSource = (src: string) => (isFeedSource(src) ? "calendar" : src);
 async function pullInbox(): Promise<{ changed: boolean; ok: boolean }> {
@@ -1672,6 +1701,12 @@ async function pullInbox(): Promise<{ changed: boolean; ok: boolean }> {
       if (!h || importing.has(item.id)) continue;
       importing.add(item.id);
       pkgQueue.push({ id: item.id, sealed: item.sealed, src: item.source, at: item.created_at, h });
+      continue;
+    }
+    if (item.source === "whatsapp") {   // sealed by whatsapp-webhook; only opened with WhatsApp on, else left on the server
+      if (importing.has(item.id) || !waOnSnap(snap)) continue;
+      importing.add(item.id);
+      pkgQueue.push({ id: item.id, sealed: item.sealed, src: item.source, at: item.created_at, h: WHATSAPP });
       continue;
     }
     if (item.source === "followup" || item.source === "instantly-replies" || item.source === "instantly-hook") {

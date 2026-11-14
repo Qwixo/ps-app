@@ -142,6 +142,7 @@ import { cleanReplyCardId, leadRows, setLeadMirror } from "./core/overlaymail";
 import { leadCards } from "./core/leadcards";
 import { cleanReplyPatch, openReplyFor, openReplySetup, replyMessage, runMailReplyOp, sendInlineOrSay, startReplyEngine } from "./replyengine";
 import { cleanInlineSend } from "./core/inlinereply";
+import { cleanWaOp, runWaOp } from "./core/waops";
 import { notesCardMessage, startNotesCard } from "./notescard";
 import { rebootWarnMessage, startRebootWarn } from "./rebootwarn";
 import { ackGymDay, gymCardMessage, gymWake, startGymWatch } from "./gymwatch";
@@ -659,6 +660,7 @@ export function startPsBridge() {
         // and sent on its way here; the Tab list sees how it went through the vault ("Replied" or "Not sent").
         { const r = cleanInlineSend(patch.replyInline); if (r) void sendInlineOrSay(r.cardId, r.text, r.id, "mac").catch(() => psPost({ type: "log", text: "reply: a reply from the email panel was not sent" })); }
         { const id = cleanReplyCardId(patch.leadDone); if (id && id.startsWith("n:")) mailCardMessage({ type: "cardAction", id, action: "dismiss" }); }
+        { const o = cleanWaOp(patch.waOp); if (o) void runWaOp(o).catch(() => psPost({ type: "log", text: "whatsapp: a reply from the panel was not sent" })); }   // WhatsApp (core/waops.ts): Send after its Undo, a template, Done
         { const o = cleanReplyPatch(patch.mailReplyOp); if (o) void runMailReplyOp(o).catch(() => psPost({ type: "log", text: "reply: a signature or response change failed to save" })); }   // Reply from PS (src/replyengine.ts)
         { const o = cleanMailRuleOp(patch.mailRuleOp); if (o) void (o.clientId ? addMatchAddr(o.clientId, o.entry) : setMailRule(o.entry, o.list)).catch(() => {}); }
         // Do Not Disturb (core/dnd.ts): the moon top right of the Tab list.

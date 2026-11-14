@@ -444,7 +444,7 @@ export function dndHeldMs(d: Dnd | undefined | null, kind: DndKind, from: number
 
 /** Which distraction a pop-up card is, from its id and tone. null: never muted (VPN alarms, private mode, notes). */
 export function cardKind(id: string, tone?: string): DndKind | null {
-  if (id.startsWith("m:")) return "mail";
+  if (id.startsWith("m:") || id.startsWith("w:")) return "mail";   // a WhatsApp message is held with client emails
   if (id.startsWith("c:")) return "chats";
   if (id.startsWith("n:")) return "leads";
   if (id === "private-ask" || tone === "notes" || id === "net-vpn" || id.startsWith("nl:")) return null;
