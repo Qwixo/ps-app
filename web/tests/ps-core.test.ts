@@ -47,11 +47,16 @@ ok("every migration in the repo is either core or the developer only, never both
 ok("every edge function in the repo is either core or the developer only", () => {
   const all = readdirSync(join(ROOT, "supabase/functions")).filter((f) => statSync(join(ROOT, "supabase/functions", f)).isDirectory()).sort();
   assert.deepEqual([...m.functions.map((f) => f.slug), ...m.redOnly.functions].sort(), all);
-  assert.deepEqual(m.functions.map((f) => f.slug), ["vault-auth"], "the only function a personal project needs is vault-auth");
+  // Since 1.60 the client emails kit (the owner's written OK) is part of every personal project, behind the Client emails switch.
+  assert.deepEqual(m.functions.map((f) => f.slug).sort(), ["gmail-inbox", "instantly-inbox", "instantly-replies", "instantly-webhook", "vault-auth"], "a personal project needs vault-auth plus the client emails functions");
 });
 
 ok("The developer's own feeds never reach a personal project", () => {
-  for (const bad of ["gmail", "instantly", "telegram", "followup", "drop_keys", "cron.", "net.http", "calendar_"]) {
+  // The client emails kit (031 to 037) may use Gmail, Instantly, cron and net.http; nothing else in core may.
+  const MAIL = new Set(["031_gmail_inbox.sql", "032_gmail_readonly_flag.sql", "033_instantly_inbox.sql", "034_instantly_webhook.sql", "035_instantly_threads_content_hash.sql", "036_pg_net_to_extensions.sql", "037_instantly_replies_cron.sql"]);
+  const notMail = strip(sqlOf(m.migrations.filter((f) => !MAIL.has(f)))).toLowerCase();
+  for (const bad of ["gmail", "instantly", "cron.", "net.http"]) assert.ok(!notMail.includes(bad), `a core migration outside the client emails kit mentions ${bad}`);
+  for (const bad of ["telegram", "followup", "drop_keys", "calendar_"]) {
     assert.ok(!core.toLowerCase().includes(bad), `a core migration mentions ${bad}`);
   }
   for (const f of ["008_gmail_inbox.sql", "014_instantly_inbox.sql", "017_telegram_inbox.sql", "018_followup_feed.sql", "024_pg_net_to_extensions.sql"]) {
