@@ -1,8 +1,8 @@
 import AppKit
 import WebKit
 
-// Left out of the public source: Second Computer, AirPods and microphone auto routing, and sending email replies.
-// They only run on the developer's own account (Owner.red). These placeholders keep the names the rest of the app
+// Left out of the public source: Second Computer and AirPods and microphone auto routing (sending email replies came into
+// core in 1.60: MailSend.swift, MailSendCore.swift, ReplyWindow.swift). They only run on the developer's own account (Owner.red). These placeholders keep the names the rest of the app
 // uses and do nothing. See README.md, "What is left out". (scripts in the private tree: open-source.mjs)
 
 /// Second Computer (left out).
@@ -78,36 +78,6 @@ final class AutoRoute {
   func noteOwnInput(_ uid: String) {}
   func restoreOutput() -> String? { nil }
   func restoreHomeMic() -> String? { nil }
-}
-
-/// Sending email replies (left out).
-final class MailSend {
-  static let shared = MailSend()
-  weak var app: App?
-  var onChange: (() -> Void)?
-  var onSent: ((String) -> Void)?
-  private(set) var rows: [[String: Any]] = []
-  func start() {}
-  func settingsJSON() -> [String: Any] { [:] }
-  func forget(_ via: String, _ account: String?) {}
-  static func handoffCollect() -> [String: String] { [:] }
-  @discardableResult static func handoffSave(_ o: [String: String]) -> Int { 0 }
-}
-final class ReplyPanel: NSPanel {}
-final class ReplyWindow: NSObject {
-  init(app: App) {}
-  func isWeb(_ v: WKWebView?) -> Bool { false }
-  func status() {}
-  func queue() {}
-  func showPill() {}
-  func handle(_ type: String, _ msg: [String: Any], _ text: String) {}
-  var lastPrefs: Any?
-  func open(ctx: Any, prefs: Any, job: Any? = nil, tries: Int = 0) {}
-  func prefs(_ p: Any) {}
-  func connect(_ msg: [String: Any]) {}
-  func showQueue() {}
-  func reloadPage() {}
-  func protectedChanged() {}
 }
 
 /// Used by public features too (dropping alarm sounds and soundboard files names the file with clean), so this one is
