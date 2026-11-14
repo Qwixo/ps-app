@@ -244,16 +244,22 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   private func close(_ id: String) {
     PrivateHold.shared.gone("rem:" + id)   // V1.57: its pill goes with it
     guard let c = cards.removeValue(forKey: id) else { return }
-    IslandColumn.shared.leave("rem:" + id)   // V1.55: the windows under it move up into its place
     let wasKey = c.panel.isKeyWindow
     c.panel.keyable = false
     if wasKey { c.panel.resignKey(); handBack(c) }
-    c.web.evaluateJavaScript("window.__fu && window.__fu.out()", completionHandler: nil)
-    // A short fade out, then the panel goes for good (a new card for this reminder is a new panel).
-    NSAnimationContext.runAnimationGroup({ ctx in ctx.duration = 0.18; c.panel.animator().alphaValue = 0 }, completionHandler: {
+    // PS 1.60: out of the island, a dismissed reminder shrinks back into it (IslandColumn.retire), and the next pop up
+    // comes after. Anywhere else (or with the moments off): the short fade as before, a new card is a new panel.
+    let gone = {
       c.panel.orderOut(nil)
       c.web.configuration.userContentController.removeScriptMessageHandler(forName: "fu")
-    })
+    }
+    if IslandColumn.shared.retire(c.panel, id: "rem:" + id, completion: gone) {
+      c.web.evaluateJavaScript("window.__fu && window.__fu.out()", completionHandler: nil)
+    } else {
+      IslandColumn.shared.leave("rem:" + id)   // V1.55: the windows under it move up into its place
+      c.web.evaluateJavaScript("window.__fu && window.__fu.out()", completionHandler: nil)
+      NSAnimationContext.runAnimationGroup({ ctx in ctx.duration = 0.18; c.panel.animator().alphaValue = 0 }, completionHandler: gone)
+    }
     if !cards.keys.contains(where: { $0 != Reminders.testId }) && testItem == nil { stopSound() }
   }
   /// Shown while up, except over 1Password or Signal (then hidden, and never holding the keyboard). Stacked from the

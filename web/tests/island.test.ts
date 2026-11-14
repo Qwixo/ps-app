@@ -14,7 +14,7 @@ const S = (x: Record<string, unknown> = {}) => I.islandState({ ...base, settings
 const ev = { id: "m:r1", kind: "mail" as const, title: "Jane just sent an email", sub: "Northwind Silk · Homepage draft", url: "https://mail.google.com/mail/#all/t1" };
 
 ok("defaults: around the notch, next Priority 1 when nothing is in progress", () => {
-  const looks = { pill: { style: "classic", fill: null, color: null, size: "regular", icon: false }, notch: { style: "drop", fill: null, color: null, icon: false }, hide: 60, cards: true, top: [], fsMove: true, tickSide: "left" };
+  const looks = { pill: { style: "classic", fill: null, color: null, size: "regular", icon: false }, notch: { style: "drop", fill: null, color: null, icon: false }, hide: 60, cards: true, top: [], fsMove: true, tickSide: "left", sounds: true };
   assert.deepEqual(I.islandPrefs(undefined), { mode: "notch", idle: "next", ...looks });
   assert.deepEqual(I.islandPrefs({ mode: "pill", idle: "none" }), { mode: "pill", idle: "none", ...looks });
   assert.deepEqual(I.islandPrefs({ mode: "evil", idle: 3 }), { mode: "notch", idle: "next", ...looks });
@@ -59,7 +59,7 @@ ok("counts pass through, never negative", () => {
 ok("off: says off and carries nothing", () => {
   const s = I.islandState({ ...base, settings: { island: { mode: "off", idle: "next" }, workingIds: ["x"] } as never, mail: 4, event: ev });
   const { pill: _p, notch: _n, ...rest } = s;
-  assert.deepEqual(rest, { mode: "off", private: false, task: null, more: 0, tasks: [], mail: 0, leads: 0, event: null, hide: 60, cards: true, top: [], fsMove: true, tickSide: "left" });
+  assert.deepEqual(rest, { mode: "off", private: false, task: null, more: 0, tasks: [], mail: 0, leads: 0, event: null, hide: 60, cards: true, top: [], fsMove: true, tickSide: "left", sounds: true });
 });
 ok("pill mode carries the same content", () => {
   assert.equal(S({ island: { mode: "pill", idle: "next" }, workingIds: ["x"] }).mode, "pill");

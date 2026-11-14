@@ -1117,17 +1117,43 @@ final class Island {
     popWait = w
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: w)
   }
-  /// A card dropped out of the island (big) or went back into it: the island swells and springs back. Nothing under
-  /// reduced motion (the card just fades there), nothing while it is not on screen.
+  /// A card dropped out of the island (big) or went back into it. With "Island moments" on (PS 1.60), the island first
+  /// squeezes in a tiny bit and then bounces out with the card (IslandMotionCore has the timing); off, the V1.55 swell
+  /// as it was. Nothing under reduced motion (the card just fades there), nothing while it is not on screen.
   func swell(_ big: Bool) {
     if big { bornAt = Date() }
     guard let p = panel, p.isVisible, !model.away, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+    if Features.on("island-moments") { moment(big ? .cardOut : .cardBack); return }
     let amount: CGFloat = big ? 1 : 0.45
     withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) { model.swell = amount }
     DispatchQueue.main.asyncAfter(deadline: .now() + (big ? 0.16 : 0.12)) { [weak self] in
       withAnimation(.spring(response: 0.46, dampingFraction: 0.5)) { self?.model.swell = 0 }
     }
   }
+  /// Plays one island moment's springs (IslandMotionCore.steps). A newer moment replaces an older one that is still
+  /// playing, so two never fight over the same shape. Drawn only: the island's real size is never changed.
+  private var momentToken = 0
+  func moment(_ m: IslandMoment) {
+    let steps = IslandMotionCore.steps(m, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    guard !steps.isEmpty, let p = panel, p.isVisible, !model.away else { return }
+    momentToken += 1
+    let token = momentToken
+    for st in steps {
+      let go = { [weak self] in
+        guard let self, self.momentToken == token else { return }
+        withAnimation(.spring(response: st.response, dampingFraction: st.damping)) { self.model.swell = CGFloat(st.to) }
+      }
+      if st.at <= 0 { go() } else { DispatchQueue.main.asyncAfter(deadline: .now() + st.at, execute: go) }
+    }
+  }
+  /// An update finished installing: the island's own short moment (squeeze, two pops), a chime, and the words
+  /// "Updated to V1.60" in the little setup island panel (SetupIsland.swift, the same black and the same tick).
+  func updateDone(version: String?) {
+    guard Features.on("island-moments") else { return }
+    moment(.updateDone)
+    SetupIsland.shared.say(IslandMotionCore.updatedWords(version: version), moment: .updateDone)
+  }
+
   /// Where the cards hang from: the island's resting shape (never its hover view) and its screen, or nil when the cards
   /// go to the top right as always (the setting off, the island not on screen, hidden by its grab line, over a full
   /// screen app). While it is dragged, the spot it had (the cards follow once it lands).

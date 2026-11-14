@@ -99,7 +99,13 @@ final class UpdateUI: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     }
     window.orderFrontRegardless()
   }
-  func close() { PrivateHold.shared.gone("update"); window.orderOut(nil); IslandColumn.shared.leave("update") }
+  func close() {
+    PrivateHold.shared.gone("update")
+    // PS 1.60: the update card shrinks back into the island, then the window goes (its alpha is set again on the next put).
+    let w: NSWindow = window
+    if IslandColumn.shared.retire(w, id: "update", completion: { w.orderOut(nil); w.alphaValue = 1 }) { return }
+    window.orderOut(nil); IslandColumn.shared.leave("update")
+  }
 
   /// Calls window.__up.<fn>(...args) once the page is ready (queued before that).
   func call(_ fn: String, _ args: Any...) {

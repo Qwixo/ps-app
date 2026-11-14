@@ -746,6 +746,33 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
   }
 
   // PS > Settings (Mac only, kept in this Mac's PS settings, never in the vault).
+  /// PS 1.60, What's new from the island. The page asks (start) before it opens the panel and says it is done (start false).
+  /// The shared island queue decides when it is the panel's turn (never over a reminder or the update card); the answer
+  /// to the page is {state:"queued"} or {state:"go", rect}, rect nil when the island cannot do it and the panel opens
+  /// as it always did. Closing it shrinks it back into the island and lets the next card come.
+  func whatsNewFromIsland(start: Bool) {
+    let id = "whatsnew"
+    func tell(_ js: String) { overlay.evaluateJavaScript("window.__psWnIsland&&window.__psWnIsland(\(js))", completionHandler: nil) }
+    func go() {
+      SetupIsland.shared.whatsNew(overlay: panel) { rect in
+        if let r = rect, let d = try? JSONSerialization.data(withJSONObject: ["state": "go", "rect": r]), let t = String(data: d, encoding: .utf8) { tell(t) }
+        else { tell("{\"state\":\"go\"}") }
+      }
+    }
+    if !start {
+      if IslandQueue.shared.finish(id) { Island.shared.swell(false) } else { IslandQueue.shared.finish(id) }
+      return
+    }
+    let o = IslandQueue.shared.enqueue(id: id, kind: "whatsnew", priority: .normal, ttl: 120, show: { go() },
+                                       visible: { true }, dropped: { tell("{\"state\":\"go\"}") })
+    switch o {
+    case .showNow: go()
+    case .wait: tell("{\"state\":\"queued\"}")
+    case .updated: break
+    case .dropped: tell("{\"state\":\"go\"}")
+    }
+  }
+
   func sendSettings(error: String? = nil) {
     var d: [String: Any] = ["reboot": AutoReboot.shared.status()]
     if let error { d["error"] = error }
@@ -1548,6 +1575,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       if let st = msg["state"] as? [String: Any] { Island.shared.fromPage(st); SetupIsland.shared.islandState(st) }
     case "setupIsland" where fromMain || fromOverlay:   // the setup menu opened or closed (views/Welcome.tsx, SetupIsland.swift)
       SetupIsland.shared.menu(open: msg["menu"] as? Bool ?? false)
+    case "island:whatsnew" where fromOverlay:            // PS 1.60: the What's new panel asks to come out of the island (views/WhatsNew.tsx)
+      whatsNewFromIsland(start: (msg["start"] as? Bool) ?? true)
     case "island:edit" where fromMain || fromOverlay:    // the Tab list's Edit mode (views/EditMode.tsx): show it, ready to move
       Island.shared.setEditing(msg["on"] as? Bool ?? false)
     case "island:reset" where fromMain || fromOverlay:   // Mac settings or Edit mode: back to the top centre

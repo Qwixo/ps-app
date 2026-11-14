@@ -127,3 +127,43 @@ export function cleanSeen(v: unknown): string | undefined {
 
 /** The device's own record (localStorage key). */
 export const LOCAL_KEY = "ps.whatsNewSeen";
+
+// ---------- PS 1.60: the panel comes out of the island (Mac only) ----------
+// The page asks the Mac before it opens the panel ({type:"island:whatsnew", start:true}). The Mac's shared island queue
+// answers {state:"queued"} (another card is showing: wait) or {state:"go", rect} once the island has squeezed, bounced and said
+// "What's new". `rect` is where the island is in this page: x (its centre), bottom (its lower edge) and w (its width). With no
+// rect (island off, Reduce Motion, the setting off, an older Mac app) the panel opens in the middle as it always did.
+
+/** Where the island is in the page, in points. */
+export interface IslandAnchor { x: number; bottom: number; w: number }
+/** How long the page waits for any answer before it opens the panel in the middle (ms). */
+export const ISLAND_ASK_MS = 2000;
+/** How long it waits while the Mac says another card is showing (ms); the Mac drops a card that waited longer (ttl 120 s). */
+export const ISLAND_QUEUED_MS = 130_000;
+/** The panel's width on the Mac (the CSS .wn-card width). */
+export const PANEL_W = 440;
+
+const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+/** The Mac's rect, only when every number is real and sensible; anything else means no anchor. */
+export function cleanAnchor(v: unknown): IslandAnchor | null {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  if (!finite(o.x) || !finite(o.bottom) || !finite(o.w)) return null;
+  if (o.x < 0 || o.x > 20000 || o.bottom < 0 || o.bottom > 2000 || o.w < 40 || o.w > 1200) return null;
+  return { x: Math.round(o.x), bottom: Math.round(o.bottom), w: Math.round(o.w) };
+}
+export type IslandReply = { phase: "queued" } | { phase: "go"; anchor: IslandAnchor | null } | null;
+/** What the Mac said ({state, rect}), cleaned. Anything else is no answer. */
+export function islandReply(m: unknown): IslandReply {
+  const o = (m && typeof m === "object" ? m : {}) as Record<string, unknown>;
+  if (o.state === "queued") return { phase: "queued" };
+  if (o.state === "go") return { phase: "go", anchor: cleanAnchor(o.rect) };
+  return null;
+}
+/** The panel hung from the island: its left edge (kept on screen), its top (touching the island's lower edge, one point
+ *  tucked under so there is no seam), and how wide the island is next to the panel (the panel grows out of that width). */
+export function attachedLayout(a: IslandAnchor, viewportW: number, panelW = PANEL_W): { left: number; top: number; originX: number; from: number } {
+  const w = Math.min(panelW, Math.max(200, viewportW - 16));
+  const left = Math.round(Math.min(Math.max(a.x - w / 2, 8), Math.max(8, viewportW - w - 8)));
+  const originX = Math.round(Math.min(Math.max(a.x - left, 0), w));
+  return { left, top: Math.max(0, a.bottom - 1), originX, from: Math.min(1, Math.max(0.2, a.w / w)) };
+}
