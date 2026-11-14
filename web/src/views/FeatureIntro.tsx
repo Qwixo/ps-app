@@ -51,7 +51,7 @@ const GUIDES: Record<NonNullable<IntroDef["guide"]>, (p: { onClose: () => void; 
 /** Has the person already done what the intro is about? "done" retires it for good. "open" keeps it. "unknown" waits (never shows on a guess). */
 const DONE_PROBES: Record<string, (can: boolean) => Promise<"done" | "open" | "unknown">> = {
   whatsapp: async (can) => {
-    if (!can) return "done";   // no own Supabase project to link: it never applies to this account (Settings says why)
+    if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault
     const st = await readWaStatus();
     return !st ? "unknown" : st.linked ? "done" : "open";
   },
@@ -145,10 +145,13 @@ function IntroStage({ def, onShown, onAnswer, onGone }: { def: IntroDef; onShown
   phaseRef.current = phase;
   const asked = useRef(false);
   const [guide, setGuide] = useState(false);
+  const vault = useVault();
 
   useEffect(() => {
     if (!turn || asked.current) return;
     asked.current = true;
+    // Its turn may come long after the clock said yes (another card held the page queue): the quiet places are looked at once more now.
+    if (dndActive(settingsData(vault).dnd, Date.now()) || sleepState().here || sentryUp() || !!document.fullscreenElement) { onGone("busy"); return; }
     if (!PS) { setPhase("card"); return; }
     const g = window as Window & { __psIntroIsland?: (m: unknown) => void };
     let timer = window.setTimeout(() => onGone("noanswer"), ISLAND_ASK_MS);

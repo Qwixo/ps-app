@@ -21,6 +21,7 @@ ok("every word is one the page understands", Set(["off", "sentry", "sleep", "sha
 ok("Zoom's share helper is sharing", IslandIntroCore.isSharing(processNames: ["Finder", "CptHost"]))
 ok("macOS Screen Sharing is sharing", IslandIntroCore.isSharing(processNames: ["screensharingd"]) && IslandIntroCore.isSharing(processNames: ["ScreensharingAgent"]))
 ok("ordinary programs are not", !IslandIntroCore.isSharing(processNames: ["Finder", "Safari", "zoom.us", "1Password", "Signal"]))
+ok("the 16 letter system name still counts", IslandIntroCore.isSharing(processNames: ["ScreensharingAge"]))
 ok("no programs is not sharing", !IslandIntroCore.isSharing(processNames: []))
 
 // the island draws it only when it can; otherwise a plain card (never no intro)

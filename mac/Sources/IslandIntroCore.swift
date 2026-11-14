@@ -33,7 +33,10 @@ enum IslandIntroCore {
   /// The program names that mean the screen is being shared right now (Zoom's share helper, macOS Screen Sharing). Names only: nothing
   /// else about any program is read, and no window titles (never 1Password or Signal, rule 7).
   static let sharingHelpers: Set<String> = ["CptHost", "screensharingd", "ScreensharingAgent"]
-  static func isSharing(processNames: [String]) -> Bool { processNames.contains { sharingHelpers.contains($0) } }
+  /// The system keeps a process name to 16 letters ("ScreensharingAgent" is "ScreensharingAge" there), so both sides are cut to 16.
+  static let sharingShort: Set<String> = Set(sharingHelpers.map { String($0.prefix(16)) })
+  static func isHelper(_ name: String) -> Bool { sharingShort.contains(String(name.prefix(16))) }
+  static func isSharing(processNames: [String]) -> Bool { processNames.contains { isHelper($0) } }
 
   /// The island's turn: the card is on screen only after the island's squeeze and chime, so Reduce Motion, the island being off or not on
   /// screen means a plain card (no place to hang from), never no intro.
