@@ -1,0 +1,28 @@
+# What Tesseract read from the photo (the app's bundled deu+eng fast models, sparse text mode, one try per turn, scale and tilt). Rows: turn|scale|tilt|confidence|box height|line
+0|1.5|-8|21|28|Gta VA
+0|1.5|0|96|82|REVERSE FLY
+0|1.5|8|89|65|REVERSE FLy
+0|1.5|8|41|131|fat
+0|1|-8|62|79|gvense FLY
+0|1|0|80|114|REVERSE Fir
+0|1|8|95|44|REVERSE FLY
+0|1|8|44|53|oth,
+0|1|8|25|129|A Ui
+270|1.5|-8|29|22|me N
+270|1.5|0|16|285|Sea  ) ER VD
+270|1.5|0|54|139|ESS \
+270|1.5|8|41|144|SEI
+270|1.5|8|36|75|None —
+270|1|0|19|201|SS > lang’ \ Ta N
+270|1|0|44|84|SsE>> \
+270|1|0|39|158|(een
+270|1|8|38|221|Ser Fa
+90|1.5|-8|35|50|wre
+90|1.5|-8|75|36|Wey
+90|1.5|0|26|41|Kan)
+90|1.5|0|42|236|Basi
+90|1.5|0|36|285|ce WH \ieSs
+90|1.5|8|52|48|I _ ay
+90|1|0|55|84|ı Seas
+90|1|0|16|190|Yan ,
+90|1|8|60|61|t nr

@@ -5,7 +5,9 @@
 // is false and the Scan screen offers typing the label instead.
 import { gosPost, onShell } from "./bridge";
 
-export type ScanAnswer = { text: string; conf: number } | { error: "busy" | "model" | "image" | "failed" | "timeout" };
+/** `text` has the big title line first. `title` is that line alone ("" when the label had none), `turn` is how many degrees the
+ *  picture was turned to read it (V1.60). */
+export type ScanAnswer = { text: string; conf: number; title?: string; turn?: number } | { error: "busy" | "model" | "image" | "failed" | "timeout" };
 
 const hasShell = () => typeof window !== "undefined" && !!(window as Window & { gosNative?: unknown }).gosNative;
 let seq = 0;
@@ -23,7 +25,7 @@ export const gymScan = {
         if (m.type !== "gymscan" || m.id !== id) return;
         window.clearTimeout(t); off();
         if (typeof m.error === "string") done({ error: (["busy", "model", "image", "failed"].includes(m.error) ? m.error : "failed") as "failed" });
-        else done({ text: String(m.text ?? ""), conf: Number(m.conf ?? 0) });
+        else done({ text: String(m.text ?? ""), conf: Number(m.conf ?? 0), title: typeof m.title === "string" ? m.title : undefined, turn: typeof m.turn === "number" ? m.turn : undefined });
       });
       gosPost({ type: "gymscan:read", id, img });
     });

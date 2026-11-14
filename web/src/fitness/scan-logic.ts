@@ -27,10 +27,23 @@ export interface ScanOwn { name: string; exId: string | null; inPlan?: boolean }
 
 // ---------- 1. clean ----------
 const LETTER = /\p{L}/gu;
-/** The camera's text without the specks: tokens with few letters, lines with nothing left. At most 6 lines. */
+/** A line on a label that is not the exercise: an address, a web or mail address, a phone number or a maker's company line
+ *  ("Heisterbreite 2E, 31737 Town", "www.example.com", "Tel. 05751 9541"). Works for any maker and any country. */
+export function isJunkLine(line: string): boolean {
+  const t = line.trim();
+  if (!t) return true;
+  if (/@|\bwww\b|https?:|\b[a-z0-9-]{2,}\.(com|de|net|org|eu|it|fr|es|nl|co\.uk|us|io)\b/i.test(t)) return true;
+  if (/\b(tel|telefon|phone|fax|mob|mobil)\b\.?:?\s*[\d+(]/i.test(t)) return true;
+  if ((t.match(/\d/g) ?? []).length >= 6 || /\b\d{4,5}\s+\p{L}{3,}/u.test(t)) return true;                  // a phone number or a postcode and town
+  if (/\b(gmbh|ltd|llc|inc|s\.?r\.?l|s\.?p\.?a|b\.?v)\b/iu.test(t)) return true;   // a company line
+  if (/\p{L}{3,}\s*(stra(ss|ß)e|str\.|weg|allee|platz|gasse|street|road|avenue)\s*\d/iu.test(t)) return true;
+  return false;
+}
+/** The camera's text without the specks: tokens with few letters, lines with nothing left, address lines. At most 6 lines. */
 export function cleanRead(raw: string): string {
   const lines: string[] = [];
   for (const line of String(raw ?? "").split(/\r?\n/)) {
+    if (isJunkLine(line)) continue;
     const keep = line.split(/\s+/).map((t) => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}°.]+$/gu, "")).filter((t) => {
       if (!t) return false;
       const letters = (t.match(LETTER) ?? []).length;
@@ -42,6 +55,28 @@ export function cleanRead(raw: string): string {
     if (lines.length >= 6) break;
   }
   return lines.join("\n").slice(0, 200);
+}
+
+// ---------- 1b. the title line ----------
+/** How much a line looks like the big title of a label: short (one to four words), capitals, no list number in front. 0 to 1. */
+export function titleLook(line: string): number {
+  const t = line.trim();
+  const ws = t.split(/\s+/).filter(Boolean);
+  const letters = (t.match(LETTER) ?? []).length;
+  if (!ws.length || ws.length > 4 || letters < 4 || /^\d+[.)]/.test(t) || isJunkLine(t)) return 0;
+  const upper = (t.match(/\p{Lu}/gu) ?? []).length / letters;
+  const initials = ws.every((w) => /^\p{Lu}/u.test(w.replace(/^[^\p{L}]+/u, "")));
+  return Math.max(upper, initials ? 0.7 : 0) * (letters / t.replace(/\s/g, "").length);
+}
+/** The title of a multi line label (the phone puts it first, but a typed or pasted label may not) and the rest. A title needs
+ *  capitals and a short line, and there must be more text than it (a lone line is its own title, found or not). */
+export function splitTitle(raw: string): { title: string | null; rest: string } {
+  const lines = String(raw ?? "").split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !isJunkLine(l));
+  if (lines.length < 2) return { title: null, rest: lines.join("\n") };
+  const at = lines.findIndex((l) => titleLook(l) >= 0.8);
+  if (at < 0) return { title: null, rest: lines.join("\n") };
+  const t = lines[at];
+  return { title: t, rest: lines.filter((_, i) => i !== at).join("\n") };
 }
 
 // ---------- 2. english ----------
@@ -187,6 +222,17 @@ function keyScore(read: string[], gym: string[], k: string[]): { score: number; 
 export interface MatchOpts { own?: ScanOwn[]; planIds?: ReadonlySet<string>; min?: number }
 /** The exercise the label names: the developer's own first, then the library. Null when nothing is close enough. */
 export function matchScan(raw: string, o: MatchOpts = {}): ScanResult {
+  // A label with one big title line and other text: the title first, the rest only when the title finds nothing.
+  const { title } = splitTitle(raw);
+  if (title) {
+    const t = matchOne(title, o);
+    if (t.best) return { ...t, text: cleanRead(raw), brand: t.brand ?? toEnglish(raw).brand };
+    const all = matchOne(raw, o);
+    return all.best ? all : { ...all, english: t.english || all.english };
+  }
+  return matchOne(raw, o);
+}
+function matchOne(raw: string, o: MatchOpts): ScanResult {
   const read = toEnglish(raw);
   const rw = [...new Set(words(read.english))];
   const gym = rw.filter((w) => VOCAB.has(w) || [...VOCAB].some((v) => sim(w, v) >= 0.85));

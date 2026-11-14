@@ -1,0 +1,37 @@
+# What Tesseract read from the photo (the app's bundled deu+eng fast models, sparse text mode, one try per turn, scale and tilt). Rows: turn|scale|tilt|confidence|box height|line
+0|1.5|-8|81|65|pectoRAL
+0|1.5|-8|32|42|Ces
+0|1.5|-8|35|28|Fass?
+0|1.5|0|97|39|PECTORAL
+0|1.5|0|35|14|nad
+0|1.5|8|92|54|PECTORAL
+0|1.5|8|26|43|BER
+0|1.5|8|37|11|echnogym.com
+0|1.5|8|19|9|mywennere
+0|1|-8|49|43|peECTORAL
+0|1|0|92|26|PECTORAL
+0|1|8|92|36|PECTORAL
+0|1|8|16|6|mare
+270|1.5|-8|57|12|CASS
+270|1.5|0|51|112|ESS
+270|1.5|0|38|24|RER
+270|1.5|8|50|11|sav
+270|1.5|8|47|23|Den
+270|1|-8|28|14|ment
+270|1|0|41|74|ES 1
+270|1|0|34|134|vu ia. oe
+270|1|0|16|105|N ~ex Tt
+270|1|8|54|44|< OTS
+270|1|8|55|91|Ses
+90|1.5|-8|59|19|3 Vea
+90|1.5|-8|32|28|4 Fes)
+90|1.5|-8|30|25|ans
+90|1.5|-8|51|24|ze N
+90|1.5|0|33|66|Wo u
+90|1.5|0|73|112|Sea
+90|1.5|8|29|16|cen
+90|1.5|8|53|11|thy
+90|1|-8|27|22|cee
+90|1|0|17|134|Mee ee
+90|1|0|47|74|SEE
+90|1|8|37|11|wen ©

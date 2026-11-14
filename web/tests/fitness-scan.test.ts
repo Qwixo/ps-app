@@ -157,10 +157,61 @@ ok("close seconds are offered, never the same exercise twice", () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
+// ---------- real labels (V1.60) ----------
+// What the phone's reader gave for five real machine labels (phone/app/src/test/resources/gym-labels): the big title line first,
+// then the other lines it was sure of. Two makers (one German, written up the side; one English), nothing tied to either.
+const MAIL = "info" + "@" + "example.com";
+const LK_CURL = `& BEINBEUGER LIEGEND\nSeitenansicht\n4. Die Beine bis mind. 90 in den Kniegelenken\nBeispiel Metallbau GmbH\nMusterweg 2E - 12345 Beispielstadt\nTel.: 01234 - 5678-0 - Fax: 01234 - 5678-40\n${MAIL}\nwww.example.com`;
+const LK_EXT = "BEINSTRECKER\nSeitenansicht\n3. der Füße\n4. Das Trainingsgewicht so wählen\nRückenlehne einstellen\nSITZ\nBeispiel Metallbau GmbH\nMusterweg 2E - 12345 Beispielstadt\nwww.example.com";
+const TG_PEC = "PECTORAL\ntechnogym.com\nmywellness";
+const TG_REV = "REVERSE FLY\ntechnogym.com\nmywellness";
+ok("the five real labels find their exercise", () => {
+  is(LK_CURL, "Lying leg curl");
+  is(LK_EXT, "Leg extension");
+  is(TG_PEC, "Pec deck");
+  is(TG_REV, "Rear delt fly");
+  is("REVERSE FLY", "Rear delt fly");
+  assert.equal(S.matchScan(TG_PEC).english, "Pec fly");
+  assert.equal(S.matchScan(LK_CURL).english, "Lying leg curl");
+  assert.ok(S.matchScan(TG_REV).others.some((h) => h.name === "Reverse pec deck"), "the machine version is offered too");
+});
+ok("the title is found even when the camera put it last, and the small text never wins", () => {
+  is("Seitenansicht\n3. der Füße\nRückenlehne einstellen\nBEINSTRECKER\nSITZ", "Leg extension");
+  is("PECTORAL\nPlace your feet flat on the floor, press the handles forward and squeeze the chest", "Pec deck");
+  is("Seat adjust 4 rear delt\nLAT PULLDOWN\nPull the bar down to your chest", "Lat pulldown");
+});
+ok("addresses, websites, phone numbers and company lines are ignored, for any maker", () => {
+  for (const t of ["Musterweg 2E - 12345 Beispielstadt", "www.example.com", MAIL, "Tel.: 01234 - 5678-0", "Fax +49 1234 56780", "Example Fitness GmbH", "Musterstrasse 12", "technogym.com", "12345 Beispielstadt"]) assert.ok(S.isJunkLine(t), t);
+  for (const t of ["BEINBEUGER LIEGEND", "REVERSE FLY", "45 degree leg press", "Lat pulldown", "Leg press 45"]) assert.ok(!S.isJunkLine(t), t);
+  is("Example Fitness GmbH\nMusterstrasse 12\n12345 Beispielstadt\nwww.example.com\nLEG PRESS", "Leg press");
+  assert.ok(!S.cleanRead(LK_CURL).includes("Beispielstadt"));
+  assert.ok(!S.cleanRead(LK_CURL).includes("@"));
+});
+ok("maker words are set aside, and the maker is still named", () => {
+  assert.equal(S.matchScan("technogym\nPECTORAL").brand, "Technogym");
+  assert.equal(S.matchScan("mywellness\nPECTORAL").english, "Pec fly");
+  assert.equal(S.matchScan("gym80\nBEINPRESSE").brand, "Gym80");
+});
+ok("title look: short, capitals, no list number", () => {
+  assert.ok(S.titleLook("BEINSTRECKER") > 0.9);
+  assert.ok(S.titleLook("Leg Press") >= 0.7);
+  assert.equal(S.titleLook("4. Die Beine"), 0);
+  assert.equal(S.titleLook("Die Bauchlage so wählen dass sich die"), 0);
+  assert.equal(S.titleLook("www.example.com"), 0);
+  assert.equal(S.splitTitle("Seitenansicht\nREVERSE FLY\nSITZ").title, "REVERSE FLY");
+  assert.equal(S.splitTitle("BEINPRESSE").title, null);
+  assert.equal(S.splitTitle("Beinpresse\nSeat height adjust\nwork slowly").title, null);
+});
+ok("a camera read with a stray mark in front of the title still matches", () => {
+  is("& BEINBEUGER LIEGEND", "Lying leg curl");
+  is("> PECTORAL", "Pec deck");
+  is("| REVERSE FLY |", "Rear delt fly");
+});
+
 // ---------- the word list itself ----------
 ok("no em or en dash anywhere in the word list or the matcher", async () => {
   const fs = await import("node:fs");
-  for (const f of ["src/fitness/scan-words.ts", "src/fitness/scan-logic.ts", "src/fitness/Scan.tsx", "src/fitness/scan.css", "src/gos/gymscan.ts"]) assert.ok(!/[\u2013\u2014]/.test(fs.readFileSync(new URL(`../${f}`, import.meta.url), "utf8")), f);
+  for (const f of ["src/fitness/scan-words.ts", "src/fitness/scan-logic.ts", "src/fitness/Scan.tsx", "src/fitness/scan.css", "src/gos/gymscan.ts", "src/fitness/scan-state.ts"]) assert.ok(!/[\u2013\u2014]/.test(fs.readFileSync(new URL(`../${f}`, import.meta.url), "utf8")), f);
 });
 
 console.log(`\n${n} checks passed`);
