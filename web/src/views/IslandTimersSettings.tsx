@@ -7,7 +7,9 @@ import { sfx } from "../ui/sfx";
 import { useVault } from "../ui/kit";
 import { settingsData } from "../core/select";
 import { STAND_LIMITS, STAND_WORDS, standPrefs, type StandPrefs } from "../core/standup";
-import { MEET_LEAD_LIMITS, meetBubblePrefs } from "../core/meetbubble";
+import { MEET_LEAD_LIMITS, MEET_WORDS, meetBubblePrefs } from "../core/meetbubble";
+import { WELCOME_LIMITS, welcomePrefs } from "../core/welcomeback";
+import { summaryPrefs } from "../core/workoutsummary";
 import type { Settings } from "../core/model";
 import { Choice, taskMapActions } from "./TaskMap";
 import "./pomodoro.css";
@@ -72,10 +74,34 @@ export function StandSetting({ k }: { k: "on" | "every" | "len" | "sound" | "hou
 }
 
 /** The next meeting bubble: on and off, and how long before. */
-export function MeetBubbleSetting({ k }: { k: "on" | "lead" }) {
+export function MeetBubbleSetting({ k }: { k: "on" | "lead" | "style" }) {
   const v = useVault();
   const p = meetBubblePrefs(settingsData(v).meetBubble);
   const ready = v.status === "unlocked";
+  if (k === "style") {
+    return (
+      <span className={`tm-ed-seg${ready ? "" : " gs-notyet"}`} role="radiogroup" aria-label={MEET_WORDS.settingStyle}>
+        <Choice selected={ready && p.style === "blob"} onPick={() => { if (ready) { sfx.hover(); save({ meetBubble: { ...p, style: "blob" } }); } }}>{MEET_WORDS.styleBlob}</Choice>
+        <Choice selected={ready && p.style === "pill"} onPick={() => { if (ready) { sfx.hover(); save({ meetBubble: { ...p, style: "pill" } }); } }}>{MEET_WORDS.stylePill}</Choice>
+      </span>
+    );
+  }
   if (k === "lead") return <Stepper n={p.lead} range={MEET_LEAD_LIMITS} unit=" min" ready={ready} label="Show it this long before" set={(lead) => save({ meetBubble: { ...p, lead } })} />;
   return <OnOff on={p.on} ready={ready} label="Next meeting on the island" set={(on) => save({ meetBubble: { ...p, on } })} />;
+}
+
+/** Welcome back after being away (PS 1.60): the switch and how many minutes away it takes. */
+export function WelcomeBackSetting({ k }: { k: "on" | "minutes" }) {
+  const v = useVault();
+  const p = welcomePrefs(settingsData(v).welcomeBack);
+  const ready = v.status === "unlocked";
+  if (k === "minutes") return <Stepper n={p.minutes} range={WELCOME_LIMITS} unit=" min" ready={ready} label="Show it after being away this long" set={(minutes) => save({ welcomeBack: { ...p, minutes } })} />;
+  return <OnOff on={p.on} ready={ready} label="Welcome back on the island" set={(on) => save({ welcomeBack: { ...p, on } })} />;
+}
+
+/** The workout summary on the Mac after a workout on the phone (PS 1.60). */
+export function WorkoutMacSetting() {
+  const v = useVault();
+  const p = summaryPrefs(settingsData(v).workoutMac);
+  return <OnOff on={p.on} ready={v.status === "unlocked"} label="Workout summary on the Mac" set={(on) => save({ workoutMac: { on } })} />;
 }

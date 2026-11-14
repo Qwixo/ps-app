@@ -62,7 +62,7 @@ import { SharingList, openGSquad } from "./GSquad";
 import { FromTheSquad } from "./FromTheSquad";
 import { AddFriendPanel } from "./AddFriend";
 import { PomoSetting } from "./Pomodoro";
-import { MeetBubbleSetting, StandSetting } from "./IslandTimersSettings";
+import { MeetBubbleSetting, StandSetting, WelcomeBackSetting, WorkoutMacSetting } from "./IslandTimersSettings";
 import { LinkIphoneRow } from "./LinkIphone";
 import { MacUpdateRow } from "./MacUpdate";
 import { WhatsNewEntry } from "./WhatsNew";
@@ -198,6 +198,10 @@ export const CONTROLS: Controls = {
   "stand-test": row(() => <StandSetting k="test" />),
   "meet-bubble": row(() => <MeetBubbleSetting k="on" />),
   "meet-bubble-lead": row(() => <MeetBubbleSetting k="lead" />),
+  "meet-bubble-style": row(() => <MeetBubbleSetting k="style" />),
+  "welcome-back": row(() => <WelcomeBackSetting k="on" />),
+  "welcome-back-min": row(() => <WelcomeBackSetting k="minutes" />),
+  "workout-mac": row(() => <WorkoutMacSetting />),
 
   // Appearance
   "look": looks("look"),

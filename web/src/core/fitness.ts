@@ -90,6 +90,8 @@ export interface FitWorkout {
   note?: string | null;
   at: string;                 // when the header (end, note, day) last changed
   device?: "phone" | "mac" | "web";
+  /** PS 1.60: when "Workout complete" was shown on a Mac (core/workoutsummary.ts). Synced with the workout, so no other Mac shows it again. */
+  macShown?: string | null;
 }
 export interface FitLock { programId: string; dayId: string; week?: number | null }
 /** Sleep mode's open sleep (core/sleepmode.ts has the rules). V1.43: `paused` is a Wake up waiting for "I'm up" or
@@ -463,10 +465,13 @@ export function mergeWorkout(a: FitWorkout, b: FitWorkout): FitWorkout {
   }
   for (const e of b.exercises) if (!seen.has(e.id)) exercises.push(e);
   exercises.sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+  // PS 1.60: shown on a Mac once. The earliest mark wins, so a mark one device made is never lost to a newer header.
+  const shown = [a.macShown, b.macShown].filter((x): x is string => !!x).sort()[0];
   return {
     ...head,
     endedAt: head.endedAt ?? other.endedAt ?? null,
     exercises,
+    ...(shown ? { macShown: shown } : {}),
   };
 }
 export function mergePrefs(a: FitPrefs, b: FitPrefs): FitPrefs {

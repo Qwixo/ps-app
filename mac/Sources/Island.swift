@@ -972,6 +972,8 @@ final class Island {
   private var fsGen = 0
   /// What the full screen check found: none, an app over the whole screen, or one below the notch's black bar.
   private var fsKind: FsKind = .none
+  /// Over a full screen app right now (PS 1.60: Welcome back and the workout summary never show then).
+  var fullScreenNow: Bool { fsKind != .none }
   typealias FsKind = IslandPlace.Kind
   /// The menu bar is down over the black bar (the pointer went to the top of the screen).
   private var menuDown = false
@@ -1050,7 +1052,7 @@ final class Island {
   /// From the main window page. While the self test feeds its own states, the page's wait.
   private var testing = false
   private(set) var pageStates = 0
-  func fromPage(_ d: [String: Any]) { pageStates += 1; if !testing { update(d) } }
+  func fromPage(_ d: [String: Any]) { pageStates += 1; if !testing { update(d); WelcomeBack.shared.fromPage(d) } }
 
   /// The state ({type:"island"}). Nothing changes on screen when nothing changed (the page re-sends each minute).
   func update(_ d: [String: Any]) {
@@ -1278,6 +1280,7 @@ final class Island {
   }
   private func shapeChanged() {
     IslandTimers.shared.syncBubble()   // V1.59: the bubble and the stand-up question follow the island
+    BigIslandWindow.shared.follow()    // PS 1.60: so does an open Welcome back or workout panel
     guard drag?.moving != true else { return }
     let k = shapeOnScreen().map { "\(Int($0.minX.rounded())),\(Int($0.minY.rounded())),\(Int($0.width.rounded())),\(Int($0.height.rounded()))" } ?? "none"
     // V1.55: the cards follow the island (they ignore the hover view themselves). V1.56 hang fix: only when their spot,

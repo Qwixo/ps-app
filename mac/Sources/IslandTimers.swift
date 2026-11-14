@@ -178,11 +178,13 @@ struct TimerMiddle: View {
   /// IslandTimerLayout.face; this is what fills it.
   private func standFace(_ endsAt: Double) -> some View {
     let calm = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    return VStack(spacing: 2) {
+    return VStack(spacing: StandFaceLayout.textSpacing) {
       HStack(spacing: 6) {
         Text(TimersCore.wStandUp).font(.system(size: 11.5, weight: .semibold, design: .rounded)).foregroundColor(dim).lineLimit(1).fixedSize()
         IslandCountdown(endsAt: endsAt, size: 11.5, color: green)
       }
+      // PS 1.60: clear space for his head and raised hands, so they never reach the words.
+      Color.clear.frame(height: StandFaceLayout.lift)
       ZStack {
         // A soft glow that breathes behind him (still with Reduce Motion).
         TimelineView(.animation(minimumInterval: 1 / 30, paused: calm)) { ctx in
@@ -192,9 +194,9 @@ struct TimerMiddle: View {
         }
         StandMan(size: IslandTimerLayout.faceMan, color: green)
       }
-      .frame(height: IslandTimerLayout.faceMan + 8)
+      .frame(height: StandFaceLayout.manBox)
     }
-    .padding(.top, m.pill ? 12 : 6)
+    .padding(.top, StandFaceLayout.topPad(pill: m.pill))
     .frame(maxWidth: .infinity)
     .frame(height: m.pill ? IslandTimerLayout.faceH : IslandTimerLayout.faceBody, alignment: .top)
     .accessibilityElement(children: .combine)
@@ -227,7 +229,9 @@ enum IslandTimerLayout {
   static let bubbleH: CGFloat = BubbleFit.h, bubbleGap: CGFloat = BubbleFit.gap
   /// V1.59 the stand-up's Face ID look: narrower and taller than the open island, rounder, the man big in the middle.
   /// faceH is the whole pill, faceBody the part below the notch.
-  static let faceW: CGFloat = 236, faceH: CGFloat = 124, faceBody: CGFloat = 112, faceRadius: CGFloat = 36, faceMan: CGFloat = 70
+  static let faceW: CGFloat = StandFaceLayout.faceW, faceRadius: CGFloat = StandFaceLayout.radius, faceMan: CGFloat = StandFaceLayout.man
+  /// PS 1.60 (item 25): taller, worked out from its parts (StandFaceLayout in IslandBlobCore.swift) so the figure sits clearly below the words.
+  static let faceH: CGFloat = StandFaceLayout.height(pill: true), faceBody: CGFloat = StandFaceLayout.height(pill: false)
 }
 
 /// The time left beside the task during a Pomodoro work session (Settings, "Time left on the island while you work", off

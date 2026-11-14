@@ -20,7 +20,8 @@ struct TStand: Equatable { var at: Double; var len: Double; var sound: Bool; var
   /// V1.59: the person has never seen the first stand-up's question (IslandBubbleCore.swift StandAsk).
   var ask = false
 }
-struct TMeet: Equatable { var id: String; var title: String; var start: Double; var end: Double; var from: Double; var link: String? }
+/// blob: the small blob on the island's end (PS 1.60, settings meetBubble.style, the default), false: the old long pill.
+struct TMeet: Equatable { var id: String; var title: String; var start: Double; var end: Double; var from: Double; var link: String?; var blob = true }
 struct TimersIn: Equatable {
   var pomo: TPomo?
   var stand: TStand?
@@ -88,7 +89,7 @@ enum TimersCore {
     }
     if let m = d["meet"] as? [String: Any], let start = num(m["start"]), let end = num(m["end"]), let from = num(m["from"]), end > start {
       let title = str(m["title"], 80)
-      t.meet = TMeet(id: str(m["id"], 120), title: title.isEmpty ? "Meeting" : title, start: start, end: end, from: from, link: openableLink(m["link"] as? String))
+      t.meet = TMeet(id: str(m["id"], 120), title: title.isEmpty ? "Meeting" : title, start: start, end: end, from: from, link: openableLink(m["link"] as? String), blob: (m["style"] as? String) != "pill")
     }
     return t
   }

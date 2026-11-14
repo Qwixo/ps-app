@@ -9,6 +9,8 @@ import SwiftUI
 final class BubbleModel: ObservableObject {
   @Published var b: TBubble = .none
   @Published var size = BubbleFit.Size(width: 0)
+  /// PS 1.60: the meeting as a small blob on the island's end (IslandBlobCore.swift BlobFit); nil: the long pill.
+  @Published var blob: BlobFit.Layout?
   @Published var side: BubbleFit.Side = .right
   @Published var shown = false
   @Published var opacity: Double = 1
@@ -29,9 +31,9 @@ struct BubbleView: View {
       if m.shown, !m.b.isNone {
         Button(action: { tap(m.b) }) {
           content
-            .frame(width: m.size.width, height: BubbleFit.h)
-            .background(Capsule().fill(Color.black))
-            .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.8))
+            .frame(width: m.size.width, height: bubbleH)
+            .background(blobShape)
+            .overlay(blobEdge)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -40,15 +42,50 @@ struct BubbleView: View {
         .transition(calm ? .opacity : .scale(scale: 0.2, anchor: anchor).combined(with: .opacity).combined(with: m.side == .below ? .offset(y: -10) : .offset(x: m.side == .right ? -14 : 14)))
       }
     }
-    .frame(width: m.size.width + 2 * BubbleView.margin, height: BubbleFit.h + 2 * BubbleView.margin, alignment: m.side == .right ? .leading : .trailing)
+    .frame(width: m.size.width + 2 * BubbleView.margin, height: bubbleH + 2 * BubbleView.margin, alignment: m.side == .right ? .leading : .trailing)
     .padding(0)
     .opacity(m.opacity)
     .environment(\.colorScheme, .dark)
   }
+  private var bubbleH: CGFloat { m.blob?.height ?? BubbleFit.h }
+  /// The blob is the island's own black with no edge (blended in); the pill keeps its faint white edge.
+  @ViewBuilder private var blobShape: some View {
+    if let b = m.blob { RoundedRectangle(cornerRadius: b.radius, style: .continuous).fill(Color.black) } else { Capsule().fill(Color.black) }
+  }
+  @ViewBuilder private var blobEdge: some View {
+    if m.blob == nil { Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.8) }
+  }
   private var key: String {
     switch m.b { case .none: return "none"; case .standSoon: return "stand"; case .meet(let mode, let mt): return "meet-\(mt.id)-\(mode)" }
   }
+  /// The blob's three lines, stacked: the blue camera on top, the meeting's name, the time just below.
+  @ViewBuilder private func blobContent(_ l: BlobFit.Layout, _ mode: String, _ mt: TMeet) -> some View {
+    VStack(spacing: BlobFit.spacing) {
+      Image(systemName: "video.fill").font(.system(size: l.sizes.icon, weight: .bold)).foregroundColor(blue)
+      if mode == "join" {
+        Text(TimersCore.wJoin).font(.system(size: l.sizes.title, weight: .heavy)).foregroundColor(blue).lineLimit(1).fixedSize()
+      } else if let w = l.titleW {
+        Text(mt.title).font(.system(size: l.sizes.title, weight: .semibold)).foregroundColor(Color.white.opacity(0.8)).lineLimit(1).truncationMode(.tail).frame(width: w)
+      } else {
+        Text(mt.title).font(.system(size: l.sizes.title, weight: .semibold)).foregroundColor(Color.white.opacity(0.8)).lineLimit(1).fixedSize()
+      }
+      if mode == "now" {
+        HStack(spacing: 2) {
+          IslandCountdown(endsAt: mt.end, short: true, size: l.sizes.time, color: .white)
+          Text(BubbleFit.wLeftWord).font(.system(size: l.sizes.time - 0.5, weight: .semibold)).foregroundColor(Color.white.opacity(0.7)).fixedSize()
+        }
+      } else {
+        IslandCountdown(endsAt: mt.start, short: true, size: l.sizes.time, color: .white)
+      }
+    }
+    .padding(.vertical, BlobFit.padY)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(Text("\(mt.title) \(mode == "now" ? "on now" : "starting soon")"))
+  }
   @ViewBuilder private var content: some View {
+    if case .meet(let mode, let mt) = m.b, let l = m.blob { blobContent(l, mode, mt) } else { pillContent }
+  }
+  @ViewBuilder private var pillContent: some View {
     switch m.b {
     case .standSoon(let at):
       HStack(spacing: BubbleFit.spacing) {
@@ -114,10 +151,15 @@ final class BubbleWindow {
 
   /// Show it beside the island, or put it away (it shrinks back into the island first).
   func sync(_ b: TBubble, want: Bool, anchor: (shape: NSRect, bubbleY: CGFloat, screen: CGRect, panel: NSWindow)?, opacity: Double) {
+    let nowMs = Date().timeIntervalSince1970 * 1000
+    // PS 1.60: a meeting is a small blob, exactly the island's height, on its end (Settings can bring the long pill back).
+    let blobFit = anchor.flatMap { want && !b.isNone ? BlobFit.fit(b, now: nowMs, island: $0.shape, screen: $0.screen, measure: BlobFit.measure) : nil }
     guard want, !b.isNone, let a = anchor,
-          let fit = BubbleFit.fit(b, now: Date().timeIntervalSince1970 * 1000, island: a.shape, y: a.bubbleY, screen: a.screen, measure: BubbleFit.measure)
+          let fit = blobFit.map({ (BubbleFit.Size(width: $0.0.width), BubbleFit.Spot(frame: $0.1.frame, side: $0.1.side)) })
+            ?? BubbleFit.fit(b, now: nowMs, island: a.shape, y: a.bubbleY, screen: a.screen, measure: BubbleFit.measure)
     else { hide(); return }
     let (size, spot) = fit
+    if m.blob != blobFit?.0 { m.blob = blobFit?.0 }
     hideWork?.cancel(); hideWork = nil
     let w = setUp(level: a.panel.level)
     let f = spot.frame.insetBy(dx: -BubbleView.margin, dy: -BubbleView.margin).integral
