@@ -22,6 +22,7 @@ import {
   boardRow, chatRow, escStep, firstSection, fitnessRow, membersRow, NARROW_PX, screenRow, settingsRow, tasksRow,
   type LastLine, type RowInfo,
 } from "../squad/window";
+import { listTime, unreadText } from "../squad/chatgroups";
 import { THE_SQUAD, type SettingsPage } from "../squad/single";
 import { looksClass, looksVars } from "../squad/looks";
 import { todayISO } from "../ui/kit";
@@ -29,6 +30,7 @@ import { sfx } from "../ui/sfx";
 import { Avatar } from "./SquadAvatar";
 import { SettingsIcon, SquadSettings, useLooks } from "./GSquadSettings";
 import "./gswin.css";
+import "./gswnew.css";
 
 // ---------- small parts ----------
 function Svg({ children, size = 24, w = 1.9 }: { children: ReactNode; size?: number; w?: number }) {
@@ -52,16 +54,7 @@ function Lock() { return <Svg size={13} w={2.2}><rect x="5" y="10.5" width="14" 
 const CloseIcon = () => <Svg size={20} w={2.2}><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></Svg>;
 const BackIcon = () => <Svg size={22} w={2.4}><path d="M14.5 5.5L8 12l6.5 6.5" /></Svg>;
 
-/** The time on the Chat row: 14:05 today, Yesterday, else 6 Nov. */
-function rowTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const now = new Date();
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const y = new Date(now); y.setDate(now.getDate() - 1);
-  if (d.toDateString() === y.toDateString()) return "Yesterday";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
+const rowTime = (iso: string) => listTime(iso);
 
 // ---------- what stays between openings (memory only) ----------
 let lastSection: string | null = null;
@@ -251,7 +244,7 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
           <span className="gsw-row-m">
             <span className="gsw-row-t"><b>{title}</b>{r?.time && <time className="num">{r.time}</time>}</span>
             <span className="gsw-row-s"><span className={r?.strong ? "strong" : undefined}>{r?.line ?? ""}</span>
-              {count > 0 ? <i className="gsw-count num" aria-label={`${count} new`}>{count > 99 ? "99+" : count}</i> : r?.dot || extra?.dot ? <i className="gsw-dot" aria-label="New" /> : null}</span>
+              {count > 0 ? <i className="gsw-count num" aria-label={`${count} new`}>{unreadText(count)}</i> : r?.dot || extra?.dot ? <i className="gsw-dot" aria-label="New" /> : null}</span>
           </span>
         </button>
       </li>
