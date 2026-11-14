@@ -72,7 +72,7 @@
 .gsw.lk-new .gc-row { padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(26px * var(--k-rd, 1)); background: var(--gw-soft); border-color: transparent; }
 .gsw.lk-new .gc-row:focus-within { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); box-shadow: none; }
 .gsw.lk-new .gc-box { min-height: 38px; font-size: calc(14px * var(--k-fs, 1)); }
-.gsw.lk-new .gc-send { min-width: 40px; height: 40px; border-radius: 50%; padding: 0 calc(12px * var(--k-dn, 1)); }
+.gsw.lk-new .gc-send { min-width: 44px; height: 44px; border-radius: 50%; padding: 0 calc(12px * var(--k-dn, 1)); }
 .gsw.lk-new .gc-send svg { width: 18px; height: 18px; }
 .gsw.lk-new .gc-foot, .gsw.lk-new .gc-sound { margin-left: calc(14px * var(--k-dn, 1)); margin-right: calc(14px * var(--k-dn, 1)); }
 
