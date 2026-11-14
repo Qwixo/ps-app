@@ -15,8 +15,9 @@ final class FakePerms: SRPermissionsAPI {
 }
 final class FakeCapture: SRCaptureAPI, SRAdjustableCapture {
   var started = 0, stopped = 0, paused = 0, resumed = 0, adjusted: [SRStep] = []
+  var plans: [SRPlan] = []
   var canAdjust = SRAdjustable()
-  func start(_ plan: SRPlan, done: @escaping (Error?) -> Void) { started += 1; done(nil) }
+  func start(_ plan: SRPlan, done: @escaping (Error?) -> Void) { started += 1; plans.append(plan); done(nil) }
   func pause() { paused += 1 }
   func resume() { resumed += 1 }
   func switchMic(_ uid: String?) {}
@@ -43,6 +44,8 @@ func rig(enabled: Bool = true, tweak: (inout SRSettings) -> Void = { _ in }) -> 
   r.brain.now = { b.clock }
   r.ctl.now = { b.clock }
   r.brain.privateOn = { b.priv }
+  r.brain.localQueue?.now = { b.clock }
+  r.brain.router.now = { b.clock }
   r.brain.emit = { c, s in b.cards.append((c, s)) }
   r.brain.screenH = { 1080 }
   r.ctl.onChange = { [weak brain = r.brain] _ in brain?.recorderChanged() }
@@ -103,37 +106,95 @@ do {
   ok("app call ended, a new one asks again", flow5.look(app, SRAskInputs()) != nil)
 }
 
-// ---- the brain: the whole order through one queue, one card at a time ----
+// ---- the brain: the whole order through the REAL router and the island queue rules, one card at a time ----
 do {
   let (r, b) = rig()
-  var lane = SRCardLane()
-  r.brain.emit = { c, s in b.cards.append((c, s)); _ = lane.submit(c, now: b.clock) }
-  // The private question is already on the island (the page's own card, id private-ask)
-  let priv = SRCard(id: "private-ask", title: "Start private mode?", sub: nil, body: nil, actions: [("yes", "Yes"), ("no", "No")])
-  _ = lane.submit(priv, now: b.clock)
-  ok("record question is not shown while the private question is pending", r.brain.meetingTick(cal, privateAskPending: true) == false && b.cards.isEmpty)
-  ok("the lane shows the private question first", lane.shown == ["private-ask"])
-  lane.finish("private-ask", now: b.clock)
-  b.clock = at(1)
-  ok("then the record question is asked", r.brain.meetingTick(cal, privateAskPending: false) == true && b.cards.first?.0.id == SRCards.askId)
-  ok("the record question waited for the island, never over a card", lane.shown == ["private-ask", SRCards.askId])
-  // a second moment while the question is on the island waits (one card at a time)
-  let other = SRCard(id: SRCards.savedId, title: "Saved", sub: nil, body: nil, actions: [])
-  let o = lane.submit(other, now: b.clock)
-  ok("another moment waits behind the open card", o == .wait(position: 1) && lane.queue.active?.id == SRCards.askId)
-  lane.finish(SRCards.askId, now: b.clock); b.clock = at(2); lane.step(now: b.clock)
-  ok("and comes after it", lane.queue.active?.id == SRCards.savedId)
-  ok("never two cards active", lane.queue.count == 1)
+  let q = r.brain.localQueue!
+  // The private question is on the island ahead of us, in the same queue
+  _ = q.enqueue(id: "private-ask", ttl: nil, show: {}, visible: { true }, close: {}, dropped: {})
+  ok("the private question is the active card", q.isActive("private-ask"))
+  ok("the page says the private question is pending: no record question yet", r.brain.meetingTick(cal, privateAskPending: true) == false && b.cards.isEmpty)
+  // the page's flag lagged: the record question is submitted anyway and must wait its turn, never on top
+  ok("record question submitted while a card is active waits", r.brain.meetingTick(cal, privateAskPending: false) == true && b.cards.isEmpty && q.isWaiting(SRCards.askId))
+  q.finish("private-ask"); b.clock = at(1); q.pump()
+  ok("the record question shows right after the private question, through the queue", b.cards.map { $0.0.id } == [SRCards.askId] && q.isActive(SRCards.askId))
 }
 do {
-  var lane = SRCardLane()
+  let (r, b) = rig(); let q = r.brain.localQueue!
+  _ = r.ctl.start()                                   // a recording: moments to come
+  r.brain.openControls()
+  _ = r.brain.meetingTick(cal, privateAskPending: false)   // busy: no question while recording
+  ok("controls card is the active one", q.isActive(SRCards.menuId) && b.cards.count == 1)
+  r.brain.perfTick(SRSample(diskFree: 0))               // disk stop: a card of its own
+  ok("a second moment waits, never two cards", b.cards.count == 1 && q.isWaiting(SRCards.diskId))
+  r.brain.router.answered(SRCards.menuId); b.clock = at(1); q.pump()
+  ok("and comes after the first is answered", b.cards.map { $0.0.id } == [SRCards.menuId, SRCards.diskId] && !b.cards.contains { $0.0.id == SRCards.savedId })
+  var activeAtOnce = 0
+  for id in [SRCards.menuId, SRCards.diskId, SRCards.perfId] { if q.isActive(id) { activeAtOnce += 1 } }
+  ok("never two active", activeAtOnce == 1)
+}
+do {
+  // H4: the question stays answerable for as long as it is on the island (the old reaper declined it after 8 to 13 seconds)
+  let (r, b) = rig(); let q = r.brain.localQueue!
+  _ = r.brain.meetingTick(cal, privateAskPending: false)
+  for k in 1...12 { b.clock = at(Double(k) * 10); q.pump(); _ = r.brain.meetingTick(cal, privateAskPending: false) }
+  ok("two minutes later the question is still the card on screen", q.isActive(SRCards.askId) && r.brain.openAsk != nil && b.cards.count == 1)
+  ok("and Yes still works", r.brain.answer(cardId: SRCards.askId, action: "yes") == .countIn(3))
+  r.brain.router.answered(SRCards.askId)
+  ok("the answered card left the queue", !q.isActive(SRCards.askId) && !r.brain.router.isOpen(SRCards.askId))
+}
+do {
+  // Esc, the x and a timeout all finish the card and count as No
+  let (r, b) = rig(); let q = r.brain.localQueue!
+  _ = r.brain.meetingTick(cal, privateAskPending: false)
+  _ = q.escape()
+  ok("Esc closes the question and frees the queue", !q.isActive(SRCards.askId) && r.brain.openAsk == nil)
+  b.clock = at(2); ok("Esc is a No for that meeting", r.brain.meetingTick(cal, privateAskPending: false) == false)
+  let (r2, b2) = rig(); let q2 = r2.brain.localQueue!
+  _ = r2.brain.meetingTick(cal, privateAskPending: false)
+  r2.brain.cardGone(SRCards.askId)
+  ok("the x on the card frees the queue too", !q2.isActive(SRCards.askId) && !r2.brain.router.isOpen(SRCards.askId) && b2.cards.count == 1)
+}
+do {
+  // dropped unseen: waited past its time to live behind a long card: it is asked again later, not counted as a No
+  let (r, b) = rig(); let q = r.brain.localQueue!
+  _ = q.enqueue(id: "private-ask", ttl: nil, show: {}, visible: { true }, close: {}, dropped: {})
+  _ = r.brain.meetingTick(cal, privateAskPending: false)
+  b.clock = at(500); q.pump()
+  ok("a question that never reached the island is dropped and forgotten", b.cards.isEmpty && r.brain.openAsk == nil && !r.brain.router.isOpen(SRCards.askId))
+  q.finish("private-ask"); b.clock = at(501); q.pump()
+  ok("and asked again afterwards", r.brain.meetingTick(cal, privateAskPending: false) == true && b.cards.count == 1)
+}
+do {
+  // an active card whose window is gone without a word is let go: the queue never sticks
+  let (r, b) = rig(); let q = r.brain.localQueue!
+  _ = r.ctl.start(); r.brain.recorderChanged()
+  r.ctl.stop(); r.brain.recorderChanged()
+  ok("saved card shown", q.isActive(SRCards.savedId))
+  b.clock = at(60); q.pump()
+  ok("a card that is never closed does not hold the island forever", !q.isActive(SRCards.savedId))
+  _ = q
+}
+do {
+  // private mode takes the question down and asks again after it
+  let (r, b) = rig(); let q = r.brain.localQueue!
+  var taken: [String] = []
+  r.brain.router.retract = { taken.append($0) }
+  _ = r.brain.meetingTick(cal, privateAskPending: false)
+  b.priv = true; r.brain.privateChanged()
+  ok("private mode on: the question is taken down and leaves the queue", taken == [SRCards.askId] && !q.isActive(SRCards.askId) && r.brain.openAsk == nil)
+  b.priv = false; r.brain.privateChanged(); b.clock = at(5)
+  ok("private mode off: it is not a No, it asks again", r.brain.meetingTick(cal, privateAskPending: false) == true)
+}
+do {
   var shownTogether = 0
+  let q = SRLocalQueue(); var t = T0; q.now = { t }
   for k in 0..<6 {
-    _ = lane.submit(SRCard(id: "c\(k)", title: "x", sub: nil, body: nil, actions: []), now: at(Double(k) * 0.01))
-    if lane.queue.count - lane.queue.waiting.count > 1 { shownTogether += 1 }
+    _ = q.enqueue(id: "c\(k)", ttl: nil, show: {}, visible: { true }, close: {}, dropped: {}); t = t.addingTimeInterval(0.01)
+    var active = 0; for j in 0..<6 where q.isActive("c\(j)") { active += 1 }
+    if active > 1 { shownTogether += 1 }
   }
-  ok("six moments at once: still exactly one active", shownTogether == 0 && lane.queue.active?.id == "c0" && lane.queue.waiting.count == 5)
-  ok("the same moment twice is not a second card", lane.submit(SRCard(id: "c3", title: "x", sub: nil, body: nil, actions: []), now: at(1)) == .updated)
+  ok("six moments at once: still exactly one active", shownTogether == 0 && q.isActive("c0") && q.shown == ["c0"])
 }
 
 // ---- Yes, No, the chip ----
@@ -144,14 +205,80 @@ do {
   ok("the question has the meeting name, Yes, No and the chip", askCard.title == SRWords.askTitle && askCard.sub == "Call with Sam" && askCard.actions.map { $0.id } == ["yes", "no", "chip"])
   ok("the chip starts on Calls", askCard.actions[2].label == "Calls")
   _ = r.brain.answer(cardId: SRCards.askId, action: "chip")
-  ok("tap the chip: Sharp", r.ctl.settings.preset == .sharp && b.cards.last?.0.actions[2].label == "Sharp")
+  ok("tap the chip: the card says Sharp", b.cards.last?.0.actions[2].label == "Sharp" && r.brain.openAsk?.choice == .sharp)
+  ok("a chip tap never changes the saved defaults", r.ctl.settings.preset != .sharp && r.ctl.settings.mode == .screenAndAudio)
   _ = r.brain.answer(cardId: SRCards.askId, action: "chip"); _ = r.brain.answer(cardId: SRCards.askId, action: "chip")
-  ok("tap again: Tiny then Audio only", r.ctl.settings.mode == .audioOnly && b.cards.last?.0.actions[2].label == "Audio only")
-  _ = r.brain.answer(cardId: SRCards.askId, action: "chip")
-  ok("and round to Calls again", r.ctl.settings.mode == .screenAndAudio && r.ctl.settings.preset == .calls)
+  ok("tap again: Tiny then Audio only", b.cards.last?.0.actions[2].label == "Audio only" && r.ctl.settings.mode == .screenAndAudio)
   let nx = r.brain.answer(cardId: SRCards.askId, action: "yes")
   ok("Yes: a short count in of 3", nx == .countIn(3))
   ok("after the count in it starts with the meeting name", r.brain.startAfterCountIn() == nil && r.cap.started == 1 && r.ctl.snapshot.fileName?.contains("Call with Sam") == true)
+  ok("the chip choice applied to THIS start only", r.cap.plans.last?.mode == .audioOnly && r.ctl.settings.mode == .screenAndAudio)
+  ok("a second count in end does not start twice", r.brain.startAfterCountIn() == .off && r.cap.started == 1)
+}
+do {
+  // Yes, then the person switches screen recording off during the count in: nothing starts
+  let (r, _) = rig()
+  _ = r.brain.meetingTick(cal, privateAskPending: false)
+  ok("Yes begins a count in", r.brain.answer(cardId: SRCards.askId, action: "yes") == .countIn(3) && r.brain.countInPending)
+  r.ctl.setEnabled(false); r.brain.gateChanged()
+  ok("switched off during the count in: it is cancelled", !r.brain.countInPending)
+  ok("so nothing starts when the count ends", r.brain.startAfterCountIn() == .off && r.cap.started == 0)
+}
+do {
+  // the feature itself (Settings, From the squad) switched off during the count in, and during a recording
+  var on = true
+  var s = SRSettings(); s.enabled = true
+  let cap = FakeCapture(), perms = FakePerms()
+  let ctl = SRController(settings: s, featureOn: { on }, perms: perms, capture: cap)
+  let brain = SRIslandBrain(controller: ctl)
+  ctl.onChange = { [weak brain] _ in brain?.recorderChanged() }
+  _ = brain.meetingTick(cal, privateAskPending: false)
+  _ = brain.answer(cardId: SRCards.askId, action: "yes")
+  on = false; brain.gateChanged()
+  ok("feature off in the count in: cancelled and nothing starts", brain.startAfterCountIn() == .off && cap.started == 0)
+  on = true; brain.gateChanged()
+  _ = ctl.start()
+  on = false; brain.gateChanged()
+  ok("feature off while recording: stopped and saved at once", cap.stopped == 1 && ctl.snapshot.state == .off)
+}
+do {
+  // reduced motion: no count in, the claim and the code agree
+  let (r, _) = rig()
+  r.brain.reduceMotion = { true }
+  _ = r.brain.meetingTick(cal, privateAskPending: false)
+  ok("reduced motion: Yes starts at once, no count in", r.brain.answer(cardId: SRCards.askId, action: "yes") == .countIn(0))
+}
+do {
+  // a refused start after Yes is said on the island, and on the button (snapshot.error)
+  let (r, b) = rig()
+  r.ctl.folders = { (nil, SRFolderState(exists: true, writable: true, freeBytes: 10)) }
+  _ = r.brain.meetingTick(cal, privateAskPending: false)
+  _ = r.brain.answer(cardId: SRCards.askId, action: "yes")
+  r.brain.router.answered(SRCards.askId)
+  b.clock = at(1); r.brain.localQueue?.pump()
+  let ref = r.brain.startAfterCountIn()
+  b.clock = at(2); r.brain.localQueue?.pump()
+  ok("refused: no room", ref == .noRoom && r.cap.started == 0)
+  ok("the person is told on the island", b.cards.last?.0.id == SRCards.failId && b.cards.last?.0.sub?.contains("not enough room") == true)
+  ok("and on the button", r.ctl.snapshot.error?.contains("not enough room") == true)
+}
+do {
+  // a writer failure ends with a card that says what was kept
+  let (r, b) = rig()
+  _ = r.ctl.start()
+  r.ctl.writerFailed("The drive was removed.")
+  ok("writer failure: a card says it stopped and what was kept", b.cards.last?.0.id == SRCards.stoppedId && b.cards.last?.0.title.contains("kept") == true)
+  ok("and no Saved card pretends all is well", !b.cards.contains { $0.0.id == SRCards.savedId })
+}
+do {
+  // the disk stop never depends on the Performance watch switch
+  let (r, b) = rig(tweak: { $0.perfWatch = false })
+  _ = r.ctl.start(); r.brain.recorderChanged()
+  ok("watch switch off: the watch still runs for the disk", r.brain.watch.running)
+  r.brain.perfTick(SRSample(cpu: 1, thermal: .critical, dropRatio: 0.9))
+  ok("watch switch off: no quiet adjust and no question", r.cap.adjusted.isEmpty && b.cards.isEmpty)
+  r.brain.perfTick(SRSample(diskFree: 1_000))
+  ok("watch switch off: a nearly full disk still stops and saves", r.cap.stopped == 1 && b.cards.contains { $0.0.id == SRCards.diskId })
 }
 do {
   let (r, b) = rig()
@@ -177,7 +304,7 @@ do {
   ok("ask to record meetings off: no question", r2.brain.meetingTick(cal, privateAskPending: false) == false && b2.cards.isEmpty)
   let (r3, _) = rig(tweak: { $0.perfWatch = false })
   _ = r3.ctl.start(); r3.brain.recorderChanged()
-  ok("performance watch off: it never begins", r3.brain.watch.running == false)
+  ok("performance watch off: only the disk stop runs, the quiet adjust and the question never do", r3.brain.watch.running == true && r3.brain.watch.feed(SRSample(cpu: 1, thermal: .critical), now: at(100)).isEmpty)
 }
 
 // ---- private mode ----
@@ -381,6 +508,26 @@ ok("card buttons fit the card (24 letters, 3 buttons)", [SRMoment.recordAsk(name
   let c = SRCards.card(m); return c.actions.count <= 3 && c.actions.allSatisfy { $0.label.count <= 24 && $0.id.count <= 20 } && c.id.count <= 40 })
 ok("the moment ids are all different", Set([SRCards.askId, SRCards.perfId, SRCards.savedId, SRCards.diskId, SRCards.menuId]).count == 5)
 ok("settings: both new switches default on and load tolerantly", { let s = SRSettings(); let d = try! JSONDecoder().decode(SRSettings.self, from: "{}".data(using: .utf8)!); return s.askMeetings && s.perfWatch && d.askMeetings && d.perfWatch }())
+
+do {
+  // the chip re-shows the card: the card's own "gone" that follows the click is not a No
+  let (r, b) = rig(); let q = r.brain.localQueue!
+  _ = r.brain.meetingTick(cal, privateAskPending: false)
+  _ = r.brain.answer(cardId: SRCards.askId, action: "chip")
+  r.brain.cardGone(SRCards.askId)
+  ok("a gone right after a chip tap does not decline the meeting", r.brain.openAsk != nil && q.isActive(SRCards.askId))
+  ok("the chip re-showed the same card, never a second one", b.cards.count == 2 && b.cards.allSatisfy { $0.0.id == SRCards.askId })
+  b.clock = at(10); r.brain.cardGone(SRCards.askId)
+  ok("a real close later is a No", r.brain.openAsk == nil && !q.isActive(SRCards.askId))
+}
+
+do {
+  let (r, _) = rig(tweak: { $0.mode = .audioOnly; $0.fps = 60 })
+  _ = r.ctl.start(); r.brain.recorderChanged()
+  for k in 0..<4 { b0(r, k) }
+  ok("audio only: the details never say the frame rate was lowered", !r.cap.adjusted.isEmpty && r.ctl.snapshot.lowered.isEmpty)
+}
+func b0(_ r: Rig, _ k: Int) { r.brain.perfTick(SRSample(cpu: 1, thermal: .critical)) }
 
 print("\(n - bad) of \(n) pass")
 exit(bad == 0 ? 0 : 1)

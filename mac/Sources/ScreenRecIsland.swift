@@ -28,7 +28,6 @@ final class ScreenRecIsland {
   private var cpuPrev: (busy: UInt64, total: UInt64)?
   private var lastState: SRRunState = .off
   private var countTimer: Timer?
-  private var shownAt: [String: Date] = [:]
   let part = RecPartModel()
   private var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
@@ -36,7 +35,8 @@ final class ScreenRecIsland {
   func attach(controller: SRController, capture: SRRealCapture) {
     guard brain == nil else { return }
     self.capture = capture
-    let b = SRIslandBrain(controller: controller)
+    let b = SRIslandBrain(controller: controller, queue: SRRealQueue())   // every card goes through the shared island queue (PR 6)
+    b.reduceMotion = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     b.privateOn = { PrivateHold.shared.on }
     b.dndMutesSounds = { DND.shared.mutes("sounds") }
     b.adjuster = capture
@@ -46,6 +46,8 @@ final class ScreenRecIsland {
     }
     b.screenH = { ScreenRec.screenInfoNow().height }
     b.emit = { [weak self] card, sound in self?.show(card, sound: sound) }
+    b.router.retract = { id in Toast.shared.retractCard(id) }
+    Toast.onCardGone = { id in DispatchQueue.main.async { ScreenRecIsland.shared.cardGone(id) } }
     brain = b
     PrivateHold.shared.watch { [weak self] in self?.brain?.privateChanged(); self?.syncPart(); ScreenRecCloud.shared.syncRing() }
   }
@@ -76,16 +78,27 @@ final class ScreenRecIsland {
       let t = Timer(timeInterval: 10, repeats: true) { [weak self] _ in self?.meetingLook() }
       t.tolerance = 3; RunLoop.main.add(t, forMode: .common); meetTimer = t
     } else if !looking { meetTimer?.invalidate(); meetTimer = nil }
-    let watching = on && b.controller.settings.perfWatch && (b.controller.snapshot.state == .recording || b.controller.snapshot.state == .paused)
+    // The sampler runs for every recording: the disk stop never depends on the Performance watch switch. Only the quiet adjust and the
+    // question (CPU, heat, memory, frame gaps) are behind the switch, and only then are those read.
+    let watching = on && (b.controller.snapshot.state == .recording || b.controller.snapshot.state == .paused)
     if watching, perfTimer == nil {
-      startMemory()
+      if b.controller.settings.perfWatch { startMemory() }
       let t = Timer(timeInterval: SRThresholds.sampleEvery, repeats: true) { [weak self] _ in self?.sample() }
       t.tolerance = 1; RunLoop.main.add(t, forMode: .common); perfTimer = t
-    } else if !watching, perfTimer != nil {
+    } else if watching, b.controller.settings.perfWatch { startMemory() }
+    else if !watching, perfTimer != nil {
       perfTimer?.invalidate(); perfTimer = nil; memSource?.cancel(); memSource = nil; cpuPrev = nil; mem = .normal
     }
-    if !on { part.hide(); }
+    if !on { part.hide(); countTimer?.invalidate(); countTimer = nil; part.count = nil }
     ScreenRecCloud.shared.sync()   // 12c: the cloud queue and its timers follow the same gate
+  }
+
+  /// The feature may have been switched off (Settings, From the squad) or the person said No: stop and save a recording, cancel a start and a count in.
+  func gateChanged() {
+    guard let b = brain else { return }
+    b.gateChanged()
+    if !b.controller.gateOpen { countTimer?.invalidate(); countTimer = nil; part.count = nil }
+    sync(); syncPart()
   }
 
   // ----- the page says a meeting is on (src/meetwatch.ts) -----
@@ -101,11 +114,11 @@ final class ScreenRecIsland {
   // ----- the meeting look -----
   private func meetingLook() {
     guard let b = brain, b.controller.gateOpen, b.controller.settings.askMeetings else { return }
-    reapGone(SRCards.askId)
     var f = SRMeetingFacts()
     var pending = false
     if let p = page, Date().timeIntervalSince(p.at) < 90 { f.calendarName = p.name; f.calendarKey = p.key; pending = p.privateAsk }
-    // The private mode question may be on the island or queued: it always goes first.
+    // The private mode question comes first: the page says so (privateAsk) from the start of the meeting, and the record question is
+    // never asked earlier than that. If it is still on the island or queued, the record question waits too.
     if IslandQueue.shared.isActive("private-ask") || IslandQueue.shared.isWaiting("private-ask") { pending = true }
     if f.calendarName == nil {
       f.appWindows = Self.meetingWindows()
@@ -159,28 +172,33 @@ final class ScreenRecIsland {
   }
   private func sample() {
     guard let b = brain else { return }
-    reapGone(SRCards.perfId)
+    let perf = b.controller.settings.perfWatch
+    // The disk read (and the battery read) run off the main thread; the rest is cheap and only read when the watch switch is on.
     let th: SRThermal = { switch ProcessInfo.processInfo.thermalState { case .nominal: return .nominal; case .fair: return .fair; case .serious: return .serious; default: return .critical } }()
-    let p = PowerWatch.readNow()
-    let s = SRSample(cpu: cpuBusy(), thermal: th, memory: mem, diskFree: ScreenRec.shared.freeBytesNow(), onBattery: p.onBattery, batteryPct: p.pct,
-                     lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled, dropRatio: capture?.takeDropRatio() ?? 0)
-    b.perfTick(s)
+    let cpu = perf ? cpuBusy() : 0, memNow = mem, drop = perf ? (capture?.takeDropRatio() ?? 0) : 0
+    let low = ProcessInfo.processInfo.isLowPowerModeEnabled
+    ScreenRec.shared.freeBytesAsync { [weak self] free in
+      guard let self, let b = self.brain else { return }
+      let p = perf ? PowerWatch.readNow() : nil
+      b.perfTick(SRSample(cpu: cpu, thermal: perf ? th : .nominal, memory: perf ? memNow : .normal, diskFree: free, onBattery: p?.onBattery ?? false, batteryPct: p?.pct, lowPower: perf ? low : false, dropRatio: drop))
+    }
   }
 
   // ----- cards -----
+  /// A card's turn has come (the island queue says so): it goes to Toast, with its sound.
   private func show(_ c: SRCard, sound: String?) {
     var d: [String: Any] = ["id": c.id, "title": c.title, "sticky": c.sticky, "actions": c.actions.map { ["id": $0.id, "label": $0.label] }]
     if let s = c.sub { d["sub"] = s }
     if let bd = c.body { d["body"] = bd }
-    shownAt[c.id] = Date()
     Toast.shared.showCard(d)
     if let n = sound { Sfx.shared.play(n, volume: 0.55) }
   }
-  /// A button on one of our cards (Toast.onAction routes "sr:" ids here).
+  /// A button on one of our cards (Toast.onAction routes "sr:" ids here). The card is finished in the island queue, except the chip, which re-shows it.
   func cardAction(_ id: String, _ action: String) {
     guard let b = brain else { return }
-    shownAt[id] = nil
-    switch b.answer(cardId: id, action: action) {
+    let next = b.answer(cardId: id, action: action)
+    if next != .reshow { b.router.answered(id) }
+    switch next {
     case .countIn(let n): countIn(n)
     case .reveal: ScreenRec.shared.handle(["op": "reveal"])
     case .play: ScreenRec.shared.playLast()
@@ -188,15 +206,11 @@ final class ScreenRecIsland {
     case .stopNow, .reshow, .none: break
     }
   }
-  /// Esc closes the card on screen (IslandQueue.escape): the question is a No.
-  func escaped(_ id: String) { shownAt[id] = nil; brain?.escaped(cardId: id) }
-  /// A card of ours that closed without a button (Esc, the x, a lost window) is a No: never stuck waiting for an answer.
-  private func reapGone(_ id: String) {
-    guard let at = shownAt[id], Date().timeIntervalSince(at) > 8, !IslandQueue.shared.isActive(id), !IslandQueue.shared.isWaiting(id) else { return }
-    escaped(id)
-  }
+  /// A card of ours closed without a button (the x, a timeout, a swipe, Esc): the question is a No, and the island queue moves on.
+  func cardGone(_ id: String) { brain?.cardGone(id) }
 
-  /// The short count in (3, 2, 1) on the island part, then the recording starts. Skipped in private mode or with reduced motion.
+  /// The short count in (3, 2, 1) on the island part, then the recording starts. Skipped in private mode and with reduced motion (n is 0 then:
+  /// the brain asks the system setting, so there is no count in animation at all). A cancel (feature off, No) stops it.
   private func countIn(_ n: Int) {
     guard let b = brain else { return }
     countTimer?.invalidate()
@@ -207,6 +221,7 @@ final class ScreenRecIsland {
     countTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] t in
       guard let self else { t.invalidate(); return }
       left -= 1
+      if !b.countInPending { t.invalidate(); self.part.count = nil; self.syncPart(); return }   // cancelled: nothing starts
       if left <= 0 { t.invalidate(); self.part.count = nil; _ = b.startAfterCountIn(); self.recorderChanged(); return }
       self.part.count = left; self.syncPart()
     }
@@ -215,9 +230,10 @@ final class ScreenRecIsland {
   /// The island menu's "Start recording" or "Stop recording", only while the gate is open.
   func menuAction() -> (title: String, run: () -> Void)? {
     guard let b = brain, b.controller.gateOpen else { return nil }
+    if PrivateHold.shared.on { return nil }   // private mode: not even the menu says that a recording is going on
     if b.controller.snapshot.isRecording { return ("Stop recording", { b.controller.stop() }) }
     guard b.controller.snapshot.state == .idle else { return nil }
-    return ("Start recording", { ScreenRec.shared.handle(["op": "start"]) })
+    return ("Start recording", { ScreenRec.shared.handle(["op": "start"]) })   // a refusal lands in snapshot.error and shows on the button
   }
 
   // ----- the recording part -----
@@ -336,4 +352,12 @@ struct RecPartView: View {
     .frame(width: m.width + 2 * RecPartModel.margin, height: RecPartModel.h + 2 * RecPartModel.margin)
     .environment(\.colorScheme, .dark)
   }
+}
+
+/// The shared island queue (IslandQueue.swift) as the recorder's cards use it.
+final class SRRealQueue: SRQueueAPI {
+  func enqueue(id: String, ttl: TimeInterval?, show: @escaping () -> Void, visible: @escaping () -> Bool, close: @escaping () -> Void, dropped: @escaping () -> Void) -> IslandQueueCore.Outcome {
+    IslandQueue.shared.enqueue(id: id, kind: "screenrec", priority: .normal, ttl: ttl, show: show, visible: visible, close: close, dropped: dropped)
+  }
+  func finish(_ id: String) { IslandQueue.shared.finish(id) }
 }

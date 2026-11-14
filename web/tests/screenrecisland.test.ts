@@ -28,8 +28,9 @@ t("a solo block, an all day event, a finished or a far off meeting is not found"
   assert.equal(M.liveMeeting([ev({ start: iso(NOW - 3_600_000), end: iso(NOW - 60_000) })], NOW), null);
   assert.equal(M.liveMeeting([ev({ start: iso(NOW + 600_000), end: iso(NOW + 1_800_000) })], NOW), null);
 });
-t("starting now means from a minute before to 15 minutes after the start", () => {
-  assert.ok(M.liveMeeting([ev({ start: iso(NOW + 30_000), end: iso(NOW + 1_800_000) })], NOW));
+t("starting now means from the start (when the private question comes) to 15 minutes after, never a minute before it", () => {
+  assert.equal(M.liveMeeting([ev({ start: iso(NOW + 30_000), end: iso(NOW + 1_800_000) })], NOW), null);
+  assert.ok(M.liveMeeting([ev({ start: iso(NOW), end: iso(NOW + 1_800_000) })], NOW));
   assert.ok(M.liveMeeting([ev({ start: iso(NOW - 14 * 60_000), end: iso(NOW + 1_800_000) })], NOW));
   assert.equal(M.liveMeeting([ev({ start: iso(NOW - 20 * 60_000), end: iso(NOW + 1_800_000) })], NOW), null);
 });

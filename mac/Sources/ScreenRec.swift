@@ -51,19 +51,17 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SRAdjustableCapture, SCStream
   private var me: AVAssetWriterInput?
   private var them: AVAssetWriterInput?
   private var plan: SRPlan?
-  private var sessionStarted = false
-  private var paused = false
-  private var pausedAtPTS: CMTime?
-  private var offset = CMTime.zero
-  private var lastPTS = CMTime.zero
-  private var ended = false
+  private let appender = SRAppender()          // the sample times and the failure rule (tested with a fake writer)
+  private let finisher = SRFinisher()          // a second finish waits for the first; an old one never clears a newer recording
+  private var generation = 0
   private var streamConfig: SCStreamConfiguration?
 
   // ----- start -----
   func start(_ plan: SRPlan, done: @escaping (Error?) -> Void) {
     work.async {
       self.gapLock.lock(); self.gaps = SRFrameGaps(); self.gapLock.unlock(); self.currentFps = nil
-      self.ended = false; self.sessionStarted = false; self.paused = false; self.offset = .zero; self.pausedAtPTS = nil
+      self.appender.reset(); self.generation = self.finisher.begin()
+      self.appender.onFail = { [weak self] m in self?.writerDidFail(m) }
       self.plan = plan
       do { try self.makeWriter(plan) } catch { DispatchQueue.main.async { done(error) }; return }
       let needScreen = SRNeeds.screen(SRSettings.forPlan(plan))
@@ -83,7 +81,8 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SRAdjustableCapture, SCStream
   }
 
   private func abortStart(_ e: Error, _ done: @escaping (Error?) -> Void) {
-    micSession?.stopRunning(); micSession = nil; stream = nil
+    let m = micSession; micSession = nil; stream = nil
+    if let m { DispatchQueue.global(qos: .userInitiated).async { m.stopRunning() } }
     discardWriter()
     DispatchQueue.main.async { done(e) }
   }
@@ -140,7 +139,9 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SRAdjustableCapture, SCStream
   private func startStream(_ p: SRPlan, content: SCShareableContent, micFromStream: Bool) throws {
     let own = Bundle.main.bundleIdentifier
     let leave = Set(p.excludedApps)
-    let apps = content.applications.filter { leave.contains($0.bundleIdentifier) || $0.bundleIdentifier == own }
+    // Rule 7, every build: 1Password and Signal are always left out of the picture AND the sound, whatever was ticked (SRProtect, by bundle id).
+    let out = Set(SRProtect.excludedAppIDs(running: content.applications.map { $0.bundleIdentifier }, chosen: p.excludedApps, own: own))
+    let apps = content.applications.filter { out.contains($0.bundleIdentifier) }
     let display = content.displays.first(where: { p.source.kind == "display" && $0.displayID == p.source.id }) ?? content.displays.first(where: { $0.displayID == CGMainDisplayID() }) ?? content.displays.first
     guard let display else { throw SRError.msg("PS could not find a screen to record.") }
     let cfg = SCStreamConfiguration()
@@ -148,6 +149,8 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SRAdjustableCapture, SCStream
     if p.mode == .audioOnly {
       filter = SCContentFilter(display: display, excludingApplications: apps, exceptingWindows: [])
       cfg.width = 16; cfg.height = 16; cfg.minimumFrameInterval = CMTime(value: 1, timescale: 1)   // the picture is thrown away
+    } else if p.source.kind == "window", let win = content.windows.first(where: { $0.windowID == p.source.id }), !SRProtect.mayRecordWindow(ownerBundle: win.owningApplication?.bundleIdentifier) {
+      throw SRError.msg("PS cannot record that window. Choose another one.")   // 1Password, Signal or an owner PS cannot check: never recorded
     } else if p.source.kind == "window", let win = content.windows.first(where: { $0.windowID == p.source.id }), !leave.contains(win.owningApplication?.bundleIdentifier ?? "") {
       filter = SCContentFilter(desktopIndependentWindow: win)
       var w = Double(win.frame.width) * 2, h = Double(win.frame.height) * 2
@@ -198,37 +201,34 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SRAdjustableCapture, SCStream
     case .screen:
       guard let p = plan, p.mode == .screenAndAudio, let v = video else { return }
       // 12b: count gaps in the frames ourselves (SCStream has no dropped frame counter). Idle frames count as frames, so a still screen is not a drop.
-      if !paused { gapLock.lock(); gaps.note(at: CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sb)), interval: 1.0 / Double(max(1, currentFps ?? p.fps))); gapLock.unlock() }
+      if !appender.isPaused { gapLock.lock(); gaps.note(at: CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sb)), interval: 1.0 / Double(max(1, currentFps ?? p.fps))); gapLock.unlock() }
       // Only finished frames (idle and blank frames carry no picture).
       if let arr = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
          let raw = arr.first?[.status] as? Int, SCFrameStatus(rawValue: raw) != .complete { return }
       if !v.isReadyForMoreMediaData { gapLock.lock(); gaps.notReady(); gapLock.unlock() }
-      append(sb, to: v, startsSession: true)
+      append(sb, to: v, track: .video, startsSession: true)
     case .audio:
-      if let a = them { append(sb, to: a, startsSession: plan?.mode == .audioOnly) }
+      if let a = them { append(sb, to: a, track: .them, startsSession: plan?.mode == .audioOnly) }
     default:
-      if #available(macOS 15.0, *), type == .microphone, let a = me { append(sb, to: a, startsSession: plan?.mode == .audioOnly) }
+      if #available(macOS 15.0, *), type == .microphone, let a = me { append(sb, to: a, track: .me, startsSession: plan?.mode == .audioOnly) }
     }
   }
   func captureOutput(_ output: AVCaptureOutput, didOutput sb: CMSampleBuffer, from connection: AVCaptureConnection) {
     guard CMSampleBufferIsValid(sb), CMSampleBufferDataIsReady(sb), let a = me else { return }
-    append(sb, to: a, startsSession: plan?.mode == .audioOnly)
+    append(sb, to: a, track: .me, startsSession: plan?.mode == .audioOnly)
   }
 
-  private func append(_ sb: CMSampleBuffer, to input: AVAssetWriterInput, startsSession: Bool) {
-    guard !ended, let w = writer, w.status == .writing else { return }
-    var pts = CMSampleBufferGetPresentationTimeStamp(sb)
-    guard pts.isValid else { return }
-    if paused { return }
-    if let pa = pausedAtPTS, pts > pa { offset = CMTimeAdd(offset, CMTimeSubtract(pts, pa)); pausedAtPTS = nil }   // the gap while paused is cut out
-    if !sessionStarted {
-      guard startsSession else { return }
-      w.startSession(atSourceTime: CMTimeSubtract(pts, offset)); sessionStarted = true
-    }
-    pts = CMTimeSubtract(pts, offset)
-    guard input.isReadyForMoreMediaData else { return }
-    let out = offset == .zero ? sb : (Self.retimed(sb, by: offset) ?? sb)
-    if input.append(out) { lastPTS = pts } else if w.status == .failed { finish(error: w.error?.localizedDescription ?? "The file could not be written.") }
+  private func append(_ sb: CMSampleBuffer, to input: AVAssetWriterInput, track: SRTrack, startsSession: Bool) {
+    guard let w = writer, w.status == .writing else { return }
+    // The times (strictly increasing per track, through a pause) and the failure rule are SRAppender's, tested with a fake writer.
+    appender.sample(track, pts: CMSampleBufferGetPresentationTimeStamp(sb), startsSession: startsSession,
+                    open: { at in w.startSession(atSourceTime: at) },
+                    write: { off in
+      guard input.isReadyForMoreMediaData else { return .notReady }
+      let out = off == .zero ? sb : (Self.retimed(sb, by: off) ?? sb)
+      if input.append(out) { return .ok }
+      return w.status == .failed ? .failed(w.error?.localizedDescription ?? "The file could not be written.") : .ok
+    })
   }
   private static func retimed(_ sb: CMSampleBuffer, by off: CMTime) -> CMSampleBuffer? {
     var n: CMItemCount = 0
@@ -246,10 +246,9 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SRAdjustableCapture, SCStream
   }
 
   // ----- pause, resume, stop -----
-  func pause() { work.async { self.gapLock.lock(); self.gaps.breakLine(); self.gapLock.unlock(); if !self.paused { self.paused = true; self.pausedAtPTS = CMTimeAdd(self.lastPTS, self.offset) } } }
-  /// The gap is measured on the first sample after the resume (in the stream's own clock): everything between the last kept
-  /// sample and that one is cut out, so the file has no empty stretch.
-  func resume() { work.async { self.gapLock.lock(); self.gaps.breakLine(); self.gapLock.unlock(); self.paused = false } }
+  func pause() { work.async { self.gapLock.lock(); self.gaps.breakLine(); self.gapLock.unlock(); self.appender.pause() } }
+  /// The gap while paused is cut out: the first sample after the resume lands one step after the last kept one (SRRetimer).
+  func resume() { work.async { self.gapLock.lock(); self.gaps.breakLine(); self.gapLock.unlock(); self.appender.resume() } }
 
   /// Another microphone while recording: swap the session's input, or (macOS 15 and later, mic inside the stream) update the stream.
   func switchMic(_ uid: String?) {
@@ -267,32 +266,57 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SRAdjustableCapture, SCStream
     }
   }
 
+  /// Stops the picture and the mic OFF the main thread (stopRunning blocks), then closes the file. Everything about `stream` and
+  /// `micSession` is read and written on `work` only.
   func stop(done: @escaping () -> Void) {
-    stream?.stopCapture { _ in }
-    micSession?.stopRunning()
-    work.async {
-      self.stream = nil; self.micSession = nil
-      self.finish(error: nil, then: done)
+    work.async { self.stopSources { self.finish(error: nil, then: done) } }
+  }
+  private func stopSources(_ then: @escaping () -> Void) {   // on `work`
+    let s = stream, m = micSession
+    stream = nil; micSession = nil
+    DispatchQueue.global(qos: .userInitiated).async {
+      let g = DispatchGroup()
+      if let s { g.enter(); s.stopCapture { _ in g.leave() } }
+      m?.stopRunning()
+      g.notify(queue: self.work) { then() }
     }
   }
+  /// On `work`. A second call waits for the first one's completion before it answers; an old file's end never touches a newer recording.
   private func finish(error: String?, then: (() -> Void)? = nil) {
-    guard !ended else { then.map { c in DispatchQueue.main.async { c() } }; return }
-    ended = true
-    guard let w = writer else { then.map { c in DispatchQueue.main.async { c() } }; return }
-    if w.status != .writing { writer = nil; DispatchQueue.main.async { self.onEnded?(error ?? w.error?.localizedDescription); then?() }; return }
+    let g = generation
+    let wait = then.map { c in { DispatchQueue.main.async { c() } } }
+    guard finisher.request(then: wait) else { return }
+    appender.end()
+    guard let w = writer else { closed(g, error: error, url: nil); return }
+    if w.status != .writing { closed(g, error: error ?? w.error?.localizedDescription, url: nil); return }
     [video, me, them].forEach { $0?.markAsFinished() }
     let url = w.outputURL
     w.finishWriting { [weak self] in
       let msg = error ?? (w.status == .failed ? (w.error?.localizedDescription ?? "The file could not be saved.") : nil)
-      self?.work.async { self?.writer = nil; self?.video = nil; self?.me = nil; self?.them = nil }
-      DispatchQueue.main.async { self?.lastFile = url; self?.onEnded?(msg); then?() }
+      self?.work.async { self?.closed(g, error: msg, url: url) }
     }
   }
+  private func closed(_ g: Int, error: String?, url: URL?) {
+    let mine = finisher.isCurrent(g)
+    if mine { writer = nil; video = nil; me = nil; them = nil }          // only the recording that just ended: a newer one keeps its writer
+    let waiters = finisher.complete(g)
+    DispatchQueue.main.async {
+      if let url { self.lastFile = url }
+      if mine { self.onEnded?(error) }
+      waiters.forEach { $0() }
+    }
+  }
+  /// The writer failed in the middle (the drive went away, the disk is full): stop picture and sound, close what was written, tell the app.
+  private func writerDidFail(_ m: String) {   // on `work`
+    stopSources { self.finish(error: nil) }
+    DispatchQueue.main.async { self.onWriterFailed?(m) }
+  }
+  var onWriterFailed: ((String) -> Void)?
   private(set) var lastFile: URL?
 
   // ----- macOS ended the stream (the person used the system's own stop, or the screen went away) -----
   func stream(_ stream: SCStream, didStopWithError error: Error) {
-    work.async { self.stream = nil; self.micSession?.stopRunning(); self.micSession = nil; self.finish(error: nil) }
+    work.async { self.stopSources { self.finish(error: nil) } }
     DispatchQueue.main.async { self.onStopped?() }
   }
   var onStopped: (() -> Void)?
@@ -336,35 +360,67 @@ final class ScreenRec {
     controller.screenInfo = { Self.screenSize() }
     controller.folders = { [weak self] in self?.folderStates() ?? (nil, SRFolderState(exists: true, writable: true, freeBytes: 0)) }
     controller.takenNames = { [weak self] in self?.namesTaken() ?? [] }
-    controller.onChange = { [weak self] _ in self?.push(); ScreenRecIsland.shared.recorderChanged() }
+    controller.onChange = { [weak self] snap in
+      if snap.state == .starting { self?.noteUsed(snap.fileName) }
+      self?.push(); ScreenRecIsland.shared.recorderChanged()
+    }
     ScreenRecIsland.shared.attach(controller: controller, capture: capture)   // 12b: builds the island side; starts no clock while the gate is closed
     ScreenRecIsland.shared.sync()
     capture.folderURL = { [weak self] useDefault in self?.openFolder(useDefault: useDefault) ?? ScreenRec.defaultFolder }
     capture.onEnded = { [weak self] msg in
       guard let self else { return }
       self.closeScope()
-      if let msg { self.controller.noteError(msg) }
+      if let msg, self.controller.snapshot.error == nil { self.controller.noteError(msg) }   // a failure the controller already said keeps its own words
       self.push()
     }
     capture.onStopped = { [weak self] in self?.controller.stop(); self?.push() }
-    Features.onChange = { [weak self] in self?.push(); ScreenRecIsland.shared.sync() }
+    capture.onWriterFailed = { [weak self] m in self?.controller.writerFailed(m); self?.push() }
+    // The feature switched off (Settings, From the squad) stops and saves a recording at once, and cancels a start or a count in.
+    Features.onChange = { [weak self] in ScreenRecIsland.shared.gateChanged(); self?.push(); ScreenRecIsland.shared.sync() }
   }
 
   // ----- folders -----
   private func resolvedCustom() -> URL? {
     guard let data = defaults.data(forKey: bookmarkKey) else { return nil }
     var stale = false
-    guard let u = try? URL(resolvingBookmarkData: data, options: [.withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+    guard let u = try? URL(resolvingBookmarkData: data, options: [.withSecurityScope, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }   // never tries to mount a missing network drive
     if stale, let fresh = try? u.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil) { defaults.set(fresh, forKey: bookmarkKey) }
     return u
   }
   private static func state(of u: URL) -> SRFolderState {
     var isDir: ObjCBool = false
     let exists = FileManager.default.fileExists(atPath: u.path, isDirectory: &isDir) && isDir.boolValue
-    let free = (try? u.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage) ?? 0
+    // A volume that does not report the important usage figure (a network drive) falls back to the plain one; unknown is unknown, never zero.
+    let rv = try? u.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
+    let free: Int64 = rv?.volumeAvailableCapacityForImportantUsage ?? rv?.volumeAvailableCapacity.map { Int64($0) } ?? Int64.max
     return SRFolderState(exists: exists, writable: exists && FileManager.default.isWritableFile(atPath: u.path), freeBytes: free)
   }
+  // The folder and disk reads (bookmark, security scope, free space, a directory listing of maybe a slow drive) never run on the main
+  // thread: a utility queue fills a small cache, and everything that needs an answer on the main thread reads the cache.
+  private let diskQueue = DispatchQueue(label: "ps.screenrec.disk", qos: .utility)
+  private let cacheLock = NSLock()
+  private var cache: (states: (custom: SRFolderState?, fallback: SRFolderState), names: Set<String>, at: Date)?
+  private var refreshing = false
+  private var usedNames = Set<String>()
+  private func cached() -> (states: (custom: SRFolderState?, fallback: SRFolderState), names: Set<String>, at: Date)? { cacheLock.lock(); defer { cacheLock.unlock() }; return cache }
+  /// Looks again off the main thread; `then` (main) when it is fresh.
+  func refreshFolders(then: (() -> Void)? = nil) {
+    cacheLock.lock(); let busy = refreshing; refreshing = true; cacheLock.unlock()
+    if busy { return }
+    diskQueue.async { [weak self] in
+      guard let self else { return }
+      let st = self.folderStatesNow(), nm = self.namesTakenNow()
+      self.cacheLock.lock(); self.cache = (st, nm, Date()); self.refreshing = false; self.cacheLock.unlock()
+      DispatchQueue.main.async { then?(); self.push() }
+    }
+  }
+  /// The last read (at most half a minute old while the gate is open, refreshed on every state push), or a quick read when there is none yet.
   private func folderStates() -> (custom: SRFolderState?, fallback: SRFolderState) {
+    if let c = cached() { if Date().timeIntervalSince(c.at) > 20 { refreshFolders() }; return c.states }
+    refreshFolders()
+    return (nil, SRFolderState(exists: true, writable: true, freeBytes: Int64.max))   // unknown until the first read comes back: never "no room"
+  }
+  private func folderStatesNow() -> (custom: SRFolderState?, fallback: SRFolderState) {
     let def = Self.defaultFolder
     // The default folder may not exist yet: measure the Movies folder's volume, it is made when the recording starts.
     var fb = Self.state(of: def)
@@ -381,6 +437,11 @@ final class ScreenRec {
   }
   private func closeScope() { scoped?.stopAccessingSecurityScopedResource(); scoped = nil }
   private func namesTaken() -> Set<String> {
+    cacheLock.lock(); defer { cacheLock.unlock() }
+    return (cache?.names ?? []).union(usedNames)
+  }
+  private func noteUsed(_ name: String?) { guard let name else { return }; cacheLock.lock(); usedNames.insert(name); cacheLock.unlock() }
+  private func namesTakenNow() -> Set<String> {
     let c = resolvedCustom()
     let opened = c?.startAccessingSecurityScopedResource() ?? false
     defer { if opened { c?.stopAccessingSecurityScopedResource() } }
@@ -401,13 +462,22 @@ final class ScreenRec {
 
   static func screenInfoNow() -> SRScreenInfo { screenSize() }
   /// 12b: free bytes on the volume the recording goes to (the chosen folder, or the default one when it fell back).
-  func freeBytesNow() -> Int64 {
-    let f = folderStates()
-    if controller.snapshot.folderNote == nil, let c = f.custom { return c.freeBytes }
-    return f.fallback.freeBytes
+  /// Read on a utility queue (never the main thread): the answer comes back on `then`, on main.
+  func freeBytesAsync(_ then: @escaping (Int64) -> Void) {
+    diskQueue.async { [weak self] in
+      guard let self else { return }
+      let f = self.folderStatesNow()
+      let v = self.controller.snapshot.folderNote == nil ? (f.custom?.freeBytes ?? f.fallback.freeBytes) : f.fallback.freeBytes
+      DispatchQueue.main.async { then(v) }
+    }
   }
   /// 12b: "Play" on the Saved card opens the last file in the Mac's own player until PS's own player (part 7) takes over.
   func playLast() { ScreenRecCloud.shared.playLast() }
+  /// The app is quitting or restarting: finish a recording's file first. True when it has to wait (`done` runs once the file is closed).
+  func finishForQuit(_ done: @escaping () -> Void) -> Bool {
+    guard started, let c = controller else { return false }
+    return c.finishForQuit(done)
+  }
   /// 12c: the last finished file.
   var lastFileURL: URL? { capture.lastFile }
   /// 12b: "Switch mic" on the controls card goes to the next microphone (the Mac's own first), remembered like the picker's choice.
@@ -443,12 +513,12 @@ final class ScreenRec {
     case "optin":
       controller.setEnabled(m["on"] as? Bool == true)
       if let d = try? JSONEncoder().encode(controller.settings) { defaults.set(d, forKey: key) }
-      ScreenRecIsland.shared.sync()
+      ScreenRecIsland.shared.gateChanged()   // a No stops and saves a recording, cancels a start and a count in, at once
     case "set": save(Self.patched(controller.settings, f))
     case "preset": if let p = SRPreset(rawValue: m["id"] as? String ?? "") { save(SRPresets.apply(p, to: controller.settings)) }
     case "leaveOut": if let id = m["id"] as? String { var s = controller.settings; s.leftOut = SRLeaveOut.toggle(s.leftOut, id: id); save(s) }
-    case "chooseFolder": chooseFolder()
-    case "resetFolder": resetFolder()
+    case "chooseFolder": chooseFolder(); refreshFolders()
+    case "resetFolder": resetFolder(); refreshFolders()
     case "showFolder": NSWorkspace.shared.open(resolvedCustom().flatMap { Self.state(of: $0).exists ? $0 : nil } ?? Self.defaultFolder)
     case "askScreen": _ = controller.askScreen()
     case "askMic": _ = controller.askMic { [weak self] _ in self?.push() }
@@ -496,11 +566,14 @@ final class ScreenRec {
 
   /// "Test recording": five seconds, then it shows the file in Finder. Only through the same gate and the same start.
   private func runTest() {
-    guard controller.start(meeting: "Test recording") == nil else { return }
+    guard controller.start(meeting: "Test recording") == nil else { return }   // a refusal is already in snapshot.error, the button shows it
     testTimer?.invalidate()
+    let mine = controller.snapshot.fileName
     testTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in
-      self?.controller.stop()
-      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { if let u = self?.capture.lastFile { NSWorkspace.shared.activateFileViewerSelecting([u]) } }
+      // Only the test recording: if it was stopped early and a real one began, that one is left alone.
+      guard let self, self.controller.snapshot.isRecording, self.controller.snapshot.fileName == mine else { return }
+      self.controller.stop()
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { if let u = self.capture.lastFile { NSWorkspace.shared.activateFileViewerSelecting([u]) } }
     }
   }
 
@@ -538,40 +611,54 @@ final class ScreenRec {
     guard CGPreflightScreenCaptureAccess() else { return }
     SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { [weak self] content, _ in
       guard let self, let content else { return }
-      let own = Bundle.main.bundleIdentifier
-      func icon(_ pid: pid_t) -> String? { NSRunningApplication(processIdentifier: pid)?.icon.flatMap { Self.png($0, 32) } }
-      var wins: [[String: Any]] = []
-      for w in content.windows where w.isOnScreen && w.windowLayer == 0 && (w.title ?? "").count > 0 && w.frame.width > 120 && w.frame.height > 80 {
-        guard let app = w.owningApplication, app.bundleIdentifier != own else { continue }
-        let meeting = ["us.zoom.xos", "com.microsoft.teams2", "com.microsoft.teams", "com.apple.FaceTime"].contains(app.bundleIdentifier) || (w.title ?? "").contains("Meet - ")
-        wins.append(["id": Int(w.windowID), "title": String((w.title ?? "").prefix(80)), "app": app.applicationName, "icon": icon(app.processID) ?? NSNull(), "suggested": meeting])
-      }
-      wins.sort { ($0["suggested"] as? Bool ?? false) && !($1["suggested"] as? Bool ?? false) }
-      var apps: [[String: Any]] = []
-      for a in NSWorkspace.shared.runningApplications where a.activationPolicy == .regular && a.bundleIdentifier != nil && a.bundleIdentifier != own {
-        apps.append(["id": a.bundleIdentifier!, "name": a.localizedName ?? a.bundleIdentifier!, "icon": a.icon.flatMap { Self.png($0, 32) } ?? NSNull()])
-      }
-      apps.sort { ($0["name"] as? String ?? "").localizedCaseInsensitiveCompare($1["name"] as? String ?? "") == .orderedAscending }
-      let finish: ([[String: Any]]) -> Void = { displays in
-        let o: [String: Any] = ["type": "screenrecList", "displays": displays, "windows": Array(wins.prefix(40)), "apps": Array(apps.prefix(80))]
-        if let d = try? JSONSerialization.data(withJSONObject: o), let j = String(data: d, encoding: .utf8) { DispatchQueue.main.async { self.deliver?(j) } }
-      }
-      var out: [[String: Any]] = content.displays.map { d in
-        let name = NSScreen.screens.first(where: { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == d.displayID })?.localizedName ?? "Screen"
-        return ["id": Int(d.displayID), "name": name, "w": d.width, "h": d.height, "thumb": NSNull()]
-      }
-      if #available(macOS 14.0, *), !content.displays.isEmpty {
-        let group = DispatchGroup()
-        for (i, d) in content.displays.enumerated() {
+      // Rule 7: 1Password and Signal are dropped by bundle id BEFORE any title, name or icon is read, and their windows are left out of the
+      // thumbnails. They never appear in the window list, the leave out list or a picture sent to the page.
+      let allowedWindows = SRProtect.visible(content.windows, bundle: { $0.owningApplication?.bundleIdentifier })
+      let blockedApps = content.applications.filter { !SRProtect.allowed(bundle: $0.bundleIdentifier) }
+      let displays = content.displays
+      // AppKit (icons, screen names, the running apps) only on the main thread.
+      DispatchQueue.main.async {
+        let own = Bundle.main.bundleIdentifier
+        func icon(_ pid: pid_t) -> String? { NSRunningApplication(processIdentifier: pid)?.icon.flatMap { Self.png($0, 32) } }
+        var wins: [[String: Any]] = []
+        for w in allowedWindows where w.isOnScreen && w.windowLayer == 0 && w.frame.width > 120 && w.frame.height > 80 {
+          guard let app = w.owningApplication, app.bundleIdentifier != own else { continue }
+          let title = SRProtect.title(bundle: app.bundleIdentifier, read: { w.title }) ?? ""
+          guard title.count > 0 else { continue }
+          let meeting = ["us.zoom.xos", "com.microsoft.teams2", "com.microsoft.teams", "com.apple.FaceTime"].contains(app.bundleIdentifier) || title.contains("Meet - ")
+          wins.append(["id": Int(w.windowID), "title": String(title.prefix(80)), "app": app.applicationName, "icon": icon(app.processID) ?? NSNull(), "suggested": meeting])
+        }
+        wins.sort { ($0["suggested"] as? Bool ?? false) && !($1["suggested"] as? Bool ?? false) }
+        var apps: [[String: Any]] = []
+        for a in NSWorkspace.shared.runningApplications {
+          guard let id = a.bundleIdentifier, SRProtect.allowed(bundle: id), id != own, a.activationPolicy == .regular else { continue }   // the name and the icon are read only after this
+          apps.append(["id": id, "name": a.localizedName ?? id, "icon": a.icon.flatMap { Self.png($0, 32) } ?? NSNull()])
+        }
+        apps.sort { ($0["name"] as? String ?? "").localizedCaseInsensitiveCompare($1["name"] as? String ?? "") == .orderedAscending }
+        var out: [[String: Any]] = displays.map { d in
+          let name = NSScreen.screens.first(where: { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == d.displayID })?.localizedName ?? "Screen"
+          return ["id": Int(d.displayID), "name": name, "w": d.width, "h": d.height, "thumb": NSNull()]
+        }
+        let finish: () -> Void = {
+          let o: [String: Any] = ["type": "screenrecList", "displays": out, "windows": Array(wins.prefix(40)), "apps": Array(apps.prefix(80))]
+          if let d = try? JSONSerialization.data(withJSONObject: o), let j = String(data: d, encoding: .utf8) { self.deliver?(j) }
+        }
+        guard #available(macOS 14.0, *), !displays.isEmpty else { finish(); return }
+        // Several screens answer at once on different queues: one locked box collects them, and the page list is built back on main.
+        let box = SRThumbBox(count: displays.count), group = DispatchGroup()
+        for (i, d) in displays.enumerated() {
           group.enter()
           let c = SCStreamConfiguration(); c.width = 320; c.height = max(2, 320 * d.height / max(1, d.width)); c.showsCursor = false
-          SCScreenshotManager.captureImage(contentFilter: SCContentFilter(display: d, excludingWindows: []), configuration: c) { img, _ in
-            if let img { let rep = NSBitmapImageRep(cgImage: img); if let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.6]) { out[i]["thumb"] = "data:image/jpeg;base64," + jpg.base64EncodedString() } }
+          SCScreenshotManager.captureImage(contentFilter: SCContentFilter(display: d, excludingApplications: blockedApps, exceptingWindows: []), configuration: c) { img, _ in
+            if let img { let rep = NSBitmapImageRep(cgImage: img); if let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.6]) { box.set(i, "data:image/jpeg;base64," + jpg.base64EncodedString()) } }
             group.leave()
           }
         }
-        group.notify(queue: .main) { finish(out) }
-      } else { finish(out) }
+        group.notify(queue: .main) {
+          for (i, t) in box.all().enumerated() where out.indices.contains(i) { out[i]["thumb"] = t ?? NSNull() }
+          finish()
+        }
+      }
     }
   }
   private static func png(_ img: NSImage, _ px: Int) -> String? {

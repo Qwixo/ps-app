@@ -5,8 +5,9 @@
 import type { CalEvent } from "./model.ts";
 import type { ScreenRecState } from "./screenrec.ts";
 
-/** A meeting counts as "starting now" from a minute before it starts until 15 minutes after, while it is still on. */
-export const BEFORE_MS = 60_000, AFTER_MS = 15 * 60_000;
+/** A meeting counts as "starting now" from its start until 15 minutes after, while it is still on. Not earlier: "Start private mode?" (core/meetalerts.ts
+ *  privateAskFor) begins AT the start, and the record question always comes after it, never before it and never together with it. */
+export const BEFORE_MS = 0, AFTER_MS = 15 * 60_000;
 
 /** The meeting on in the Meetings panel right now (people or a video link, like the private mode question), or null. Hidden meetings
  *  are already left out by the caller (core/meethide.ts). */

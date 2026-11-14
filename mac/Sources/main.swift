@@ -1693,6 +1693,16 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     return false
   }
 
+  /// A recording is finished before PS quits, restarts for an update or reboots (the last seconds and the mic tail are kept, the file is closed).
+  /// Waits for the file at most 6 seconds, then goes on anyway.
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    var replied = false
+    let reply = { if !replied { replied = true; NSApp.reply(toApplicationShouldTerminate: true) } }
+    guard ScreenRec.shared.finishForQuit({ DispatchQueue.main.async { reply() } }) else { return .terminateNow }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 6) { reply() }
+    return .terminateLater
+  }
+
   func applicationWillTerminate(_ n: Notification) { AutoApprove.shared.stop(); Sentry.shared.quitting(); ScreenTime.shared.save(); Second.shared.quit(); MCEngine.shared.stop() }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

@@ -72,6 +72,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   private var returnTo: pid_t = 0
   /// A card button was clicked (or a card with an id was closed: action "dismiss").
   var onAction: ((String, String) -> Void)?
+  /// A screen recorder card (id starts with sr:) left for good without a button: the x, a timeout, a swipe, Clear all.
+  static var onCardGone: ((String) -> Void)?
   /// V1.55: the Tab list's window while it is up (main.swift): a stack under the island that comes up then stays
   /// behind it, so it never covers the list's buttons that island clearance keeps clear.
   var listWindow: () -> NSWindow? = { nil }
@@ -145,6 +147,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   /// A card left its stack for good (dismissed, answered, timed out, Clear all): the page said so.
   fileprivate func gone(_ id: String, timedOut: Bool) {
     guard role == .corner else { Toast.shared.gone(id, timedOut: timedOut); return }
+    if id.hasPrefix("sr:") { Toast.onCardGone?(id) }   // 12b fix: the screen recorder's cards finish in the island queue when they close
     if timedOut, let k = kept[id] {
       expired[k.key] = Date().timeIntervalSince1970
       saveExpired()
@@ -184,6 +187,12 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     }
   }
   /// Which stack has this card now (self test and the note's checks): "island", "corner" or nil.
+  /// Takes a card down quietly (no answer, no gulp): private mode went on and the card must not stay on screen. The screen recorder (12b) uses it.
+  func retractCard(_ id: String) {
+    guard let k = kept[id] else { return }
+    kept[id] = nil
+    stack(k.inIsland).take(id)
+  }
   func stackOf(_ id: String) -> String? { kept[id].map { $0.inIsland ? "island" : "corner" } }
 
   /// The island stack: follows the island's spot. Gone (hidden, off), it stays where it was: the router has moved its

@@ -93,6 +93,8 @@ struct SRAskFlow {
     return f
   }
   mutating func answered(_ key: String, yes: Bool) { if !yes { declined.insert(key) } }
+  /// The question never reached the person (dropped by the queue, or taken down by private mode): ask again later.
+  mutating func forget(_ key: String) { asked.remove(key) }
 }
 
 // ---------- the moments and their cards ----------
@@ -102,6 +104,8 @@ enum SRMoment: Equatable {
   case saved(fileName: String)
   case uploaded(fileName: String)        // 12c: the cloud copy is checked
   case diskStop(why: String)
+  case stopped(why: String)              // the recording ended with a problem (the writer failed): what was kept
+  case startFailed(why: String)          // a start was refused after the person said Yes
   case controls(paused: Bool)
 }
 /// The chip on the record question: tap to change. Presets first, then audio only.
@@ -148,17 +152,19 @@ enum SRWords {
   static let showInFinder = "Show in Finder", playInPS = "Play"
   static let diskTitle = "Recording stopped and saved"
   static let diskWhy = "The disk was nearly full, so PS stopped and saved the recording before it ran out."
+  static let stoppedTitle = "Recording stopped. What was recorded is kept."
+  static let failTitle = "Recording did not start"
   static let pause = "Pause", resume = "Resume", stop = "Stop and save"
   static let recording = "Recording", paused = "Paused"
   static let countIn = "Recording starts in"
   /// Added to a recording's details when the performance watch made it lighter.
   static func lowered(_ what: String) -> String { "PS lowered the \(what) because the Mac was struggling." }
-  static let all: [String] = [askTitle, yes, no, perfTitle, perfYes, perfNo, perfBody, savedTitle, showInFinder, playInPS, diskTitle, diskWhy, uploadedTitle, uploadedLine,
+  static let all: [String] = [askTitle, yes, no, perfTitle, perfYes, perfNo, perfBody, savedTitle, showInFinder, playInPS, diskTitle, diskWhy, stoppedTitle, failTitle, uploadedTitle, uploadedLine,
                               pause, resume, stop, recording, paused, countIn]
 }
 
 enum SRCards {
-  static let askId = "sr:ask", perfId = "sr:perf", savedId = "sr:saved", uploadedId = "sr:uploaded", diskId = "sr:disk", menuId = "sr:menu"
+  static let askId = "sr:ask", perfId = "sr:perf", savedId = "sr:saved", uploadedId = "sr:uploaded", diskId = "sr:disk", menuId = "sr:menu", stoppedId = "sr:stopped", failId = "sr:fail"
   /// Card text is cut to what Toast.showCard accepts (title 160, sub 200, body 600, labels 24, ids 20, three buttons).
   static func card(_ m: SRMoment, settings: SRSettings? = nil) -> SRCard {
     switch m {
@@ -174,6 +180,10 @@ enum SRCards {
       return SRCard(id: uploadedId, title: SRWords.uploadedTitle, sub: f, body: SRWords.uploadedLine, actions: [("play", SRWords.playInPS)], sticky: false)
     case .diskStop(let why):
       return SRCard(id: diskId, title: SRWords.diskTitle, sub: why, body: nil, actions: [("ok", "OK")])
+    case .stopped(let why):
+      return SRCard(id: stoppedId, title: SRWords.stoppedTitle, sub: String(why.prefix(190)), body: nil, actions: [("ok", "OK")])
+    case .startFailed(let why):
+      return SRCard(id: failId, title: SRWords.failTitle, sub: String(why.prefix(190)), body: nil, actions: [("ok", "OK")])
     case .controls(let paused):
       return SRCard(id: menuId, title: SRWords.recording, sub: nil, body: nil,
                     actions: [(paused ? "resume" : "pause", paused ? SRWords.resume : SRWords.pause), ("stop", SRWords.stop), ("mic", "Switch mic")])
@@ -216,17 +226,117 @@ struct SRHold {
   }
 }
 
-/// One card at a time: every moment goes through IslandQueueCore (the same rules as the real IslandQueue). Nothing here draws.
-struct SRCardLane {
-  var queue = IslandQueueCore()
-  private(set) var shown: [String] = []     // the ids that became active, in order (the tests read this)
-  mutating func submit(_ c: SRCard, now: Date) -> IslandQueueCore.Outcome {
-    let o = queue.enqueue(id: c.id, kind: "screenrec", priority: .normal, ttl: 300, now: now)
-    if o == .showNow { shown.append(c.id) }
+/// The island queue as the cards see it. The real one is IslandQueue.shared (ScreenRecIsland.swift adapts it); tests and the brain's
+/// own default use SRLocalQueue, the same IslandQueueCore rules with a clock the caller moves.
+protocol SRQueueAPI: AnyObject {
+  /// Same contract as IslandQueue.enqueue: .showNow (show it yourself), .wait (`show` runs later on its turn), .updated, .dropped
+  /// (`dropped` has been called already).
+  func enqueue(id: String, ttl: TimeInterval?, show: @escaping () -> Void, visible: @escaping () -> Bool, close: @escaping () -> Void, dropped: @escaping () -> Void) -> IslandQueueCore.Outcome
+  func finish(_ id: String)
+}
+
+final class SRLocalQueue: SRQueueAPI {
+  private var core = IslandQueueCore()
+  private var items: [String: (show: () -> Void, visible: () -> Bool, close: () -> Void, dropped: () -> Void)] = [:]
+  var now: () -> Date = { Date() }
+  private(set) var shown: [String] = []     // ids in the order they were shown (the tests read this)
+  func enqueue(id: String, ttl: TimeInterval?, show: @escaping () -> Void, visible: @escaping () -> Bool, close: @escaping () -> Void, dropped: @escaping () -> Void) -> IslandQueueCore.Outcome {
+    let o = core.enqueue(id: id, kind: "screenrec", priority: .normal, ttl: ttl, now: now())
+    switch o {
+    case .showNow: items[id] = (show, visible, close, dropped); shown.append(id)
+    case .wait: items[id] = (show, visible, close, dropped)
+    case .updated: items[id]?.show = show
+    case .dropped: dropped()
+    }
     return o
   }
-  mutating func finish(_ id: String, now: Date) { queue.finish(id, now: now) }
-  mutating func step(now: Date) { let r = queue.step(now: now, activeIsVisible: true); if let p = r.promote { shown.append(p.id) } }
+  func finish(_ id: String) { core.finish(id, now: now()); items[id] = nil }
+  /// Esc: the active card's close hook, then the queue moves on.
+  @discardableResult func escape() -> String? {
+    guard let id = core.active?.id else { return nil }
+    items[id]?.close(); finish(id); return id
+  }
+  /// Time moves on (the real queue does this on a timer): drops stale cards and turns the next one on.
+  func pump() {
+    let vis = core.active.flatMap { items[$0.id]?.visible() } ?? true
+    let r = core.step(now: now(), activeIsVisible: vis)
+    for c in r.dropped { let d = items[c.id]?.dropped; items[c.id] = nil; d?() }
+    if let n = r.promote { shown.append(n.id); items[n.id]?.show() }
+  }
+  func isActive(_ id: String) -> Bool { core.isActive(id) }
+  func isWaiting(_ id: String) -> Bool { core.isWaiting(id) }
+}
+
+/// Every recorder moment goes through here: enqueue, show on its turn, finish on EVERY way out (answered, Esc, the x, timed out,
+/// dropped by the queue, never visible, taken down by private mode). Nothing draws: `present` and `retract` are the real island.
+final class SRCardRouter {
+  let queue: SRQueueAPI
+  var present: (SRCard, String?) -> Void = { _, _ in }
+  var retract: (String) -> Void = { _ in }
+  /// A card left without a button (Esc, the x, a lost window, a timeout) or was dropped unseen, or was taken down by private mode.
+  var closed: (String, Why) -> Void = { _, _ in }
+  var now: () -> Date = { Date() }
+  enum Why { case gone, dropped, privateMode }
+  private struct Entry { var card: SRCard; var sound: String?; var shownAt: Date? }
+  private var entries: [String: Entry] = [:]
+  static let normalLife: TimeInterval = 30
+  init(queue: SRQueueAPI) { self.queue = queue }
+
+  static func ttl(for id: String) -> TimeInterval {
+    switch id { case SRCards.askId: return 120; case SRCards.perfId: return 60; default: return 300 }
+  }
+  func isOpen(_ id: String) -> Bool { entries[id] != nil }
+  var openIds: [String] { Array(entries.keys) }
+
+  func submit(_ c: SRCard, sound: String?) {
+    let id = c.id
+    entries[id] = Entry(card: c, sound: sound, shownAt: entries[id]?.shownAt)
+    let o = queue.enqueue(id: id, ttl: SRCardRouter.ttl(for: id),
+                          show: { [weak self] in self?.turn(id) },
+                          visible: { [weak self] in self?.alive(id) ?? false },
+                          close: { [weak self] in self?.leave(id, .gone, finishQueue: false) },
+                          dropped: { [weak self] in self?.leave(id, .dropped, finishQueue: false) })
+    switch o {
+    case .showNow: turn(id)
+    case .updated: if let e = entries[id], e.shownAt != nil { present(e.card, nil) }   // the newest words replace the card on screen
+    case .wait, .dropped: break
+    }
+  }
+  private func turn(_ id: String) {
+    guard var e = entries[id] else { queue.finish(id); return }   // answered while it waited: let the next one come
+    e.shownAt = now(); entries[id] = e
+    present(e.card, e.sound)
+  }
+  /// A card that is on screen stays alive until answered (sticky) or for a while (the others): never stuck on a lost window.
+  private func alive(_ id: String) -> Bool {
+    guard let e = entries[id] else { return false }
+    guard let at = e.shownAt else { return true }
+    return e.card.sticky || now().timeIntervalSince(at) < SRCardRouter.normalLife
+  }
+  /// A button was pressed: the card is done.
+  func answered(_ id: String) { entries[id] = nil; queue.finish(id) }
+  /// Toast says the card closed without a button (the x, a timeout, Esc).
+  /// A button was pressed on a card that stays (the chip): the card's own "gone" that may follow the click is not the person closing it.
+  func noteAction(_ id: String) { acted[id] = now() }
+  private var acted: [String: Date] = [:]
+  static let actedGrace: TimeInterval = 1.5
+  func gone(_ id: String) {
+    if let a = acted[id], entries[id] != nil, now().timeIntervalSince(a) < SRCardRouter.actedGrace { return }
+    leave(id, .gone, finishQueue: true)
+  }
+  private func leave(_ id: String, _ why: Why, finishQueue: Bool) {
+    guard entries[id] != nil else { if finishQueue { queue.finish(id) }; return }
+    entries[id] = nil
+    if finishQueue { queue.finish(id) }
+    closed(id, why)
+  }
+  /// Private mode went on: every card of ours, on screen or waiting, comes down and leaves the queue.
+  func retractAll() {
+    for id in Array(entries.keys) {
+      if entries[id]?.shownAt != nil { retract(id) }
+      leave(id, .privateMode, finishQueue: true)
+    }
+  }
 }
 
 // ---------- the recording part of the island ----------
@@ -364,13 +474,16 @@ struct SRPerfWatch {
   private var levelAtDecline: SRLevel = .ok
   private var askOpen = false
   private var diskStopped = false
+  private var perfOn = true                // the Performance watch switch: off keeps ONLY the disk stop (it never depends on the switch)
   private(set) var lowered: [String] = []  // what was lowered, for the recording's details
 
-  mutating func begin(res: SRResolution, fps: Int, quality: SRQuality, screenH: Int, can: SRAdjustable, bytesPerHour: Int64) {
+  mutating func begin(res: SRResolution, fps: Int, quality: SRQuality, screenH: Int, can: SRAdjustable, bytesPerHour: Int64, perf: Bool = true) {
     self = SRPerfWatch()
-    running = true; cur = (res, fps, quality); self.screenH = screenH; self.can = can; self.bytesPerHour = bytesPerHour
+    running = true; perfOn = perf; cur = (res, fps, quality); self.screenH = screenH; self.can = can; self.bytesPerHour = bytesPerHour
   }
   mutating func end() { self = SRPerfWatch() }
+  /// The question was taken down unanswered (private mode): it may be asked again later, it is not a No.
+  mutating func retractAsk() { if askOpen { askOpen = false; asked = false } }
 
   /// The person's answer to the question. No: do not ask again this recording unless it gets much worse.
   mutating func answered(stop: Bool) {
@@ -385,7 +498,7 @@ struct SRPerfWatch {
     var out: [SRPerfAction] = []
     // Disk nearly full: stop and save before it fills. Once.
     if !diskStopped, s.diskFree < SRThresholds.diskStop(bytesPerHour: bytesPerHour) { diskStopped = true; return [.stopForDisk] }
-    if diskStopped { return [] }
+    if diskStopped || !perfOn { return [] }
     cpuWindow.append(s.cpu); if cpuWindow.count > 3 { cpuWindow.removeFirst() }
     let avg = cpuWindow.reduce(0, +) / Double(cpuWindow.count)
     let level = SRThresholds.level(s, cpuAvg: avg)
@@ -426,12 +539,21 @@ final class SRIslandBrain {
   var flow = SRAskFlow()
   var watch = SRPerfWatch()
   var hold = SRHold()
-  var now: () -> Date = { Date() }
+  var now: () -> Date = { Date() } { didSet { localQueue?.now = now; router.now = now } }
   var privateOn: () -> Bool = { false }
   var dndMutesSounds: () -> Bool = { false }
   var adjuster: SRAdjustableCapture?
-  /// Show one card (the real one goes through Toast.showCard and the shared island queue, so one at a time) and play its sound.
+  /// Show one card on its turn (the real one is Toast.showCard plus its sound). The brain never calls it directly: every moment goes
+  /// through `router`, which enqueues it in the island queue and finishes it on every way out.
   var emit: (SRCard, String?) -> Void = { _, _ in }
+  /// Reduced motion: no count in (set by the island from the system setting).
+  var reduceMotion: () -> Bool = { false }
+  private(set) var router: SRCardRouter
+  private(set) var localQueue: SRLocalQueue?
+  /// The chip choice on the open question: applied to THIS start only, never saved as the person's default.
+  private var askChoiceForStart: SRAskChoice?
+  private var countPending = false
+  private var diskStopping = false
   /// The question about the meeting, and the answer, are kept until it is answered.
   private(set) var openAsk: (key: String, choice: SRAskChoice)?
   private var prev: SRRunState = .off
@@ -440,14 +562,35 @@ final class SRIslandBrain {
   var diskBytesPerHour: () -> Int64 = { 0 }
   var screenH: () -> Int = { 1080 }
 
-  init(controller: SRController) { self.controller = controller; prev = controller.snapshot.state }
+  init(controller: SRController, queue: SRQueueAPI? = nil) {
+    self.controller = controller; prev = controller.snapshot.state
+    var q = queue
+    if q == nil { let l = SRLocalQueue(); localQueue = l; q = l }
+    router = SRCardRouter(queue: q!)
+    router.present = { [unowned self] c, snd in self.emit(c, snd) }
+    router.closed = { [unowned self] id, why in self.cardClosed(id, why) }
+  }
+  /// A card of ours left the island without a button, or never made it.
+  private func cardClosed(_ id: String, _ why: SRCardRouter.Why) {
+    switch id {
+    case SRCards.askId:
+      guard let a = openAsk else { return }
+      openAsk = nil
+      if why == .gone { flow.answered(a.key, yes: false) } else { flow.forget(a.key) }   // closed by the person = No; never shown or taken down = ask again later
+    case SRCards.perfId:
+      if why == .gone { watch.answered(stop: false) } else { watch.retractAsk() }
+    default: break
+    }
+  }
+  /// Esc, the x or a timeout closed a card of ours (Toast, IslandQueue.escape).
+  func cardGone(_ id: String) { router.gone(id) }
 
   private var settings: SRSettings { controller.settings }
   private var busy: Bool { switch controller.snapshot.state { case .starting, .recording, .paused, .stopping: return true; default: return false } }
 
   private func show(_ m: SRMoment, sound: String?) {
     guard let go = hold.offer(m, privateOn: privateOn(), now: now()) else { return }
-    emit(SRCards.card(go), SRPrivacy.chime(sound ?? "", privateOn: privateOn(), soundsOn: settings.sounds, dndMutes: dndMutesSounds()))
+    router.submit(SRCards.card(go), sound: SRPrivacy.chime(sound ?? "", privateOn: privateOn(), soundsOn: settings.sounds, dndMutes: dndMutesSounds()))
   }
 
   // ----- a meeting -----
@@ -470,13 +613,15 @@ final class SRIslandBrain {
       guard let ask = openAsk else { return .none }
       switch action {
       case "chip":
+        // Only this meeting's start changes: the person's saved mode and preset stay as they were.
         let c = ask.choice.next
-        controller.update(c.apply(to: settings)); openAsk = (ask.key, c)
-        emit(SRCards.card(.recordAsk(name: meetingName ?? "", key: ask.key, choice: c)), nil)
+        openAsk = (ask.key, c)
+        router.noteAction(SRCards.askId)
+        router.submit(SRCards.card(.recordAsk(name: meetingName ?? "", key: ask.key, choice: c)), sound: nil)
         return .reshow
       case "yes":
-        openAsk = nil
-        let n = SRCountIn.seconds(privateOn: privateOn(), reduceMotion: false)
+        openAsk = nil; askChoiceForStart = ask.choice; countPending = true
+        let n = SRCountIn.seconds(privateOn: privateOn(), reduceMotion: reduceMotion())
         return .countIn(n)
       default:   // No (or the x, or Esc): hidden for this meeting
         openAsk = nil; flow.answered(ask.key, yes: false); return .none
@@ -494,12 +639,26 @@ final class SRIslandBrain {
     }
   }
   /// The count in is over (or was skipped): start with the meeting's name.
-  @discardableResult func startAfterCountIn() -> SRRefusal? { controller.start(meeting: meetingName) }
-  /// Esc (or the x) closed the question: the same as No. A closed "Resources are high" card is a No, keep recording.
-  func escaped(cardId: String) {
-    if cardId == SRCards.askId, let a = openAsk { openAsk = nil; flow.answered(a.key, yes: false) }
-    if cardId == SRCards.perfId { watch.answered(stop: false) }
+  /// A refusal is said on the island too (the button already shows it), never silent. Nothing starts when the count in was cancelled.
+  @discardableResult func startAfterCountIn() -> SRRefusal? {
+    guard countPending else { return .off }
+    countPending = false
+    let choice = askChoiceForStart; askChoiceForStart = nil
+    let r = controller.start(meeting: meetingName, tweak: { s in choice.map { $0.apply(to: s) } ?? s })
+    if let w = r?.words { show(.startFailed(why: w), sound: "warn") }
+    return r
   }
+  /// The count in was cancelled (feature switched off, No, private mode): nothing starts after it.
+  func cancelCount() { countPending = false; askChoiceForStart = nil }
+  var countInPending: Bool { countPending }
+  /// The gate may have closed (the feature switched off in Settings, or the person's No): recording or starting is stopped and saved at once,
+  /// and a count in that is running is cancelled.
+  func gateChanged() {
+    controller.gateChanged()
+    if !controller.gateOpen { cancelCount(); router.retractAll() }
+  }
+  /// Esc (or the x) closed the question: the same as No. A closed "Resources are high" card is a No, keep recording.
+  func escaped(cardId: String) { router.gone(cardId) }
 
   // ----- the recorder changed -----
   /// Called on every state change of the recorder (SRController.onChange).
@@ -507,13 +666,18 @@ final class SRIslandBrain {
     let s = controller.snapshot.state
     defer { prev = s }
     if s == .recording, prev != .recording, prev != .paused {
-      guard controller.gateOpen, settings.perfWatch else { return }
-      watch.begin(res: settings.resolution, fps: settings.fps, quality: settings.quality, screenH: screenH(),
-                  can: adjuster?.canAdjust ?? SRAdjustable(fps: false, resolution: false, quality: false), bytesPerHour: diskBytesPerHour())
+      guard controller.gateOpen else { return }
+      // The disk stop runs with the Performance watch switch off too; the switch only decides the quiet adjust and the question.
+      let st = controller.activeSettings
+      watch.begin(res: st.resolution, fps: st.fps, quality: st.quality, screenH: screenH(),
+                  can: adjuster?.canAdjust ?? SRAdjustable(fps: false, resolution: false, quality: false), bytesPerHour: diskBytesPerHour(), perf: settings.perfWatch)
     }
     if prev == .stopping || prev == .recording || prev == .paused, s == .idle || s == .off {
       watch.end()
-      if let f = controller.snapshot.fileName, controller.snapshot.error == nil, prev == .stopping { show(.saved(fileName: f), sound: "saved") }
+      let diskCard = diskStopping; diskStopping = false
+      if let f = controller.snapshot.fileName, prev == .stopping, !diskCard {
+        if let e = controller.snapshot.error { show(.stopped(why: e), sound: "warn") } else { show(.saved(fileName: f), sound: "saved") }
+      }
     }
   }
   /// 12c: the upload is checked. Private mode holds the card like the others (no sign, no sound) and it comes out when private mode goes off.
@@ -525,19 +689,23 @@ final class SRIslandBrain {
   func privateChanged() {
     let p = privateOn()
     defer { wasPrivate = p }
+    if p, !wasPrivate { router.retractAll(); cancelCount(); return }   // nothing about the recording stays on screen once private mode is on
     guard wasPrivate, !p else { return }
-    for m in hold.release(now: now()) { emit(SRCards.card(m), SRPrivacy.chime("saved", privateOn: false, soundsOn: settings.sounds, dndMutes: dndMutesSounds())) }
+    for m in hold.release(now: now()) { router.submit(SRCards.card(m), sound: SRPrivacy.chime("saved", privateOn: false, soundsOn: settings.sounds, dndMutes: dndMutesSounds())) }
   }
 
   // ----- the performance watch -----
   /// One sample every few seconds, only while recording and only when the watch is on and the gate is open.
   func perfTick(_ s: SRSample) {
-    guard controller.gateOpen, settings.perfWatch, controller.snapshot.state == .recording || controller.snapshot.state == .paused else { return }
+    guard controller.gateOpen, controller.snapshot.state == .recording || controller.snapshot.state == .paused else { return }
     for a in watch.feed(s, now: now(), canShow: !privateOn()) {
       switch a {
-      case .adjust(let step): adjuster?.adjust(step); controller.noteLowered(SRWords.lowered(step.words))
+      case .adjust(let step):
+        adjuster?.adjust(step)
+        if controller.activeSettings.mode == .screenAndAudio { controller.noteLowered(SRWords.lowered(step.words)) }   // an audio only file has no picture to lower
       case .ask: show(.perfAsk, sound: "warn")
       case .stopForDisk:
+        diskStopping = true          // the disk card says it was saved: no second "Saved" card for the same stop
         controller.stop()
         show(.diskStop(why: SRWords.diskWhy), sound: "saved")
       }

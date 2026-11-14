@@ -611,9 +611,10 @@ do {
   b.uploaded(fileName: "Call.mov")
   ok("island: Uploaded card with a chime", cards.count == 1 && cards[0].0.id == "sr:uploaded" && cards[0].0.title == "Uploaded" && cards[0].1 == "island-done")
   ok("island: the Uploaded card plays the recording in PS", b.answer(cardId: "sr:uploaded", action: "play") == .play)
+  b.router.answered("sr:uploaded")
   cards = []; priv = true; b.privateChanged(); b.uploaded(fileName: "Call.mov")
   ok("private mode: no card and no sound while it is on", cards.isEmpty)
-  priv = false; clock = T0.addingTimeInterval(30); b.privateChanged()
+  priv = false; clock = T0.addingTimeInterval(30); b.privateChanged(); b.localQueue?.pump()
   ok("private mode off: the held Uploaded card comes out once", cards.count == 1 && cards[0].0.id == "sr:uploaded")
   let off = SRController(settings: SRSettings(), featureOn: { true }, perms: P(), capture: C()); let b2 = SRIslandBrain(controller: off); var c2 = 0; b2.emit = { _, _ in c2 += 1 }
   b2.uploaded(fileName: "x")

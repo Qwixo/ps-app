@@ -1,6 +1,6 @@
 // Screen recorder rules (PS 1.60, pull request 12a). Pure values and a small controller that takes fake capture and fake
 // permissions, so tests/screenrec-test.sh checks every rule without recording anything. Foundation only (no AppKit, no
-// ScreenCaptureKit, no AVFoundation): the real capture is ScreenRec.swift, which plugs into the two protocols below.
+// ScreenCaptureKit, no AVFoundation; CoreMedia only for the time values, and Protected.swift for the 1Password and Signal rule): the real capture is ScreenRec.swift, which plugs into the two protocols below.
 //
 // What lives here:
 //  - the choices (screen or audio only, resolution, frame rate, quality, format, audio quality) and the presets that set them all;
@@ -14,6 +14,7 @@
 //    Private mode hides the red dot and the timer (SRSnapshot.display) but never touches the recording itself, and the
 //    timer is worked out from the start and pause times, so it shows the real running time when the signs come back.
 import Foundation
+import CoreMedia
 
 // ---------- the choices ----------
 enum SRMode: String, Codable { case screenAndAudio, audioOnly }
@@ -324,7 +325,18 @@ protocol SRCaptureAPI {
   func stop(done: @escaping () -> Void)
 }
 
-enum SRRefusal: Equatable { case off, busy, notRecording, permission(String), problem(String), noRoom, failed(String) }
+enum SRRefusal: Equatable { case off, busy, notRecording, permission(String), problem(String), noRoom, failed(String)
+  /// What the person is told when a start is refused (nil: nothing to say, the recorder is off or already busy). Never silent.
+  var words: String? {
+    switch self {
+    case .off, .busy, .notRecording: return nil
+    case .permission(let w): return w == "mic" ? "PS cannot use the microphone yet. Allow it in System Settings, Privacy, Microphone." : "PS cannot see the screen yet. Allow it in System Settings, Privacy, Screen Recording."
+    case .problem(let p): return p
+    case .noRoom: return "There is not enough room to record. Free some space and try again."
+    case .failed(let m): return m
+    }
+  }
+}
 struct SRScreenInfo { var width: Int; var height: Int }
 
 /// The opt in gate and the recorder state machine. Every method that could reach capture or macOS checks the gate FIRST:
@@ -354,12 +366,55 @@ final class SRController {
   private func set(_ f: (inout SRSnapshot) -> Void) { f(&snapshot); onChange?(snapshot) }
 
   /// The person's yes or no. A yes asks for nothing by itself (permissions are asked on purpose, after the explanation).
-  /// A no stops a recording that is running (capture saves it first).
+  /// A no stops a recording that is running (capture saves it first) and cancels a start that has not finished.
   func setEnabled(_ on: Bool) {
     guard featureOn() else { return }
-    if !on, snapshot.isRecording { stop() }
     settings.enabled = on
+    if !on, shutDownIfBusy() { return }
+    // A yes while an earlier start is still being cancelled or a file is still closing changes nothing: it settles first.
+    if on, snapshot.state == .starting || snapshot.state == .stopping || snapshot.isRecording { return }
     set { $0.state = on ? .idle : .off; if !on { $0.error = nil } }
+  }
+  /// The gate may have closed without the person's own No (the feature was switched off in Settings, From the squad, or the build
+  /// turned it off): a recording, or a start in flight, is stopped and saved at once. Called by the app on every feature change.
+  func gateChanged() {
+    if !gateOpen {
+      if shutDownIfBusy() { return }
+      if snapshot.state == .idle { set { $0.state = .off } }
+    } else if snapshot.state == .off { set { $0.state = .idle } }
+  }
+  /// Stop and save whatever is running, or cancel a start in flight. True when something was running.
+  @discardableResult private func shutDownIfBusy() -> Bool {
+    switch snapshot.state {
+    case .starting:
+      cancelStart = true
+      set { $0.state = .stopping }
+      return true
+    case .recording, .paused:
+      stop(); return true
+    case .stopping: return true
+    default: return false
+    }
+  }
+  /// The app is quitting (or restarting): finish the file first. True when it had to wait for a recording; `done` runs when the file is closed.
+  func finishForQuit(_ done: @escaping () -> Void) -> Bool {
+    switch snapshot.state {
+    case .recording, .paused: stop(then: done); return true
+    case .starting: quitWaiters.append(done); cancelStart = true; set { $0.state = .stopping }; return true
+    case .stopping: quitWaiters.append(done); return true
+    default: return false
+    }
+  }
+  /// The settings the running (or last) recording started with.
+  private(set) var activeSettings = SRSettings()
+  private var startToken = 0, cancelStart = false
+  private var quitWaiters: [() -> Void] = []
+  private func settled() { let w = quitWaiters; quitWaiters = []; w.forEach { $0() } }
+  /// The writer failed (the drive went away, the disk is full, a bad time): stop the capture, keep what was written, and say so.
+  func writerFailed(_ msg: String) {
+    guard snapshot.isRecording else { return }
+    noteError("The recording stopped because the file could not be written. What was recorded so far is saved. " + msg)
+    stop()
   }
   /// Switch the mic: remembered for next time, and applied now if a recording is running.
   func switchMic(_ uid: String?) {
@@ -386,8 +441,14 @@ final class SRController {
   }
 
   /// Start recording with the saved choices.
-  @discardableResult func start(meeting: String? = nil) -> SRRefusal? {
+  @discardableResult func start(meeting: String? = nil, tweak: ((SRSettings) -> SRSettings)? = nil) -> SRRefusal? {
     guard gateOpen else { return .off }
+    guard let r = startChecked(meeting: meeting, tweak: tweak) else { return nil }
+    if let w = r.words { noteError(w) }   // a refused start always says why (the button and the island show snapshot.error)
+    return r
+  }
+  private func startChecked(meeting: String?, tweak: ((SRSettings) -> SRSettings)?) -> SRRefusal? {
+    let settings = tweak?(self.settings) ?? self.settings   // this start only: a chip choice on the island never changes the saved defaults
     if snapshot.state != .idle { return .busy }
     if let p = SRNeeds.problem(settings) { return .problem(p) }
     if SRNeeds.screen(settings) && perms.screen() != .granted { return .permission("screen") }
@@ -404,8 +465,23 @@ final class SRController {
                       micOn: settings.micOn, micUID: settings.micUID, computerSound: settings.computerSound,
                       excludedApps: SRLeaveOut.excluded(chosen: settings.leftOut, own: ownBundleID))
     set { $0 = SRSnapshot(state: .starting, startedAt: nil, pausedTotal: 0, pausedAt: nil, fileName: name, folderNote: folder.reason?.words, error: nil) }
+    activeSettings = settings
+    startToken += 1; cancelStart = false
+    let token = startToken
     capture.start(plan) { [weak self] err in
-      guard let self else { return }
+      guard let self, token == self.startToken else { return }
+      if self.cancelStart || !self.gateOpen {
+        // Switched off (or No) while it was starting: never leave it recording. Stop and save at once.
+        self.cancelStart = false
+        if err != nil { self.set { $0.state = self.gateOpen ? .idle : .off; $0.startedAt = nil }; self.settled(); return }
+        self.set { $0.state = .stopping }
+        self.capture.stop { [weak self] in
+          guard let self else { return }
+          self.set { $0.state = self.gateOpen ? .idle : .off; $0.startedAt = nil; $0.pausedAt = nil; $0.pausedTotal = 0 }
+          self.settled()
+        }
+        return
+      }
       if let err { self.set { $0.state = .idle; $0.startedAt = nil; $0.error = "\(err.localizedDescription)" }; return }
       self.set { $0.state = .recording; $0.startedAt = self.now() }
     }
@@ -422,12 +498,134 @@ final class SRController {
     capture.resume()
     set { $0.pausedTotal += self.now().timeIntervalSince(at); $0.pausedAt = nil; $0.state = .recording }
   }
-  func stop() {
+  func stop(then: (() -> Void)? = nil) {
     guard snapshot.isRecording else { return }          // a stop is always allowed while recording, even if the gate just closed
     set { $0.state = .stopping }
     capture.stop { [weak self] in
       guard let self else { return }
       self.set { $0.state = self.gateOpen ? .idle : .off; $0.startedAt = nil; $0.pausedAt = nil; $0.pausedTotal = 0 }
+      then?(); self.settled()
     }
+  }
+}
+
+// ---------- rule 7: 1Password and Signal are never recorded, listed, read, shown or heard (every build) ----------
+/// The one place that decides it, on the bundle id only (Protected.matches), and BEFORE anything else about an app or window is
+/// read: its window title, its name and its icon are behind closures, so a test can prove they were never asked for.
+enum SRProtect {
+  /// True when this app may be looked at in any way. An unknown owner (no bundle id) is not looked at either: it cannot be checked.
+  static func allowed(bundle: String?) -> Bool { bundle != nil && !Protected.matches(bundle) }
+  /// A window title, only for an allowed app. A protected app's title is never asked for.
+  static func title(bundle: String?, read: () -> String?) -> String? { allowed(bundle: bundle) ? read() : nil }
+  /// The content filter's excluded applications: the person's list and PS itself, and ALWAYS every 1Password and Signal build
+  /// among the running apps (so their windows and their sound are left out), in both builds.
+  static func excludedAppIDs(running: [String?], chosen: [String], own: String?) -> [String] {
+    let alwaysOut = running.compactMap { $0 }.filter { Protected.matches($0) }
+    return SRLeaveOut.clean(chosen + alwaysOut + (own.map { [$0] } ?? []))
+  }
+  /// The "leave out" choices, windows and the like: protected apps dropped before their names or icons are read.
+  static func visible<T>(_ items: [T], bundle: (T) -> String?) -> [T] { items.filter { allowed(bundle: bundle($0)) } }
+  /// "One window" as the source: refused for a protected or unknown owner.
+  static func mayRecordWindow(ownerBundle: String?) -> Bool { allowed(bundle: ownerBundle) }
+}
+
+/// Picker thumbnails come back on several queues at once: one lock, so the list is never changed from two threads together.
+final class SRThumbBox {
+  private let lock = NSLock()
+  private var items: [String?]
+  init(count: Int) { items = Array(repeating: nil, count: count) }
+  func set(_ i: Int, _ v: String?) { lock.lock(); defer { lock.unlock() }; if items.indices.contains(i) { items[i] = v } }
+  func all() -> [String?] { lock.lock(); defer { lock.unlock() }; return items }
+}
+
+// ---------- the sample times: strictly increasing per track, through a pause and a resume ----------
+enum SRTrack: Int { case video, me, them }
+struct SRRetimer {
+  /// One step: a pause and a resume leaves at least this between the last kept time and the first new one.
+  static let step = CMTime(value: 1, timescale: 1000)
+  private(set) var offset = CMTime.zero          // source time minus this is the file's time
+  private(set) var paused = false
+  private var needsAnchor = false
+  private var lastOut: [SRTrack: CMTime] = [:]
+  private var maxOut = CMTime.zero
+  private(set) var sessionStart: CMTime?
+  enum Decision: Equatable { case drop, start(at: CMTime), append(out: CMTime) }
+
+  mutating func pause() { paused = true }
+  mutating func resume() { if paused { paused = false; needsAnchor = true } }
+
+  /// `startsSession`: this track may open the file (the picture; or the sound in an audio only file).
+  mutating func accept(_ t: SRTrack, pts: CMTime, startsSession: Bool) -> Decision {
+    guard pts.isValid, !paused else { return .drop }
+    if needsAnchor, sessionStart != nil {
+      // The first sample after a resume lands one step after the last kept sample of ANY track.
+      let target = CMTimeAdd(maxOut, SRRetimer.step)
+      let cand = CMTimeSubtract(pts, target)
+      if cand > offset { offset = cand }
+      needsAnchor = false
+    }
+    var opened = false
+    if sessionStart == nil {
+      guard startsSession else { return .drop }
+      sessionStart = CMTimeSubtract(pts, offset); opened = true
+    }
+    let out = CMTimeSubtract(pts, offset)
+    if let s = sessionStart, out < s { return .drop }                       // from before the file opened or the pause
+    if let l = lastOut[t], out <= l { return .drop }                       // never equal or earlier on one track
+    lastOut[t] = out
+    if out > maxOut { maxOut = out }
+    return opened ? .start(at: out) : .append(out: out)
+  }
+}
+
+enum SRWrite: Equatable { case ok, notReady, failed(String) }
+/// The append path of the real capture, without the writer: a fake writer drives it in the tests. Everything runs on one queue.
+final class SRAppender {
+  var retimer = SRRetimer()
+  /// Called once, when the writer fails: the capture stops and the controller says so.
+  var onFail: (String) -> Void = { _ in }
+  private(set) var ended = false
+  private(set) var failed: String?
+  func reset() { retimer = SRRetimer(); ended = false; failed = nil }
+  var isPaused: Bool { retimer.paused }
+  func pause() { retimer.pause() }
+  func resume() { retimer.resume() }
+  func end() { ended = true }
+  /// `open` opens the file at a time; `write` hands the sample over at the retimed offset and answers how it went.
+  func sample(_ t: SRTrack, pts: CMTime, startsSession: Bool, open: (CMTime) -> Void, write: (CMTime) -> SRWrite) {
+    guard !ended else { return }
+    let d = retimer.accept(t, pts: pts, startsSession: startsSession)
+    if d == .drop { return }
+    if case .start(let at) = d { open(at) }
+    switch write(retimer.offset) {
+    case .ok, .notReady: break
+    case .failed(let m): ended = true; failed = m; onFail(m)
+    }
+  }
+}
+
+// ---------- finishing: a second finish waits for the first, and an old finish never clears a newer recording ----------
+final class SRFinisher {
+  private(set) var generation = 0
+  private var finishing: Set<Int> = [], finished: Set<Int> = []
+  private var waiters: [Int: [() -> Void]] = [:]
+  /// A new recording begins. The old one's waiters are kept: they still hear about their own recording's end.
+  func begin() -> Int { generation += 1; return generation }
+  func isCurrent(_ g: Int) -> Bool { g == generation }
+  /// Someone wants the current file closed. True: this caller does the closing. False: it is already being closed (or is closed), `then` runs after.
+  func request(then: (() -> Void)?) -> Bool {
+    let g = generation
+    if finished.contains(g) { then?(); return false }
+    if finishing.contains(g) { if let t = then { waiters[g, default: []].append(t) }; return false }
+    finishing.insert(g)
+    if let t = then { waiters[g, default: []].append(t) }
+    return true
+  }
+  /// The closing of recording `g` is done. Returns what was waiting for it, in order.
+  func complete(_ g: Int) -> [() -> Void] {
+    guard finishing.contains(g) else { return [] }
+    finishing.remove(g); finished.insert(g)
+    if finished.count > 8 { finished = finished.filter { $0 > g - 4 } }
+    return waiters.removeValue(forKey: g) ?? []
   }
 }

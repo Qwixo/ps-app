@@ -1,4 +1,5 @@
 import Foundation
+import CoreMedia
 // Run: bash tests/screenrec-test.sh. Fake capture, fake permissions, fake folders only. The same numbers are checked on the web
 // side in web tests/screenrec.test.ts (the signs, the timer).
 var n = 0, bad = 0
@@ -20,7 +21,9 @@ final class FakeCapture: SRCaptureAPI {
   var failWith: Error? = nil
   var holdStop = false
   var finishStop: (() -> Void)?
-  func start(_ plan: SRPlan, done: @escaping (Error?) -> Void) { started.append(plan); done(failWith) }
+  var holdStart = false
+  var finishStart: ((Error?) -> Void)?
+  func start(_ plan: SRPlan, done: @escaping (Error?) -> Void) { started.append(plan); if holdStart { finishStart = done } else { done(failWith) } }
   func pause() { paused += 1 }
   func resume() { resumed += 1 }
   var mics: [String?] = []
@@ -283,6 +286,216 @@ do {
   let back = try! JSONDecoder().decode(SRSettings.self, from: JSONEncoder().encode(s))
   ok("round trip", back == s)
   ok("an empty file is the defaults", (try! JSONDecoder().decode(SRSettings.self, from: "{}".data(using: .utf8)!)) == SRSettings())
+}
+
+
+// ---- 12ab review fixes: switching off or saying No stops and saves, on every path ----
+func ready(_ f: (inout SRSettings) -> Void = { _ in }) -> (SRController, FakePerms, FakeCapture, Flag) {
+  var s = SRSettings(); s.enabled = true; f(&s)
+  let p = FakePerms(), c = FakeCapture(), fl = Flag()
+  p.screenState = .granted; p.micState = .granted
+  let ctl = SRController(settings: s, featureOn: { fl.on }, perms: p, capture: c)
+  return (ctl, p, c, fl)
+}
+final class Flag { var on = true }
+do {
+  let (ctl, _, c, _) = ready()
+  _ = ctl.start()
+  ctl.setEnabled(false)
+  ok("No while recording: stopped and saved at once", c.stopped == 1 && ctl.snapshot.state == .off)
+}
+do {
+  let (ctl, _, c, fl) = ready()
+  _ = ctl.start(); ctl.pause()
+  fl.on = false; ctl.gateChanged()
+  ok("feature switched off while paused: stopped and saved", c.stopped == 1 && ctl.snapshot.state == .off)
+  ok("and nothing can start after it", ctl.start() == .off)
+  fl.on = true; ctl.gateChanged()
+  ok("feature back on: ready again, not recording", ctl.snapshot.state == .idle)
+}
+do {
+  // order 1: No while the start is still in flight; the capture then finishes starting
+  let (ctl, _, c, _) = ready(); c.holdStart = true; c.holdStop = false
+  _ = ctl.start()
+  ok("starting", ctl.snapshot.state == .starting)
+  ctl.setEnabled(false)
+  ok("No while starting: nothing stopped yet, it is cancelling", c.stopped == 0 && ctl.snapshot.state == .stopping)
+  c.finishStart?(nil)
+  ok("the capture finished starting: it is stopped and saved at once, never left recording", c.stopped == 1 && ctl.snapshot.state == .off && ctl.snapshot.startedAt == nil)
+}
+do {
+  // order 2: the capture fails while a cancel is pending
+  let (ctl, _, c, _) = ready(); c.holdStart = true
+  _ = ctl.start(); ctl.setEnabled(false); c.finishStart?(Boom())
+  ok("cancelled start that fails: off, no stop needed", c.stopped == 0 && ctl.snapshot.state == .off)
+}
+do {
+  let (ctl, _, c, fl) = ready(); c.holdStart = true
+  _ = ctl.start(); fl.on = false; ctl.gateChanged(); c.finishStart?(nil)
+  ok("feature off during a start: stopped when it begins", c.stopped == 1 && ctl.snapshot.state == .off)
+  // even with no gateChanged call, the end of start checks the gate
+  let (ctl2, _, c2, fl2) = ready(); c2.holdStart = true
+  _ = ctl2.start(); fl2.on = false; c2.finishStart?(nil)
+  ok("the end of a start checks the gate by itself", c2.stopped == 1 && ctl2.snapshot.state == .off)
+}
+do {
+  // a new start during a cancel is refused, and an old completion never touches the new one
+  let (ctl, _, c, _) = ready(); c.holdStart = true
+  _ = ctl.start(); ctl.setEnabled(false); ctl.setEnabled(true)
+  ok("stop then start quickly: the new start is refused until the old one settles", ctl.start() == .busy)
+  c.finishStart?(nil)
+  ok("then idle and ready", ctl.snapshot.state == .idle && c.stopped == 1)
+  c.holdStart = false
+  ok("and a fresh start works", ctl.start() == nil && ctl.snapshot.state == .recording)
+}
+do {
+  // stop in flight, new start refused (the file is still being closed)
+  let (ctl, _, c, _) = ready(); c.holdStop = true
+  _ = ctl.start(); ctl.stop()
+  ok("while the file is closing a start is busy", ctl.start() == .busy && c.started.count == 1)
+  c.finishStop?()
+  ok("after it closed a start works", ctl.start() == nil && c.started.count == 2)
+}
+// ---- a writer failure stops the recording, keeps the file and says so ----
+do {
+  let (ctl, _, c, _) = ready()
+  _ = ctl.start()
+  ctl.writerFailed("The drive was removed.")
+  ok("writer failure: the capture was stopped", c.stopped == 1 && ctl.snapshot.state == .idle)
+  ok("and it says so, with what was kept", ctl.snapshot.error?.contains("could not be written") == true && ctl.snapshot.error?.contains("saved") == true && ctl.snapshot.error?.contains("drive was removed") == true)
+  ctl.writerFailed("again")
+  ok("a second failure report changes nothing", c.stopped == 1)
+}
+do {
+  // the fake writer drives the real append path and fails in the middle
+  let (ctl, _, c, _) = ready()
+  _ = ctl.start()
+  let ap = SRAppender()
+  ap.onFail = { ctl.writerFailed($0) }
+  var written = 0
+  func tick(_ ms: Int) { ap.sample(.video, pts: CMTime(value: CMTimeValue(ms), timescale: 1000), startsSession: true, open: { _ in }, write: { _ in written += 1; return written == 3 ? .failed("disk error") : .ok }) }
+  for k in 1...6 { tick(k * 100) }
+  ok("fake writer fails on the third sample: the recording stops", c.stopped == 1 && ctl.snapshot.state == .idle && ctl.snapshot.error?.contains("disk error") == true)
+  ok("the appender stops handing samples over after the failure", written == 3 && ap.failed == "disk error")
+}
+// ---- a refused start always says why ----
+do {
+  let (ctl, p, c, _) = ready()
+  p.screenState = .unknown
+  ok("permission refusal", ctl.start() == .permission("screen"))
+  ok("... and says it", ctl.snapshot.error?.contains("Screen Recording") == true)
+  p.screenState = .granted
+  ctl.folders = { (nil, SRFolderState(exists: true, writable: true, freeBytes: 1000)) }
+  ok("no room refusal", ctl.start() == .noRoom && ctl.snapshot.error == "There is not enough room to record. Free some space and try again.")
+  ok("nothing started on a refusal", c.started.isEmpty)
+  let off = SRController(settings: SRSettings(), featureOn: { true }, perms: p, capture: c)
+  ok("off is not an error message", off.start() == .off && off.snapshot.error == nil)
+  ok("every refusal that is shown has words", [SRRefusal.permission("mic"), .problem("x"), .noRoom, .failed("y")].allSatisfy { $0.words != nil } && SRRefusal.busy.words == nil)
+}
+// ---- quitting finishes the file ----
+do {
+  let (ctl, _, c, _) = ready(); c.holdStop = true
+  _ = ctl.start()
+  var done = 0
+  ok("quit while recording: it has to wait", ctl.finishForQuit { done += 1 } == true && c.stopped == 1 && done == 0)
+  c.finishStop?()
+  ok("the quit goes on only after the file is closed", done == 1)
+  let (ctl2, _, _, _) = ready()
+  ok("quit while idle: no waiting", ctl2.finishForQuit { } == false)
+  let (ctl3, _, c3, _) = ready(); c3.holdStart = true
+  _ = ctl3.start(); var d3 = 0
+  ok("quit while starting waits and then stops", ctl3.finishForQuit { d3 += 1 } == true && d3 == 0)
+  c3.finishStart?(nil)
+  ok("quit during a start: stopped and saved, then it goes on", c3.stopped == 1 && d3 == 1)
+}
+// ---- the chip choice is for one start only ----
+do {
+  let (ctl, _, c, _) = ready()
+  _ = ctl.start(tweak: { (s: SRSettings) -> SRSettings in var o = s; o.mode = .audioOnly; return o })
+  ok("a one start choice reaches the plan", c.started.last?.mode == .audioOnly)
+  ok("and never the saved settings", ctl.settings.mode == .screenAndAudio && ctl.activeSettings.mode == .audioOnly)
+}
+
+// ---- pause and resume: times strictly increase on every track ----
+func t(_ ms: Int) -> CMTime { CMTime(value: CMTimeValue(ms), timescale: 1000) }
+do {
+  var r = SRRetimer()
+  var outs: [SRTrack: [CMTime]] = [:]
+  func feed(_ tr: SRTrack, _ ms: Int, starts: Bool = false) {
+    let d = r.accept(tr, pts: t(ms), startsSession: starts || tr == .video)
+    switch d { case .start(let o), .append(let o): outs[tr, default: []].append(o); default: break }
+  }
+  feed(.video, 1000); feed(.me, 1010); feed(.them, 1005); feed(.video, 1033); feed(.me, 1030)
+  r.pause()
+  feed(.video, 1500); feed(.me, 1500)            // while paused: dropped
+  r.resume()
+  feed(.me, 9000)                                 // the first sample after a long pause, from the mic
+  feed(.video, 8990)                              // the picture a little EARLIER in source time, on its own track after the pause
+  feed(.them, 9010); feed(.video, 9033); feed(.me, 9040)
+  let all = outs.values.map { $0 }
+  ok("every track is strictly increasing through a pause and a resume", all.allSatisfy { zip($0, $0.dropFirst()).allSatisfy { $0 < $1 } })
+  ok("nothing was kept while paused", !(outs[.video] ?? []).contains(t(500)))
+  let mixed = (outs[.me] ?? [])
+  ok("the first sample after the resume lands right after the last kept one, no gap", mixed.contains { $0 > t(1033) && $0 <= t(1100) })
+}
+do {
+  var r = SRRetimer()
+  _ = r.accept(.video, pts: t(1000), startsSession: true)
+  ok("the same time twice on one track is dropped", r.accept(.video, pts: t(1000), startsSession: true) == .drop)
+  ok("an earlier time on one track is dropped", r.accept(.video, pts: t(900), startsSession: true) == .drop)
+  var r2 = SRRetimer()
+  ok("sound cannot open a screen file", r2.accept(.me, pts: t(5), startsSession: false) == .drop)
+  ok("an invalid time is dropped", r2.accept(.video, pts: .invalid, startsSession: true) == .drop)
+  // pause and resume twice
+  var r3 = SRRetimer(); _ = r3.accept(.video, pts: t(100), startsSession: true)
+  r3.pause(); r3.resume(); let a = r3.accept(.video, pts: t(5000), startsSession: true)
+  r3.pause(); r3.resume(); let b = r3.accept(.video, pts: t(9000), startsSession: true)
+  if case .append(let o1) = a, case .append(let o2) = b { ok("two pauses: still increasing", o1 > t(100) && o2 > o1) } else { ok("two pauses: still increasing", false) }
+}
+// ---- finishing: a second finish waits, an old finish never wipes the new recording ----
+do {
+  let f = SRFinisher()
+  let g1 = f.begin()
+  var order: [String] = []
+  ok("first finish does the closing", f.request(then: { order.append("a") }) == true)
+  ok("second finish waits", f.request(then: { order.append("b") }) == false && order.isEmpty)
+  f.complete(g1).forEach { $0() }
+  ok("both are told when it is closed, in order", order == ["a", "b"])
+  ok("after it is closed, a late finish returns at once", f.request(then: { order.append("c") }) == false && order == ["a", "b", "c"])
+  // the race: stop, then a new start before the old completion
+  let f2 = SRFinisher()
+  let old = f2.begin(); _ = f2.request(then: nil)
+  let new = f2.begin()
+  ok("the old completion is no longer current: it must not clear the new recording", !f2.isCurrent(old) && f2.isCurrent(new))
+  ok("and the old completion releases nothing of the new one", f2.complete(old).isEmpty)
+}
+// ---- rule 7: 1Password and Signal ----
+do {
+  let all: [String?] = ["com.apple.Safari", "com.1password.1password", "com.agilebits.onepassword7", "org.whispersystems.signal-desktop", "us.zoom.xos", nil, "com.1password.1password-launcher", "org.signal.Signal"]
+  let ex = SRProtect.excludedAppIDs(running: all, chosen: ["us.zoom.xos"], own: "example.ps")
+  ok("1Password and Signal are always excluded from the picture and the sound", ["com.1password.1password", "com.agilebits.onepassword7", "org.whispersystems.signal-desktop", "com.1password.1password-launcher", "org.signal.Signal"].allSatisfy { ex.contains($0) })
+  ok("PS itself and the person's choice stay", ex.contains("example.ps") && ex.contains("us.zoom.xos"))
+  ok("an ordinary app is not excluded by the rule", !ex.contains("com.apple.Safari"))
+  ok("even with nothing chosen and no own id", SRProtect.excludedAppIDs(running: all, chosen: [], own: nil).contains("org.signal.Signal"))
+  ok("excluded in both builds: the rule has no build switch", SRProtect.excludedAppIDs(running: ["com.1password.1password"], chosen: [], own: nil) == ["com.1password.1password"])
+  struct W { var bundle: String?; var name: String }
+  var titleReads: [String] = [], nameReads: [String] = []
+  let wins = [W(bundle: "com.1password.1password", name: "1Password"), W(bundle: "org.whispersystems.signal-desktop", name: "Signal"), W(bundle: "us.zoom.xos", name: "Zoom"), W(bundle: nil, name: "Mystery")]
+  let seen = SRProtect.visible(wins, bundle: { $0.bundle })
+  for w in seen { _ = SRProtect.title(bundle: w.bundle, read: { titleReads.append(w.name); return "t" }); nameReads.append(w.name) }
+  ok("the window list drops both apps before anything else is read", seen.map { $0.name } == ["Zoom"] && nameReads == ["Zoom"])
+  var asked = 0
+  for w in wins { _ = SRProtect.title(bundle: w.bundle, read: { asked += 1; return "secret" }) }
+  ok("a window title is never asked for from 1Password, Signal or an unknown owner", asked == 1)
+  ok("One window as the source is refused for them", !SRProtect.mayRecordWindow(ownerBundle: "com.1password.1password") && !SRProtect.mayRecordWindow(ownerBundle: "org.whispersystems.signal-desktop") && !SRProtect.mayRecordWindow(ownerBundle: nil) && SRProtect.mayRecordWindow(ownerBundle: "us.zoom.xos"))
+  ok("the leave out list never lists them", SRProtect.visible(["a", "1password", "Signal"], bundle: { $0 }) == ["a"])
+}
+do {
+  let box = SRThumbBox(count: 4)
+  DispatchQueue.concurrentPerform(iterations: 400) { i in box.set(i % 4, "x\(i)") }
+  ok("thumbnails collected from many queues at once: all slots filled, no crash", box.all().allSatisfy { $0 != nil } && box.all().count == 4)
+  box.set(9, "no")
+  ok("a slot that does not exist is ignored", box.all().count == 4)
 }
 
 print("\n\(n - bad) of \(n) passed")

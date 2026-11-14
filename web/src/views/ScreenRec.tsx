@@ -112,7 +112,7 @@ export function ScreenRecButton() {
   };
   return (
     <div className="sr-wrap tm-pop-wrap" ref={wrap} onMouseDown={(e) => e.stopPropagation()}>
-      <button type="button" className={`tm-pill-btn sr-btn${rec && !priv ? " live" : ""}${st!.state === "starting" || st!.state === "stopping" ? " busy" : ""}`}
+      <button type="button" className={`tm-pill-btn sr-btn${rec && !priv ? " live" : ""}${(st!.state === "starting" || st!.state === "stopping") && !priv ? " busy" : ""}`}
         aria-label={buttonLabel(st, priv)} aria-expanded={pop !== null} title={SR_WORDS.button}
         onClick={(e) => { if (e.button === 0) act(); }}
         onContextMenu={(e) => { e.preventDefault(); setPop("menu"); }}>

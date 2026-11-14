@@ -5,6 +5,6 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$(mktemp -d)"
 cp "$HERE/tests/screenrec-island-test.swift" "$OUT/main.swift"   # top level code must be in main.swift
-swiftc -Onone -target arm64-apple-macos13 "$HERE/Sources/ScreenRecCore.swift" "$HERE/Sources/ScreenRecIslandCore.swift" "$HERE/Sources/IslandQueueCore.swift" "$OUT/main.swift" -o "$OUT/screenrec-island-test"
+swiftc -Onone -target arm64-apple-macos13 "$HERE/Sources/ScreenRecCore.swift" "$HERE/Sources/Protected.swift" "$HERE/Sources/ScreenRecIslandCore.swift" "$HERE/Sources/IslandQueueCore.swift" "$OUT/main.swift" -o "$OUT/screenrec-island-test"
 "$OUT/screenrec-island-test"
 rm -rf "$OUT"
