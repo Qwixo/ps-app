@@ -136,6 +136,7 @@ import { startPsStatus } from "./psstatus";
 import { cleanDndOp } from "./core/dnd";
 import { islandPrefs } from "./core/island";
 import { cleanRules } from "./core/rules";
+import { mailOnSnap } from "./core/mailsnap";
 import { irepFeed, mailCardMessage, startMailCards } from "./mailcards";
 import { cleanReplyCardId, leadRows, setLeadMirror } from "./core/overlaymail";
 import { leadCards } from "./core/leadcards";
@@ -440,8 +441,8 @@ export function startPsSecondWindow() {
   if (!PS || secondWinStarted) return;
   secondWinStarted = true;
   (window as Window & { __psSecondWin?: unknown }).__psSecondWin = {
-    load(st: { unlocked: boolean; docs: Doc[]; lastSync: string | null; red?: boolean; second?: unknown }) {
-      __mirrorLoad(st.unlocked, st.docs || [], st.lastSync, st.red === true);
+    load(st: { unlocked: boolean; docs: Doc[]; lastSync: string | null; red?: boolean; primary?: boolean; second?: unknown }) {
+      __mirrorLoad(st.unlocked, st.docs || [], st.lastSync, st.red === true, null, st.primary === true);
       setSecondMirror(st.second);
     },
     tab(t: string) { window.dispatchEvent(new CustomEvent("ps-second-tab", { detail: String(t) })); },
@@ -494,8 +495,8 @@ export function startPsOverlay() {
     // Called with new data, and every time the floating list is shown (opening; an older PS app
     // leaves it out, which counts as showing). Only a show wakes the sounds and plays the pop-in,
     // so new data arriving while the list is up never makes it blink.
-    load(st: { unlocked: boolean; docs: Doc[]; lastSync: string | null; red?: boolean; second?: unknown; clive?: unknown; cal?: unknown; squad?: unknown; sqchat?: unknown; gym?: unknown; sbsq?: unknown; local?: { since: string } | null; lf?: unknown; leads?: unknown; pair?: unknown }, opening?: boolean) {
-      __mirrorLoad(st.unlocked, st.docs || [], st.lastSync, st.red === true, st.local ?? null);
+    load(st: { unlocked: boolean; docs: Doc[]; lastSync: string | null; red?: boolean; primary?: boolean; second?: unknown; clive?: unknown; cal?: unknown; squad?: unknown; sqchat?: unknown; gym?: unknown; sbsq?: unknown; local?: { since: string } | null; lf?: unknown; leads?: unknown; pair?: unknown }, opening?: boolean) {
+      __mirrorLoad(st.unlocked, st.docs || [], st.lastSync, st.red === true, st.local ?? null, st.primary === true);
       setLocalMirror(st.unlocked ? st.lf : null);   // local first: the last export or import, the copy kept after a move
       setSquadMirror(st.unlocked ? st.squad : null);   // G Squad: the plain view the main page made (src/squad/engine.ts)
       setChatMirror(st.unlocked ? st.sqchat : null);   // G Squad chat: plain lines, unread count, history votes (src/squad/chatengine.ts)
@@ -911,10 +912,10 @@ export function startPsBridge() {
     // Local first (V1.44): the Tab list's one line warning, its reminder card and the last export or import result.
     const local = unlocked ? s.local : null, lf = unlocked && !s.red ? localMirrorOut() : null;
     // And the open lead replies (a few rows, no feed) for the email panel's Reply (core/overlaymail.ts), the developer only.
-    const leads = unlocked && s.red ? leadRows(leadCards(irepFeed(s), settingsData(s).leadCards)) : null;
+    const leads = unlocked && mailOnSnap(s) ? leadRows(leadCards(irepFeed(s), settingsData(s).leadCards)) : null;
     // And Link your phone's pairing (core/pairmac.ts): its phase, the six digit code and the QR's public offer part.
     const pair = unlocked ? pairForMirror() : null;
-    const json = JSON.stringify({ type: "state", unlocked, red: unlocked && s.red, lastSync: s.lastSync, docs, second: secondLocal(), clive, cal: calStatus.get(), squad, sqchat, gym, sbsq, local, lf, leads, pair });
+    const json = JSON.stringify({ type: "state", unlocked, red: unlocked && s.red, primary: unlocked && s.primary, lastSync: s.lastSync, docs, second: secondLocal(), clive, cal: calStatus.get(), squad, sqchat, gym, sbsq, local, lf, leads, pair });
     if (json !== last) { last = json; psPost({ type: "state", unlocked, payload: json }); }
   };
   // At most 120 ms after the first change (not after the last one), so a busy vault (sync, screen

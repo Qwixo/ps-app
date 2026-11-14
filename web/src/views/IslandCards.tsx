@@ -8,6 +8,7 @@
 import { CARD_KINDS, cardPlace, withCardPlace, type IslandPrefs } from "../core/island";
 import { CHAT_FADE_CHOICES, chatFade } from "../core/chatdone";
 import { isRedAccount } from "../core/account";
+import { mailAllowed } from "../core/mailflag";
 import { useVault } from "../ui/kit";
 import "./islandhide.css";
 import "./islandcards.css";
@@ -60,11 +61,12 @@ export const ISLAND_CARDS_LABEL = "Notifications come from the Dynamic Island";
 export const ISLAND_CARDS_HINT = "On: new cards drop out of the island and go back into it. Off, or while the island is off or hidden: the top right, as before.";
 
 export function IslandCardsRows({ prefs, save }: { prefs: IslandPrefs; save: (p: IslandPrefs) => void }) {
-  const red = isRedAccount(useVault());   // client emails and lead replies only ever come to the developer's account
+  const red = isRedAccount(useVault());   // the developer's own cards; client emails and lead replies come to anyone with Client emails on
   const islandOn = prefs.mode !== "off";
   const on = prefs.cards;
   const listOn = on && islandOn;
-  const kinds = CARD_KINDS.filter((x) => red || !x.red);
+  const mail = mailAllowed();   // Client emails switched on: the client email and lead reply choices show for them too (core/mailswitch.ts)
+  const kinds = CARD_KINDS.filter((x) => red || !x.red || (mail && (x.k === "mail" || x.k === "leads")));
   return (
     <div className="ih-row ic-row" role="group" aria-label={ISLAND_CARDS_LABEL}>
       <span className="ih-l">{ISLAND_CARDS_LABEL}<em>{islandOn ? ISLAND_CARDS_HINT : "The island is off, so every card shows in the top right."}</em></span>

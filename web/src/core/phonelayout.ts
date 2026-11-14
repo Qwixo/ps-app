@@ -17,6 +17,7 @@
 //   and which buttons it holds in which order. Settings is always in it (the way back to everything else).
 // - each page's own background and look, and the phone's own (every page that has none of its own).
 import { kindOf, copyId, slotLabel } from "./tablayout.ts";
+import { mailAllowed } from "./mailflag.ts";
 
 export type PhoneKind = "gos" | "ios";
 export const PHONE_KINDS: readonly PhoneKind[] = ["gos", "ios"];
@@ -61,7 +62,7 @@ export const HOME = "list";
  *  never offers what the phone cannot draw). Mac only ones (Sentry, the transparency slider, Away badge, Network,
  *  Volume mixer, Security, Second Computer, Tab and Lock) are never here. gos: PS GOS only (its shell clears the
  *  clipboard and counts screen time; the iPhone web app can do neither). red: the developer's account only. */
-export type PhonePanel = { kind: string; w: number; h: number; gos?: boolean; red?: boolean };
+export type PhonePanel = { kind: string; w: number; h: number; gos?: boolean; red?: boolean; mail?: boolean };
 export const PHONE_PANELS: readonly PhonePanel[] = [
   { kind: "meetings", w: 4, h: 4 },
   { kind: "clocks", w: 4, h: 2 },
@@ -82,14 +83,14 @@ export const PHONE_PANELS: readonly PhonePanel[] = [
   { kind: "numerology", w: 2, h: 1, red: true },
   { kind: "rules", w: 1, h: 1, red: true },
   { kind: "brief", w: 1, h: 1, red: true },
-  { kind: "mail", w: 4, h: 4, red: true },
+  { kind: "mail", w: 4, h: 4, mail: true },
   { kind: "newtasks", w: 4, h: 4, red: true },
 ];
 const PANEL = new Map(PHONE_PANELS.map((p) => [p.kind, p]));
 /** Can this phone draw this panel? */
 export function phoneCan(kind: string, phone: PhoneKind, red: boolean): boolean {
   const p = PANEL.get(kind);
-  return !!p && (!p.gos || phone === "gos") && (!p.red || red);
+  return !!p && (!p.gos || phone === "gos") && (p.mail ? mailAllowed() : !p.red || red);
 }
 /** The gallery for a page: every panel this phone can draw, with how many sit on this page and on the whole phone. */
 export function phoneGallery(l: PhoneLayout, page: string, red: boolean): { kind: string; label: string; here: number; all: number }[] {
@@ -123,7 +124,7 @@ function cleanTiles(v: unknown, phone: PhoneKind, red: boolean, seen: Set<string
     // A panel the phone cannot draw is dropped only when it is not known at all; a the developer only one on a stranger's
     // account never gets here (the gallery never offers it), and a kind switched off later is kept but not drawn.
     if (!TILE_ID.test(id) || !PANEL.has(kindOf(id)) || seen.has(id)) continue;
-    if (PANEL.get(kindOf(id))!.red && !red) continue;
+    { const pn = PANEL.get(kindOf(id))!; if (pn.mail ? !mailAllowed() : pn.red && !red) continue; }
     if (PANEL.get(kindOf(id))!.gos && phone !== "gos") continue;
     seen.add(id);
     const w = int(q.w, 1, COLS, 1), h = int(q.h, 1, MAX_H, 1);

@@ -19,6 +19,7 @@
 // - "Mac layout" top left (or Esc) goes back to the Mac's overview; Done leaves Edit mode.
 // The layout is one small vault record per phone kind (core/phonelayout.ts, actions.ts savePhoneLayout), written half
 // a second after the last change; the phone follows it when it next syncs, or at once while it is open.
+import { mailAllowed } from "../core/mailflag";
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as RPE, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useVault } from "../ui/kit";
@@ -613,7 +614,7 @@ function PhoneScreenBody({ layout, page, phone, W, H, red, edit }: ScreenProps) 
       <div className="pe-content" style={{ top, bottom }}>
         {page.kind === "list" && <ListPreview />}
         {page.kind === "plan" && <div className="pe-pane"><div className="pe-panel"><StillPanel id="meetings" width /></div></div>}
-        {page.kind === "inbox" && <div className="pe-pane">{[...(red ? ["mail"] : []), "meetnotes", "leftovers", "overdue"].map((x) => <div key={x} className="pe-panel"><StillPanel id={x} width /></div>)}</div>}
+        {page.kind === "inbox" && <div className="pe-pane">{[...(mailAllowed() ? ["mail"] : []), "meetnotes", "leftovers", "overdue"].map((x) => <div key={x} className="pe-panel"><StillPanel id={x} width /></div>)}</div>}
         {page.kind === "panels" && <Grid tiles={page.tiles ?? []} W={W} edit={edit} />}
       </div>
       <NavBar layout={layout} nav={nv} W={W} H={H} edit={edit} />

@@ -8,7 +8,7 @@ import { DestroyModal, InviteModal, LoginLinkButton, exportFlow, removeAccessFlo
 import { ProjectEditor } from "./project/Editor";
 import { ProjectMap } from "./project/Map";
 import { ClientReplies, MatchField } from "./Replies";
-import { isRedAccount } from "../core/account";
+import { mailOnSnap } from "../core/mailsnap";
 import { vaultStore } from "../core/vault";
 import "./clients.css";
 
@@ -72,7 +72,7 @@ export function ClientDetailView({ clientId, projectId }: { clientId: string; pr
         )}
       </header>
 
-      {isRedAccount(vaultStore.get()) && <ClientReplies client={client} onEditMatching={() => setModal("details")} />}
+      {mailOnSnap(vaultStore.get()) && <ClientReplies client={client} onEditMatching={() => setModal("details")} />}
 
       <section className="panel stack tight cv-notes">
         <div className="row between wrap-ok">
@@ -199,7 +199,7 @@ function DetailsModal({ client, onClose }: { client: Doc<ClientRec>; onClose: ()
             </select>
           </Field>
         </div>
-        {isRedAccount(vaultStore.get()) && <MatchField client={client} />}
+        {mailOnSnap(vaultStore.get()) && <MatchField client={client} />}
       </div>
     </Modal>
   );

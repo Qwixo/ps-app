@@ -34,6 +34,7 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Meetings from this Mac's Calendar | Shows your Calendar meetings, read only. | Settings, Notifications and Do Not Disturb, "Meetings from this Mac's Calendar". |
 | Meeting alerts | A warning before a meeting starts. | Settings, Notifications and Do Not Disturb, "Meetings". |
 | Do Not Disturb | Quiets PS for a while. | Off until you start it. |
+| Client emails | Shows your clients' Gmail emails and your Instantly replies as cards and in the email panel, with Reply (your Mac sends it). Only for the first owner of their own Supabase project, with your own Google and Instantly accounts. Off until switched on. | Settings, Notifications and Do Not Disturb, "Client emails" (also Settings, From the squad). |
 | AI chat finished cards | A card when a Claude Code chat finishes. Writes a hook into that tool's settings only when switched on. | Off for new installs. Settings, Notifications and Do Not Disturb, "AI chat finished cards". |
 | Volume mixer | Turn each app up, down or off. Only touches apps you change. | Leave the sliders alone, or remove the button in Edit mode. |
 | Headphones auto switch | Moves sound to your headphones when they connect. | Off by default, inside the mixer. |
@@ -117,6 +118,5 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 ## Not in this repo
 
 Features that only run on the developer's own account are left out (see README.md, "What is left out"): Second Computer,
-AirPods and microphone auto routing, email cards, replies and sending, the follow up radar, the Instantly inbox,
-Campaigns, the Morning brief, Numerology, the PS rules, private release notes and inviting other owners. Campaigns
+AirPods and microphone auto routing, the follow up radar, Campaigns, the Morning brief, Numerology, the PS rules, private release notes and inviting other owners. Campaigns
 and the Notebook looks are also switched off for everyone (`web/src/core/features.ts`).

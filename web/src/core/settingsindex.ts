@@ -49,14 +49,16 @@ export interface SetEntry {
   anchor?: string;
   /** Drawn inside this entry's control; a search hit opens and lights up the parent. */
   parent?: string;
-  /** Only for people whose PS shows client email cards (Reply from PS, V1.44). */
+  /** Only for people whose PS shows client email cards (Reply from PS, V1.44; since 1.60 the Client emails switch is on). */
   mail?: true;
+  /** Only for people who can switch Client emails on (first owner of their own Supabase project, core/mailswitch.ts). */
+  mailCan?: true;
   /** Only in this phone shell: the GrapheneOS app ("gos") or the iPhone web app ("mweb"). V1.47. */
   shell?: Shell;
 }
 /** Which phone shell: the GrapheneOS app (ps-gos, a WebView with the native bridge) or the iPhone web app. */
 export type Shell = "gos" | "mweb";
-export interface Ctx { red: boolean; where: Where; mail?: boolean; shell?: Shell }
+export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell }
 
 export const GROUPS: SetGroup[] = [
   // V1.51 (the developer, 12 Nov 2026): About and updates is the top item of the Settings menu, above everything else, so the
@@ -155,11 +157,13 @@ export const SETTINGS: SetEntry[] = [
   // V1.46: the daily reminder is reminder one of the Annoying 15 min reminder tab; this row points there.
   { id: "daily-reminder", group: "notify", name: "Daily reminder", line: "Now in its own tab, Annoying 15 min reminder, with as many as you like.", on: MAC, words: ["daily", "follow up", "fup", "nudge"] },
   // V1.59 (the developer, 14 Nov 2026: "make it so you can click to reply IN the email panel, same thing on the desktop too").
+  { id: "client-emails", group: "notify", name: "Client emails", line: "Client emails and Instantly replies as cards and in the email panel. Needs your own Supabase project.", mailCan: true,
+    words: ["client", "emails", "email", "gmail", "instantly", "replies", "inbox", "cards", "mail", "oauth", "google cloud", "connect"] },
   { id: "reply-in-panel", group: "notify", name: "Reply in the email panel", line: "A Reply button on each email in the email panel: type and send right there, with a short Undo.",
     words: ["reply", "inline", "email panel", "inbox", "emails", "send", "answer", "respond", "quick reply", "gmail", "instantly", "undo"] },
   { id: "reply-from-ps", group: "notify", name: "Reply from PS app", line: "Quick replies, your signature, when Send sends, and the accounts that can send.", on: MAC, mail: true,
     words: ["reply", "send", "email", "gmail", "instantly", "signature", "responses", "templates", "canned", "schedule", "scheduled", "send later", "outbox", "api key", "quick replies", "random", "delay", "robot"] },
-  { id: "gmail-replies", group: "notify", name: "Who emails me", line: "Whose Gmail replies show as cards.", on: MAC, red: true, more: true, words: ["gmail", "email", "mail", "client", "replies", "inbox"] },
+  { id: "gmail-replies", group: "notify", name: "Who emails me", line: "Whose Gmail replies show as cards.", on: MAC, mail: true, more: true, words: ["gmail", "email", "mail", "client", "replies", "inbox"] },
 
   // ---------- Annoying 15 min reminder ----------
   { id: "reminders", group: "remind", name: "Your reminders", line: "Add as many as you like, each with its own words, times, colour and sound. The ones on your tasks too.", words: ["reminder", "reminders", "remind", "annoying", "15 min", "nag", "nudge", "pop up", "popup", "notification", "notifications", "alert", "daily", "question", "follow up", "fup", "add reminder", "multiple", "list", "task reminder", "reminder on a task", "bell", "on your tasks"] },
@@ -345,6 +349,7 @@ export function visibleTo(e: SetEntry, ctx: Ctx): boolean {
   if (e.red && !ctx.red) return false;
   if (e.notRed && ctx.red) return false;
   if (e.mail && !ctx.mail) return false;
+  if (e.mailCan && !ctx.mailCan) return false;
   if (e.shell && e.shell !== ctx.shell) return false;
   if (e.on && !e.on.includes(ctx.where)) return false;
   const g = groupById(e.group);

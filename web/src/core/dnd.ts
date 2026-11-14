@@ -1,4 +1,5 @@
 import { appName } from "./appname.ts";
+import { mailAllowed } from "./mailflag.ts";
 // PS Do Not Disturb (the developer, 30 Oct 2026: "Add a do not disturb icon top right of my tab overlay. When I
 // click on it it activates immediately but when I click on it again when it's activated then it comes up
 // in like a pop-up and comes up with a list of the different distractions I can toggle on and off. Add
@@ -158,7 +159,8 @@ export const DND_KINDS: { k: DndKind; label: string; hint: string; where: "both"
 export const DND_RED_ONLY: ReadonlySet<DndKind> = new Set<DndKind>(["chats", "mail", "leads", "vault"]);
 /** The switches the pop-up shows, in order (the phone puts its own first). */
 export function dndKindsFor(red: boolean, phone: boolean): typeof DND_KINDS {
-  const mine = DND_KINDS.filter((x) => red || !DND_RED_ONLY.has(x.k));
+  const mail = mailAllowed();   // Client emails switched on (core/mailswitch.ts): the client email and lead reply switches show
+  const mine = DND_KINDS.filter((x) => red || !DND_RED_ONLY.has(x.k) || (mail && (x.k === "mail" || x.k === "leads")));
   return phone ? [...mine.filter((x) => x.k === "phone"), ...mine.filter((x) => x.k !== "phone")] : mine;
 }
 const KINDS = new Set<DndKind>(DND_KINDS.map((x) => x.k));

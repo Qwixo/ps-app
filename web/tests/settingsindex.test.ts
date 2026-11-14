@@ -104,7 +104,8 @@ ok("The developer only settings stay hidden from friends, in search, in the menu
     assert.ok(!ids(q, FRIEND_WEB).some((id) => settingById(id)!.red), `${q}: nothing the developer only for a friend on the web`);
   }
   assert.equal(first("second computer", RED_MAC), "second");
-  assert.ok(ids("gmail", RED_MAC).includes("gmail-replies"));
+  assert.ok(ids("gmail", { red: false, where: "mac", mail: true }).includes("gmail-replies"), "Client emails on: Who emails me shows, for anyone");
+  assert.ok(!ids("gmail", FRIEND_MAC).includes("gmail-replies"));
   for (const g of GROUPS) for (const ctx of [FRIEND_MAC, FRIEND_WEB, PHONE]) {
     const r = rowsOf(g.id, ctx);
     assert.ok([...r.main, ...r.more].every((e) => !e.red), `${g.id}: no the developer only row for a friend`);
@@ -112,7 +113,7 @@ ok("The developer only settings stay hidden from friends, in search, in the menu
   assert.ok(rowsOf("sync", RED_MAC).main.some((e) => e.id === "second"));
   // V1.47: the phone sheet's two the developer only pieces became rows: Your Macs (through Second Computer) and his own videos.
   // V1.55: Sign in your phone is the the developer's project twin of Link your iPhone (friends get the same sign in from that row).
-  assert.equal(SETTINGS.filter((e) => e.red).length, 7, "the the developer only list is a decision: second, gmail-replies, invite, claude-access, phone-macs, phone-videos, mac-phone-signin");
+  assert.equal(SETTINGS.filter((e) => e.red).length, 6, "the the developer only list is a decision: second, invite, claude-access, phone-macs, phone-videos, mac-phone-signin");
   assert.ok(SETTINGS.some((e) => e.id === "link-iphone" && !e.red), "friends keep Link your iPhone, which signs the phone in too");
 });
 ok("Meetings from this Mac's Calendar is everyone's but the developer's (his come from Google)", () => {

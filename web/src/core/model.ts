@@ -332,6 +332,7 @@ export interface Reply {
   account: string;               // the Gmail account it came to
   threadId: string;
   msgIds: string[];              // Gmail message ids already counted (latest 50)
+  lastKey?: string;              // the newest email's identity, its Message-ID (core/maildedupe.ts messageKey): what a notification is keyed by
   from: string;                  // sender address of the latest message
   fromName?: string | null;
   subject: string;

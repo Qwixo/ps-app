@@ -18,6 +18,7 @@ import { LockScreen, usePendingRecovery } from "./views/Lock";
 import { MoveScreen } from "./views/LocalFirst";
 import { bootLocal, localMoveWanted, useLocalView } from "./localfirst";
 import { isRedAccount } from "./core/account";
+import { mailOnSnap } from "./core/mailsnap";
 import { TodoView } from "./views/Todo";
 import { WebTodoView } from "./views/WebTodo";
 import { landingPage } from "./core/webtodo";
@@ -715,7 +716,7 @@ function OwnerShell() {
       {WEBSITE_WN && <NewPopupsHost />}{/* the "new in this version" pop-ups (V1.56): only the open source one can show on the website */}
       {WEBSITE_WN && <TipsHost />}{/* the first use tips (V1.55, views/Tips.tsx): only where the list shows them something to point at */}
       {red && <RuleBookHost owner="docked" />}
-      {red && <MailCardsWeb />}
+      {mailOnSnap(s) && <MailCardsWeb />}
       <nav className="bottom" aria-label="Main">
         {BOTTOM.map((h) => { const n = NAV.find((x) => x.href === h)!; return (
           <a key={h} href={h} aria-current={cur(h)}><Icon name={n.icon} />{n.label}{badge(h) > 0 && <span className="badge num">{badge(h)}</span>}</a>
