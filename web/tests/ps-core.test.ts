@@ -48,7 +48,7 @@ ok("every edge function in the repo is either core or the developer only", () =>
   const all = readdirSync(join(ROOT, "supabase/functions")).filter((f) => statSync(join(ROOT, "supabase/functions", f)).isDirectory()).sort();
   assert.deepEqual([...m.functions.map((f) => f.slug), ...m.redOnly.functions].sort(), all);
   // Since 1.60 the client emails kit (the owner's written OK) is part of every personal project, behind the Client emails switch.
-  assert.deepEqual(m.functions.map((f) => f.slug).sort(), ["gmail-inbox", "instantly-inbox", "instantly-replies", "instantly-webhook", "vault-auth"], "a personal project needs vault-auth plus the client emails functions");
+  assert.deepEqual(m.functions.map((f) => f.slug).sort(), ["gmail-inbox", "instantly-inbox", "instantly-replies", "instantly-webhook", "vault-auth", "whatsapp-send", "whatsapp-webhook"], "a personal project needs vault-auth plus the client emails and WhatsApp functions");
 });
 
 ok("The developer's own feeds never reach a personal project", () => {
