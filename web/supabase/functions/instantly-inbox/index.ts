@@ -98,13 +98,13 @@ async function setMetas(kv: Record<string, string | null>) {
 // Egress: the cron secret (also the hash key) is read once per warm instance, not on every call.
 let secretCache: { v: string; at: number } | null = null;
 async function cronSecret() {
-  if (!secretCache || Date.now() - secretCache.at > 10 * 60_000) secretCache = { v: (await admin.rpc("calendar_get_config")).data?.cron_secret || "", at: Date.now() };
+  if (!secretCache || Date.now() - secretCache.at > 10 * 60_000) secretCache = { v: (await admin.rpc("instantly_get_config")).data?.cron_secret || "", at: Date.now() };
   return secretCache.v;
 }
 
 async function poll(force = false) {
-  // Set it as the Supabase secret INSTANTLY_API_KEY.
-  const key = (Deno.env.get("INSTANTLY_API_KEY") || "").trim();
+  // The key comes from Supabase Vault (instantly_api_key, via instantly_get_config); the function secret INSTANTLY_API_KEY is the older way.
+  const key = (String((await admin.rpc("instantly_get_config")).data?.api_key || "") || Deno.env.get("INSTANTLY_API_KEY") || "").trim();
   if (!key) return { ok: true, skipped: "not connected" };
   const secret = await cronSecret();
   const kh = (s: string) => sha256hex(secret + "|instantly|" + s);

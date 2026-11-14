@@ -3,11 +3,13 @@
 -- Secrets live only in Supabase Vault and are read through this service-role-only function:
 --   instantly_api_key        the Instantly API key (you add it; read-only scope is enough: emails:read)
 --   instantly_webhook_secret the long random secret in the webhook URL (made here, inside the database)
+--   gmail_cron_secret        (migration 031) proves a poll came from this database's scheduler; the Instantly functions read it here
 create or replace function public.instantly_get_config() returns jsonb
 language sql security definer set search_path = '' as $$
   select jsonb_build_object(
     'api_key', (select decrypted_secret from vault.decrypted_secrets where name = 'instantly_api_key'),
-    'webhook_secret', (select decrypted_secret from vault.decrypted_secrets where name = 'instantly_webhook_secret')
+    'webhook_secret', (select decrypted_secret from vault.decrypted_secrets where name = 'instantly_webhook_secret'),
+    'cron_secret', (select decrypted_secret from vault.decrypted_secrets where name = 'gmail_cron_secret')
   );
 $$;
 revoke all on function public.instantly_get_config() from public, anon, authenticated;

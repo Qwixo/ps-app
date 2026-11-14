@@ -83,8 +83,8 @@ async function setMetas(kv: Record<string, string | null>) {
 let cfgCache: { apiKey: string; cron: string; at: number } | null = null;
 async function cfg() {
   if (!cfgCache || Date.now() - cfgCache.at > 10 * 60_000) {
-    const [{ data: i }, { data: c }] = await Promise.all([admin.rpc("instantly_get_config"), admin.rpc("calendar_get_config")]);
-    cfgCache = { apiKey: String(i?.api_key || Deno.env.get("INSTANTLY_API_KEY") || "").trim(), cron: c?.cron_secret || "", at: Date.now() };
+    const { data: i } = await admin.rpc("instantly_get_config");
+    cfgCache = { apiKey: String(i?.api_key || Deno.env.get("INSTANTLY_API_KEY") || "").trim(), cron: i?.cron_secret || "", at: Date.now() };
   }
   return cfgCache;
 }
