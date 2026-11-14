@@ -41,7 +41,7 @@ let master = Data((0..<32).map { UInt8($0) })
 do {
   let plain = data(10_000), src = file("plain.bin", plain), sealed = tmp.appendingPathComponent("s.psrc"), back = tmp.appendingPathComponent("back.bin")
   let size = try! SRSeal.seal(src, to: sealed, master: master, chunkSize: 4096)
-  ok("sealed size is plain plus header plus 16 per chunk", size == 25 + 10_000 + 3 * 16)
+  ok("sealed size is plain plus header plus 16 per chunk", size == 33 + 10_000 + 3 * 16)
   ok("a sealed file says so", SRSeal.isSealed(sealed) && !SRSeal.isSealed(src))
   ok("the sealed bytes do not contain the recording", (try! Data(contentsOf: sealed)).range(of: plain.prefix(64)) == nil)
   try! SRSeal.open(sealed, to: back, master: master)
@@ -267,7 +267,7 @@ func makeEngine(_ p: SRCloudProvider, _ cloud: FakeCloud, _ clock: Clock, _ h: H
   }
   let e = SRUploadEngine()
   e.now = { clock.t }; e.env = { h.env }; e.settings = { h.st }; e.uploader = { _ in up }
-  e.tempDir = tmp; e.master = { if h.useMaster { return master }; throw SRSealError.wrongKey }
+  e.tempDir = tmp; e.master = { if h.useMaster { return SRSealKey(kid: "00000000000000aa", key: master) }; throw SRUpError.keyWait }
   e.save = { _ in h.saves += 1 }
   e.onVerified = { h.verified.append($0.id) }; e.onLocalRemoved = { h.removed.append($0.id) }; e.onFailed = { h.failed.append($0.id) }
   return (e, up)
@@ -390,7 +390,8 @@ do { // keep the last X days, then a sweep that asks the cloud again
   ok("keep days: checked upload is kept for now, with the reason", j.state == .done && exists(u.path) && j.keep?.contains("7 more days") == true && h.removed.isEmpty)
   var lib = SRLibrary()
   lib.add(SRRec(id: "r1", title: "Call", fileName: "a.mov", path: u.path, startedAt: T0, duration: 60, size: j.size, sizeAtUpload: j.size,
-                cloud: SRCloudRef(provider: .googleDrive, remoteId: j.remote!.id, remoteName: j.remote!.name, size: j.remote!.size ?? 0, hashKind: .sha256, hash: j.hashes?.sha256, encrypted: false, verified: true, verifiedAt: j.verifiedAt)))
+                cloud: SRCloudRef(provider: .googleDrive, remoteId: j.remote!.id, remoteName: j.remote!.name, size: j.remote!.size ?? 0, hashKind: .sha256, hash: j.hashes?.sha256, encrypted: false, verified: true, verifiedAt: j.verifiedAt),
+                localSha256: j.localSha256, localMtime: j.localMtime))
   clock.t = T0.addingTimeInterval(3 * 86_400)
   ok("keep days: nothing due on day 3", e.sweep(lib).isEmpty && exists(u.path))
   clock.t = T0.addingTimeInterval(8 * 86_400)
@@ -423,7 +424,7 @@ do { // encrypted upload
   ok("encrypted: the sealed temp copy is gone", !exists(tmp.appendingPathComponent("r1.psrc").path))
   let c2 = FakeCloud(); let h2 = Holder(); h2.useMaster = false
   let (e2, _) = makeEngine(.googleDrive, c2, clock, h2); let (u2, _) = recFile(300_000); addJob(e2, u2, .googleDrive, encrypt: true); drain(e2, clock)
-  ok("encrypted: no key means nothing is uploaded and the file stays", e2.queue.job("r1")?.state == .failed && c2.log.isEmpty && exists(u2.path))
+  ok("encrypted: no key means nothing is uploaded, the job waits for the key and the file stays", e2.queue.job("r1")?.state != .done && e2.queue.job("r1")?.state != .failed && e2.queue.job("r1")?.nextTry != nil && c2.log.isEmpty && exists(u2.path))
 }
 
 // ---------- 6. Dropbox ----------
@@ -626,6 +627,293 @@ do {
   ok("cloud settings: tolerant loading, defaults on, days capped", d.provider == .dropbox && d.removeAfter && !d.encrypt && d.keepDays == 365)
   ok("cloud settings: defaults", SRCloudSettings().provider == .none && SRCloudSettings().removeAfter && !SRCloudSettings().encrypt && SRCloudSettings().keepDays == 7)
 }
+
+// ====================================================================================================
+// Review fixes (12c): H1, H2, M1 to M8 and the cheap LOWs
+// ====================================================================================================
+let kidA = "00000000000000aa", kidB = "00000000000000bb"
+func libFor(_ e: SRUploadEngine, _ u: URL, _ p: SRCloudProvider, encrypted: Bool = false, id: String = "r1") -> SRLibrary {
+  let j = e.queue.job(id)!
+  var lib = SRLibrary()
+  let kind = p.hashKind
+  lib.add(SRRec(id: id, title: "Call", fileName: "a.mov", path: u.path, startedAt: T0, duration: 60, size: j.size, sizeAtUpload: j.size,
+                cloud: SRCloudRef(provider: p, remoteId: j.remote!.id, remoteName: j.remote!.name, size: j.remote!.size ?? j.uploadSize, hashKind: kind, hash: kind.flatMap { j.hashes?.value($0) }, encrypted: encrypted, verified: true, verifiedAt: j.verifiedAt),
+                localSha256: j.localSha256, localMtime: j.localMtime))
+  return lib
+}
+final class DownHTTP: SRCloudHTTP { func send(_ r: SRReq) -> SRResp { SRResp(status: 0, netError: "offline") } }
+do { // H1: the sweep asks the cloud again, and the Mac file must still be the uploaded one
+  func rig(_ p: SRCloudProvider = .googleDrive, folder: URL? = nil, ubi: SRUbiquity? = nil) -> (SRUploadEngine, FakeCloud, Clock, Holder, URL, SRLibrary, SRUploader) {
+    let c = FakeCloud(); let clock = Clock(), h = Holder(); h.st.keepDays = 7
+    let (e, up) = makeEngine(p, c, clock, h, folder: folder, ubi: ubi); let (u, _) = recFile(); addJob(e, u, p); drain(e, clock)
+    clock.t = T0.addingTimeInterval(8 * 86_400)
+    return (e, c, clock, h, u, libFor(e, u, p), up)
+  }
+  do { let (e, _, _, _, u, lib, up) = rig()
+    e.uploader = { _ in nil }
+    ok("H1: signed out on day 8 keeps the Mac file (the Google 7 day case)", e.sweep(lib).isEmpty && exists(u.path))
+    e.uploader = { _ in up }
+    ok("H1: signed in again, copy confirmed fresh, file goes", e.sweep(lib) == ["r1"] && !exists(u.path)) }
+  do { let (e, _, _, _, u, lib, _) = rig()
+    e.uploader = { _ in SRGoogleDrive(SRAuthed(http: DownHTTP(), token: { _ in "t" })) }
+    ok("H1: network down keeps the Mac file", e.sweep(lib).isEmpty && exists(u.path)) }
+  do { let (e, c, _, _, u, lib, _) = rig()
+    c.files.removeAll()
+    ok("H1: cloud copy gone keeps the Mac file", e.sweep(lib).isEmpty && exists(u.path)) }
+  do { let (e, _, _, _, u, lib, _) = rig()
+    let fh = try! FileHandle(forWritingTo: u); fh.seekToEndOfFile(); fh.write(Data(count: 1000)); try? fh.close()
+    ok("H1: a file that grew since the upload is kept", e.sweep(lib).isEmpty && exists(u.path)) }
+  do { let (e, _, _, _, u, lib, _) = rig()
+    let attrs = try! FileManager.default.attributesOfItem(atPath: u.path); var x = try! Data(contentsOf: u); x[5] ^= 0xff; try! x.write(to: u)
+    try! FileManager.default.setAttributes([.modificationDate: attrs[.modificationDate] as! Date], ofItemAtPath: u.path)
+    ok("H1: same size and date but different bytes is kept (the stored hash)", e.sweep(lib).isEmpty && exists(u.path)) }
+  do { let (e, _, _, _, u, lib, _) = rig()
+    var l2 = lib; l2.items[0].localSha256 = nil
+    ok("H1: no stored identity for the Mac file keeps it", e.sweep(l2).isEmpty && exists(u.path)) }
+  do { let (e, _, _, _, u, lib, _) = rig()
+    e.gate = { false }
+    ok("H1/M2: feature off removes nothing", e.sweep(lib).isEmpty && exists(u.path)) }
+  do { // two files, the feature goes off after the first removal: the second stays
+    let c = FakeCloud(); let clock = Clock(), h = Holder(); h.st.keepDays = 7
+    let (e, _) = makeEngine(.googleDrive, c, clock, h); let (u1, _) = recFile(), (u2, _) = recFile()
+    addJob(e, u1, .googleDrive, id: "a"); addJob(e, u2, .googleDrive, id: "b"); drain(e, clock)
+    var lib = libFor(e, u1, .googleDrive, id: "a"); lib.add(libFor(e, u2, .googleDrive, id: "b").items[0])
+    clock.t = T0.addingTimeInterval(8 * 86_400)
+    var on = true; e.gate = { on }; e.inUse = { on ? [] : [] }
+    let first = e.sweep(lib.items.count == 2 ? SRLibrary(items: [lib.items[0]]) : lib)
+    on = false
+    let second = e.sweep(SRLibrary(items: [lib.items[1]]))
+    ok("H1/M2: after the feature goes off the next file is kept", first == ["a"] && second.isEmpty && exists(u2.path)) }
+  do { let dest = tmp.appendingPathComponent("h1folder"); let (e, _, _, _, u, lib, up) = rig(.folder, folder: dest)
+    ok("H1: folder copy is read back and checked again, then the file goes", e.sweep(lib) == ["r1"] && !exists(u.path))
+    _ = up }
+  do { let dest = tmp.appendingPathComponent("h1folder2"); let (e, _, _, _, u, lib, _) = rig(.folder, folder: dest)
+    try! FileManager.default.removeItem(at: URL(fileURLWithPath: lib.items[0].cloud!.remoteId))
+    ok("H1: a folder copy that was deleted keeps the Mac file", e.sweep(lib).isEmpty && exists(u.path)) }
+  do { let dest = tmp.appendingPathComponent("h1folder3"); let (e, _, _, _, u, lib, _) = rig(.folder, folder: dest)
+    let r = URL(fileURLWithPath: lib.items[0].cloud!.remoteId); var x = try! Data(contentsOf: r); x[3] ^= 1; try! x.write(to: r)
+    ok("H1: a folder copy that changed keeps the Mac file", e.sweep(lib).isEmpty && exists(u.path)) }
+  do { let dest = tmp.appendingPathComponent("h1folder4"); let (e, _, _, _, u, lib, _) = rig(.folder, folder: dest)
+    e.uploader = { _ in nil }
+    ok("H1: the folder is gone (no uploader) keeps the Mac file", e.sweep(lib).isEmpty && exists(u.path)) }
+  do { let dest = tmp.appendingPathComponent("h1icloud"); let (e, _, _, _, u, lib, up) = rig(.iCloud, folder: dest, ubi: Ubi(v: true))
+    (up as! SRFolderUploader).testAfterCopy = nil
+    let slow = SRFolderUploader(provider: .iCloud, dest: dest, ubiquity: Ubi(v: false)); e.uploader = { _ in slow }
+    ok("H1: iCloud not finished uploading keeps the Mac file", e.sweep(lib).isEmpty && exists(u.path))
+    let none = SRFolderUploader(provider: .iCloud, dest: dest, ubiquity: Ubi(v: nil)); e.uploader = { _ in none }
+    ok("H1: iCloud that does not say keeps the Mac file", e.sweep(lib).isEmpty && exists(u.path))
+    e.uploader = { _ in up }
+    ok("H1: iCloud uploaded flag true removes it", e.sweep(lib) == ["r1"] && !exists(u.path)) }
+  do { let c = FakeCloud(); let clock = Clock(), h = Holder(); h.st.keepDays = 7
+    let (e, _) = makeEngine(.googleDrive, c, clock, h); let (u, d) = recFile(); addJob(e, u, .googleDrive); _ = e.tick()
+    let j = e.queue.job("r1")!
+    ok("H1: the job records the Mac file's SHA-256 and date once", j.localSha256 == SRFileHash.sha256Hex(d) && j.localMtime != nil) }
+}
+
+do { // H2: the recording key comes from the vault (a key ring), a second device opens the file
+  let raw: [[String: Any]] = [["kid": kidB, "k": master.base64EncodedString()], ["kid": kidA, "k": Data(repeating: 7, count: 32).base64EncodedString()],
+                              ["kid": "zz", "k": master.base64EncodedString()], ["kid": "00000000000000cc", "k": Data(repeating: 1, count: 5).base64EncodedString()]]
+  let ring = SRKeyRing.clean(raw, synced: true)
+  ok("H2: only well formed keys are kept", ring.keys.count == 2 && ring.synced)
+  ok("H2: every device picks the same current key (the smallest id)", ring.current?.kid == kidA && SRKeyRing.clean(Array(raw.reversed()), synced: false).current?.kid == kidA)
+  let src = file("h2.bin", data(9000)), sealed = tmp.appendingPathComponent("h2.psrc")
+  let cur = ring.current!
+  try! SRSeal.seal(src, to: sealed, master: cur.key, keyId: cur.kid, chunkSize: 4096)
+  ok("H2: the sealed file names its key id", SRSeal.keyId(of: sealed) == kidA)
+  let out1 = tmp.appendingPathComponent("h2a.bin"); try! SRSeal.open(sealed, to: out1, ring: ring)
+  ok("H2: round trip with the ring", (try! Data(contentsOf: out1)) == data(9000))
+  let second = SRKeyRing.clean(Array(raw.reversed()), synced: true)   // another device that unlocked the same vault and got the same record list
+  let out2 = tmp.appendingPathComponent("h2b.bin"); try! SRSeal.open(sealed, to: out2, ring: second)
+  ok("H2: a second device with the same vault keys opens it", (try! Data(contentsOf: out2)) == data(9000))
+  var err: SRSealError?
+  do { try SRSeal.open(sealed, to: tmp.appendingPathComponent("h2c.bin"), ring: SRKeyRing.clean([["kid": kidB, "k": master.base64EncodedString()]], synced: true)) } catch { err = error as? SRSealError }
+  ok("H2: a device without that key says the key is missing, not damaged", err == .keyMissing)
+  err = nil
+  do { try SRSeal.open(sealed, to: tmp.appendingPathComponent("h2d.bin"), ring: SRKeyRing.clean([["kid": kidA, "k": Data(repeating: 3, count: 32).base64EncodedString()]], synced: true)) } catch { err = error as? SRSealError }
+  ok("L6: the right id with a key that fails is damaged, not 'wrong key'", err == .damaged)
+  var all = try! Data(contentsOf: sealed); all[12] ^= 1; let tam = tmp.appendingPathComponent("h2tam.psrc"); try! all.write(to: tam)
+  err = nil; do { try SRSeal.open(tam, to: tmp.appendingPathComponent("h2e.bin"), ring: ring) } catch { err = error as? SRSealError }
+  ok("L6: a changed header is damaged", err == .damaged)
+  // the engine seals with the ring's current key and says which key
+  let c = FakeCloud(); let clock = Clock(), h = Holder(); h.st.keepDays = 0
+  let (e, _) = makeEngine(.googleDrive, c, clock, h); e.master = { cur }
+  let (u, d) = recFile(300_000); addJob(e, u, .googleDrive, encrypt: true); drain(e, clock)
+  let stored = c.files.values.first!; let cf = tmp.appendingPathComponent("h2cloud.psrc"); try! stored.data.write(to: cf)
+  let o3 = tmp.appendingPathComponent("h2f.bin"); try! SRSeal.open(cf, to: o3, ring: second)
+  ok("H2: an upload is sealed with the ring key and a second device opens the cloud copy", SRSeal.keyId(of: cf) == kidA && (try! Data(contentsOf: o3)) == d)
+  // fallback: keys not saved in the vault (sync off) means the Mac copy of a sealed upload stays
+  let c2 = FakeCloud(); let h2 = Holder(); h2.st.keepDays = 0
+  let (e2, _) = makeEngine(.googleDrive, c2, clock, h2); e2.keysSaved = { false }
+  let (u2, _) = recFile(300_000); addJob(e2, u2, .googleDrive, encrypt: true); drain(e2, clock)
+  ok("H2 fallback: keys not saved in the vault keep the Mac copy and say why", e2.queue.job("r1")?.state == .done && exists(u2.path) && e2.queue.job("r1")?.keep?.contains("turn on sync") == true && h2.removed.isEmpty)
+  // sweep too
+  clock.t = T0.addingTimeInterval(9 * 86_400); h2.st.keepDays = 0
+  let lib2 = libFor(e2, u2, .googleDrive, encrypted: true)
+  ok("H2 fallback: the sweep keeps it too, and removes it once the keys are saved", e2.sweep(lib2).isEmpty && exists(u2.path) && { e2.keysSaved = { true }; return e2.sweep(lib2) == ["r1"] && !exists(u2.path) }())
+  ok("H2: the ring never leaves memory (nothing in the cloud settings says a key)", !SRKeep.keyNotSafe.words.contains("key:"))
+}
+
+do { // M1: a lost upload session backs off and stops, never a tight loop
+  final class Lose404: SRCloudHTTP { let inner: TotalFix; var putBytes = 0; var puts = 0
+    init(_ i: TotalFix) { inner = i }
+    func send(_ r: SRReq) -> SRResp { if r.method == "PUT", r.url.host == "od.fake" { puts += 1; putBytes += r.body?.count ?? 0; return SRResp(status: 404) }; return inner.send(r) } }
+  let c = FakeCloud(); let lose = Lose404(TotalFix(c)); let clock = Clock(), h = Holder()
+  let od = SROneDrive(SRAuthed(http: lose, token: { _ in "tok" })); od.fragment = 327_680
+  let e = SRUploadEngine(); e.now = { clock.t }; e.env = { h.env }; e.settings = { h.st }; e.uploader = { _ in od }
+  let (u, _) = recFile(900_000); addJob(e, u, .oneDrive)
+  var ticks = 0
+  for _ in 0..<200 { _ = e.tick(); ticks += 1 }       // the clock does not move: only the first try may run
+  ok("M1: two hundred ticks with no time passing make one try only", lose.puts <= 1 && e.queue.job("r1")?.state != .failed)
+  for _ in 0..<(60 * 24 * 3) { clock.t = clock.t.addingTimeInterval(60); _ = e.tick() }   // three days, one tick a minute
+  let j = e.queue.job("r1")!
+  ok("M1: three days later the bytes sent stay bounded and the job stopped by itself", lose.putBytes <= 24 * 327_680 && j.state == .failed && (j.restarts ?? 0) >= SRBackoff.giveUp)
+  ok("M1: the file stays on the Mac", exists(u.path) && j.keep != nil)
+  var firstGaps: [TimeInterval] = []; var prev = 0.0
+  for k in 1...6 { let d = SRBackoff.delay(k); firstGaps.append(d - prev); prev = d }
+  ok("M1: the back off grows and a long rest follows the first six", SRBackoff.delay(6) > SRBackoff.delay(1) && SRBackoff.longPause >= 3600 && SRBackoff.sessionRestartsMax == 6)
+}
+
+do { // M2: the feature goes off in the middle of an upload
+  final class Cutter: SRCloudHTTP { let inner: FakeCloud; var onFirstChunk: () -> Void = {}; var sentAfter = 0; var off = false; var n = 0
+    init(_ i: FakeCloud) { inner = i }
+    func send(_ r: SRReq) -> SRResp { if off { sentAfter += 1 }; if r.method == "PUT" || r.url.path.contains("upload") { n += 1; if n == 1 { onFirstChunk() } }; return inner.send(r) } }
+  let c = FakeCloud(); let cut = Cutter(c); let clock = Clock(), h = Holder(); h.st.keepDays = 0
+  let g = SRGoogleDrive(SRAuthed(http: cut, token: { _ in "t" })); g.chunk = 262_144
+  var on = true
+  let e = SRUploadEngine(); e.now = { clock.t }; e.env = { h.env }; e.settings = { h.st }; e.uploader = { _ in g }; e.gate = { on }
+  cut.onFirstChunk = { on = false; cut.off = true }
+  let (u, _) = recFile(900_000); addJob(e, u, .googleDrive)
+  _ = e.tick()
+  ok("M2: switching off stops the running upload at the next step", cut.sentAfter <= 1 && e.queue.job("r1")?.state != .done && exists(u.path))
+  for _ in 0..<10 { _ = e.tick() }
+  ok("M2: nothing runs and nothing is removed while off", e.tick() == .idle && cut.sentAfter <= 1 && exists(u.path))
+}
+
+do { // M3: the network watch starts unknown, restarts with a new monitor
+  final class FakeMon: SRPathMonitoring { var handler: ((SRPathInfo) -> Void)?; var cancelled = false; func start(_ h: @escaping (SRPathInfo) -> Void) { handler = h }; func cancel() { cancelled = true } }
+  var made: [FakeMon] = []
+  let w = SRNetWatch(make: { let m = FakeMon(); made.append(m); return m })
+  var changes = 0; w.onChange = { changes += 1 }
+  var env = SREnv(); w.start(); w.apply(to: &env)
+  ok("M3: before the first reading the network is unknown and uploads wait", !w.known && SRWait.reason(env) == .checkingNetwork && made.count == 1)
+  made[0].handler?(SRPathInfo(satisfied: true, constrained: false, expensive: true)); w.apply(to: &env)
+  ok("M3: the first reading is used at once (a hotspot waits)", w.known && SRWait.reason(env) == .expensive && changes == 1)
+  made[0].handler?(SRPathInfo(satisfied: true, constrained: false, expensive: false)); w.apply(to: &env)
+  ok("M3: a normal network goes ahead", SRWait.reason(env) == nil)
+  w.stop(); w.apply(to: &env)
+  ok("M3: off cancels the monitor and forgets the reading", made[0].cancelled && !w.isRunning && !w.known)
+  made[0].handler?(SRPathInfo(satisfied: true, constrained: false, expensive: false))
+  ok("M3: a late answer from the old monitor is ignored", !w.known)
+  w.start(); w.apply(to: &env)
+  ok("M3: off then on makes a NEW monitor and starts unknown again", made.count == 2 && made[1] !== made[0] && !w.known && SRWait.reason(env) == .checkingNetwork)
+  made[1].handler?(SRPathInfo(satisfied: true, constrained: true, expensive: false)); w.apply(to: &env)
+  ok("M3: the new monitor's reading counts (Low Data Mode waits)", SRWait.reason(env) == .constrained)
+  w.start(); ok("M3: start twice does not make a second monitor", made.count == 2)
+  made[1].handler?(SRPathInfo(satisfied: false, constrained: false, expensive: false)); w.apply(to: &env)
+  ok("M3: no network waits", SRWait.reason(env) == .offline)
+}
+
+do { // M4/M5: sealed recordings in a folder or iCloud play on this Mac, opened in chunks into a temp file
+  ok("M5: encrypted folder and iCloud copies are downloaded then opened", SRPlayPlan.how(localExists: false, provider: .folder, encrypted: true) == .downloadThenOpen && SRPlayPlan.how(localExists: false, provider: .iCloud, encrypted: true) == .downloadThenOpen)
+  let ring = SRKeyRing.clean([["kid": kidA, "k": master.base64EncodedString()]], synced: true)
+  let src = file("m5.bin", data(3_000_000)), sealed = tmp.appendingPathComponent("m5.psrc")
+  try! SRSeal.seal(src, to: sealed, master: master, keyId: kidA)
+  let root = tmp.appendingPathComponent("m5root"); try! FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  let played = try! SRSealedPlay.openToTemp(sealed, ring: ring, tempRoot: root, ext: "mov")
+  ok("M5: the sealed folder copy opens into a temp file that is the recording", (try! Data(contentsOf: played)) == data(3_000_000) && played.pathExtension == "mov")
+  var err: SRSealError?
+  do { _ = try SRSealedPlay.openToTemp(sealed, ring: SRKeyRing(), tempRoot: root, ext: "mov") } catch { err = error as? SRSealError }
+  ok("M5: no key leaves no temp file and says the key is missing", err == .keyMissing && ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).count == 1)
+  ok("L7: temp copies left by a crash are cleaned", SRSealedPlay.cleanLeftovers(in: root) == 1 && ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).isEmpty)
+  var done = false, plainOK = false
+  DispatchQueue.global().async { let r = try? SRSealedPlay.openToTemp(sealed, ring: ring, tempRoot: root, ext: "mov"); plainOK = r != nil && !Thread.isMainThread; done = true }
+  let until = Date().addingTimeInterval(10); while !done && Date() < until { Thread.sleep(forTimeInterval: 0.01) }
+  ok("M4: opening runs fine off the main thread, in 1 MiB chunks", plainOK)
+}
+
+do { // M6: unsure keeps the cloud copy; Try again only asks again; slow clouds get more tries
+  let c = FakeCloud(); c.hashNever = true; let t = TotalFix(c); let clock = Clock(), h = Holder(); h.st.keepDays = 0
+  let od = SROneDrive(SRAuthed(http: t, token: { _ in "tok" }))
+  let e = SRUploadEngine(); e.now = { clock.t }; e.env = { h.env }; e.settings = { h.st }; e.uploader = { _ in od }
+  var unsure: SRJob?; e.onUnsure = { unsure = $0 }
+  let (u, _) = recFile(400_000); addJob(e, u, .oneDrive); drain(e, clock, max: 200)
+  let posts1 = c.log.filter { $0.hasPrefix("POST") }.count
+  ok("M6: an upload that ends unsure still hands over the cloud copy so it is not lost", e.queue.job("r1")?.state == .unsure && unsure?.remote?.id != nil && exists(u.path))
+  c.hashNever = false; e.retry("r1")
+  ok("M6: Try again on an unsure job goes back to checking, not to uploading", e.queue.job("r1")?.state == .verifying)
+  drain(e, clock)
+  ok("M6: it is confirmed later without a second copy", e.queue.job("r1")?.state == .done && c.files.count == 1 && c.log.filter { $0.hasPrefix("POST") }.count == posts1)
+  ok("M6: bigger files get more not yet tries", SRUploadEngine.verifyTries(forSize: 100) == 12 && SRUploadEngine.verifyTries(forSize: 3 << 30) == 48 && SRUploadEngine.verifyTries(forSize: 100 << 30) == 60)
+  // promote: a library row that is unverified becomes verified when the cloud confirms
+  let j = e.queue.job("r1")!
+  var lib = libFor(e, u, .oneDrive); lib.items[0].cloud?.verified = false; lib.items[0].cloud?.verifiedAt = nil
+  e.uploader = { _ in od }
+  ok("M6: a later check promotes an unsure copy", e.promote(lib).keys.contains("r1"))
+  c.files.removeAll()
+  ok("M6: a copy the cloud no longer has is not promoted", e.promote(lib).isEmpty)
+  _ = j
+}
+
+do { // L10 and L5: the sealed copy and the hashes are made once; a missing sealed temp file does not break checking
+  let c = FakeCloud(); c.hashDelay = 3; let t = TotalFix(c); let clock = Clock(), h = Holder(); h.st.keepDays = 0
+  let od = SROneDrive(SRAuthed(http: t, token: { _ in "tok" }))
+  let e = SRUploadEngine(); e.now = { clock.t }; e.env = { h.env }; e.settings = { h.st }; e.uploader = { _ in od }; e.tempDir = tmp; e.master = { SRSealKey(kid: kidA, key: master) }
+  let (u, _) = recFile(400_000); addJob(e, u, .oneDrive, encrypt: true)
+  _ = e.tick()
+  try? FileManager.default.removeItem(atPath: e.queue.job("r1")?.sealedPath ?? "/nonexistent")
+  drain(e, clock)
+  ok("L10: the hash of what was sent is kept, so checking later needs no re-read and still finishes", e.queue.job("r1")?.state == .done && c.files.count == 1)
+}
+
+do { // M7: a library that does not decode is never replaced by an empty one
+  let dir = tmp.appendingPathComponent("m7"); try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  let f = dir.appendingPathComponent("library.json")
+  let none = SRSafeLoad.load(SRLibrary.self, at: f)
+  ok("M7: no file is a fresh start with saving allowed", none.value == nil && !none.blocked && none.aside == nil)
+  var lib = SRLibrary(); lib.add(rec("keep", 1)); try! JSONEncoder().encode(lib).write(to: f)
+  let good = SRSafeLoad.load(SRLibrary.self, at: f)
+  ok("M7: a good file loads", good.value?.items.count == 1)
+  let badBytes = Data("{\"items\":[{\"id\":\"x\",\"newField\":1}]}".utf8); try! badBytes.write(to: f)
+  let r = SRSafeLoad.load(SRLibrary.self, at: f, now: T0)
+  ok("M7: a file that does not decode is moved aside under a new name, bytes kept", r.value == nil && !r.blocked && r.aside != nil && (try? Data(contentsOf: r.aside!)) == badBytes && !exists(f.path))
+  try! badBytes.write(to: f)
+  let r2 = SRSafeLoad.load(SRLibrary.self, at: f, now: T0)
+  ok("M7: a second bad file the same second gets its own name", r2.aside != nil && r2.aside != r.aside && (try? Data(contentsOf: r.aside!)) == badBytes)
+  try! badBytes.write(to: f)
+  try! FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: dir.path)
+  let r3 = SRSafeLoad.load(SRLibrary.self, at: f, now: T0.addingTimeInterval(5))
+  try! FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
+  ok("M7: if it cannot be moved aside saving is blocked and the file is untouched", r3.value == nil && r3.blocked && (try? Data(contentsOf: f)) == badBytes)
+  // rows on an unplugged drive are kept; a file that is just gone loses its Mac copy
+  var l = SRLibrary(); l.add(rec("gone", 1, path: "/definitely/not/here.mov")); l.add(rec("away", 2, path: "/Volumes/Backup Drive/x.mov", cloud: .dropbox)); l.add(rec("onmac", 3, path: "/x/ok.mov"))
+  let rc = l.reconciled(exists: { $0 == "/x/ok.mov" })
+  ok("M7: a missing file is dropped, one on an unplugged drive is kept, a present one is kept", rc.rec("gone") == nil && rc.rec("away")?.path != nil && rc.rec("onmac")?.path != nil)
+  let tolerant = try? JSONDecoder().decode(SRRec.self, from: JSONEncoder().encode(rec("t", 1)))
+  ok("M7: the new fields are optional, so an older saved row still loads", tolerant != nil && tolerant?.localSha256 == nil)
+}
+
+do { // M8: Dropbox uses one fixed redirect
+  ok("M8: Dropbox has a fixed port and Google and Microsoft do not", SROAuth.fixedPort(.dropbox) == 53682 && SROAuth.fixedPort(.googleDrive) == nil && SROAuth.fixedPort(.oneDrive) == nil)
+  ok("M8: the Dropbox redirect to register is exact", SROAuth.dropboxRedirect == "http://127.0.0.1:53682/cb" && SROAuth.redirect(.dropbox, port: 53682) == SROAuth.dropboxRedirect)
+  ok("M8: OneDrive uses localhost, Google 127.0.0.1", SROAuth.redirect(.oneDrive, port: 4000) == "http://localhost:4000/cb" && SROAuth.redirect(.googleDrive, port: 4000) == "http://127.0.0.1:4000/cb")
+  let u = SROAuth.authURL(.dropbox, clientId: "abc123", redirect: SROAuth.dropboxRedirect, challenge: "chal", state: "st")!
+  let q = Dictionary(uniqueKeysWithValues: URLComponents(url: u, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value ?? "") })
+  ok("M8: the Dropbox sign in address carries the fixed redirect, PKCE and offline access", u.host == "www.dropbox.com" && q["redirect_uri"] == "http://127.0.0.1:53682/cb" && q["code_challenge_method"] == "S256" && q["token_access_type"] == "offline" && q["state"] == "st" && q["client_id"] == "abc123")
+  let g = SROAuth.authURL(.googleDrive, clientId: "g", redirect: "http://127.0.0.1:5/cb", challenge: "c", state: "s")!
+  ok("M8: the Google address still asks for the Drive file permission", g.absoluteString.contains("drive.file") && g.host == "accounts.google.com")
+}
+
+do { // L12: delete asks first, enforced on the Mac
+  var b = SRAskBook()
+  ok("L12: a yes with no question asked is refused", !b.accept("r1", now: T0))
+  b.ask("r1", now: T0)
+  ok("L12: a yes after the question counts once", b.accept("r1", now: T0.addingTimeInterval(30)) && !b.accept("r1", now: T0.addingTimeInterval(31)))
+  b.ask("r2", now: T0)
+  ok("L12: a yes after ten minutes does not count", !b.accept("r2", now: T0.addingTimeInterval(601)))
+  b.ask("r3", now: T0)
+  ok("L12: a yes for another recording does not count", !b.accept("r4", now: T0.addingTimeInterval(1)))
+}
+ok("new words have no dashes", [SRWaitReason.checkingNetwork.words, SRKeep.keyNotSafe.words, "Waiting for the key for sealed recordings. Unlock your PS vault."].allSatisfy { !$0.contains("-") && !$0.contains("\u{2014}") && !$0.contains("\u{2013}") })
 
 try? FileManager.default.removeItem(at: tmp)
 print("\(n - bad) of \(n) pass")

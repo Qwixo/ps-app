@@ -16,22 +16,15 @@ import IOKit.ps
 // Microsoft app registration) like the Gmail sign in of PR 8: PKCE, a loopback redirect, the refresh token in this Mac's Keychain
 // only, never on anyone else's server. Test copies (PS_SELFTEST) never touch the Keychain, the browser or the network.
 
-// ---------- Keychain (this Mac only) ----------
+// ---------- Keychain (this Mac only: the logins. The key for sealed recordings is NOT here: it lives in the person's vault) ----------
 enum SRCloudKeychain {
   static let test = ProcessInfo.processInfo.environment["PS_SELFTEST"] != nil
   private static var mem: [String: Data] = [:]
   private static let lock = NSLock()
-  static let kinds = ["login-googleDrive", "login-dropbox", "login-oneDrive", "seal"]
+  static let kinds = ["login-googleDrive", "login-dropbox", "login-oneDrive"]
   static func read(_ k: String) -> Data? { if test { lock.lock(); defer { lock.unlock() }; return mem[k] }; return MailKeychain.read("srcloud-" + k) }
   @discardableResult static func write(_ k: String, _ d: Data) -> Bool { if test { lock.lock(); defer { lock.unlock() }; mem[k] = d; return true }; return MailKeychain.write("srcloud-" + k, d) }
   static func delete(_ k: String) { if test { lock.lock(); mem[k] = nil; lock.unlock() } else { MailKeychain.delete("srcloud-" + k) } }
-  /// The key that seals uploads. Made once, kept in this Mac's Keychain, handed to the next build on an update.
-  static func sealKey(create: Bool) -> Data? {
-    if let d = read("seal"), d.count == 32 { return d }
-    guard create else { return nil }
-    let k = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
-    return write("seal", k) ? k : nil
-  }
 }
 struct SRLogin: Codable, Equatable {
   var clientId: String
@@ -124,24 +117,7 @@ final class SRCloudAuth {
     throw SRUpError.authLost("\(p.label) did not give PS a sign in (\(resp.status)).")
   }
 
-  static func authURL(_ p: SRCloudProvider, clientId: String, redirect: String, challenge: String, state: String) -> URL? {
-    var c: URLComponents
-    var q: [URLQueryItem] = [.init(name: "client_id", value: clientId), .init(name: "redirect_uri", value: redirect), .init(name: "response_type", value: "code"),
-                             .init(name: "code_challenge", value: challenge), .init(name: "code_challenge_method", value: "S256"), .init(name: "state", value: state)]
-    switch p {
-    case .googleDrive:
-      c = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
-      q += [.init(name: "scope", value: "openid email https://www.googleapis.com/auth/drive.file"), .init(name: "access_type", value: "offline"), .init(name: "prompt", value: "consent")]
-    case .dropbox:
-      c = URLComponents(string: "https://www.dropbox.com/oauth2/authorize")!
-      q += [.init(name: "token_access_type", value: "offline"), .init(name: "scope", value: "files.content.write files.content.read files.metadata.read")]
-    default:
-      c = URLComponents(string: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize")!
-      q += [.init(name: "scope", value: "Files.ReadWrite offline_access openid email"), .init(name: "prompt", value: "select_account")]
-    }
-    c.queryItems = q
-    return c.url
-  }
+  static func authURL(_ p: SRCloudProvider, clientId: String, redirect: String, challenge: String, state: String) -> URL? { SROAuth.authURL(p, clientId: clientId, redirect: redirect, challenge: challenge, state: state) }
 
   /// The person's click: opens the provider's own page in the browser and waits for the redirect (5 minutes). done(nil) or done(why).
   func signIn(_ p: SRCloudProvider, done: @escaping (String?) -> Void) {
@@ -150,10 +126,13 @@ final class SRCloudAuth {
     let verifier = MailMime.base64url(Data((0..<32).map { _ in UInt8.random(in: 0...255) }))
     let challenge = MailMime.base64url(Data(SHA256.hash(data: Data(verifier.utf8))))
     let state = MailMime.base64url(Data((0..<16).map { _ in UInt8.random(in: 0...255) }))
-    guard let srv = LoopbackOnce.start(state: state, account: p.label) else { done("PS could not open its sign in listener."); return }
+    let fixed = SROAuth.fixedPort(p)
+    guard let srv = LoopbackOnce.start(state: state, account: p.label, port: fixed ?? 0) else {
+      done(fixed.map { "PS could not open port \($0) for the \(p.label) sign in. Another program may be using it. Close it and try again." } ?? "PS could not open its sign in listener."); return
+    }
     srv.doneText = "Connected: \(p.label). PS can upload your recordings there."
-    let host = p == .oneDrive ? "localhost" : "127.0.0.1"
-    let redirect = "http://\(host):\(srv.port)/cb"
+    srv.pageName = "\(p.label)'s"
+    let redirect = SROAuth.redirect(p, port: srv.port)
     guard let url = Self.authURL(p, clientId: l.clientId, redirect: redirect, challenge: challenge, state: state) else { done("The sign in address could not be made."); return }
     NSWorkspace.shared.open(url)
     srv.wait { [weak self] code, err in
@@ -176,24 +155,14 @@ final class SRCloudAuth {
 }
 
 // ---------- what the Mac is doing (read only) ----------
-final class SRNetWatch {
+final class SRNWMonitor: SRPathMonitoring {
   private let m = NWPathMonitor()
-  private let lock = NSLock()
-  private var _online = true, _constrained = false, _expensive = false
-  private var running = false
-  var online: Bool { lock.lock(); defer { lock.unlock() }; return _online }
-  var constrained: Bool { lock.lock(); defer { lock.unlock() }; return _constrained }
-  var expensive: Bool { lock.lock(); defer { lock.unlock() }; return _expensive }
-  func start() {
-    guard !running, !SRCloudKeychain.test else { return }
-    running = true
-    m.pathUpdateHandler = { [weak self] p in
-      guard let self else { return }
-      self.lock.lock(); self._online = p.status == .satisfied; self._constrained = p.isConstrained; self._expensive = p.isExpensive; self.lock.unlock()
-    }
+  func start(_ handler: @escaping (SRPathInfo) -> Void) {
+    if SRCloudKeychain.test { handler(SRPathInfo(satisfied: false, constrained: false, expensive: false)); return }
+    m.pathUpdateHandler = { p in handler(SRPathInfo(satisfied: p.status == .satisfied, constrained: p.isConstrained, expensive: p.isExpensive)) }
     m.start(queue: DispatchQueue(label: "ps.screenrec.net"))
   }
-  func stop() { guard running else { return }; running = false; m.cancel() }
+  func cancel() { m.cancel() }
 }
 struct SRRealUbiquity: SRUbiquity {
   func uploaded(_ url: URL) -> Bool? {
@@ -214,7 +183,12 @@ final class ScreenRecCloud {
   private let key = "screenrec.cloud", folderKey = "screenrec.cloud.folder"
   private let http: SRCloudHTTP = SRURLSessionHTTP()
   private lazy var auth = SRCloudAuth(http: http)
-  private let net = SRNetWatch()
+  private let net = SRNetWatch(make: { SRNWMonitor() })
+  private var keyRing = SRKeyRing()   // the recording keys the page handed over: memory only, behind `mu`
+  private var libraryBlocked = false, queueBlocked = false   // a saved file that did not decode was moved aside but could not be replaced: never save over it
+  private var lastUploadedId: String?, lastUploadedAt = Date.distantPast, lastSavedAt = Date.distantPast
+  private var playingPath: String?
+  private var askBook = SRAskBook()
   private let engine = SRUploadEngine()
   private var _settings = SRCloudSettings(), _library = SRLibrary(), _jobs: [SRJob] = [], _problem: String?, _wait: String?, _gate = false
   private var settings: SRCloudSettings { get { mu.lock(); defer { mu.unlock() }; return _settings } set { mu.lock(); _settings = newValue; mu.unlock() } }
@@ -251,6 +225,7 @@ final class ScreenRecCloud {
     mu.lock(); _gate = open; mu.unlock()
     guard open else {
       timer?.invalidate(); timer = nil; net.stop(); ring.hide()
+      mu.lock(); keyRing = SRKeyRing(); mu.unlock()
       return
     }
     q.async { [self] in
@@ -269,29 +244,54 @@ final class ScreenRecCloud {
   private func loadIfNeeded() {
     guard !loaded else { return }
     loaded = true
-    if let d = defaults.data(forKey: key), let s = try? JSONDecoder().decode(SRCloudSettings.self, from: d) { settings = s }
+    if let d = defaults.data(forKey: key), let st = try? JSONDecoder().decode(SRCloudSettings.self, from: d) { settings = st }
     let dir = Self.supportDir
-    if let d = try? Data(contentsOf: dir.appendingPathComponent("library.json")), let l = try? JSONDecoder().decode(SRLibrary.self, from: d) { library = l }
-    if let d = try? Data(contentsOf: dir.appendingPathComponent("queue.json")), let qq = try? JSONDecoder().decode(SRQueue.self, from: d) { engine.queue = qq; jobs = qq.jobs }
+    // a saved file that does not decode is moved aside under a new name and never replaced by an empty one
+    let l = SRSafeLoad.load(SRLibrary.self, at: dir.appendingPathComponent("library.json"))
+    if let v = l.value { library = v }
+    libraryBlocked = l.blocked
+    let qq = SRSafeLoad.load(SRQueue.self, at: dir.appendingPathComponent("queue.json"))
+    if let v = qq.value { engine.queue = v; jobs = v.jobs }
+    queueBlocked = qq.blocked
     engine.settings = { [weak self] in self?.settings ?? SRCloudSettings() }
     engine.env = { [weak self] in self?.currentEnv() ?? SREnv() }
     engine.uploader = { [weak self] p in self?.makeUploader(p) }
-    engine.master = { if let k = SRCloudKeychain.sealKey(create: true) { return k }; throw SRSealError.wrongKey }
+    engine.gate = { [weak self] in self?.gateNow ?? false }
+    engine.master = { [weak self] in
+      guard let k = self?.ringNow().current else { throw SRUpError.keyWait }
+      return k
+    }
+    engine.keysSaved = { [weak self] in let r = self?.ringNow(); return r?.synced == true && r?.isEmpty == false }
+    engine.inUse = { [weak self] in self?.inUseNow() ?? [] }
     engine.tempDir = FileManager.default.temporaryDirectory
+    SRSealedPlay.cleanLeftovers(in: FileManager.default.temporaryDirectory)    // a crash can leave a decrypted copy behind
     engine.save = { [weak self] qq in self?.jobs = qq.jobs; self?.saveQueue(qq) }
     engine.onProgress = { [weak self] j in self?.progressed(j) }
-    engine.onVerified = { [weak self] j in self?.q.async { self?.verified(j) } }
+    engine.onVerified = { [weak self] j in self?.q.async { self?.verified(j, verified: true) } }
+    engine.onUnsure = { [weak self] j in self?.q.async { self?.verified(j, verified: false) } }
     engine.onLocalRemoved = { [weak self] j in self?.q.async { self?.localRemoved(j) } }
     engine.onFailed = { [weak self] _ in self?.pushAll() }
-    // a recording that is gone from the disk is not a recording
-    var lib = library
-    for r in lib.items where r.path != nil && !FileManager.default.fileExists(atPath: r.path!) { lib.finishDelete(r.id, localGone: true, cloudGone: false) }
-    library = lib
-    saveLibrary()
+    net.onChange = { [weak self] in self?.kick() }
+    // a recording that is gone from the disk is not a recording (one on an unplugged drive is kept)
+    if !libraryBlocked { library = library.reconciled(exists: { FileManager.default.fileExists(atPath: $0) }); saveLibrary() }
+  }
+  private func ringNow() -> SRKeyRing { mu.lock(); defer { mu.unlock() }; return keyRing }
+  private func inUseNow() -> Set<String> {
+    var s = Set<String>()
+    mu.lock(); if let p = playingPath { s.insert(p) }; mu.unlock()
+    flagLock.lock(); let rec = recordingFlag; flagLock.unlock()
+    if rec, let u = ScreenRec.shared.lastFileURL { s.insert(u.path) }
+    return s
   }
   private func saveSettings() { if let d = try? JSONEncoder().encode(settings) { defaults.set(d, forKey: key) } }
-  private func saveLibrary() { if let d = try? JSONEncoder().encode(library) { try? d.write(to: Self.supportDir.appendingPathComponent("library.json"), options: .atomic) } }
-  private func saveQueue(_ qq: SRQueue) { if let d = try? JSONEncoder().encode(qq) { try? d.write(to: Self.supportDir.appendingPathComponent("queue.json"), options: .atomic) } }
+  private func saveLibrary() { guard !libraryBlocked, let d = try? JSONEncoder().encode(library) else { return }; writePrivate(d, "library.json") }
+  private func saveQueue(_ qq: SRQueue) { guard !queueBlocked, let d = try? JSONEncoder().encode(qq) else { return }; writePrivate(d, "queue.json") }
+  /// The queue holds upload session addresses that work without a login, so both files are readable by this person only.
+  private func writePrivate(_ d: Data, _ name: String) {
+    let u = Self.supportDir.appendingPathComponent(name)
+    try? d.write(to: u, options: .atomic)
+    try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: u.path)
+  }
 
   // ----- the recorder tells us -----
   /// The recorder's state changed (called from ScreenRecIsland.recorderChanged, main thread).
@@ -321,7 +321,7 @@ final class ScreenRecCloud {
                     attendees: Array(attendees.prefix(20)), audioOnly: audioOnly, size: size, sizeAtUpload: size, thumb: audioOnly ? nil : Self.thumb(asset), cloud: nil,
                     lowered: ScreenRec.shared.controller?.snapshot.lowered ?? [])
       r.title = SRLibrary.cleanTitle(r.title)
-      var lib = library; lib.add(r); library = lib; saveLibrary()
+      var lib = library; lib.add(r); library = lib; saveLibrary(); lastSavedAt = Date()
       if settings.provider != .none { enqueueLater(id, url.path, url.lastPathComponent, size) }
       pushAll()
     }
@@ -346,7 +346,7 @@ final class ScreenRecCloud {
     let p = PowerWatch.readNow()
     e.onBattery = p.onBattery; e.batteryPct = p.pct ?? 100
     e.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-    e.constrained = net.constrained; e.expensive = net.expensive; e.online = net.online
+    net.apply(to: &e)
     return e
   }
   private func kick() { work.async { [self] in kickNow() } }
@@ -360,17 +360,27 @@ final class ScreenRecCloud {
     busy = true
     defer { busy = false }
     var steps = 0
-    while steps < 200 {
+    while steps < 200, gateNow {
       steps += 1
       let r = engine.tick()
       if case .waiting(let w) = r { waitWords = w.words; break }
       waitWords = nil
       if r == .idle { break }
     }
-    if SRWait.reason(currentEnv()) == nil, Date().timeIntervalSince(lastSweep) > 3600 {
+    // the sweep never runs once the feature is off (the engine re-checks the gate before every file it removes)
+    if gateNow, SRWait.reason(currentEnv()) == nil, Date().timeIntervalSince(lastSweep) > 3600 {
       lastSweep = Date()
-      let removed = engine.sweep(library)
-      if !removed.isEmpty { q.async { [self] in var lib = library; for id in removed { lib.finishDelete(id, localGone: true, cloudGone: false) }; library = lib; saveLibrary(); pushAll() } }
+      let lib = library
+      let promoted = engine.promote(lib)
+      let removed = engine.sweep(lib)
+      if !removed.isEmpty || !promoted.isEmpty {
+        q.async { [self] in
+          var l = library
+          for (id, at) in promoted { if let i = l.items.firstIndex(where: { $0.id == id }), l.items[i].cloud != nil { l.items[i].cloud?.verified = true; l.items[i].cloud?.verifiedAt = at } }
+          for id in removed { l.finishDelete(id, localGone: true, cloudGone: false) }
+          library = l; saveLibrary(); pushAll()
+        }
+      }
     }
     engine.queue.prune(); jobs = engine.queue.jobs; pushAll(); syncRing()
   }
@@ -412,17 +422,21 @@ final class ScreenRecCloud {
     guard Date().timeIntervalSince(lastPush) > 0.8 else { return }
     lastPush = Date(); syncRing()
   }
-  private func verified(_ j: SRJob) {
+  /// A cloud copy exists. `verified` false: the cloud was slow to confirm it ("unsure"); the copy is still recorded so it is never lost track of,
+  /// the Mac file stays, and a later check can confirm it.
+  private func verified(_ j: SRJob, verified ok: Bool) {
     var lib = library
     guard var r = lib.rec(j.id), let rem = j.remote else { return }
     let kind = j.provider.hashKind
     r.cloud = SRCloudRef(provider: j.provider, remoteId: rem.id, remoteName: rem.name, size: rem.size ?? j.uploadSize, hashKind: kind,
-                         hash: kind.flatMap { j.hashes?.value(j.provider == .googleDrive ? .sha256 : $0) }, encrypted: j.encrypt, verified: true, verifiedAt: j.verifiedAt, webURL: rem.webURL)
-    r.sizeAtUpload = j.size
+                         hash: kind.flatMap { j.hashes?.value(j.provider == .googleDrive ? .sha256 : $0) }, encrypted: j.encrypt, verified: ok, verifiedAt: ok ? j.verifiedAt : nil, webURL: rem.webURL)
+    r.sizeAtUpload = j.size; r.localSha256 = j.localSha256; r.localMtime = j.localMtime
     lib.add(r); library = lib; saveLibrary()
+    pushAll(); syncRing()
+    guard ok else { return }
+    lastUploadedId = j.id; lastUploadedAt = Date()
     let title = r.title
     DispatchQueue.main.async { ScreenRecIsland.shared.brain?.uploaded(fileName: title) }
-    pushAll(); syncRing()
   }
   private func localRemoved(_ j: SRJob) {
     var lib = library; lib.finishDelete(j.id, localGone: true, cloudGone: false); library = lib; saveLibrary(); pushAll()
@@ -454,7 +468,7 @@ final class ScreenRecCloud {
     let icloud = FileManager.default.fileExists(atPath: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs").path)
     return ["type": "screenrecCloud", "enabled": true, "provider": st.provider.rawValue, "removeAfter": st.removeAfter, "keepDays": st.keepDays,
             "encrypt": st.encrypt, "folderName": st.folderName as Any, "logins": logins, "queue": queue, "wait": wt as Any, "problem": pr as Any,
-            "iCloudFound": icloud, "providers": SRCloudProvider.allCases.map { ["id": $0.rawValue, "label": $0.label] }]
+            "iCloudFound": icloud, "needKey": ringNow().isEmpty && (st.encrypt || lib.items.contains { $0.cloud?.encrypted == true }), "providers": SRCloudProvider.allCases.map { ["id": $0.rawValue, "label": $0.label] }]
   }
   /// A random id for this Mac, so rows that sync through the vault say which Mac wrote them (one Mac never removes another Mac's rows).
   private var deviceId: String {
@@ -491,6 +505,11 @@ final class ScreenRecCloud {
       loadIfNeeded()
       switch op {
       case "cloudGet", "recList": pushAll()
+      case "cloudKeys":
+        let r = SRKeyRing.clean(m["keys"], synced: m["synced"] as? Bool == true)
+        mu.lock(); keyRing = r; mu.unlock()
+        work.async { [self] in kickNow() }
+        pushAll()
       case "cloudSet": patch(m["patch"] as? [String: Any] ?? [:])
       case "cloudClient": setClient(m)
       case "cloudGoogleFile": DispatchQueue.main.async { self.pickGoogleFile() }
@@ -514,7 +533,13 @@ final class ScreenRecCloud {
       case "cloudRetry": if let id = m["id"] as? String { let k = String(id.prefix(64)); work.async { [self] in engine.retry(k); kickNow() } }
       case "recPlay": if let r = rec(m) { play(r) }
       case "recRename": if let r = rec(m), let t = m["title"] as? String { var lib = library; if lib.rename(r.id, to: t) { library = lib; saveLibrary(); pushAll() } }
-      case "recDelete": if let r = rec(m) { delete(r, confirmed: m["confirm"] as? Bool == true, cloudAlso: m["alsoCloud"] as? Bool == true) }
+      case "recDelete":
+        if let r = rec(m) {
+          // "Delete asks first" is enforced here: a yes counts only if this Mac asked about this recording in the last 10 minutes
+          let yes = m["confirm"] as? Bool == true
+          if yes && askBook.accept(r.id, now: Date()) { delete(r, confirmed: true, cloudAlso: m["alsoCloud"] as? Bool == true) }
+          else { askBook.ask(r.id, now: Date()); delete(r, confirmed: false, cloudAlso: false) }
+        }
       case "recReveal": if let r = rec(m), let p = r.path { DispatchQueue.main.async { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) } }
       case "recOpenCloud": if let r = rec(m) { openCloud(r) }
       case "recUpload":
@@ -604,7 +629,9 @@ final class ScreenRecCloud {
   func playLast() {
     q.async { [self] in
       loadIfNeeded()
-      if let u = ScreenRec.shared.lastFileURL, let r = library.items.first(where: { $0.path == u.path }) { play(r) }
+      // the Uploaded card plays the recording that just uploaded, the Saved card the one that was just saved
+      if let id = lastUploadedId, lastUploadedAt > lastSavedAt, Date().timeIntervalSince(lastUploadedAt) < 600, let r = library.rec(id) { play(r) }
+      else if let u = ScreenRec.shared.lastFileURL, let r = library.items.first(where: { $0.path == u.path }) { play(r) }
       else if let r = library.sorted().first { play(r) }
       else if let u = ScreenRec.shared.lastFileURL { DispatchQueue.main.async { NSWorkspace.shared.open(u) } }
     }
@@ -618,11 +645,12 @@ final class ScreenRecCloud {
     if how == .streamWithToken || how == .temporaryLink || how == .directLink || how == .downloadThenOpen, let c = r.cloud, let up = makeUploader(c.provider), c.provider.usesAPI {
       do { stream = try up.stream(SRRemote(id: c.remoteId, name: c.remoteName, webURL: c.webURL, size: c.size)) } catch { err = "Sign in to \(c.provider.label) to play this from there." }
     } else if how != .local, r.cloud?.provider.usesAPI == true { err = "Sign in to \(r.cloud!.provider.label) to play this from there." }
-    let key = SRCloudKeychain.sealKey(create: false)
-    DispatchQueue.main.async { [self] in player.open(rec: r, how: how, stream: stream, error: err, sealKey: key) }
+    let keys = ringNow()
+    mu.lock(); playingPath = local ? r.path : nil; mu.unlock()
+    DispatchQueue.main.async { [self] in player.open(rec: r, how: how, stream: stream, error: err, ring: keys, onClosed: { [weak self] in self?.mu.lock(); self?.playingPath = nil; self?.mu.unlock() }) }
   }
 
-  // ----- the update hands the logins and the sealing key to the next build -----
+  // ----- the update hands the logins to the next build (the sealing key is in the vault, not on this Mac) -----
   static func handoffCollect() -> [String: String] {
     var o: [String: String] = [:]
     for k in SRCloudKeychain.kinds { if let d = SRCloudKeychain.read(k) { o[k] = d.base64EncodedString() } }
@@ -632,7 +660,7 @@ final class ScreenRecCloud {
     var n = 0
     for k in SRCloudKeychain.kinds {
       guard let d = o[k].flatMap({ Data(base64Encoded: $0) }), !d.isEmpty, d.count <= 20_000 else { continue }
-      if k == "seal" { guard d.count == 32 else { continue } } else if (try? JSONDecoder().decode(SRLogin.self, from: d)) == nil { continue }
+      if (try? JSONDecoder().decode(SRLogin.self, from: d)) == nil { continue }
       if SRCloudKeychain.write(k, d) { n += 1 }
     }
     return n
@@ -834,9 +862,11 @@ final class SRPlayerHost: NSObject, NSWindowDelegate {
   private var model: SRPlayerModel?
   private var downloading: URLSessionDownloadTask?
 
-  func open(rec r: SRRec, how: SRPlayHow, stream: SRStream?, error: String?, sealKey: Data?) {
+  var onClosed: (() -> Void)?
+  func open(rec r: SRRec, how: SRPlayHow, stream: SRStream?, error: String?, ring: SRKeyRing, onClosed: (() -> Void)? = nil) {
     guard !SRCloudKeychain.test else { return }
     closeNow()
+    self.onClosed = onClosed
     let m = SRPlayerModel(); m.title = r.title; model = m
     let audioOnly = r.audioOnly
     let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: audioOnly ? 560 : 860, height: audioOnly ? 220 : 560), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
@@ -852,7 +882,7 @@ final class SRPlayerHost: NSObject, NSWindowDelegate {
       guard let s = stream else { m.status = "This cannot be played from \(cloudName) right now."; return }
       m.status = "Opening from \(cloudName)"
       m.onFailed = { [weak self, weak m] in   // streaming did not work: get the whole file first
-        m?.onFailed = nil; m?.status = "Downloading from \(cloudName)"; self?.download(s, rec: r, sealKey: nil)
+        m?.onFailed = nil; m?.status = "Downloading from \(cloudName)"; self?.download(s, rec: r, ring: ring)
       }
       m.load(AVURLAsset(url: s.url, options: s.headers.isEmpty ? nil : ["AVURLAssetHTTPHeaderFieldsKey": s.headers]))
     case .downloadFirst:
@@ -862,9 +892,21 @@ final class SRPlayerHost: NSObject, NSWindowDelegate {
       try? FileManager.default.startDownloadingUbiquitousItem(at: u)
       waitForFile(u, tries: 60) { [weak m] ok in if ok { m?.load(AVURLAsset(url: u)) } else { m?.status = "It is not on this Mac yet. Open it in \(cloudName) first." } }
     case .downloadThenOpen:
-      guard let s = stream, sealKey != nil else { m.status = "Sealed recordings play only on the Mac that sealed them, with its key."; return }
-      m.status = "Downloading from \(cloudName)"
-      download(s, rec: r, sealKey: sealKey)
+      if let c = r.cloud, c.provider.usesFolder {
+        // a sealed copy in iCloud Drive or a folder: get it onto this Mac, then open it into a temp file like the others
+        let u = URL(fileURLWithPath: c.remoteId)
+        m.status = "Getting it from \(cloudName)"
+        try? FileManager.default.startDownloadingUbiquitousItem(at: u)
+        waitForFile(u, tries: 60) { [weak self, weak m] ok in
+          guard let self, let m else { return }
+          guard ok else { m.status = "It is not on this Mac yet. Open it in \(cloudName) first."; return }
+          self.openSealed(u, rec: r, ring: ring, m: m, removeSource: false)
+        }
+      } else {
+        guard let s = stream else { m.status = "This cannot be played from \(cloudName) right now."; return }
+        m.status = "Downloading from \(cloudName)"
+        download(s, rec: r, ring: ring)
+      }
     }
   }
   private func waitForFile(_ u: URL, tries: Int, _ done: @escaping (Bool) -> Void) {
@@ -873,7 +915,25 @@ final class SRPlayerHost: NSObject, NSWindowDelegate {
     if tries <= 0 { done(false); return }
     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.waitForFile(u, tries: tries - 1, done) }
   }
-  private func download(_ s: SRStream, rec r: SRRec, sealKey: Data?) {
+  /// Opens a sealed file into a temp file on a background queue (a recording can be gigabytes: never on the main thread), then plays it.
+  private func openSealed(_ src: URL, rec r: SRRec, ring: SRKeyRing, m: SRPlayerModel, removeSource: Bool) {
+    m.status = "Opening the sealed recording"
+    let ext = r.audioOnly ? "m4a" : "mov"
+    DispatchQueue.global(qos: .userInitiated).async { [weak self, weak m] in
+      var out: URL?, why: String?
+      do { out = try SRSealedPlay.openToTemp(src, ring: ring, tempRoot: FileManager.default.temporaryDirectory, ext: ext) }
+      catch SRSealError.keyMissing { why = "This recording was sealed with a key this device does not have yet. Unlock your PS vault on a device that has it." }
+      catch SRSealError.damaged { why = "This recording is damaged and could not be opened." }
+      catch { why = "This recording could not be opened with your recording key." }
+      if removeSource { try? FileManager.default.removeItem(at: src) }
+      DispatchQueue.main.async {
+        guard let self, let m, self.model === m else { if let o = out { try? FileManager.default.removeItem(at: o.deletingLastPathComponent()) }; return }
+        if let why { m.status = why; return }
+        if let o = out { m.temps.append(o.deletingLastPathComponent()); m.load(AVURLAsset(url: o)) }
+      }
+    }
+  }
+  private func download(_ s: SRStream, rec r: SRRec, ring: SRKeyRing) {
     guard let m = model else { return }
     var req = URLRequest(url: s.url)
     for (k, v) in s.headers { req.setValue(v, forHTTPHeaderField: k) }
@@ -888,19 +948,12 @@ final class SRPlayerHost: NSObject, NSWindowDelegate {
         guard let tmp, e == nil, (resp as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true else { m.status = "The download did not work. Try again later."; return }
         let got = dir.appendingPathComponent("download")
         try? FileManager.default.moveItem(at: tmp, to: got)
-        if encrypted {
-          guard let key = sealKey else { m.status = "PS cannot reach the key for this recording."; return }
-          let out = dir.appendingPathComponent("play.\(ext)")
-          do { try SRSeal.open(got, to: out, master: key) } catch { m.status = "This recording could not be opened with this Mac's key."; return }
-          try? FileManager.default.removeItem(at: got)
-          m.load(AVURLAsset(url: out))
-        } else {
-          let out = dir.appendingPathComponent("play.\(ext)"); try? FileManager.default.moveItem(at: got, to: out); m.load(AVURLAsset(url: out))
-        }
+        if encrypted { self.openSealed(got, rec: r, ring: ring, m: m, removeSource: true) }
+        else { let out = dir.appendingPathComponent("play.\(ext)"); try? FileManager.default.moveItem(at: got, to: out); m.load(AVURLAsset(url: out)) }
       }
     }
     downloading = t; t.resume()
   }
-  private func closeNow() { downloading?.cancel(); downloading = nil; model?.close(); model = nil; if let w = win { w.delegate = nil; w.close() }; win = nil }
-  func windowWillClose(_ notification: Notification) { downloading?.cancel(); downloading = nil; model?.close(); model = nil; win = nil }
+  private func closeNow() { downloading?.cancel(); downloading = nil; model?.close(); model = nil; if let w = win { w.delegate = nil; w.close() }; win = nil; onClosed?(); onClosed = nil }
+  func windowWillClose(_ notification: Notification) { downloading?.cancel(); downloading = nil; model?.close(); model = nil; win = nil; onClosed?(); onClosed = nil }
 }

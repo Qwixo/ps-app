@@ -179,4 +179,42 @@ t("wiring: the vault kind, the Soundboard tab, the client page, the Settings par
   assert.match(read("../src/core/settingsindex.ts"), /id: "screenrec-cloud"/);
 });
 
+// ---------- review fixes: the recording key lives in the vault, Dropbox redirect, words ----------
+const fixed = (b: number) => (k: number) => new Uint8Array(k).fill(b);
+t("the recording key: made once, only well formed keys count, the smallest id first, never lost", () => {
+  const a = R.newSealKey(fixed(0xaa)), b = R.newSealKey(fixed(0x11));
+  assert.match(a.kid, /^[0-9a-f]{16}$/); assert.equal(a.kid, "aaaaaaaaaaaaaaaa"); assert.equal(atob(a.k).length, 32);
+  assert.deepEqual(R.cleanKeyDoc(a), a); assert.equal(R.cleanKeyDoc({ kid: "zz", k: a.k }), null); assert.equal(R.cleanKeyDoc({ kid: a.kid, k: "AAAA" }), null); assert.equal(R.cleanKeyDoc("x"), null);
+  assert.deepEqual(R.keyRing([a, b, a, { kid: "bad" }]).map((k) => k.kid), [b.kid, a.kid]);
+  assert.equal(R.keyPlan([], true).create, true); assert.equal(R.keyPlan([], false).create, false); assert.equal(R.keyPlan([a], true).create, false);
+  assert.equal(R.keyPlan([a, b], true).ring.length, 2);
+});
+t("the key goes to the Mac as a ring; saved safely only with sync on and nothing still waiting", () => {
+  const ring = R.keyRing([R.newSealKey(fixed(0x22))]);
+  assert.equal(R.keysMessage(ring, { local: false, pending: false }).synced, true);
+  assert.equal(R.keysMessage(ring, { local: true, pending: false }).synced, false);
+  assert.equal(R.keysMessage(ring, { local: false, pending: true }).synced, false);
+  assert.equal(R.keysMessage([], { local: false, pending: false }).synced, false);
+  assert.deepEqual(Object.keys(R.keysMessage(ring, { local: false, pending: false }).keys[0]).sort(), ["k", "kid"]);
+});
+t("the Mac's needKey flag is read", () => {
+  assert.equal(R.cleanCloud({ type: "screenrecCloud", enabled: true, needKey: true })!.needKey, true);
+  assert.equal(R.cleanCloud({ type: "screenrecCloud", enabled: true })!.needKey, false);
+});
+t("Dropbox: the exact redirect to register is in the help and matches the Mac", () => {
+  assert.match(R.CLOUD_WORDS.help.dropbox.map((h) => h.text).join(" "), /http:\/\/127\.0\.0\.1:53682\/cb/);
+  assert.equal(R.CLOUD_WORDS.dropboxRedirect, "http://127.0.0.1:53682/cb");
+  assert.match(read("../../mac/Sources/ScreenRecCloudCore.swift"), /dropboxRedirect = "http:\/\/127\.0\.0\.1:53682\/cb"/);
+});
+t("sealed words are honest about the vault key and sync, and the sync note names the picture", () => {
+  assert.match(R.CLOUD_WORDS.encryptLine, /vault/); assert.match(R.CLOUD_WORDS.encryptLine, /sync/); assert.match(R.CLOUD_WORDS.syncNote, /tiny picture of the screen/);
+  assert.match(R.REC_WORDS.sealedNote, /vault/);
+});
+t("wiring: the key kind is a vault kind, the page makes and sends the ring, the Mac drops it when off", () => {
+  assert.match(read("../src/core/model.ts"), /"srkey"/); assert.match(read("../src/core/vault.ts"), /"srec", "srkey"/);
+  const store = read("../src/recstore.ts");
+  assert.match(store, /put\("srkey"/); assert.match(store, /recSend\("cloudKeys"/); assert.match(store, /status !== "unlocked"/);
+  assert.match(read("../../mac/Sources/ScreenRecCloud.swift"), /case "cloudKeys"/);
+});
+
 console.log(`${n} pass`);

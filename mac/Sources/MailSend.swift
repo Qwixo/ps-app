@@ -404,11 +404,14 @@ final class LoopbackOnce {
   let fd: Int32, port: UInt16, state: String, account: String
   /// What the page in the browser says when it worked (Gmail: "Connected for sending: <account>"); the screen recorder's cloud sign in sets its own.
   var doneText: String?
+  /// How the error words name the page the person answered on ("Google's page" for Gmail; the cloud sign in sets its own).
+  var pageName = "Google's"
   private init(fd: Int32, port: UInt16, state: String, account: String) { self.fd = fd; self.port = port; self.state = state; self.account = account }
-  static func start(state: String, account: String) -> LoopbackOnce? {
+  /// `port` 0 picks any free port (Gmail, Google, Microsoft); a number asks for exactly that one (Dropbox matches the redirect address exactly).
+  static func start(state: String, account: String, port: UInt16 = 0) -> LoopbackOnce? {
     let fd = socket(AF_INET, SOCK_STREAM, 0)
     guard fd >= 0 else { return nil }
-    var addr = sockaddr_in(); addr.sin_family = sa_family_t(AF_INET); addr.sin_port = 0; addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+    var addr = sockaddr_in(); addr.sin_family = sa_family_t(AF_INET); addr.sin_port = port.bigEndian; addr.sin_addr.s_addr = inet_addr("127.0.0.1")
     addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
     let ok = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } } == 0
     guard ok, listen(fd, 4) == 0 else { close(fd); return nil }
@@ -446,7 +449,7 @@ final class LoopbackOnce {
         let resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(html.utf8.count)\r\nConnection: close\r\n\r\n" + html
         _ = resp.withCString { write(c, $0, strlen($0)) }
         close(c)
-        if good { done(code, nil) } else { done(nil, err == "access_denied" ? "The sign in was cancelled on Google's page." : "Google's answer did not match this sign in.") }
+        if good { done(code, nil) } else { done(nil, err == "access_denied" ? "The sign in was cancelled on \(pageName) page." : "\(pageName) answer did not match this sign in.") }
         return
       }
       done(nil, "The sign in timed out after 5 minutes.")

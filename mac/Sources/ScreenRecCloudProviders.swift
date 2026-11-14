@@ -33,6 +33,7 @@ enum SRUpError: Error, Equatable {
   case authLost(String)     // the login stopped working: sign in again
   case fatal(String)        // will not work by trying again
   case stopped              // paused between chunks because the Mac got busy
+  case keyWait              // the recording key for a sealed upload has not reached the Mac yet (the vault is locked): wait, keep the file
 }
 
 struct SRRemote: Equatable, Codable {
@@ -458,6 +459,9 @@ struct SRJob: Codable, Equatable {
   var uploadSize: Int64 = 0
   var hashes: SRHashes?
   var verifiedAt: Date?
+  var localSha256: String?          // the recording's SHA-256 and modification time when the upload began (the Mac file must still be this to be removed)
+  var localMtime: Double?
+  var restarts: Int?                // how many times a lost upload session started over
   var keep: String?                 // why the local copy was kept, in words
   var addedAt: Date
   var uploadName: String { encrypt ? name + ".psrc" : name }
@@ -486,7 +490,11 @@ final class SRUploadEngine {
   var env: () -> SREnv = { SREnv() }
   var now: () -> Date = { Date() }
   var uploader: (SRCloudProvider) -> SRUploader? = { _ in nil }
-  var master: () throws -> Data = { throw SRSealError.wrongKey }
+  var master: () throws -> SRSealKey = { throw SRSealError.keyMissing }
+  /// True when the recording keys are saved where the person's other devices can get them (a sealed upload's Mac copy is removed only then).
+  var keysSaved: () -> Bool = { true }
+  /// False while the feature is off: nothing runs and nothing is removed.
+  var gate: () -> Bool = { true }
   var tempDir: URL = FileManager.default.temporaryDirectory
   var inUse: () -> Set<String> = { [] }
   var save: (SRQueue) -> Void = { _ in }
@@ -494,7 +502,10 @@ final class SRUploadEngine {
   var onVerified: (SRJob) -> Void = { _ in }
   var onLocalRemoved: (SRJob) -> Void = { _ in }
   var onFailed: (SRJob) -> Void = { _ in }
+  var onUnsure: (SRJob) -> Void = { _ in }
   static let verifyTriesMax = 12
+  /// The cloud may need longer for a big file (OneDrive's hash, iCloud's upload flag): 12 tries, plus 12 per GiB, at most 60.
+  static func verifyTries(forSize s: Int64) -> Int { 12 + Int(min(48, (s / (1 << 30)) * 12)) }
 
   /// Add a finished recording. Never while it is the file being recorded (the caller only calls this after the recording ended).
   @discardableResult func enqueue(id: String, path: String, name: String, size: Int64, provider: SRCloudProvider, encrypt: Bool) -> Bool {
@@ -507,10 +518,16 @@ final class SRUploadEngine {
   func signedIn() { for i in queue.jobs.indices where queue.jobs[i].state == .needsSignIn { queue.jobs[i].state = .uploading; queue.jobs[i].nextTry = nil; queue.jobs[i].lastError = nil }; save(queue) }
   /// A recording was deleted: its finished job goes too (a job still running is left to finish).
   func forget(_ id: String) { queue.jobs.removeAll { $0.id == id && $0.finished }; save(queue) }
-  func retry(_ id: String) { if let i = queue.jobs.firstIndex(where: { $0.id == id && ($0.state == .failed || $0.state == .unsure) }) { queue.jobs[i].state = .uploading; queue.jobs[i].attempts = 0; queue.jobs[i].verifyTries = 0; queue.jobs[i].nextTry = nil; queue.jobs[i].lastError = nil; save(queue) } }
+  /// Try again. A job that is "unsure" and already has its cloud copy only asks the cloud again (it never uploads a second copy).
+  func retry(_ id: String) {
+    guard let i = queue.jobs.firstIndex(where: { $0.id == id && ($0.state == .failed || $0.state == .unsure) }) else { return }
+    queue.jobs[i].state = queue.jobs[i].remote != nil && queue.jobs[i].state == .unsure ? .verifying : .uploading
+    queue.jobs[i].attempts = 0; queue.jobs[i].restarts = 0; queue.jobs[i].verifyTries = 0; queue.jobs[i].nextTry = nil; queue.jobs[i].lastError = nil; save(queue)
+  }
 
   /// One step: waits when the Mac says so, else runs the oldest due job. Blocking: call it off the main thread.
   @discardableResult func tick() -> SRTick {
+    guard gate() else { return .idle }
     if let w = SRWait.reason(env()) { return .waiting(w) }
     guard let i = queue.next(now: now()) else { return .idle }
     let id = queue.jobs[i].id
@@ -531,13 +548,26 @@ final class SRUploadEngine {
     guard let up = uploader(j.provider) else {
       update(i) { $0.state = .needsSignIn; $0.lastError = j.provider.usesFolder ? "Choose a folder in Settings to upload." : "Sign in to \(j.provider.label) to upload." }; return
     }
+    // who the Mac file is, once: its SHA-256 and modification time, so a later removal can prove it is still this file
+    let mtime = (try? fm.attributesOfItem(atPath: j.path)[.modificationDate] as? Date)?.timeIntervalSince1970
+    if let was = j.localMtime, let m = mtime, abs(was - m) > 0.001 {
+      update(i) { $0.state = .failed; $0.lastError = "The recording changed, so PS did not upload it."; $0.keep = SRKeep.fileChanged.words }; onFailed(queue.jobs[i]); return
+    }
+    if j.localSha256 == nil {
+      guard let h = try? SRFileHash.compute(URL(fileURLWithPath: j.path), kinds: [.sha256]), h.size == j.size else { handle(i, .transient("The recording could not be read yet.")); return }
+      j.localSha256 = h.sha256; j.localMtime = mtime
+      update(i) { $0.localSha256 = j.localSha256; $0.localMtime = j.localMtime }
+    }
     if j.state != .verifying {
       do {
         let src = try source(&j)
         update(i) { $0 = j; $0.state = .uploading }
         let remote = try up.upload(src, session: &j.session, progress: { [self] sent in queue.jobs[i].sent = sent; onProgress(queue.jobs[i]) },
-                                   shouldStop: { [self] in SRWait.reason(env()) != nil })
-        update(i) { $0 = j; $0.remote = remote; $0.sent = $0.uploadSize; $0.state = .verifying; $0.verifyTries = 0; $0.lastError = nil }
+                                   shouldStop: { [self] in !gate() || SRWait.reason(env()) != nil })
+        guard gate() else { update(i) { $0.session = j.session; $0.remote = remote; $0.state = .verifying }; return }
+        // hash what was sent ONCE (a not yet answer asks again without re-reading the file)
+        let sent = try SRFileHash.compute(src.url, kinds: up.needs)
+        update(i) { $0 = j; $0.remote = remote; $0.sent = $0.uploadSize; $0.state = .verifying; $0.verifyTries = 0; $0.lastError = nil; $0.hashes = sent }
         onProgress(queue.jobs[i])
       } catch let e as SRUpError { update(i) { $0.session = j.session }; handle(i, e); return }
       catch { handle(i, .transient(error.localizedDescription)); return }
@@ -552,14 +582,14 @@ final class SRUploadEngine {
     if let p = j.sealedPath, fm.fileExists(atPath: p), let s = (try? fm.attributesOfItem(atPath: p)[.size] as? Int64) ?? nil, s == j.uploadSize, s > 0 {
       return SRUploadSource(url: URL(fileURLWithPath: p), size: s, name: j.uploadName)
     }
-    let key: Data
-    do { key = try master() } catch { throw SRUpError.fatal("PS cannot reach the key to seal this recording, so it was not uploaded.") }
+    let key: SRSealKey
+    do { key = try master() } catch { throw SRUpError.keyWait }
     let sealed = tempDir.appendingPathComponent("\(j.id).psrc"), plain = tempDir.appendingPathComponent("\(j.id).check")
     try? fm.removeItem(at: sealed); try? fm.removeItem(at: plain)
     defer { try? fm.removeItem(at: plain) }
     do {
-      let n = try SRSeal.seal(URL(fileURLWithPath: j.path), to: sealed, master: key)
-      try SRSeal.open(sealed, to: plain, master: key)
+      let n = try SRSeal.seal(URL(fileURLWithPath: j.path), to: sealed, master: key.key, keyId: key.kid)
+      try SRSeal.open(sealed, to: plain, master: key.key)
       let a = try SRFileHash.compute(plain, kinds: [.sha256]), b = try SRFileHash.compute(URL(fileURLWithPath: j.path), kinds: [.sha256])
       guard a.sha256 == b.sha256, a.size == b.size else { try? fm.removeItem(at: sealed); throw SRUpError.fatal("The sealed copy did not open back to the same recording, so PS did not upload it.") }
       j.sealedPath = sealed.path; j.uploadSize = n; j.session = SRSession(); j.sent = 0
@@ -570,10 +600,27 @@ final class SRUploadEngine {
 
   private func verify(_ i: Int, _ up: SRUploader) {
     let j = queue.jobs[i]
+    guard gate() else { return }
     guard let remote = j.remote else { update(i) { $0.state = .uploading }; return }
     do {
-      let url = URL(fileURLWithPath: j.encrypt ? (j.sealedPath ?? j.path) : j.path)
-      let h = try SRFileHash.compute(url, kinds: up.needs)
+      // the file must be the one that was hashed (size and modification date)
+      let fm = FileManager.default
+      let m = (try? fm.attributesOfItem(atPath: j.path)[.modificationDate] as? Date)?.timeIntervalSince1970
+      if let was = j.localMtime, let m, abs(was - m) > 0.001 {
+        try? up.remove(remote)
+        update(i) { $0.state = .failed; $0.remote = nil; $0.lastError = "The recording changed while it was uploading."; $0.keep = SRKeep.fileChanged.words }; onFailed(queue.jobs[i]); return
+      }
+      let h: SRHashes
+      if let have = j.hashes, up.needs.allSatisfy({ have.value($0) != nil }) { h = have }
+      else {
+        let url = URL(fileURLWithPath: j.encrypt ? (j.sealedPath ?? j.path) : j.path)
+        guard fm.fileExists(atPath: url.path) else {
+          // the sealed temp copy is gone and its hash was not kept: the cloud copy cannot be proven, so start over
+          try? up.remove(remote)
+          update(i) { $0.state = .uploading; $0.remote = nil; $0.session = SRSession(); $0.sent = 0; $0.sealedPath = nil; $0.nextTry = now() }; return
+        }
+        h = try SRFileHash.compute(url, kinds: up.needs)
+      }
       let c = try up.check(remote, local: h)
       switch c.verdict {
       case .verified:
@@ -581,16 +628,17 @@ final class SRUploadEngine {
         onVerified(queue.jobs[i])
         afterVerified(i)
       case .notYet(let why):
-        if j.verifyTries + 1 >= Self.verifyTriesMax { update(i) { $0.state = .unsure; $0.lastError = why; $0.keep = SRKeep.unsure.words; $0.hashes = h } ; onFailed(queue.jobs[i]) }
+        if j.verifyTries + 1 >= Self.verifyTries(forSize: j.uploadSize) { update(i) { $0.state = .unsure; $0.lastError = why; $0.keep = SRKeep.unsure.words; $0.hashes = h; $0.remote = c.remote ?? remote }; onUnsure(queue.jobs[i]); onFailed(queue.jobs[i]) }
         else { update(i) { $0.state = .verifying; $0.verifyTries += 1; $0.nextTry = now().addingTimeInterval(min(600, 30 * Double($0.verifyTries))); $0.lastError = why } }
       case .unsure(let why):
         update(i) { $0.state = .unsure; $0.lastError = why; $0.keep = SRKeep.unsure.words; $0.hashes = h; $0.remote = c.remote ?? remote }
-        onFailed(queue.jobs[i])
+        onUnsure(queue.jobs[i]); onFailed(queue.jobs[i])
       case .mismatch(let why):
         // not the same file: the local copy stays, the bad cloud copy is removed, and PS tries once more from the start
         try? up.remove(remote)
+        if let s = j.sealedPath { try? fm.removeItem(atPath: s) }
         if j.mismatches >= 1 { update(i) { $0.state = .failed; $0.lastError = why; $0.keep = SRKeep.mismatch.words; $0.remote = nil }; onFailed(queue.jobs[i]) }
-        else { update(i) { $0.state = .uploading; $0.mismatches += 1; $0.remote = nil; $0.session = SRSession(); $0.sent = 0; $0.sealedPath = nil; $0.lastError = why; $0.nextTry = now().addingTimeInterval(30) } }
+        else { update(i) { $0.state = .uploading; $0.mismatches += 1; $0.remote = nil; $0.session = SRSession(); $0.sent = 0; $0.sealedPath = nil; $0.hashes = nil; $0.lastError = why; $0.nextTry = now().addingTimeInterval(30) } }
       }
     } catch let e as SRUpError { handle(i, e) } catch { handle(i, .transient(error.localizedDescription)) }
   }
@@ -601,9 +649,11 @@ final class SRUploadEngine {
     if let s = j.sealedPath { try? fm.removeItem(atPath: s) }     // the sealed temp copy is always safe to remove
     let local = (try? fm.attributesOfItem(atPath: j.path)[.size] as? Int64) ?? nil
     let st = settings()
-    let facts = SRDeleteFacts(verdict: .verified, remoteSize: j.remote?.size, uploadedSize: j.uploadSize, localSizeNow: local, localSizeAtUpload: j.size, verifiedAt: j.verifiedAt, inUse: inUse().contains(j.id) || inUse().contains(j.path))
+    let facts = SRDeleteFacts(verdict: .verified, remoteSize: j.remote?.size, uploadedSize: j.uploadSize, localSizeNow: local, localSizeAtUpload: j.size, verifiedAt: j.verifiedAt, inUse: inUse().contains(j.id) || inUse().contains(j.path),
+                              keyUnsafe: j.encrypt && !keysSaved())
     switch SRDeletePolicy.decide(facts, removeAfter: st.removeAfter, keepDays: st.keepDays, now: now()) {
     case .delete:
+      guard gate(), unchanged(path: j.path, size: j.size, sha: j.localSha256, mtime: j.localMtime) else { update(i) { $0.keep = SRKeep.fileChanged.words }; return }
       do { try fm.removeItem(atPath: j.path); update(i) { $0.keep = nil }; onLocalRemoved(queue.jobs[i]) } catch { update(i) { $0.keep = "Kept on this Mac: it could not be removed." } }
     case .keep(let why): update(i) { $0.keep = why.words }
     }
@@ -612,7 +662,14 @@ final class SRUploadEngine {
   private func handle(_ i: Int, _ e: SRUpError) {
     switch e {
     case .stopped: update(i) { $0.nextTry = nil }
-    case .sessionLost: update(i) { $0.attempts += 1; $0.session = SRSession(); $0.sent = 0; $0.nextTry = now(); $0.lastError = "The upload had to start again." }
+    case .keyWait: update(i) { $0.nextTry = now().addingTimeInterval(120); $0.lastError = "Waiting for the key for sealed recordings. Unlock your PS vault."; $0.keep = SRKeep.notChecked.words }
+    case .sessionLost:
+      // never a tight loop: back off 30 s, 1 min, 2, 5, 15, 30 min, then rest 6 hours; after 24 restarts in all the job stops and the file stays
+      update(i) { $0.attempts += 1; $0.restarts = ($0.restarts ?? 0) + 1; $0.session = SRSession(); $0.sent = 0; $0.lastError = "The upload had to start again."
+        if ($0.restarts ?? 0) >= SRBackoff.giveUp { $0.state = .failed; $0.keep = SRKeep.notChecked.words }
+        else if $0.attempts >= SRBackoff.sessionRestartsMax { $0.attempts = 0; $0.nextTry = now().addingTimeInterval(SRBackoff.longPause) }
+        else { $0.nextTry = now().addingTimeInterval(SRBackoff.delay($0.attempts)) } }
+      if queue.jobs[i].state == .failed { onFailed(queue.jobs[i]) }
     case .authLost(let m): update(i) { $0.state = .needsSignIn; $0.lastError = m }
     case .fatal(let m): update(i) { $0.state = .failed; $0.lastError = m; $0.keep = SRKeep.notChecked.words }; onFailed(queue.jobs[i])
     case .transient(let m):
@@ -622,21 +679,43 @@ final class SRUploadEngine {
     }
   }
 
-  /// "Keep the last X days": local copies whose cloud copy was checked earlier and whose days are up. The cloud is asked again first
-  /// (a quick size and checksum read, no re-hash of the cloud file by PS), and the local file must still be the one that was uploaded.
+  /// The Mac file is still exactly the one that was uploaded: same size, same modification time, same SHA-256. No stored identity means doubt.
+  func unchanged(path: String, size: Int64, sha: String?, mtime: Double?) -> Bool {
+    guard let sha, let mtime, let a = try? FileManager.default.attributesOfItem(atPath: path),
+          (a[.size] as? NSNumber)?.int64Value == size, let d = a[.modificationDate] as? Date, abs(d.timeIntervalSince1970 - mtime) < 0.001 else { return false }
+    guard let h = try? SRFileHash.compute(URL(fileURLWithPath: path), kinds: [.sha256]) else { return false }
+    return h.size == size && h.sha256 == sha
+  }
+  private func recheck(_ c: SRCloudRef, _ up: SRUploader) -> Bool {
+    guard let hash = c.hash, let kind = c.hashKind else { return false }
+    var h = SRHashes(); h.size = c.size
+    switch kind { case .md5: h.md5 = hash; case .sha256: h.sha256 = hash; case .dropbox: h.dropbox = hash; case .quickXor: h.quickXor = hash }
+    let remote = SRRemote(id: c.remoteId, name: c.remoteName, webURL: c.webURL, size: c.size)
+    guard let chk = try? up.check(remote, local: h), chk.verdict == .verified, (chk.remoteSize ?? chk.remote?.size) == c.size else { return false }
+    return true
+  }
+  /// "Keep the last X days": a Mac file goes only when a FRESH request to the cloud (or a read back of the folder copy, or iCloud's uploaded
+  /// flag) confirms the copy, the key for a sealed copy is saved, and the Mac file is still the one that was uploaded. Signed out, no
+  /// network, a folder that is gone, a file that changed, the feature off, or any doubt: the file stays.
   @discardableResult func sweep(_ lib: SRLibrary) -> [String] {
     var removed: [String] = []
     for id in lib.removable(settings: settings(), now: now(), inUse: inUse()) {
+      guard gate() else { break }
       guard let r = lib.rec(id), let path = r.path, let c = r.cloud, c.verified else { continue }
-      if let up = uploader(c.provider), c.provider.usesAPI {
-        // ask the cloud again: the copy must still be there with the same size and checksum
-        var h = SRHashes(); h.size = c.size
-        switch c.hashKind { case .some(.md5): h.md5 = c.hash; case .some(.sha256): h.sha256 = c.hash; case .some(.dropbox): h.dropbox = c.hash; case .some(.quickXor): h.quickXor = c.hash; case .none: break }
-        let remote = SRRemote(id: c.remoteId, name: c.remoteName, webURL: c.webURL, size: c.size)
-        guard let chk = try? up.check(remote, local: h), chk.verdict == .verified else { continue }
-      }
+      if c.encrypted && !keysSaved() { continue }
+      guard let up = uploader(c.provider), recheck(c, up) else { continue }
+      guard gate(), unchanged(path: path, size: r.sizeAtUpload > 0 ? r.sizeAtUpload : r.size, sha: r.localSha256, mtime: r.localMtime) else { continue }
       if (try? FileManager.default.removeItem(atPath: path)) != nil { removed.append(id) }
     }
     return removed
+  }
+  /// Cloud copies that ended "unsure" (the cloud was slow to confirm): ask again, and return the ones that are now confirmed.
+  func promote(_ lib: SRLibrary) -> [String: Date] {
+    var out: [String: Date] = [:]
+    for r in lib.items {
+      guard gate(), let c = r.cloud, !c.verified, let up = uploader(c.provider), recheck(c, up) else { continue }
+      out[r.id] = now()
+    }
+    return out
   }
 }

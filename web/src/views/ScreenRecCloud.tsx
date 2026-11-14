@@ -73,6 +73,7 @@ export function CloudSettings() {
     <>
       <h4>{W.title}</h4>
       <span className="sr-hint">{W.line}</span>
+      <span className="sr-hint">{W.syncNote}</span>
       <label className="sr-field"><span>{W.provider}</span>
         <select className="gs-sel sr-sel" value={c.provider} aria-label={W.provider} onChange={(e) => set({ provider: e.target.value })}>
           {OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}

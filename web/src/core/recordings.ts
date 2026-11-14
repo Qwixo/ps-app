@@ -70,6 +70,8 @@ export interface CloudQueueItem { id: string; name: string; state: RecUpload["st
 export interface CloudState {
   enabled: boolean; provider: RecProvider; removeAfter: boolean; keepDays: number; encrypt: boolean; folderName: string | null;
   logins: Record<string, CloudLogin>; queue: CloudQueueItem[]; wait: string | null; problem: string | null; iCloudFound: boolean;
+  /** The Mac has no recording key yet and needs one (sealed uploads are on, or sealed recordings exist). */
+  needKey: boolean;
 }
 export function cleanCloud(v: unknown): CloudState | null {
   if (!v || typeof v !== "object" || (v as { type?: unknown }).type !== "screenrecCloud") return null;
@@ -82,13 +84,45 @@ export function cleanCloud(v: unknown): CloudState | null {
   return {
     enabled: o.enabled === true, provider: typeof o.provider === "string" && (PROVIDERS as string[]).includes(o.provider) ? (o.provider as RecProvider) : "none",
     removeAfter: o.removeAfter !== false, keepDays: Math.max(0, Math.min(365, Math.round(num(o.keepDays, 7)))), encrypt: o.encrypt === true, folderName: str(o.folderName, 120),
-    logins, wait: str(o.wait, 200), problem: str(o.problem, 300), iCloudFound: o.iCloudFound === true,
+    logins, wait: str(o.wait, 200), problem: str(o.problem, 300), iCloudFound: o.iCloudFound === true, needKey: o.needKey === true,
     queue: Array.isArray(o.queue) ? o.queue.filter((x): x is Record<string, unknown> => !!x && typeof x === "object").slice(0, 12).map((x) => ({
       id: String(x.id ?? "").slice(0, 64), name: String(x.name ?? "").slice(0, 120), state: (UPSTATE.includes(x.state as string) ? x.state : "waiting") as RecUpload["state"],
       fraction: Math.max(0, Math.min(1, num(x.fraction))), note: str(x.note, 200),
     })) : [],
   };
 }
+// ---------- the key that seals uploads ----------
+// Sealed uploads (Settings, Cloud, "Encrypt uploads") use a recording key that lives in the person's vault as "srkey" records, encrypted with the
+// vault key like everything else, so every device that unlocks the vault can open a sealed recording. The page makes the key once, never deletes
+// one (a recording sealed with an old key must stay openable), and hands the whole ring to the Mac, which keeps it in memory only. Two devices
+// that each make a first key at the same moment both keep theirs: the ring has both, and each sealed file names the key it used.
+export interface SealKeyDoc { kid: string; k: string; v: 1 }
+const KID = /^[0-9a-f]{16}$/, B64_32 = /^[A-Za-z0-9+/]{43}=$/;
+export function cleanKeyDoc(v: unknown): SealKeyDoc | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  return typeof o.kid === "string" && KID.test(o.kid) && typeof o.k === "string" && B64_32.test(o.k) ? { kid: o.kid, k: o.k, v: 1 } : null;
+}
+/** Every good key in the vault, once per id, smallest id first (the Mac seals new uploads with the first). */
+export function keyRing(have: unknown[]): SealKeyDoc[] {
+  const by = new Map<string, SealKeyDoc>();
+  for (const h of have) { const k = cleanKeyDoc(h); if (k && !by.has(k.kid)) by.set(k.kid, k); }
+  return [...by.values()].sort((a, b) => (a.kid < b.kid ? -1 : 1));
+}
+const toB64 = (u: Uint8Array) => btoa(String.fromCharCode(...u));
+const hex = (u: Uint8Array) => [...u].map((x) => x.toString(16).padStart(2, "0")).join("");
+/** A new recording key from a random source (the vault's crypto in the page, a fixed one in tests). */
+export function newSealKey(rand: (n: number) => Uint8Array): SealKeyDoc { return { kid: hex(rand(8)), k: toB64(rand(32)), v: 1 }; }
+/** What to do with the vault's keys: make one only when asked to and there is none. */
+export function keyPlan(have: unknown[], wantNew: boolean): { ring: SealKeyDoc[]; create: boolean } {
+  const ring = keyRing(have);
+  return { ring, create: wantNew && ring.length === 0 };
+}
+/** The message to the Mac. `synced` is true only when the keys are saved in a vault that other devices read (not a vault that lives only on this device, and nothing still waiting to upload). */
+export function keysMessage(ring: SealKeyDoc[], opts: { local: boolean; pending: boolean }): { keys: { kid: string; k: string }[]; synced: boolean } {
+  return { keys: ring.map((r) => ({ kid: r.kid, k: r.k })), synced: !opts.local && !opts.pending && ring.length > 0 };
+}
+
 export interface RecAsk { id: string; question: string; cloudQuestion: string; hasLocal: boolean; hasCloud: boolean; provider: string | null }
 export function cleanAsk(v: unknown): RecAsk | null {
   if (!v || typeof v !== "object" || (v as { type?: unknown }).type !== "screenrecAsk") return null;
@@ -200,7 +234,7 @@ export const REC_WORDS = {
   clientEmpty: "No recordings of calls with this client yet.",
   lowered: "PS made this recording lighter because the Mac was struggling.",
   save: "Save", cancel: "Cancel",
-  sealedNote: "Sealed. Plays only in PS on the Mac that sealed it.",
+  sealedNote: "Sealed. Plays only in PS on a Mac where your vault is unlocked.",
 };
 export const UP_LABEL: Record<RecUpload["state"], string> = {
   waiting: "Waiting to upload", uploading: "Uploading", verifying: "Checking the copy", done: "Uploaded", unsure: "Uploaded, not confirmed. Kept on this Mac.", failed: "Upload stopped. Kept on this Mac.", needsSignIn: "Sign in to upload",
@@ -215,7 +249,9 @@ export const CLOUD_WORDS = {
   chooseFolder: "Choose folder", folderNone: "No folder chosen yet.", iCloudFound: "PS will use a folder called PS Recordings in your iCloud Drive.", iCloudMissing: "iCloud Drive was not found on this Mac. Choose a folder inside it.",
   removeAfter: "Remove from this Mac after upload", removeAfterLine: "Only after PS has checked the cloud copy. If anything is unsure, the file stays.",
   keepDays: "Keep the last", days: "days on this Mac", keepLine: "A checked upload is removed from this Mac after this many days. 0 means right away.",
-  encrypt: "Encrypt uploads so only PS can play them", encryptLine: "Off by default, so recordings still play in the cloud itself. On: PS seals each file with a key kept on this Mac before it uploads, and opens it again to play. A sealed recording plays only in PS on this Mac, not in the cloud, on the phone or on the website. If this Mac's key is lost, sealed recordings cannot be opened.",
+  encrypt: "Encrypt uploads so only PS can play them", encryptLine: "Off by default, so recordings still play in the cloud itself. On: PS seals each file with a recording key before it uploads, and opens it again to play. The key is kept in your PS vault, encrypted like the rest of your data, so any Mac where you unlock your vault can open a sealed recording. It plays only in PS on a Mac, not in the cloud, on the phone or on the website. Turn on sync first: without sync the key lives only on this device, and PS keeps the Mac copy of every sealed recording until it is saved safely.",
+  syncNote: "Your list of recordings syncs through your encrypted vault: title, time, length, the other people's addresses and a tiny picture of the screen. Never the recording itself.",
+  dropboxRedirect: "http://127.0.0.1:53682/cb",
   testingNote: "A Google project left in Testing mode signs PS out every 7 days. Publish the project (OAuth consent screen, Publish app) to stop that.",
   howTitle: "How to make your own app",
   howLine: "Each person uses their own app registration, so your recordings never touch anyone else's account or server. It takes about five minutes, once.",
@@ -232,7 +268,7 @@ export const CLOUD_WORDS = {
     dropbox: [
       { text: "Open the Dropbox app console and make an app with Scoped access.", href: "https://www.dropbox.com/developers/apps" },
       { text: "Under Permissions switch on files.content.write, files.content.read and files.metadata.read, then Submit." },
-      { text: "Under Settings add the redirect address http://127.0.0.1/cb and copy the App key." },
+      { text: "Under Settings add this redirect address exactly: http://127.0.0.1:53682/cb (PS uses that port only for the Dropbox sign in, so close any program that uses it). Then copy the App key." },
       { text: "Paste the App key here and press Sign in." },
     ],
     oneDrive: [
