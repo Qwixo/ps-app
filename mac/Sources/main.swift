@@ -365,6 +365,13 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // The Tab list's volume mixer (Sources/Mixer.swift): its state goes to the overlay page only, while the pop-up is open.
     Mixer.shared.deliver = { [weak self] j in self?.overlay?.callAsyncJavaScript("window.__psMixer && window.__psMixer(JSON.parse(m))", arguments: ["m": j], in: nil, in: .page, completionHandler: nil) }
     Mixer.shared.start(testDir: ProcessInfo.processInfo.environment["PS_SELFTEST"])
+    // Screen recorder (Sources/ScreenRec.swift, ScreenRecCore.swift, PS 1.60): OFF until the person says yes. This only builds the
+    // controller from the saved choices: no capture runs and no macOS permission is asked. Its state goes to both pages.
+    ScreenRec.shared.deliver = { [weak self] j in
+      for w in [self?.overlay, self?.main] { w?.callAsyncJavaScript("window.__psScreenRec && window.__psScreenRec(JSON.parse(m))", arguments: ["m": j], in: nil, in: .page, completionHandler: nil) }
+    }
+    ScreenRec.shared.privateOn = { PrivateHold.shared.on }
+    ScreenRec.shared.start()
     // Minecraft mode's power out stopwatch (Sources/PowerWatch.swift): IOKit notifications on its own thread;
     // the state goes to both pages (the Minecraft panel asks with power:get), only on a change.
     PowerWatch.shared.deliver = { [weak self] j in
@@ -1496,6 +1503,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     case "airpodsAuto:get" where fromOverlay:
       let on = (msg["on"] as? Bool) ?? AutoRoute.shared.isOn
       overlay?.callAsyncJavaScript("window.__psAirpodsAuto && window.__psAirpodsAuto(on)", arguments: ["on": on], in: nil, in: .page, completionHandler: nil)
+    case "screenrec" where fromOverlay || fromMain:   // the screen recorder (Sources/ScreenRec.swift): its own gate answers first
+      ScreenRec.shared.handle(msg)
     case "mixer" where fromOverlay:           // the volume mixer pop-up (Sources/Mixer.swift); click only, except slider drags
       Mixer.shared.handle(msg)
     case "hpmode" where fromOverlay || fromMain:   // Headphones mode (Sources/Headphones.swift): the switch, its lists (synced settings.tmAudio)

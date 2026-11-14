@@ -17,7 +17,7 @@ export { norm, stem };
 
 /** Where PS is running: on a Mac (the Tab list), the website, or the phone (PS GOS and the iPhone web app). */
 export type Where = "mac" | "web" | "phone";
-export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
+export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
 /** What a setting opens instead of a row in Settings: a screen of its own. */
 export type Go = "fitness" | "security" | "dnd" | "gsquad" | "sleepSettings" | "phone" | "vault" | "macApp";
 
@@ -53,12 +53,14 @@ export interface SetEntry {
   mail?: true;
   /** Only for people who can switch Client emails on (first owner of their own Supabase project, core/mailswitch.ts). */
   mailCan?: true;
+  /** Only where screen recording is on in this build (core/features.ts "screen-recording"). */
+  sr?: true;
   /** Only in this phone shell: the GrapheneOS app ("gos") or the iPhone web app ("mweb"). V1.47. */
   shell?: Shell;
 }
 /** Which phone shell: the GrapheneOS app (ps-gos, a WebView with the native bridge) or the iPhone web app. */
 export type Shell = "gos" | "mweb";
-export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell }
+export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean }
 
 export const GROUPS: SetGroup[] = [
   // V1.51 (the developer, 12 Nov 2026): About and updates is the top item of the Settings menu, above everything else, so the
@@ -84,6 +86,8 @@ export const GROUPS: SetGroup[] = [
   // V1.58 (the developer, 13 Nov 2026): the Dynamic Island's own tab, holding its settings themselves (views/IslandSettings.tsx).
   { id: "island", label: "Dynamic Island", line: "Look, position, full screen, notifications", on: ["mac"], icon: "M3 8h18v8H3zM16.5 12h.01" },
   { id: "mac", label: "Mac", line: "AFK timer, AirPods, microphone, app name", on: ["mac"], icon: "M4 5h16v11H4zM2 20h20M9 16v4M15 16v4" },
+  // PS 1.60 (pull request 12a): record sales calls and client calls. Off until the person says yes (core/screenrec.ts).
+  { id: "screenrec", label: "Screen recording", line: "Record sales calls and client calls. Off until you switch it on", on: ["mac"], icon: "M4 6h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM18 10l4-2v8l-4-2M10 12h.01" },
   { id: "sync", label: "Sync and account", line: "Your project, your vault, other devices", icon: "M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4" },
   { id: "privacy", label: "Privacy and sharing", line: "Security, passphrase, who can see what", icon: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9.5 12l2 2 3.5-3.5" },
   { id: "fitness", label: "Fitness", line: "Rest times, sets, week goal, gym reminder", icon: "M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11" },
@@ -214,6 +218,14 @@ export const SETTINGS: SetEntry[] = [
 
   // ---------- Mac ----------
   { id: "island", group: "island", name: "Dynamic Island", line: "Its shape or Off, where it sits, how long its line hides it, notifications and full screen.", on: MAC, words: ["island", "notch", "pill", "position", "move", "hide", "dynamic", "notifications", "cards", "pop-ups", "popups", "top right", "corner", "come from", "animation", "full screen", "fullscreen", "top left", "top bar", "black bar", "menu bar", "tick", "circle", "side", "left", "right", "off", "turn off", "disable"] },
+  // PS 1.60 (pull request 12a, views/ScreenRec.tsx): one block with every choice; the rows below are only found by the search.
+  { id: "screenrec", group: "screenrec", name: "Screen recording", line: "Record calls. Off until you switch it on: PS asks macOS for nothing while it is off.", on: MAC, sr: true,
+    words: ["record", "recording", "screen", "recorder", "meeting", "call", "video", "zoom", "capture", "privacy", "permission", "microphone"] },
+  { id: "screenrec-quality", group: "screenrec", parent: "screenrec", name: "Resolution, frame rate and quality", line: "Calls, Sharp or Tiny, or your own mix, with the space an hour takes.", on: MAC, sr: true, words: ["resolution", "1080p", "720p", "4k", "fps", "frame rate", "hevc", "h264", "bitrate", "size", "preset", "tiny", "sharp", "calls"] },
+  { id: "screenrec-audio", group: "screenrec", parent: "screenrec", name: "Microphone and computer sound", line: "Pick the mic, keep the computer sound, or record audio only.", on: MAC, sr: true, words: ["mic", "microphone", "airpods", "audio only", "m4a", "sound", "tracks"] },
+  { id: "screenrec-leave", group: "screenrec", parent: "screenrec", name: "Leave out apps", line: "Apps whose sound and windows are never recorded.", on: MAC, sr: true, words: ["spotify", "exclude", "leave out", "hide app"] },
+  { id: "screenrec-folder", group: "screenrec", parent: "screenrec", name: "Save folder", line: "Where recordings go. A missing or full folder falls back to the default one.", on: MAC, sr: true, words: ["folder", "external drive", "location", "save", "files", "names"] },
+  { id: "screenrec-off", group: "screenrec", parent: "screenrec", name: "Switch screen recording off", line: "Stops any recording and shows how to remove PS from macOS Privacy settings.", on: MAC, sr: true, words: ["off", "remove", "privacy", "revoke", "permission"] },
   { id: "afk", group: "mac", name: "AFK timer", line: "Counts how long you are away from the keyboard and mouse.", on: MAC, words: ["afk", "away", "idle", "break", "stopwatch", "inactive"] },
   { id: "airpods", group: "mac", name: "AirPods card", line: "Gives the AirPods play button back to Spotify when a tab takes it.", on: MAC, words: ["airpods", "headphones", "spotify", "play", "pause", "media", "button"] },
   { id: "mic", group: "mac", name: "Microphone", line: "The default microphone for every app.", on: MAC, words: ["mic", "microphone", "input", "audio", "voice"] },
@@ -353,6 +365,7 @@ export function visibleTo(e: SetEntry, ctx: Ctx): boolean {
   if (e.notRed && ctx.red) return false;
   if (e.mail && !ctx.mail) return false;
   if (e.mailCan && !ctx.mailCan) return false;
+  if (e.sr && !ctx.sr) return false;
   if (e.shell && e.shell !== ctx.shell) return false;
   if (e.on && !e.on.includes(ctx.where)) return false;
   const g = groupById(e.group);

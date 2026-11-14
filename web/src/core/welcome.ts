@@ -26,7 +26,7 @@ const SEC_ROWS = ["Auto reboot on this Mac", "Are you sure", "Signing in on this
 const W_MAC = (title: string, rows: string[], row: number, text: string): Where => ({ at: "screen", sheet: { kind: "macos", title, rows, row }, text });
 
 // ---------- the Mac permissions ----------
-export type PermId = "ax" | "calendar" | "audio" | "reboot";
+export type PermId = "ax" | "calendar" | "audio" | "reboot" | "screen" | "mic";
 export interface Perm {
   title: string;
   /** What macOS will show. */
@@ -67,6 +67,25 @@ export const PERMS: Record<PermId, Perm> = {
     ifNo: "The mixer shows what is playing but cannot change it.",
     button: "Allow the mixer",
     where: W_MAC("Screen and System Audio Recording", ["{app}", "Other apps"], 0, "System Settings, Privacy and Security, Screen and System Audio Recording."),
+  },
+  // PS 1.60 (pull request 12a): screen recording. Each one is explained here BEFORE macOS asks, and only after the person said Yes.
+  screen: {
+    title: "Let {app} see your screen",
+    asks: "macOS asks you to allow {app} under Screen and System Audio Recording. Pick the full Screen and System Audio Recording.",
+    why: "So {app} can record your screen and the sound of the call when you press Record.",
+    never: "{app} records only when you press Record, never on its own. Recordings stay on your Mac and in the cloud storage you pick. macOS shows its own recording icon in the menu bar while it runs.",
+    ifNo: "Screen recording cannot start. Nothing else changes.",
+    button: "Allow screen recording",
+    where: W_MAC("Screen and System Audio Recording", ["{app}", "Other apps"], 0, "System Settings, Privacy and Security, Screen and System Audio Recording."),
+  },
+  mic: {
+    title: "Let {app} hear your microphone",
+    asks: "macOS asks once, when you press Allow, for access to the microphone.",
+    why: "So your own voice is saved too, on its own sound track.",
+    never: "{app} listens only while a recording is running. Nothing is sent anywhere.",
+    ifNo: "Your voice is not recorded. The sound of the call still is.",
+    button: "Allow the microphone",
+    where: W_MAC("Microphone", ["{app}", "Other apps"], 0, "System Settings, Privacy and Security, Microphone."),
   },
   reboot: {
     title: "Allow the restart helper",
@@ -112,6 +131,10 @@ export interface TourCard {
   permWhen?: "always" | "on";
   /** Optional permissions, each in a short box of its own. */
   perms?: PermId[];
+  /** Permissions explained and given right on the card, only while its switch is Yes (screen recording: the question comes first, then the macOS prompts). */
+  permsOn?: PermId[];
+  /** The switch reads Yes and No instead of On and Off. */
+  yesNo?: boolean;
   /** The G Squad sharing switches (they save at once, like in G Squad itself). */
   share?: boolean;
   /** Local first (V1.44): where the list lives, with Turn on sync (views/LocalFirst.tsx StoreBox). */
@@ -132,6 +155,15 @@ export const TOUR_CARDS: readonly TourCard[] = [
   { id: "morePerms", section: "Mac permissions", title: "Calendar and sound", info: true, perms: ["calendar", "audio"],
     what: "Two optional permissions. Each one only adds a feature, so say yes now, later, or never.",
     where: W_MAC("Privacy and Security", ["Calendars", "Screen and System Audio Recording"], 0, "System Settings, Privacy and Security. Change them there any time.") },
+
+  // ----- screen recording (PS 1.60, pull request 12a): OFF unless the person says Yes; Yes then asks macOS, each prompt explained first -----
+  { id: "screenRec", section: "Screen recording", title: "Do you want PS to be able to record sales meetings and client calls?", sumTitle: "Screen recording", yesNo: true,
+    what: "PS records only when you say so. Recordings stay on your Mac and in the cloud storage you pick.",
+    ifOn: "A Record button shows below your email panel. Before the first recording PS explains each macOS question, then asks. You can switch it off any time in Settings, Screen recording.",
+    ifOff: "Nothing is recorded, PS never asks macOS for screen or microphone access, and there is no Record button.",
+    note: "Only you decide when it records. Before each recording PS reminds you to let everyone on the call know.",
+    permsOn: ["screen", "mic"],
+    where: W_MAC("Privacy and Security", ["Screen and System Audio Recording", "Microphone"], 0, "System Settings, Privacy and Security. Change them there any time.") },
 
   // ----- quiet and safe -----
   { id: "dnd", section: "Quiet and safe", title: "Do Not Disturb",
@@ -233,12 +265,13 @@ export type Choices = Record<string, ChoiceValue>;
 const isChoice = (c: TourCard) => !c.info;
 
 /** A fresh install's setting for each choice card, used while PS has not told us (ps-mac and core/gym.ts defaults). */
-export const TOUR_DEFAULTS: Record<string, ChoiceValue> = { dnd: false, reboot: false, gym: false };
+export const TOUR_DEFAULTS: Record<string, ChoiceValue> = { dnd: false, reboot: false, gym: false, screenRec: false };
 
 /** The cards for this account: the Calendar permission not on the developer's (his meetings come from his own feed, ps-mac
  *  LocalCalendar.swift never asks there). */
-export function tourDeck(have: { red?: boolean; local?: boolean } = {}): TourCard[] {
-  return TOUR_CARDS.map((c) => (c.perms && have.red ? { ...c, perms: c.perms.filter((p) => p !== "calendar") } : c))
+export function tourDeck(have: { red?: boolean; local?: boolean; sr?: boolean } = {}): TourCard[] {
+  // sr false: Screen recording is switched off in this build (core/features.ts), so the question is not asked at all.
+  return TOUR_CARDS.filter((c) => c.id !== "screenRec" || have.sr !== false).map((c) => (c.perms && have.red ? { ...c, perms: c.perms.filter((p) => p !== "calendar") } : c))
     .map((c) => (c.id === "account" && have.local && !have.red ? LOCAL_ACCOUNT : c));
 }
 /** The account card while the list lives only on this Mac (local first, V1.44): where it is, and the way to sync. */
@@ -259,7 +292,8 @@ export function startChoices(deck: readonly TourCard[], now: TourNow): Choices {
 }
 
 /** The label of a choice as the summary shows it. */
-export function choiceLabel(_c: TourCard, v: ChoiceValue): string {
+export function choiceLabel(c: TourCard, v: ChoiceValue): string {
+  if (c.yesNo) return v ? "Yes" : "No";
   return v ? TOUR_WORDS.on : TOUR_WORDS.off;
 }
 
@@ -293,6 +327,7 @@ export type TourOp =
 
 const NATIVE: Record<string, (v: ChoiceValue) => Record<string, unknown>> = {
   reboot: (on) => ({ type: "reboot:set", mode: on ? "active" : "off" }),
+  screenRec: (on) => ({ type: "screenrec", op: "optin", on: !!on }),   // PS 1.60: Yes only switches it on; macOS is asked by the permission buttons, never by Create
 };
 
 /** What Create sends: a choice that moved, or one whose real setting was not known. Vault settings go in ONE write
@@ -330,8 +365,8 @@ export function welcomeStep(o: { ps: boolean; owner: boolean; synced: boolean; l
 
 // ---------- PS's door after an update (src/setuphook.ts, ps-mac Updater.swift offerSetup) ----------
 /** The setup menu's generation PS is told about ({type:"setup:can"}): PS offers "See what's new and set it up" once
- *  per generation after an update. 1 = the G Squad menu (V1.40); raise it when a later menu is worth offering again. */
-export const SETUP_GEN = 1;
+ *  per generation after an update. 1 = the G Squad menu (V1.40); 2 = PS 1.60, the Screen recording question. Raise it when a later menu is worth offering again. */
+export const SETUP_GEN = 2;
 /** PS asked for the setup menu ("ps:open-setup"). Already on screen: it stays where it is (null). From the update
  *  card it opens as the update offer; from anywhere else as the menu. */
 export function setupAsked(showing: boolean, from: unknown): { update: boolean } | null {

@@ -119,6 +119,7 @@ import { NetButton } from "./NetMonitor";
 import { NotesLeftovers } from "./NotesLeftovers";
 import { NewBadge } from "./NewBadge";
 import { MixerButton } from "./Mixer";
+import { ScreenRecButton, ScreenRecHost } from "./ScreenRec";
 import { AfkBadge, setAfkOn } from "./AfkBadge";
 import { DndButton } from "./Dnd";
 import { SecondButton } from "./Second";
@@ -1374,6 +1375,9 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
       </div>
       <div className="tm-side tm-right">
         {(mailOnSnap(s) || waOnSnap(s)) && <Slot id="mail">{mailOnSnap(s) && <ClientMail s={s} mail />}{waOnSnap(s) && <WaMail s={s} />}</Slot>}   {/* WhatsApp rides in the same place as client emails (PS 1.60) */}
+        {/* The screen record button (PS 1.60, views/ScreenRec.tsx): right below the email panel, PS on the Mac only, and only once the person switched screen recording on. */}
+        {PS && !docked && <Slot id="screenrec"><ScreenRecButton /></Slot>}
+        {PS && !docked && <ScreenRecHost />}
         <Slot id="meetnotes"><LiveMeetingNotes meet={meet} notes={st.meetingNotes || []} standing={st.standingNotes || []} /></Slot>
         <Slot id="leftovers"><NotesLeftovers /></Slot>
         <Slot id="undo"><UndoButton docked={docked} /></Slot>
