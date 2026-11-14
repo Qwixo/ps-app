@@ -1215,7 +1215,7 @@ final class Island {
   }
   /// 1Password or Signal came to the front or went. Where the island shows over them (everyone except the developer) nothing
   /// about it depends on that, so nothing runs at all: no window is looked at and no line is written at that moment.
-  func protectedChanged() { if !BuildRules.now.islandOverProtected { place() } }
+  func protectedChanged() { if !BuildRules.now.islandOverProtected { place(); BigIslandWindow.shared.protectedChanged() } }
   /// Who is signed in changed (Owner.onChange): the rule over 1Password and Signal may be another one now.
   func rulesChanged() { place() }
   /// V1.58 island timers (IslandTimers.swift): something to show came or went.

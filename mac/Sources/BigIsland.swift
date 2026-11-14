@@ -334,7 +334,9 @@ final class BigIslandWindow {
 
   /// Back up into the island: the words go, the shape shrinks to the island's size, the window goes.
   func close() {
-    guard win?.isVisible == true, !closing else { return }
+    guard !closing else { return }
+    // Never on screen (so nothing to shrink): it is over, and the queue must still hear it, or its card would stay active for good.
+    guard win?.isVisible == true else { drop(); return }
     closing = true
     cancelAll(); stopEsc()
     withAnimation(.easeOut(duration: 0.14)) { m.inside = false }
@@ -347,6 +349,10 @@ final class BigIslandWindow {
       Island.shared.swell(false)
       g?()
     }
+  }
+  /// 1Password or Signal came to the front and the island is not allowed over them (the owner's build): the panel goes with it.
+  func protectedChanged() {
+    if isOpen, Protected.front, !BuildRules.now.islandOverProtected { drop() }
   }
   /// Quietly gone at once (the island went, the app is closing).
   func drop() {
@@ -380,21 +386,37 @@ enum MacState {
   static func idle() -> Double {
     CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
   }
-  /// Screen sharing, best effort (ScreenShareCore). Reads process names and on screen window titles only.
+  /// Screen sharing, best effort (ScreenShareCore). Looks in this process (no helper program, nothing that can wait on the main
+  /// thread) for the few sharing helpers by name, and reads on screen window titles. 1Password and Signal are never read: a
+  /// process name is compared and dropped at once, and their windows are skipped before any title is looked at.
   static func screenSharing() -> Bool {
     var names: [String] = []
-    let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/ps"); p.arguments = ["-axco", "comm"]
-    let pipe = Pipe(); p.standardOutput = pipe; p.standardError = FileHandle.nullDevice
-    if (try? p.run()) != nil {
-      let end = Date().addingTimeInterval(1.5)
-      while p.isRunning, Date() < end { usleep(20_000) }
-      if p.isRunning { p.terminate() } else {
-        names = (String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "").split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+    // The system keeps a process name to 16 letters, so the helper names are compared the same way.
+    let wanted = Set(ScreenShareCore.processes.map { String($0.prefix(16)) })
+    var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
+    var len = 0
+    if sysctl(&mib, 4, nil, &len, nil, 0) == 0, len > 0 {
+      var raw = [UInt8](repeating: 0, count: len + 4096)
+      len = raw.count
+      if sysctl(&mib, 4, &raw, &len, nil, 0) == 0 {
+        raw.withUnsafeBytes { bytes in
+          let procs = bytes.bindMemory(to: kinfo_proc.self)
+          for i in 0..<(len / MemoryLayout<kinfo_proc>.stride) {
+            var c = procs[i].kp_proc.p_comm
+            let n = withUnsafePointer(to: &c) { $0.withMemoryRebound(to: CChar.self, capacity: 17) { String(cString: $0) } }
+            if wanted.contains(n) { names.append(n) }   // only a sharing helper is kept, every other name is dropped at once
+          }
+        }
       }
     }
     let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
-    let titles = list.compactMap { $0[kCGWindowName as String] as? String }
-    return ScreenShareCore.isSharing(processes: names, windowTitles: titles)
+    var titles: [String] = []
+    for w in list {
+      if let pid = w[kCGWindowOwnerPID as String] as? Int32, Protected.matches(NSRunningApplication(processIdentifier: pid)) { continue }
+      if let t = w[kCGWindowName as String] as? String { titles.append(t) }
+    }
+    let full = ScreenShareCore.processes.filter { names.contains(String($0.prefix(16))) }
+    return ScreenShareCore.isSharing(processes: Array(full), windowTitles: titles)
   }
   static func block(locked: Bool? = nil) -> WelcomeBlock {
     WelcomeBlock(screenLocked: locked ?? MacState.locked(), screenSharing: MacState.screenSharing(), fullScreen: Island.shared.fullScreenNow, dnd: DND.shared.active)
@@ -502,6 +524,7 @@ final class WelcomeBack {
   private func welcomeDone(_ tasks: [WelcomeTask]) {
     let w = BigIslandWindow.shared
     guard activeWelcome, w.m.phase == .panel else { return }
+    w.m.done = {}; w.m.toggle = { _ in }   // a second click in the same moment must not tick everything a second time (a tick toggles)
     let ids = WelcomeBackCore.ticked(tasks, marks: w.m.ticks)
     if !ids.isEmpty { Island.shared.onAction?("welcomeDone", WelcomeBackCore.doneJSON(ids)) }
     psLog("PS welcome back: done, \(ids.count) ticked")
