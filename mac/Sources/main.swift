@@ -693,6 +693,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     if webView === main { sendTapState() }
+    // The page that held the What's new panel is gone (a reload): it can never say it is done, so the island queue lets go.
+    if webView === overlay { IslandQueue.shared.finish("whatsnew") }
   }
 
   // ---------- V1.47 Tab overlay shortcuts ----------
@@ -763,8 +765,10 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       if IslandQueue.shared.finish(id) { Island.shared.swell(false) } else { IslandQueue.shared.finish(id) }
       return
     }
+    // A panel the page never closes (a reload, a lost message) must not hold the queue for good: after 30 minutes it is let go.
+    let since = Date()
     let o = IslandQueue.shared.enqueue(id: id, kind: "whatsnew", priority: .normal, ttl: 120, show: { go() },
-                                       visible: { true }, dropped: { tell("{\"state\":\"go\"}") })
+                                       visible: { Date().timeIntervalSince(since) < 1800 }, dropped: { tell("{\"state\":\"go\"}") })
     switch o {
     case .showNow: go()
     case .wait: tell("{\"state\":\"queued\"}")
