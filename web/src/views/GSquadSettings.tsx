@@ -137,12 +137,32 @@ function NotifyPage() {
   return (
     <div className="gss-card">
       <ul className="gs-list">
-        <li>
-          <button type="button" role="switch" aria-checked={c.sound} className={`gs-sw${c.sound ? " on" : ""}`} onClick={() => { sfx.click(); chatOp({ op: "sound", on: !c.sound }); }}>
-            <span className="gs-tt">Sound for new messages<em>{c.sound ? "A short sound when a message comes in while PS runs." : "Off: new messages only show a count on G Squad."}</em></span>
-            <i className="gs-tog" aria-hidden="true"><b /></i>
-          </button>
-        </li>
+        {c.notify && (
+          <>
+            <li>
+              <button type="button" role="switch" aria-checked={c.notifyOn} className={`gs-sw${c.notifyOn ? " on" : ""}`} onClick={() => { sfx.click(); chatOp({ op: "notify", on: !c.notifyOn }); }}>
+                <span className="gs-tt">Message notifications<em>{c.notifyOn ? "A card pops up when someone writes, with Reply. Not while Do Not Disturb is on." : "Off: new messages only show a count on G Squad."}</em></span>
+                <i className="gs-tog" aria-hidden="true"><b /></i>
+              </button>
+            </li>
+            {c.notifyOn && (
+              <li>
+                <button type="button" role="switch" aria-checked={c.noteSound} className={`gs-sw${c.noteSound ? " on" : ""}`} onClick={() => { sfx.click(); chatOp({ op: "noteSound", on: !c.noteSound }); }}>
+                  <span className="gs-tt">Sound<em>{c.noteSound ? "A short sound with each new message card." : "Off: the card comes in quietly."}</em></span>
+                  <i className="gs-tog" aria-hidden="true"><b /></i>
+                </button>
+              </li>
+            )}
+          </>
+        )}
+        {!(c.notify && c.notifyOn) && (
+          <li>
+            <button type="button" role="switch" aria-checked={c.sound} className={`gs-sw${c.sound ? " on" : ""}`} onClick={() => { sfx.click(); chatOp({ op: "sound", on: !c.sound }); }}>
+              <span className="gs-tt">Sound for new messages<em>{c.sound ? "A short sound when a message comes in while PS runs." : "Off: new messages only show a count on G Squad."}</em></span>
+              <i className="gs-tog" aria-hidden="true"><b /></i>
+            </button>
+          </li>
+        )}
       </ul>
       <p className="gs-note">Requests to join always show a card for the admin until they are answered. To keep G Squad quiet for a while, use Do Not Disturb: it can mute G Squad on its own.</p>
     </div>

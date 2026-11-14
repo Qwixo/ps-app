@@ -487,9 +487,18 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       if id.hasPrefix("sk:") { Second.shared.keyAction(id, action); return }   // Allow PS to use its Second Computer key
       if id.hasPrefix("rh:") { AutoReboot.shared.cardAction(id, action); return }   // the restart helper was switched off by an update: open System Settings
       if id.hasPrefix("bg:") { Backgrounds.shared.cardAction(id, action); return }   // a background video problem: Copy error code
+      // V1.60 a G Squad message card's Open: the Tab list comes up and opens the chat (the page also marks the message handled).
+      if SquadMessageCore.opensChat(id: id, action: action) {
+        self?.showOverlay()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self?.sendToOverlay(#"{"type":"squadOpen"}"#) }
+      }
       guard let d = try? JSONSerialization.data(withJSONObject: ["type": "cardAction", "id": id, "action": action]),
             let json = String(data: d, encoding: .utf8) else { return }
       self?.sendCardAction(json)
+    }
+    // V1.60 a G Squad message card's Reply: the words go to the page, which sends them through the chat composer.
+    Toast.shared.onSquadReply = { [weak self] id, text in
+      if let json = SquadMessageCore.replyJSON(id: id, text: text) { self?.sendCardAction(json) }
     }
     // Reply from PS (V1.44): the sign ins and the queue live here (MailSend.swift); only the developer's Send or schedule sends.
     MailSend.shared.app = self

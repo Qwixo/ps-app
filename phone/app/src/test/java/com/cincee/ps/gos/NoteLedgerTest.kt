@@ -90,6 +90,7 @@ class NoteLedgerTest {
         assertEquals(true, NoteLedger.swipeDismisses("m:r1"))
         assertEquals(true, NoteLedger.swipeDismisses("n:em1"))
         assertEquals(true, NoteLedger.swipeDismisses("c:chat1"))
+        assertEquals(true, NoteLedger.swipeDismisses("g:msg1"))   // a G Squad message (PS 1.60)
         assertEquals(false, NoteLedger.swipeDismisses("b:meet1"))
         // The page keeps re-sending it until the Dismiss lands: never back in the shade, also after a restart.
         val s = Store(); val l = ledger(s)

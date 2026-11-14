@@ -77,6 +77,7 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 ## New in V1.60
 
 - G Squad new look: G Squad now looks like a calm messenger. A list with round pictures, the last line, the time and an unread count, and a chat with flat bubbles, small names, day lines and one rounded box with a round send button. Messages from one person a few minutes apart sit in one group. Off switch: Squad settings, Appearance, "G Squad look": Classic.
+- G Squad message notifications: when someone writes in G Squad, a card pops up (top right on the Mac, in the corner on the website, a notification on the phone) with Open, Reply and Dismiss. Reply sends from the card with a short Undo. Each message notifies once per device, never your own, and not while Do Not Disturb, Sleep mode or Sentry mode is on. Off switch: Squad settings, Notifications, Message notifications.
 
 ## New in V1.59
 

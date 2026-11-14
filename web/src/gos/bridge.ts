@@ -19,6 +19,7 @@ import { shortHash } from "../core/meetalerts";
 import { workingIdsOf, type CalendarSnap } from "../core/model";
 import { settingsData, todos } from "../core/select";
 import { mailCardMessage, refreshMailCards, startMailCards } from "../mailcards";
+import { chatCardMessage, setNotePost } from "../squad/chatengine";
 import { startMeetAlerts } from "../meetwatch";
 import { startDnd } from "../dnd";
 import { startSquad } from "../squad/engine";
@@ -222,7 +223,7 @@ function onMessage(m: Record<string, unknown>) {
       }
       break;
     case "pulse": void pulse(m); break;
-    case "cardAction": mailCardMessage(m as { type?: string; id?: string; action?: string }); break;
+    case "cardAction": if (!mailCardMessage(m as { type?: string; id?: string; action?: string })) chatCardMessage(m as { type?: string; id?: string; action?: string }); break;   // a G Squad message card (g:) goes to the chat
     case "screentime": screenTime(m); break;
     case "gymAck": gymShellMessage(m); break;   // Acknowledge on the ring or a gym notification (ps-gos Gym.kt)
     case "remAct": remShellMessage(m); break;   // a reminder notification answered: Yes or Remind me in (ps-gos Remind.kt)
@@ -274,6 +275,7 @@ export function startGos() {
         cardsOn = true;
         // When the next reminded email card is due (ms, 0 = none): the shell wakes this page then, even in the background.
         startMailCards(card, (at) => gosPost({ type: "remindNext", at }));
+        setNotePost(card);   // G Squad message notifications (core/squadnotify.ts): the shell shows them, Open and Dismiss come back as cardAction
         startMeetAlerts(card);
         startDnd(gosPost, "phone");   // Do Not Disturb: the shell's own call alarms follow it too (Notifier.kt)
         startGymWatch(gosPost);   // the gym plan: the shell notifies and rings by itself (src/gymwatch.ts, ps-gos Gym.kt)

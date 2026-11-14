@@ -43,6 +43,7 @@ import { AppMark } from "./mobile/mark";
 import { MOBILE_APP_NAME } from "./core/appname";
 import { mainCalendar } from "./core/calfeeds";
 import { MailCardsWeb } from "./views/MailCards";
+import { SquadNoteCards } from "./views/SquadNoteCards";
 import { ReplyWindow, startReplyWindow } from "./views/ReplyWindow";
 import { useAppearanceEngine } from "./looks/engine";
 import { addProgram, fitnessNow } from "./fitness/store";
@@ -90,6 +91,7 @@ function route(): "demo" | "join" | "join-owner" | "app" | "overlay" | "campaign
       void Promise.all([import("./dev/clive-fake"), import("./core/campaignsLive")]).then(([f, l]) => l.__devLive((b) => f.fakeLivePayload(new Date(), b)));
       return import("./core/vault").then((v) => v.__devLoad(m.fakeDocs()));
     }).then(() => { if (location.search.includes("squad")) void import("./dev/gym-fake").then((g) => g.loadGymFake()); });   // ?squad: a fictional G Squad for Fitness
+    if (location.search.includes("note")) void import("./dev/gsquad-fake").then((g) => g.loadGSquadFake());   // &note: a made up G Squad message card in the corner (PS 1.60)
     return "app";
   }
   if (import.meta.env.DEV && p === "/dev-second") {   // Second Computer panel with fictional data (src/dev/second-fake.ts)
@@ -717,6 +719,7 @@ function OwnerShell() {
       {WEBSITE_WN && <TipsHost />}{/* the first use tips (V1.55, views/Tips.tsx): only where the list shows them something to point at */}
       {red && <RuleBookHost owner="docked" />}
       {mailOnSnap(s) && <MailCardsWeb />}
+      {WEBSITE_WN && <SquadNoteCards />}{/* G Squad message cards (PS 1.60, views/SquadNoteCards.tsx): the website only */}
       <nav className="bottom" aria-label="Main">
         {BOTTOM.map((h) => { const n = NAV.find((x) => x.href === h)!; return (
           <a key={h} href={h} aria-current={cur(h)}><Icon name={n.icon} />{n.label}{badge(h) > 0 && <span className="badge num">{badge(h)}</span>}</a>

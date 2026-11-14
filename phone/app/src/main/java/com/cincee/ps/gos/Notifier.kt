@@ -26,6 +26,8 @@ object Notifier {
     const val UPDATES = "updates-quiet"
     private const val OLD_UPDATES = "updates"
     const val CHATS = "chats"
+    /** G Squad messages (PS 1.60, web core/squadnotify.ts): a card for each message from someone else. */
+    const val SQUAD = "squad-messages"
 
     fun channels(c: Context) {
         val nm = c.getSystemService(NotificationManager::class.java)
@@ -35,6 +37,7 @@ object Notifier {
             NotificationChannel(CALLS, "Calls and meetings", NotificationManager.IMPORTANCE_HIGH).apply { description = "Booked, declined, a lead messaged about a call, and 10 minutes before." },
             NotificationChannel(QUIET, "PS list", NotificationManager.IMPORTANCE_MIN).apply { description = "The quiet line that opens your list."; setShowBadge(false) },
             NotificationChannel(UPDATES, "Updates", NotificationManager.IMPORTANCE_LOW).apply { description = "A quiet note when a new PS app is out. It installs only when you tap Update now."; setShowBadge(true) },
+            NotificationChannel(SQUAD, "G Squad messages", NotificationManager.IMPORTANCE_HIGH).apply { description = "Someone wrote in G Squad. The lock screen only says there is a new message." },
             NotificationChannel(CHATS, "Claude chats", NotificationManager.IMPORTANCE_HIGH).apply { description = "A Claude Code chat on your Mac just finished. Its name only." },
             // The gym reminder (Gym.kt): 2 h, 1 h, 30 and 10 min before, and the ring (its sound comes from the ring service).
             NotificationChannel(Gym.NOTE, "Gym reminder", NotificationManager.IMPORTANCE_HIGH).apply {
@@ -94,13 +97,14 @@ object Notifier {
         // page's minute resync, a background check or a restart). A new revision shows, with sound. Meeting
         // cards and the shell's call alarms keep their own once-only memory (meetalerts.ts, the alarm), and a
         // snoozed card comes back under the same id, so they are left as before.
-        val quiet = if (id.startsWith("m:") || id.startsWith("n:") || id.startsWith("c:")) {
+        val quiet = if (id.startsWith("m:") || id.startsWith("n:") || id.startsWith("c:") || id.startsWith("g:")) {
             val rev = card.optString("rev").ifEmpty { card.optString("at") }.takeIf { it != "null" } ?: ""
             val act = ledger(c).decide(id, rev, showing(c, id), System.currentTimeMillis())
             if (act == NoteLedger.Act.SKIP) return
             act == NoteLedger.Act.UPDATE
         } else true
         if (id.startsWith("c:")) return chat(c, id, card, quiet)
+        if (id.startsWith("g:")) return squad(c, id, card, quiet)
         // "n:" an Instantly reply from a lead (src/core/leadcards.ts): like a client email, Remind me in and Dismiss.
         val lead = id.startsWith("n:")
         val mail = id.startsWith("m:") || lead
@@ -139,6 +143,29 @@ object Notifier {
             if (u.startsWith("https://")) b.addAction(Notification.Action.Builder(null, label,
                 PendingIntent.getActivity(c, nid(id + k), Intent(Intent.ACTION_VIEW, android.net.Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE)).build())
         }
+        c.getSystemService(NotificationManager::class.java).notify(id, nid(id), b.build())
+        timing(quiet)
+    }
+    /** A G Squad message (PS 1.60): the sender's name and the words only behind the unlock, "New G Squad message" on the lock screen
+     *  (no words, no name). Open and Reply both open the G Squad chat, where the box is; a swipe or Dismiss is the Dismiss on every
+     *  device (the page saves a "seen up to here" mark). The page already holds the card back while Do Not Disturb is on. */
+    private fun squad(c: Context, id: String, card: JSONObject, quiet: Boolean) {
+        val discreet = card.optString("discreetText").ifEmpty { "New G Squad message" }
+        val title = if (Ays.inMeeting) discreet else card.optString("title")
+        val text = if (Ays.inMeeting) "" else card.optString("body").takeIf { it != "null" } ?: ""
+        val pub = Notification.Builder(c, SQUAD).setSmallIcon(R.drawable.ic_stat_ps).setContentTitle(discreet).setColor(Color.parseColor("#2DD4BF")).build()
+        val b = Notification.Builder(c, SQUAD)
+            .setSmallIcon(R.drawable.ic_stat_ps).setColor(Color.parseColor("#2DD4BF"))
+            .setContentTitle(title).setContentText(text.lineSequence().firstOrNull() ?: "")
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setVisibility(Notification.VISIBILITY_PRIVATE).setPublicVersion(pub)
+            .setOnlyAlertOnce(quiet).setAutoCancel(true).setCategory(Notification.CATEGORY_MESSAGE)
+            .setContentIntent(openIntent(c, "gsquad", nid(id)))
+            .setGroup("squad")
+            .setDeleteIntent(Receivers.cardAction(c, id, "dismiss"))
+        b.addAction(Notification.Action.Builder(null, "Open", openIntent(c, "gsquad", nid(id + "open"))).build())
+        b.addAction(Notification.Action.Builder(null, "Reply", openIntent(c, "gsquad", nid(id + "reply"))).build())
+        b.addAction(Notification.Action.Builder(null, "Dismiss", Receivers.cardAction(c, id, "dismiss")).build())
         c.getSystemService(NotificationManager::class.java).notify(id, nid(id), b.build())
         timing(quiet)
     }
@@ -245,6 +272,7 @@ object Dnd {
         id.startsWith("m:") -> "mail"
         id.startsWith("c:") -> "chats"
         id.startsWith("n:") -> "leads"
+        id.startsWith("g:") -> "gsquad"
         else -> "meetings"      // booked, declined, a lead's message, 10 minutes before (and the shell's own alarms)
     }
     fun mutes(c: Context, kind: String): Boolean {

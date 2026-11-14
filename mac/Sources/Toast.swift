@@ -72,6 +72,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   private var returnTo: pid_t = 0
   /// A card button was clicked (or a card with an id was closed: action "dismiss").
   var onAction: ((String, String) -> Void)?
+  /// V1.60 G Squad message card: the words typed in its Reply box, after the Undo ran out (SquadMessageCard.swift). Id and text only.
+  var onSquadReply: ((String, String) -> Void)?
   /// V1.55: the Tab list's window while it is up (main.swift): a stack under the island that comes up then stays
   /// behind it, so it never covers the list's buttons that island clearance keeps clear.
   var listWindow: () -> NSWindow? = { nil }
@@ -362,25 +364,27 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     // "done": a Claude Code chat finished (src/core/chatdone.ts); stays until its X, or the page drops it after a few hours.
     // "lead": a lead replied in Instantly (src/mailcards.ts), Instantly blue, kept like a client email.
     // "ai": a message an AI sent through the Task API (V1.58, AiMessageCard.swift), kept like an AI chat card.
-    let tones = ["booked", "declined", "msg", "cancel", "soon", "soon-warn", "ok", "warn", "bad", "info", "mail", "done", "lead", AiMessageCard.tone]
+    let tones = ["booked", "declined", "msg", "cancel", "soon", "soon-warn", "ok", "warn", "bad", "info", "mail", "done", "lead", AiMessageCard.tone, SquadMessageCard.tone]
     guard let id = c["id"] as? String, !id.isEmpty, id.count <= 40, let title = c["title"] as? String, !title.isEmpty,
           let tone = c["tone"] as? String, tones.contains(tone) else { return }
+    // V1.60 G Squad message card (SquadMessageCard.swift): not while Sentry mode or Sleep mode covers the screen.
+    if tone == SquadMessageCard.tone, SquadMessageCore.held(sentry: Sentry.shared.isUp, sleep: SleepScreen.shared.isUp) { return }
     if hold(c, meet: true) { return }
     setUp()
     var card: [String: Any] = ["id": id, "kind": "meet", "tone": tone, "title": String(title.prefix(160)),
-                               "sticky": ["msg", "cancel", "declined", "soon-warn", "warn", "bad", "mail", "done", "lead", AiMessageCard.tone].contains(tone), "dismiss": ["mail", "done", "lead", AiMessageCard.tone].contains(tone), "discreet": (c["discreet"] as? Bool) == true,
+                               "sticky": ["msg", "cancel", "declined", "soon-warn", "warn", "bad", "mail", "done", "lead", AiMessageCard.tone, SquadMessageCard.tone].contains(tone), "dismiss": ["mail", "done", "lead", AiMessageCard.tone, SquadMessageCard.tone].contains(tone), "discreet": (c["discreet"] as? Bool) == true,
                                "discreetText": String(((c["discreetText"] as? String) ?? "A meeting alert").prefix(80))]
     if let sub = c["sub"] as? String, !sub.isEmpty { card["sub"] = String(sub.prefix(200)) }
     if let body = c["body"] as? String, !body.isEmpty { card["body"] = String(body.prefix(tone == AiMessageCard.tone ? AiMessageCard.detailMax : 600)) }
     if let at = c["callAt"] as? String, ISO8601DateFormatter().date(from: at) != nil || at.count < 40 { card["callAt"] = at }
-    if let icon = c["icon"] as? String, ["shield", "globe", "wifi", "plug", "swap", "mail", "done", "reply", AiMessageCard.icon].contains(icon) { card["icon"] = icon }
+    if let icon = c["icon"] as? String, ["shield", "globe", "wifi", "plug", "swap", "mail", "done", "reply", AiMessageCard.icon, SquadMessageCard.icon].contains(icon) { card["icon"] = icon }
     if let at = c["at"] as? String, at.count < 40 { card["at"] = at }
     if let u = Toast.openable(c["url"] as? String) { card["url"] = u }
     if let j = Toast.openable(c["join"] as? String) { card["join"] = j }
     // V1.55: a card that goes by itself after this many seconds (AI chat cards, Settings), with a line that runs down.
     if let l = NoteDrop.life(c["life"]) { card["life"] = l }
     // Reply from PS (V1.44, MailSend.swift): a client email or a lead's reply can be answered from its card.
-    if (c["reply"] as? Bool) == true && (tone == "mail" || tone == "lead") { card["reply"] = true }
+    if (c["reply"] as? Bool) == true && (tone == "mail" || tone == "lead" || tone == SquadMessageCard.tone) { card["reply"] = true }
     // Remind me in: where it starts and how far one wheel step moves it (chat cards 2 and 1, emails 15 and 5).
     if let r = c["remind"] as? [String: Any], let st = r["start"] as? Int, let sp = r["step"] as? Int, let lo = r["min"] as? Int, let hi = r["max"] as? Int {
       let f = { (v: Int) in max(1, min(240, v)) }
@@ -586,6 +590,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         // A self test copy only writes the link down: it never opens the developer's browser.
         if ProcessInfo.processInfo.environment["PS_SELFTEST"] != nil { testOpened.append(s) } else { NSWorkspace.shared.open(url) }
       }
+    case "sqreply":   // a G Squad message card's Reply, its Undo over: the page sends it through the chat composer
+      if let id = msg["id"] as? String, let text = msg["text"] as? String { onSquadReply?(String(id.prefix(40)), text) }
     case "typing":   // a remind time is being typed (on), or that ended (off)
       if (msg["on"] as? Bool) == true { startTyping() } else { stopTyping() }
     case "action":
@@ -907,6 +913,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     #newer,#bar{transition:none}
   }
   \#(AiMessageCard.css)
+  \#(SquadMessageCard.css)
   </style></head><body><div id="wrap"><div id="bar"><b id="count"></b><button id="newer"></button><button id="clear">Clear all</button></div><div id="view"><div id="list"><div id="fill"></div></div><div id="thumb"></div></div></div>
   <script>
   (function(){
@@ -946,6 +953,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     ICON.reply='<path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 6 6v4"/>';
     ICON.swap='<path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>';
     \#(AiMessageCard.js)
+    \#(SquadMessageCard.js)
     function svg(k){var s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 24 24');s.setAttribute('fill','none');s.setAttribute('stroke','currentColor');s.setAttribute('stroke-width','2.3');s.setAttribute('stroke-linecap','round');s.setAttribute('stroke-linejoin','round');s.innerHTML=ICON[k]||ICON.soon;return s}
     function until(iso){var m=Math.round((Date.parse(iso)-Date.now())/60000);if(isNaN(m))return'';if(m<0)return'Started '+(-m)+' min ago';if(m<1)return'Starting now';if(m<60)return'In '+m+' min';if(m>=2880)return'In '+Math.round(m/1440)+' days';return'In '+Math.floor(m/60)+' h'+(m%60?' '+(m%60)+' min':'')}
     // >>> private pill model: pure, no page. tests/privatepill-test.mjs runs this block on its own.
@@ -1164,6 +1172,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     function fly(c,delay){
       clearTimeout(c.timer);clearTimeout(c.wt);
       if(c.editing)endEdit(c,false);
+      SquadMsg.gone(c);
       var s=c.el.style;c.el.style.pointerEvents='none';
       c.el.classList.remove('drag');
       if(into(c)){
@@ -1198,7 +1207,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     function take(c){
       var i=cards.indexOf(c);if(i<0)return;
       if(c.group)groupEnd(c,false);
-      cards.splice(i,1);clearTimeout(c.timer);clearTimeout(c.wt);if(c.editing)endEdit(c,false);
+      cards.splice(i,1);clearTimeout(c.timer);clearTimeout(c.wt);if(c.editing)endEdit(c,false);SquadMsg.gone(c);
       c.el.style.pointerEvents='none';c.el.classList.add('taken');c.el.style.opacity='0';
       setTimeout(function(){c.el.remove()},200);
       layout();
@@ -1231,7 +1240,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     function swipe(c){
       c.samples=[];
       c.el.addEventListener('pointerdown',function(e){
-        if(e.button!==0||c.editing)return;
+        if(e.button!==0||c.editing||c.sqOpen)return;
         c.swallow=false;c.down={x:e.clientX,y:e.clientY,id:e.pointerId};
       });
       c.el.addEventListener('pointermove',function(e){
@@ -1286,7 +1295,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     function click(c,e){
       if(c.swallow){c.swallow=false;return}   // that was a drag
       var t=e.target;
-      if(t.tagName==='INPUT')return;
+      if(t.tagName==='INPUT'||t.tagName==='TEXTAREA')return;
       // V1.57 private mode: a pop up waiting behind a pill comes out (Swift shows its own window); any other pill shows its card.
       if(c.data.pill){post({type:'action',id:c.data.id,action:'show'});remove(c);return}
       if(shut(c)){c.shown=true;paint(c);if(c.group)groupHead(c);layout();return}
@@ -1299,6 +1308,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       if(c.data.kind==='meet'){
         if(t.classList.contains('rv')){edit(c);return}               // the time: type one
         if(t.closest&&t.closest('.rem')){if(!c.editing){answer(c,'remind:'+c.mins);remove(c)}return}
+        if(c.data.tone==='squad'&&SquadMsg.click(c,t)){layout();return}   // a G Squad message: Open, Reply box, Send, Undo, Dismiss (SquadMessageCard.swift)
         if(t.dataset&&t.dataset.reply){answer(c,'reply');return}
         if(c.data.tone==='ai'&&AiMsg.click(c,t)){layout();return}      // a message from an AI: the words open and fold (AiMessageCard.swift)       // Reply: the compose window opens; the card stays until it is sent
         var act=t.dataset&&t.dataset.act;
@@ -1337,7 +1347,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     window.__note={
       look:look,
       // V1.57: every card, not only meeting ones: on, each becomes a pill again; off, each shows as itself.
-      privacy:function(on){privacyOn=!!on;cards.forEach(function(c){if(c.data.kind==='meet'||c.group)c.data.discreet=!!on;if(on){c.shown=false;if(c.editing)endEdit(c,false)}paint(c)});layout()},
+      privacy:function(on){privacyOn=!!on;if(on)SquadMsg.esc();cards.forEach(function(c){if(c.data.kind==='meet'||c.group)c.data.discreet=!!on;if(on){c.shown=false;if(c.editing)endEdit(c,false)}paint(c)});layout()},
       reveal:function(on){revealAll=!!on;cards.forEach(paint);layout()},
       max:function(h){if((h||700)!==maxH){maxH=h||700;layout()}},
       mode:function(m){
@@ -1371,8 +1381,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         bar:Math.round(document.getElementById('bar').getBoundingClientRect().bottom),barTop:Math.round(document.getElementById('bar').getBoundingClientRect().top),
         first:cards.length?Math.round(cards[0].el.getBoundingClientRect().top):-1,page:Math.round(wrap.getBoundingClientRect().bottom)}},
       rem:function(sel){var c=cards[0],b=c&&c.el.querySelector(sel||'button.rem'),r=b&&b.getBoundingClientRect(),rb=c&&c.el.querySelector('button.rem');return b?{mins:c.mins,label:rb?rb.textContent:'',top:list.scrollTop,w:rb?rb.offsetWidth:0,x:r.left+r.width/2,y:r.top+r.height/2}:null},
-      focusEdit:function(){var i=editing&&editing.rem.input;if(i){i.focus();i.select()}},
-      endEdit:function(){if(editing)endEdit(editing,false)},
+      focusEdit:function(){var i=editing&&editing.rem.input;if(i){i.focus();i.select()}else SquadMsg.focus()},
+      endEdit:function(){if(editing)endEdit(editing,false);SquadMsg.esc()},
       drop:function(id){
         if(G){var r=ChatRows.drop(G.m,id);if(r)rowGone(G,r,'drop')}
         cards.filter(function(c){return c.data.id===id}).forEach(function(c){remove(c)});
@@ -1401,8 +1411,10 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
           if(d.callAt){c.cd=el('span','cd',until(d.callAt));full.appendChild(c.cd)}
           var ma=[];if(d.url)ma.push({id:'open',label:d.url.indexOf('instantly')>0?'Open in Instantly':'Open in Gmail'});if(d.join)ma.push({id:'join',label:'Join call'});
           if(ma.length||d.dismiss||d.reply){var mb=el('div','acts');ma.forEach(function(a,i){var b=el('button',i===0?'main':'',a.label);b.dataset.link=a.id;mb.appendChild(b)});
+            if(d.tone==='squad')SquadMsg.buttons(c,mb);
+            else{
             if(d.reply){var rp=el('button','rep','Reply');rp.dataset.reply='1';mb.appendChild(rp)}
-            if(d.dismiss){mb.appendChild(remind(c));var db=el('button','dis','Dismiss');db.dataset.act='dismiss';mb.appendChild(db)}
+            if(d.dismiss){mb.appendChild(remind(c));var db=el('button','dis','Dismiss');db.dataset.act='dismiss';mb.appendChild(db)}}
             full.appendChild(mb)}
           c.inner.appendChild(full);
           c.inner.appendChild(el('div','hid','Private mode is on. Click to show.'));
