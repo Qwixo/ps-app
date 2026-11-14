@@ -340,7 +340,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     }
     guard let data = try? JSONSerialization.data(withJSONObject: card), let json = String(data: data, encoding: .utf8) else { return }
     deliver(json, id: id, kind: NoteDrop.kind(id: id, tone: nil), at: nil)
-    if !["gym", "f-rest"].contains(id) { chimeOther("c:" + id) }   // the gym and rest cards have their own sounds
+    if !["gym", "f-rest"].contains(id) && !id.hasPrefix("sr:") { chimeOther("c:" + id) }   // the screen recorder's cards (12b) make their own sound, and none in private mode   // the gym and rest cards have their own sounds
   }
 
   /// Links a card may open: the thread (Gmail or Instantly) or the call itself. Nothing else.

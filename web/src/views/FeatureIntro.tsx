@@ -13,6 +13,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PS, psPost, useOverlayShown } from "../ps";
+import { askScreenRec, screenRecNow } from "../screenrec";
+import { introAudience } from "../core/screenrecmeet";
 import { useVault } from "../ui/kit";
 import { settingsData } from "../core/select";
 import { dndActive } from "../core/dnd";
@@ -38,18 +40,29 @@ const save = (s: IntroState) => { try { localStorage.setItem(KEY, JSON.stringify
 /** The pictures that swoop in, by the name in the list. */
 const MARKS: Record<IntroDef["mark"], (size: number) => ReactNode> = {
   whatsapp: (n) => <WaMark size={n} />,
+  record: recordMark,
   spark: (n) => (
     <svg width={n} height={n} viewBox="0 0 24 24" fill="none" stroke="#FFD60A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z" />
     </svg>
   ),
 };
+/** The Record mark: a screen with a red dot. */
+function recordMark(n: number) {
+  return (
+  <svg width={n} height={n} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="3" /><circle cx="12" cy="12" r="3" fill="#FF453A" stroke="#FF453A" />
+  </svg>
+  );
+}
 /** The guides "Show me" opens, by the name in the list. */
 const GUIDES: Record<NonNullable<IntroDef["guide"]>, (p: { onClose: () => void; anchor: IslandAnchor | null }) => ReactNode> = {
   "wa-link": (p) => <WaGuide onClose={p.onClose} anchor={p.anchor} />,
 };
 /** Has the person already done what the intro is about? "done" retires it for good. "open" keeps it. "unknown" waits (never shows on a guess). */
 const DONE_PROBES: Record<string, (can: boolean) => Promise<"done" | "open" | "unknown">> = {
+  // Screen recording (12b): shown only to people who said No or have not answered. Yes retires it. Asks the Mac for its saved choice only (nothing from macOS).
+  screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault
     const st = await readWaStatus();
@@ -75,6 +88,9 @@ export function FeatureIntroHost() {
   const live = useRef({ s, listShown, welcome, face, wn, can });
   live.current = { s, listShown, welcome, face, wn, can };
   const commit = useCallback((f: (x: IntroState) => IntroState) => { const n = f(stateRef.current); stateRef.current = n; save(n); setState(n); }, []);
+
+  // 12b: the Mac's saved screen recording choice is read once, early, so the screen recording intro knows who said No (nothing from macOS).
+  useEffect(() => { if (PS) askScreenRec(); }, []);
 
   // Any key, click, scroll or move is use. Nothing is read from what is typed (only that something happened).
   useEffect(() => {
@@ -104,9 +120,11 @@ export function FeatureIntroHost() {
       };
       // "Did they already do it?" is read for the intro that is next in line, only once the clock says it could show (one small read,
       // again after 5 minutes). Unknown (the read failed) never shows on a guess.
-      const pending = INTROS.find((d) => !stateRef.current.recs[d.id]?.closed && probe.current[d.id] !== "done");
+      // 12b: the first intro whose read is due (an intro that is waiting for its next read never blocks the ones behind it).
+      const pending = INTROS.find((d) => !stateRef.current.recs[d.id]?.closed && probe.current[d.id] !== "done" && !!DONE_PROBES[d.id]
+        && (probe.current[d.id] === undefined || now >= (probeAt.current[d.id] ?? 0)));
       const read = pending ? DONE_PROBES[pending.id] : undefined;
-      if (pending && read && stateRef.current.activeMs >= 55_000 && (probe.current[pending.id] === undefined || now >= (probeAt.current[pending.id] ?? 0))) {
+      if (pending && read && stateRef.current.activeMs >= 55_000) {
         checking = true; probeAt.current[pending.id] = now + 5 * 60_000;
         void read(live.current.can).then((r) => {
           probe.current[pending.id] = r;

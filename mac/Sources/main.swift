@@ -488,6 +488,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     Toast.shared.listWindow = { [weak self] in self?.shown == true ? self?.panel : nil }
     // Card buttons go to the page (the end of day question that used this first is gone since 2 Nov 2026).
     Toast.shared.onAction = { [weak self] id, action in
+      if id.hasPrefix("sr:") { ScreenRecIsland.shared.cardAction(id, action); return }   // 12b: the screen recorder's cards (meeting question, Resources are high, Saved, controls)
       if id.hasPrefix("ma:") { MediaGuard.shared.action(id, action); return }   // the AirPods controls card is handled here, not by the page
       if id.hasPrefix("ar:") { AutoRoute.shared.action(id, action); return }   // the honest "sound still on the speakers" card's Play through AirPods Max
       if id.hasPrefix("rr:") { RemoteCommand.shared.cardAction(id, action); return }   // Cancel on a remote restart countdown

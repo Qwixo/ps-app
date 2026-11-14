@@ -391,6 +391,8 @@ export function ScreenRecSettings() {
           <div className="sr-sec">
             <div className="sr-field inline"><span><b>{SR_WORDS.remindSwitch}</b><em>{SR_WORDS.remind}</em></span><Switch on={s.remind} set={(v) => change("remind", v)} label={SR_WORDS.remindSwitch} /></div>
             <div className="sr-field inline"><span><b>{SR_WORDS.soundsLabel}</b><em>{SR_WORDS.soundsLine}</em></span><Switch on={s.sounds} set={(v) => change("sounds", v)} label={SR_WORDS.soundsLabel} /></div>
+            <div data-set="screenrec-ask" className="sr-field inline"><span><b>{SR_WORDS.askMeetingsLabel}</b><em>{SR_WORDS.askMeetingsLine}</em></span><Switch on={s.askMeetings} set={(v) => change("askMeetings", v)} label={SR_WORDS.askMeetingsLabel} /></div>
+            <div data-set="screenrec-perf" className="sr-field inline"><span><b>{SR_WORDS.perfLabel}</b><em>{SR_WORDS.perfLine}</em></span><Switch on={s.perfWatch} set={(v) => change("perfWatch", v)} label={SR_WORDS.perfLabel} /></div>
             <div className="sr-field inline"><span><b>{SR_WORDS.test}</b><em>{SR_WORDS.testLine}</em></span>
               <button type="button" className="sr-b" disabled={isRecording(st) || !!missingPermission(st)} onClick={() => { sfx.click(); send("test"); }}>{SR_WORDS.test}</button></div>
           </div>

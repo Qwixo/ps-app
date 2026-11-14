@@ -38,7 +38,7 @@ final class SRRealPermissions: SRPermissionsAPI {
 }
 
 // ---------- real capture ----------
-final class SRRealCapture: NSObject, SRCaptureAPI, SCStreamOutput, SCStreamDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
+final class SRRealCapture: NSObject, SRCaptureAPI, SRAdjustableCapture, SCStreamOutput, SCStreamDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
   /// Where this recording's file goes (the chosen folder's access is already open), and what to do when macOS or an error ends it.
   var folderURL: (Bool) -> URL = { _ in FileManager.default.temporaryDirectory }
   var onEnded: ((String?) -> Void)?
@@ -62,6 +62,7 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SCStreamOutput, SCStreamDeleg
   // ----- start -----
   func start(_ plan: SRPlan, done: @escaping (Error?) -> Void) {
     work.async {
+      self.gapLock.lock(); self.gaps = SRFrameGaps(); self.gapLock.unlock(); self.currentFps = nil
       self.ended = false; self.sessionStarted = false; self.paused = false; self.offset = .zero; self.pausedAtPTS = nil
       self.plan = plan
       do { try self.makeWriter(plan) } catch { DispatchQueue.main.async { done(error) }; return }
@@ -171,15 +172,37 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SCStreamOutput, SCStreamDeleg
     stream = s
   }
 
+  // ----- 12b: the performance watch's two doors into the capture -----
+  private let gapLock = NSLock()
+  private var gaps = SRFrameGaps()
+  private var currentFps: Int?
+  /// The share of frames missed since the last look (read every few seconds by the watch, only while recording).
+  func takeDropRatio() -> Double { gapLock.lock(); defer { gapLock.unlock() }; return gaps.ratioAndReset() }
+  /// Only the frame rate can change while a file is open: its picture size and bitrate are fixed once the writer has started, so the
+  /// resolution and quality steps are left out of the ladder (SRLadder skips what the capture cannot do).
+  var canAdjust: SRAdjustable { SRAdjustable(fps: true, resolution: false, quality: false) }
+  func adjust(_ step: SRStep) {
+    guard case .fps(let f) = step else { return }
+    work.async {
+      guard let cfg = self.streamConfig, let s = self.stream, self.plan?.mode == .screenAndAudio else { return }
+      cfg.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(f))
+      self.currentFps = f
+      s.updateConfiguration(cfg) { _ in }
+    }
+  }
+
   // ----- samples (all on `work`) -----
   func stream(_ stream: SCStream, didOutputSampleBuffer sb: CMSampleBuffer, of type: SCStreamOutputType) {
     guard CMSampleBufferIsValid(sb), CMSampleBufferDataIsReady(sb) else { return }
     switch type {
     case .screen:
       guard let p = plan, p.mode == .screenAndAudio, let v = video else { return }
+      // 12b: count gaps in the frames ourselves (SCStream has no dropped frame counter). Idle frames count as frames, so a still screen is not a drop.
+      if !paused { gapLock.lock(); gaps.note(at: CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sb)), interval: 1.0 / Double(max(1, currentFps ?? p.fps))); gapLock.unlock() }
       // Only finished frames (idle and blank frames carry no picture).
       if let arr = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
          let raw = arr.first?[.status] as? Int, SCFrameStatus(rawValue: raw) != .complete { return }
+      if !v.isReadyForMoreMediaData { gapLock.lock(); gaps.notReady(); gapLock.unlock() }
       append(sb, to: v, startsSession: true)
     case .audio:
       if let a = them { append(sb, to: a, startsSession: plan?.mode == .audioOnly) }
@@ -223,10 +246,10 @@ final class SRRealCapture: NSObject, SRCaptureAPI, SCStreamOutput, SCStreamDeleg
   }
 
   // ----- pause, resume, stop -----
-  func pause() { work.async { if !self.paused { self.paused = true; self.pausedAtPTS = CMTimeAdd(self.lastPTS, self.offset) } } }
+  func pause() { work.async { self.gapLock.lock(); self.gaps.breakLine(); self.gapLock.unlock(); if !self.paused { self.paused = true; self.pausedAtPTS = CMTimeAdd(self.lastPTS, self.offset) } } }
   /// The gap is measured on the first sample after the resume (in the stream's own clock): everything between the last kept
   /// sample and that one is cut out, so the file has no empty stretch.
-  func resume() { work.async { self.paused = false } }
+  func resume() { work.async { self.gapLock.lock(); self.gaps.breakLine(); self.gapLock.unlock(); self.paused = false } }
 
   /// Another microphone while recording: swap the session's input, or (macOS 15 and later, mic inside the stream) update the stream.
   func switchMic(_ uid: String?) {
@@ -313,7 +336,9 @@ final class ScreenRec {
     controller.screenInfo = { Self.screenSize() }
     controller.folders = { [weak self] in self?.folderStates() ?? (nil, SRFolderState(exists: true, writable: true, freeBytes: 0)) }
     controller.takenNames = { [weak self] in self?.namesTaken() ?? [] }
-    controller.onChange = { [weak self] _ in self?.push() }
+    controller.onChange = { [weak self] _ in self?.push(); ScreenRecIsland.shared.recorderChanged() }
+    ScreenRecIsland.shared.attach(controller: controller, capture: capture)   // 12b: builds the island side; starts no clock while the gate is closed
+    ScreenRecIsland.shared.sync()
     capture.folderURL = { [weak self] useDefault in self?.openFolder(useDefault: useDefault) ?? ScreenRec.defaultFolder }
     capture.onEnded = { [weak self] msg in
       guard let self else { return }
@@ -322,7 +347,7 @@ final class ScreenRec {
       self.push()
     }
     capture.onStopped = { [weak self] in self?.controller.stop(); self?.push() }
-    Features.onChange = { [weak self] in self?.push() }
+    Features.onChange = { [weak self] in self?.push(); ScreenRecIsland.shared.sync() }
   }
 
   // ----- folders -----
@@ -374,6 +399,23 @@ final class ScreenRec {
   }
   private func resetFolder() { defaults.removeObject(forKey: bookmarkKey); var s = controller.settings; s.folderName = nil; save(s) }
 
+  static func screenInfoNow() -> SRScreenInfo { screenSize() }
+  /// 12b: free bytes on the volume the recording goes to (the chosen folder, or the default one when it fell back).
+  func freeBytesNow() -> Int64 {
+    let f = folderStates()
+    if controller.snapshot.folderNote == nil, let c = f.custom { return c.freeBytes }
+    return f.fallback.freeBytes
+  }
+  /// 12b: "Play" on the Saved card opens the last file in the Mac's own player until PS's own player (part 7) takes over.
+  func playLast() { if let u = capture.lastFile { NSWorkspace.shared.open(u) } }
+  /// 12b: "Switch mic" on the controls card goes to the next microphone (the Mac's own first), remembered like the picker's choice.
+  func cycleMic() {
+    let ids: [String?] = [nil] + Mic.inputs().map { Optional($0.uid) }
+    let cur = ids.firstIndex(where: { $0 == controller.settings.micUID }) ?? 0
+    let next = ids[(cur + 1) % ids.count]
+    controller.switchMic(next); save(controller.settings)
+  }
+
   private static func screenSize() -> SRScreenInfo {
     guard let s = NSScreen.main else { return SRScreenInfo(width: 1920, height: 1080) }
     let k = s.backingScaleFactor
@@ -384,6 +426,7 @@ final class ScreenRec {
     controller.update(s)
     if let d = try? JSONEncoder().encode(controller.settings) { defaults.set(d, forKey: key) }
     push()
+    ScreenRecIsland.shared.sync()
   }
 
   // ----- the page's messages -----
@@ -397,6 +440,7 @@ final class ScreenRec {
     case "optin":
       controller.setEnabled(m["on"] as? Bool == true)
       if let d = try? JSONEncoder().encode(controller.settings) { defaults.set(d, forKey: key) }
+      ScreenRecIsland.shared.sync()
     case "set": save(Self.patched(controller.settings, f))
     case "preset": if let p = SRPreset(rawValue: m["id"] as? String ?? "") { save(SRPresets.apply(p, to: controller.settings)) }
     case "leaveOut": if let id = m["id"] as? String { var s = controller.settings; s.leftOut = SRLeaveOut.toggle(s.leftOut, id: id); save(s) }
@@ -413,6 +457,7 @@ final class ScreenRec {
     case "switchMic": let u = (m["uid"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(200)) }; controller.switchMic(u); save(controller.settings)
     case "test": runTest()
     case "list": if controller.gateOpen { sendList() }
+    case "meeting": ScreenRecIsland.shared.pageMeeting(m)   // 12b: a meeting is on in the Meetings panel (src/meetwatch.ts)
     case "reveal": if let u = capture.lastFile { NSWorkspace.shared.activateFileViewerSelecting([u]) }
     default: break
     }
@@ -433,6 +478,8 @@ final class ScreenRec {
     if let v = f["computerSound"] as? Bool { o.computerSound = v }
     if let v = f["remind"] as? Bool { o.remind = v }
     if let v = f["sounds"] as? Bool { o.sounds = v }
+    if let v = f["askMeetings"] as? Bool { o.askMeetings = v }
+    if let v = f["perfWatch"] as? Bool { o.perfWatch = v }
     if let v = f["picked"] as? Bool { o.picked = v }
     if let k = f["sourceKind"] as? String, ["main", "display", "window"].contains(k) { o.source = SRSource(kind: k, id: UInt32(truncatingIfNeeded: f["sourceId"] as? Int ?? 0)) }
     if f.keys.contains("resolution") || f.keys.contains("fps") || f.keys.contains("quality") || f.keys.contains("codec") || f.keys.contains("audioQuality") { o = SRPresets.touched(o) }
@@ -469,7 +516,7 @@ final class ScreenRec {
     let st: [String: Any] = [
       "type": "screenrec", "featureOn": Features.on(SR_FEATURE), "enabled": controller.gateOpen,
       "state": snap.state.rawValue, "startedAt": ms(snap.startedAt), "pausedAt": ms(snap.pausedAt), "pausedTotal": Int(snap.pausedTotal * 1000),
-      "fileName": snap.fileName ?? NSNull(), "folderNote": snap.folderNote ?? NSNull(), "error": snap.error ?? NSNull(),
+      "fileName": snap.fileName ?? NSNull(), "folderNote": snap.folderNote ?? NSNull(), "error": snap.error ?? NSNull(), "lowered": snap.lowered,
       "perms": perms(), "folder": folder, "mics": Mic.inputs().map { ["uid": $0.uid, "name": $0.name] },
       "screen": ["w": scr.width, "h": scr.height],
       "resolutions": SRMath.available(screenW: scr.width, screenH: scr.height).map { $0.rawValue },

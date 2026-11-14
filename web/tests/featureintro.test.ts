@@ -1,9 +1,11 @@
 // Run: node --experimental-strip-types tests/featureintro.test.ts
 // Feature intros (core/featureintro.ts, PS 1.60): every timing rule. Fake times only, no storage, no network.
 import {
-  ACTIVE_NEEDED_MS, GAP_MS, IDLE_MS, INTROS, LATER_AFTER_MS, TICK_CAP_MS, addActive, answer, cleanState, emptyState, introReply, markShown, nextIntro, recheckMs, retire,
+  ACTIVE_NEEDED_MS, GAP_MS, IDLE_MS, INTROS, LATER_AFTER_MS, TICK_CAP_MS, addActive, answer, cleanState, emptyState, introReply, markShown, nextIntro as nextOf, recheckMs, retire,
   type IntroDef, type IntroFacts, type IntroState,
 } from "../src/core/featureintro.ts";
+// These rules are checked on the first intro (WhatsApp) alone, as before; a later entry (screen recording, 12b) has its own tests in screenrecisland.test.ts.
+const nextIntro = (s: IntroState, f: IntroFacts, defs: IntroDef[] = [INTROS[0]]) => nextOf(s, f, defs);
 import { islandQueueRuntime } from "../src/core/islandqueue.ts";
 
 let fails = 0, n = 0;

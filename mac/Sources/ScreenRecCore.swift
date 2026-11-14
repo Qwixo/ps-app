@@ -66,6 +66,8 @@ struct SRSettings: Equatable, Codable {
   var leftOut: [String] = []      // bundle ids of apps whose sound and windows are left out
   var remind = true               // "Let everyone on the call know you are recording."
   var sounds = true
+  var askMeetings = true          // 12b: ask "Do you want to record this meeting?" when a meeting starts (only while screen recording is on)
+  var perfWatch = true            // 12b: watch the Mac while recording and ask before it struggles
   var picked = false              // the person has seen the picker once (the first click on Record opens it)
   var folderName: String? = nil   // the chosen folder's name (the bookmark itself is kept by ScreenRec.swift)
 
@@ -81,9 +83,10 @@ struct SRSettings: Equatable, Codable {
     let f: Int = get(.fps, def.fps); fps = SR_FPS.contains(f) ? f : def.fps
     micUID = get(.micUID, def.micUID); computerSound = get(.computerSound, def.computerSound)
     leftOut = SRLeaveOut.clean(get(.leftOut, def.leftOut)); remind = get(.remind, def.remind); sounds = get(.sounds, def.sounds); picked = get(.picked, def.picked)
+    askMeetings = get(.askMeetings, def.askMeetings); perfWatch = get(.perfWatch, def.perfWatch)
     folderName = get(.folderName, def.folderName)
   }
-  enum CodingKeys: String, CodingKey { case enabled, mode, preset, resolution, fps, quality, codec, audioQuality, source, micOn, micUID, computerSound, leftOut, remind, sounds, picked, folderName }
+  enum CodingKeys: String, CodingKey { case enabled, mode, preset, resolution, fps, quality, codec, audioQuality, source, micOn, micUID, computerSound, leftOut, remind, sounds, picked, folderName, askMeetings, perfWatch }
 }
 
 // ---------- presets ----------
@@ -264,6 +267,7 @@ struct SRSnapshot: Equatable {
   var fileName: String? = nil
   var folderNote: String? = nil          // why the default folder was used
   var error: String? = nil
+  var lowered: [String] = []             // 12b: what the performance watch made lighter (frame rate, resolution, quality), for the recording's details
 
   var isRecording: Bool { state == .recording || state == .paused }
   /// The real running time (a pause does not count). From the start and pause times, never from a counter, so it is right
@@ -364,6 +368,8 @@ final class SRController {
     if snapshot.isRecording { capture.switchMic(uid) }
   }
   func noteError(_ m: String) { set { $0.error = m } }
+  /// 12b: the performance watch made the recording lighter: noted in the recording's details.
+  func noteLowered(_ what: String) { guard snapshot.isRecording else { return }; set { if !$0.lowered.contains(what) { $0.lowered.append(what) } } }
   func update(_ s: SRSettings) { var n = s; n.enabled = settings.enabled; settings = n }
 
   /// Ask macOS, one permission at a time, only while the gate is open (the page shows its explanation first).

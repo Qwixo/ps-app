@@ -29,6 +29,10 @@ export interface SRChoices {
   leftOut: string[];
   remind: boolean;
   sounds: boolean;
+  /** 12b: ask "Do you want to record this meeting?" when a meeting starts. */
+  askMeetings: boolean;
+  /** 12b: watch the Mac while recording and ask before it struggles. */
+  perfWatch: boolean;
   picked: boolean;
   folderName: string | null;
 }
@@ -63,7 +67,7 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 const str = (v: unknown, n: number): string | null => (typeof v === "string" ? v.slice(0, n) : null);
 export const DEFAULT_CHOICES: SRChoices = {
   enabled: false, mode: "screenAndAudio", preset: "calls", resolution: "p1080", fps: 15, quality: "balanced", codec: "hevc", audioQuality: "standard",
-  source: { kind: "main", id: 0 }, micOn: true, micUID: null, computerSound: true, leftOut: [], remind: true, sounds: true, picked: false, folderName: null,
+  source: { kind: "main", id: 0 }, micOn: true, micUID: null, computerSound: true, leftOut: [], remind: true, sounds: true, askMeetings: true, perfWatch: true, picked: false, folderName: null,
 };
 function pick<T extends string>(v: unknown, list: readonly T[], d: T): T { return typeof v === "string" && (list as readonly string[]).includes(v) ? (v as T) : d; }
 export function cleanChoices(v: unknown): SRChoices {
@@ -78,7 +82,7 @@ export function cleanChoices(v: unknown): SRChoices {
     source: { kind: pick(src.kind, ["main", "display", "window"], "main"), id: num(src.id) ?? 0 },
     micOn: o.micOn !== false, micUID: str(o.micUID, 200), computerSound: o.computerSound !== false,
     leftOut: Array.isArray(o.leftOut) ? o.leftOut.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 200)).slice(0, 60) : [],
-    remind: o.remind !== false, sounds: o.sounds !== false, picked: o.picked === true, folderName: str(o.folderName, 120),
+    remind: o.remind !== false, sounds: o.sounds !== false, askMeetings: o.askMeetings !== false, perfWatch: o.perfWatch !== false, picked: o.picked === true, folderName: str(o.folderName, 120),
   };
 }
 /** The Mac's message, checked. Anything odd gives null (the page then shows nothing). */
@@ -268,6 +272,8 @@ export const SR_WORDS = {
   namesLine: "Files are named by date and meeting, like 2026-11-14 Call with Sam.mov.",
   // settings extras
   soundsLabel: "Sounds", soundsLine: "A soft sound when recording starts and stops.",
+  askMeetingsLabel: "Ask to record meetings", askMeetingsLine: "When a meeting starts, the island asks if you want to record it.",
+  perfLabel: "Performance watch", perfLine: "While recording, PS watches the Mac and makes the recording lighter before it struggles.",
   test: "Test recording", testLine: "Records 5 seconds and shows you the file.",
   defaultsTitle: "What it records",
   // errors
