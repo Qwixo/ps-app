@@ -18,6 +18,7 @@
   <key>NSAppleEventsUsageDescription</key><string>Lets the AirPods button hand play, pause and volume back to Spotify or Music. It only talks to those two apps, and only when you click it.</string>
   <key>NSCalendarsFullAccessUsageDescription</key><string>Shows your meetings from the Calendar app in the Meetings panel and meeting alerts. It only reads: it never adds, changes or deletes an event. Your meetings are kept encrypted in your own vault, so your other devices see them too.</string>
   <key>NSCalendarsUsageDescription</key><string>Shows your meetings from the Calendar app in the Meetings panel and meeting alerts. It only reads: it never adds, changes or deletes an event. Your meetings are kept encrypted in your own vault, so your other devices see them too.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Only if you switch on screen recording: PS records your voice from the microphone you pick, into a file on your Mac, when you press Record. Nothing is recorded or sent until then.</string>
   <key>NSAudioCaptureUsageDescription</key><string>Lets the volume mixer turn each app up, down or off on its own. The sound goes straight to your speakers or headphones: nothing is recorded, saved or sent anywhere.</string>
   <key>NSHumanReadableCopyright</key><string>Cincee. Your to-do list, end-to-end encrypted.</string>
 </dict>

@@ -69,6 +69,7 @@ export const SLOTS: readonly SlotInfo[] = [
   { id: "dnd", label: "Do Not Disturb" },
   { id: "pskeys", label: "Tab and Lock", keep: true },
   { id: "mail", label: "Client emails", mail: true },
+  { id: "screenrec", label: "Record screen", ps: true },   // PS 1.60 (views/ScreenRec.tsx): right below the email panel, only after the person switched screen recording on
   { id: "meetnotes", label: "Meeting notes" },
   { id: "leftovers", label: "Notes left over" },
   { id: "undo", label: "Undo" },

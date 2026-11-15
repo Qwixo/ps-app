@@ -48,6 +48,9 @@ import { TaskApiSettings } from "./TaskApi";
 import { MailPeople } from "./MailPeople";
 import { ClientEmailsSettings } from "./ClientEmailsSettings";
 import { WhatsAppSettings } from "./WhatsAppSettings";
+import { ScreenRecSettings } from "./ScreenRec";
+import { feature } from "../core/features";
+import { SR_FEATURE } from "../core/screenrec";
 import { mailOnSnap } from "../core/mailsnap";
 import { mailCan } from "../core/mailswitch";
 import { AutoResetSetting } from "./AutoReset";
@@ -94,7 +97,8 @@ export function SettingsHost({ st, gen, owner }: { st: Settings; gen: GenProps; 
   // Reply from PS is for people whose PS shows client email cards (Gmail replies or Who emails me records).
   const mail = mailOnSnap(v);   // the Client emails switch (core/mailswitch.ts); it was "has email records" before 1.60
   const mailC = mailCan(v);
-  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC]);
+  const sr = feature(SR_FEATURE);   // PS 1.60: the Screen recording group shows only where the feature is on in this build
+  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr]);
   return (
     <GenContext.Provider value={{ gen, st }}>
       <SettingsScreen owner={owner} ctx={ctx} controls={CONTROLS} phone={GOS || MWEB} onGo={(go, e, close) => goTo(go, e, close, owner)} />
@@ -258,6 +262,7 @@ export const CONTROLS: Controls = {
     data-tip="Open the reply panel" data-tip-line="Quick replies, your signature, Send now or at a random time, and the accounts that can send.">Open</button>),
   "client-emails": block(() => <ClientEmailsSettings compact />),
   "whatsapp": block(() => <WhatsAppSettings />),
+  "screenrec": block(() => <ScreenRecSettings />),   // PS 1.60 (views/ScreenRec.tsx)
   "gmail-replies": block(() => <MailPeople overlay={PS} />, false),
 
   // Time and reset

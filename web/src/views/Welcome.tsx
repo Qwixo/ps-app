@@ -29,6 +29,9 @@ import {
 import { taskMapActions } from "./TaskMap";
 import { openSettings, settingsWanted } from "./SettingsScreen";
 import { useMixerPermission } from "./Mixer";
+import { feature } from "../core/features";
+import { SR_FEATURE } from "../core/screenrec";
+import { askScreenRec, optIn, send as srSend, useScreenRec } from "../screenrec";
 import { MiniPs } from "./MiniPs";
 import { FitPeek } from "./FitPeek";
 import { useFitness } from "../fitness/store";
@@ -136,8 +139,11 @@ function useNow() {
   const gym = gymPrefs(set.gym, red);
   const fv = useFitness();
   const fitStyle = fv.prefs.style ?? "volt";
+  const sr = useScreenRec();
+  useEffect(() => { askScreenRec(); }, []);   // asks the Mac for its saved state; macOS is asked for nothing
   const now: TourNow = {
     dnd: !!set.dnd?.on, gym: gym.on,
+    screenRec: sr ? sr.enabled : undefined,
     reboot: st?.reboot ? st.reboot.mode === "active" : undefined,
   };
   return { now, red, fitStyle, ctx: { gym } };
@@ -161,7 +167,8 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
   const { now, red, fitStyle, ctx } = useNow();
   const fitTheme = useFitTheme(fitStyle);
   const local = !!s.local;   // local first (V1.44): the account card says where the list lives, with Turn on sync
-  const deck = useMemo(() => tourDeck({ red, local }), [red, local]);
+  const sr = feature(SR_FEATURE);
+  const deck = useMemo(() => tourDeck({ red, local, sr }), [red, local, sr]);
   const [step, setStep] = useState(resume?.step ?? 0);
   const [dir, setDir] = useState<1 | -1>(1);
   const [touched, setTouched] = useState<Choices>(resume?.touched ?? {});
@@ -291,8 +298,8 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
                   {card.ifOn && (
                     <div className="wt-sw-row">
                       <button type="button" role="switch" aria-checked={choices[card.id] === true} className={`wt-sw${choices[card.id] === true ? " on" : ""}`}
-                        aria-label={`${f(card.title)}: ${choices[card.id] ? w("on") : w("off")}`} onClick={() => pick(card.id, !choices[card.id])}>
-                        <span className="wt-sw-l">{w("off")}</span><span className="wt-sw-k" aria-hidden="true"><i /></span><span className="wt-sw-l">{w("on")}</span>
+                        aria-label={`${f(card.title)}: ${choices[card.id] ? (card.yesNo ? "Yes" : w("on")) : (card.yesNo ? "No" : w("off"))}`} onClick={() => pick(card.id, !choices[card.id])}>
+                        <span className="wt-sw-l">{card.yesNo ? "No" : w("off")}</span><span className="wt-sw-k" aria-hidden="true"><i /></span><span className="wt-sw-l">{card.yesNo ? "Yes" : w("on")}</span>
                       </button>
                     </div>
                   )}
@@ -309,6 +316,7 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
                   {card.note && <p className="wt-note">{f(card.note)}</p>}
                   {showPerm && <PermBox id={card.perm!} onUsed={() => { if (card.permWhen === "on") setTouched((t) => ({ ...t, [card.id]: true })); }} />}
                   {perms.map((id) => <PermBox key={id} id={id} compact onUsed={() => {}} />)}
+                  {choices[card.id] === true && (card.permsOn ?? []).map((id) => <PermBox key={id} id={id} onUsed={() => {}} />)}
                 </div>
               )}
               {summary && (
@@ -383,11 +391,13 @@ function PermBox({ id, onUsed, compact }: { id: PermId; onUsed: () => void; comp
   const mix = useMixerPermission();
   const st = usePsSettings() as (PsSettings & { reboot?: RebootSettings }) | null;
   const reboot: RebootSettings | undefined = st?.reboot;
+  const sr = useScreenRec();
   const [pressed, setPressed] = useState(false);
   let state: "done" | "waiting" | "denied" | "missing" | "idle" = "idle";
   if (id === "ax") state = tab?.trusted ? "done" : pressed ? "waiting" : "idle";
   else if (id === "calendar") state = cal.connected === true ? "done" : cal.connected === false ? "denied" : pressed ? "waiting" : "idle";
   else if (id === "audio") state = mix === "ok" ? "done" : mix === "denied" && pressed ? "denied" : pressed ? "waiting" : "idle";
+  else if (id === "screen" || id === "mic") { const p = sr?.perms[id]; state = p === "granted" ? "done" : p === "denied" && pressed ? "denied" : pressed ? "waiting" : "idle"; }
   else if (id === "reboot") state = reboot?.helper === "on" ? "done" : reboot?.helper === "missing" ? "missing" : reboot?.helper === "approve" || pressed ? "waiting" : "idle";
   const act = () => {
     sfx.click(); setPressed(true); onUsed();
@@ -395,6 +405,10 @@ function PermBox({ id, onUsed, compact }: { id: PermId; onUsed: () => void; comp
     else if (id === "calendar") { if (cal.connected === false) psPost({ type: "localCal", op: "settings" }); else setCalendarOn(true); }
     else if (id === "audio") psPost({ type: "mixer", op: "allow" });
     else if (id === "reboot") psPost({ type: "reboot:setup" });
+    // Screen recording: the person said Yes on this card and pressed this button, so the opt in is sent first (the Mac asks
+    // macOS for nothing while it is off), then the one macOS question this box explained.
+    else if (id === "screen") { optIn(true); srSend("askScreen"); }
+    else if (id === "mic") { optIn(true); srSend("askMic"); }
   };
   const stateText = state === "done" ? PERM_WORDS.done : state === "waiting" ? (id === "reboot" ? PERM_WORDS.waitingHelper : PERM_WORDS.waiting) : state === "denied" ? PERM_WORDS.denied : state === "missing" ? PERM_WORDS.missing : "";
   return (

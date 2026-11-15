@@ -1,0 +1,26 @@
+/* Screen recordings (PS 1.60, pull request 12c): the list in the Soundboard and on the client's page. Falls back to neutral colours
+   outside the Soundboard. Only transform and opacity animate, and not with reduced motion. */
+.rc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rc-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px; border-radius: 14px; background: var(--sb-card, color-mix(in srgb, currentColor 7%, transparent)); border: 1px solid var(--sb-line, color-mix(in srgb, currentColor 14%, transparent)); }
+.rc-thumb { width: 96px; height: 54px; border-radius: 9px; overflow: hidden; background: color-mix(in srgb, currentColor 14%, transparent); display: grid; place-items: center; font-size: 20px; opacity: .95; }
+.rc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rc-main { display: grid; gap: 3px; min-width: 0; }
+.rc-title { overflow-wrap: anywhere; }
+.rc-meta, .rc-note, .rc-up { font-size: .85em; opacity: .78; overflow-wrap: anywhere; }
+.rc-up { position: relative; padding-bottom: 7px; }
+.rc-up i { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; border-radius: 3px; background: color-mix(in srgb, currentColor 18%, transparent); overflow: hidden; }
+.rc-up i::after { content: ""; position: absolute; inset: 0; width: var(--p, 0%); background: var(--sb-acc, #EC4E86); border-radius: 3px; }
+.rc-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 330px; }
+.rc-b { display: inline-flex; align-items: center; border: 1px solid var(--sb-line, color-mix(in srgb, currentColor 22%, transparent)); background: var(--sb-card2, color-mix(in srgb, currentColor 10%, transparent)); color: inherit; font: inherit; font-size: .88em; font-weight: 700; padding: 6px 12px; border-radius: 999px; cursor: pointer; text-decoration: none; }
+.rc-b:hover { background: color-mix(in srgb, currentColor 18%, transparent); }
+.rc-b.primary { background: var(--sb-acc, #EC4E86); border-color: transparent; color: #fff; }
+.rc-b.danger { border-color: #B4232C; color: #FF8A91; }
+.rc-b.ghost { opacity: .6; cursor: default; }
+.rc-empty { opacity: .75; padding: 24px 4px; }
+.rc-rename { display: flex; gap: 6px; flex-wrap: wrap; }
+.rc-rename input { flex: 1 1 180px; min-width: 0; font: inherit; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--sb-line, color-mix(in srgb, currentColor 30%, transparent)); background: transparent; color: inherit; }
+.rc-dim { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; background: rgba(0, 0, 0, .55); }
+.rc-dialog { max-width: min(460px, 92vw); padding: 18px; border-radius: 16px; background: #17121A; color: #fff; display: grid; gap: 10px; border: 1px solid rgba(255, 255, 255, .16); }
+.rc-dialog p { margin: 0; line-height: 1.4; }
+.rc-dbtns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+@media (max-width: 640px) { .rc-row { grid-template-columns: 72px minmax(0, 1fr); } .rc-thumb { width: 72px; height: 41px; } .rc-actions { grid-column: 1 / -1; justify-content: flex-start; max-width: none; } }

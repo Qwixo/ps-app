@@ -1281,6 +1281,7 @@ final class Island {
   private func shapeChanged() {
     IslandTimers.shared.syncBubble()   // V1.59: the bubble and the stand-up question follow the island
     BigIslandWindow.shared.follow()    // PS 1.60: so does an open Welcome back or workout panel
+    ScreenRecIsland.shared.syncPart()  // PS 1.60 (12b): the recording part follows the island
     guard drag?.moving != true else { return }
     let k = shapeOnScreen().map { "\(Int($0.minX.rounded())),\(Int($0.minY.rounded())),\(Int($0.width.rounded())),\(Int($0.height.rounded()))" } ?? "none"
     // V1.55: the cards follow the island (they ignore the hover view themselves). V1.56 hang fix: only when their spot,
@@ -1624,6 +1625,12 @@ final class Island {
         self.goAway(a)
       }
       menu.addItem(meet)
+    }
+    if let rec = ScreenRecIsland.shared.menuAction() {   // PS 1.60 (12b): "Start recording", only while screen recording is on
+      let it = NSMenuItem(title: rec.title, action: #selector(IslandMenuTarget.run(_:)), keyEquivalent: "")
+      it.target = t
+      t.actions[it] = rec.run
+      menu.addItem(it)
     }
     let time = NSMenuItem()
     let v = IslandMinutesView(minutes: awayMinutes) { [weak self] minutes in

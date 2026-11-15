@@ -26,12 +26,12 @@ const plan = (ch: W.Choices, now = nowAll(), ctx = CTX) => W.tourPlan(FULL, now,
 const looksPatch = (ops: W.TourOp[]) => (ops.find((o) => o.to === "looks") as { patch: Record<string, unknown> }).patch;
 
 // ---------- the cards (V1.43: the few that matter, the developer 8 Nov 2026) ----------
-ok("a short menu: 6 to 8 cards, no more", () => {
-  assert.ok(FULL.length >= 6 && FULL.length <= 8, `${FULL.length} cards`);
+ok("a short menu: 6 to 9 cards, no more (PS 1.60 added the one Screen recording question)", () => {
+  assert.ok(FULL.length >= 6 && FULL.length <= 9, `${FULL.length} cards`);
   assert.ok(W.tourDeck({ red: true }).length >= 6);
 });
 ok("the essentials, in this order: permissions, Do Not Disturb, auto reboot, sign in and sync, G Squad, Fitness, Appearance", () => {
-  assert.deepEqual(FULL.map((c) => c.id), ["tabOver", "morePerms", "dnd", "reboot", "account", "squad", "gym", "appearance"]);
+  assert.deepEqual(FULL.map((c) => c.id), ["tabOver", "morePerms", "screenRec", "dnd", "reboot", "account", "squad", "gym", "appearance"]);
 });
 ok("ids are unique and every card says what it is and where it lives", () => {
   assert.equal(new Set(W.TOUR_CARDS.map((c) => c.id)).size, W.TOUR_CARDS.length);

@@ -6,6 +6,7 @@
 // ADD THE NEXT INTRO = add one entry to INTROS. Nothing else (docs/feature-intros.md says how).
 //
 import { cleanAnchor, type IslandAnchor } from "./whatsnew.ts";
+import { SR_INTRO } from "./screenrecmeet.ts";
 
 // The rules (all in nextIntro):
 //  - Not right after an update: only after about 1 minute of ACTIVE use of the to do list on this version (idle time does not
@@ -27,7 +28,7 @@ export interface IntroDef {
   show: string;
   later: string;
   /** Which picture swoops in (views/FeatureIntro.tsx MARKS). */
-  mark: "whatsapp" | "spark";
+  mark: "whatsapp" | "spark" | "record";
   /** What "Show me" opens (views/FeatureIntro.tsx GUIDES). Without one, `steps` are shown in a small generic guide. */
   guide?: "wa-link";
   /** A few plain steps for the generic guide (one short sentence each). */
@@ -48,6 +49,17 @@ export const INTROS: IntroDef[] = [
     mark: "whatsapp",
     guide: "wa-link",
     settings: "Settings, WhatsApp settings, Link WhatsApp",
+  },
+  {
+    // PS 1.60 (pull request 12b). Only for people who said No or have not answered (views/FeatureIntro.tsx DONE_PROBES, core/screenrecmeet.ts introAudience).
+    id: "screenrec",
+    headline: SR_INTRO.headline,
+    ask: SR_INTRO.ask,
+    show: "Show me",
+    later: "Later",
+    mark: "record",
+    steps: [...SR_INTRO.steps],
+    settings: SR_INTRO.settings,
   },
 ];
 

@@ -18,6 +18,8 @@ import { dndMutes } from "./core/dnd";
 import { visibleEvents } from "./core/meethide";
 import { notePref, noteSoundName } from "./core/notelook";
 import { afkMeetWindows, sameWindows, type MeetWindow } from "./core/afkmeet";
+import { askScreenRec, screenRecNow } from "./screenrec";
+import { meetingMessage } from "./core/screenrecmeet";
 
 /** The phone shows these as notifications; its "Phone notifications" toggle mutes them all (core/dnd.ts). */
 const DEVICE = import.meta.env.MODE === "gos" ? "phone" : "mac";
@@ -167,6 +169,11 @@ export function startMeetAlerts(post: Post) {
         actions: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }],
       } });
     } else if (asking && (priv || !events.some((e) => e.id + e.start === asking && Date.parse(e.end || "") > Date.now()))) hideAsk();
+    // Screen recording (PS 1.60, 12b): tells the Mac which meeting is on, and whether the private mode question is still to be answered, so
+    // the Mac asks "Do you want to record this meeting?" right AFTER it, never together. Sent only while screen recording is switched on.
+    askScreenRec();
+    const rec = meetingMessage({ st: screenRecNow(), events, now: Date.now(), privateAskPending: !!asking });
+    if (rec) post(rec);
     // "Are you sure" mode (Sources/AreYouSure.swift) is off while a real meeting (people or a video link) is on.
     const now = Date.now();
     const real = (cal ? (cal.data as CalendarSnap).events : []).some((e) => isMeeting(e) && Date.parse(e.start!) <= now && Date.parse(e.end!) > now);
