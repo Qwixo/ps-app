@@ -27,7 +27,7 @@ ok("The developer's profile (when the flip's ps-layer/profile.json is here): bot
   const r = JSON.parse(file("ps-layer/profile.json"));
   assert.equal(r.name, "red");
   assert.equal(r.othersShared, "on");
-  assert.deepEqual(r.features, { "client-emails": true });
+  assert.deepEqual(r.features, { "client-emails": true, whatsapp: false }, "V1.62: WhatsApp now defaults on in core; his build keeps it off as 1.61 left it");
   assert.equal(r.rules.tabOverProtectedApps, false);
   assert.equal(r.rules.islandOverProtectedApps, false);
 });

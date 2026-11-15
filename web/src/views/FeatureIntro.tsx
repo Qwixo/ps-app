@@ -21,7 +21,12 @@ import { dndActive } from "../core/dnd";
 import { feature } from "../core/features";
 import { mailCan } from "../core/mailswitch";
 import { attachedLayout, ISLAND_ASK_MS, ISLAND_QUEUED_MS, type IslandAnchor } from "../core/whatsnew";
-import { addActive, answer, CARD_W, cleanState, INTROS, introReply, markShown, nextIntro, recheckMs, retire, type IntroDef, type IntroState } from "../core/featureintro";
+import { addActive, answer, CARD_W, cleanDone, LOGO_MOMENT, logoChime, cleanState, INTROS, introReply, markShown, nextIntro, recheckMs, retire, updaterAnswer, type IntroDef, type IntroState } from "../core/featureintro";
+import { accountOlderThan, LOCAL_KEY as WN_SEEN_KEY } from "../core/whatsnew";
+import { islandPrefs } from "../core/island";
+import { saveSettings } from "../core/actions";
+import type { Snapshot } from "../core/vault";
+import logoPng from "../assets/ps-icon.png";
 import { sleepState } from "../sleepmode/engine";
 import { sentryUp } from "./Sentry";
 import { popupOn, tipOn, walkOn } from "./popupstate";
@@ -34,6 +39,27 @@ import { sfx } from "../ui/sfx";
 import "./featureintro.css";
 
 const KEY = "ps.featureIntros";
+
+// V1.62: the one button notices closed by this person, saved with their settings, so each shows once per person (not per device).
+declare module "../core/model" {
+  interface Settings {
+    /** Feature intro ids with `ack` (core/featureintro.ts) this person closed with Ok, on any device (V1.62). */
+    introsDone?: string[];
+  }
+}
+/** The version this device had handled before this page started (What's new's own record), read once at load, before What's new
+ *  records the version this page runs. Null on a new device or after cleared storage (then the account's data decides). */
+const SEEN_AT_START: string | null = (() => { try { const v = localStorage.getItem(WN_SEEN_KEY); return v && /^\d+\.\d+$/.test(v) ? v : null; } catch { return null; } })();
+const RUNNING = /^V(\d+\.\d+)$/.exec(__PS_VERSION__.name)?.[1] ?? "";
+const BUILT = typeof __PS_WHATSNEW__ === "object" ? __PS_WHATSNEW__.built : "";
+/** Did this person run PS before this build (an update), and did they close this notice anywhere already? */
+function updaterProbe(id: string, s: Snapshot): "done" | "open" | "unknown" {
+  const unlocked = s.status === "unlocked";
+  return updaterAnswer({
+    id, unlocked, docs: unlocked ? s.docs.size : 0, done: unlocked ? cleanDone(settingsData(s).introsDone) : [],
+    accountOlder: unlocked && accountOlderThan(BUILT, [...s.docs.values()].map((d) => d.updatedAt)), seenAtStart: SEEN_AT_START, version: RUNNING,
+  });
+}
 const load = (): IntroState => { try { return cleanState(JSON.parse(localStorage.getItem(KEY) || "null")); } catch { return cleanState(null); } };
 const save = (s: IntroState) => { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* private window: it asks again next time */ } };
 
@@ -41,6 +67,7 @@ const save = (s: IntroState) => { try { localStorage.setItem(KEY, JSON.stringify
 const MARKS: Record<IntroDef["mark"], (size: number) => ReactNode> = {
   whatsapp: (n) => <WaMark size={n} />,
   record: recordMark,
+  logo: (n) => <img src={logoPng} width={n} height={n} alt="" style={{ borderRadius: Math.round(n * 0.22) }} />,
   spark: (n) => (
     <svg width={n} height={n} viewBox="0 0 24 24" fill="none" stroke="#FFD60A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z" />
@@ -60,7 +87,9 @@ const GUIDES: Record<NonNullable<IntroDef["guide"]>, (p: { onClose: () => void; 
   "wa-link": (p) => <WaGuide onClose={p.onClose} anchor={p.anchor} />,
 };
 /** Has the person already done what the intro is about? "done" retires it for good. "open" keeps it. "unknown" waits (never shows on a guess). */
-const DONE_PROBES: Record<string, (can: boolean) => Promise<"done" | "open" | "unknown">> = {
+const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" | "open" | "unknown">> = {
+  // V1.62 the new app logo: only people updating from an earlier version, once per person (Ok on any device ends it everywhere).
+  "new-logo-162": async (_can, s) => updaterProbe("new-logo-162", s),
   // Screen recording (12b): shown only to people who said No or have not answered. Yes retires it. Asks the Mac for its saved choice only (nothing from macOS).
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
@@ -126,7 +155,7 @@ export function FeatureIntroHost() {
       const read = pending ? DONE_PROBES[pending.id] : undefined;
       if (pending && read && stateRef.current.activeMs >= 55_000) {
         checking = true; probeAt.current[pending.id] = now + 5 * 60_000;
-        void read(live.current.can).then((r) => {
+        void read(live.current.can, live.current.s).then((r) => {
           probe.current[pending.id] = r;
           if (r === "done") commit((x) => retire(x, pending.id, Date.now()));
         }).catch(() => { probe.current[pending.id] = "unknown"; }).finally(() => { checking = false; });
@@ -142,7 +171,14 @@ export function FeatureIntroHost() {
   }, [commit]);
 
   const onShown = useCallback((id: string) => commit((x) => markShown(x, id, Date.now())), [commit]);
-  const onAnswer = useCallback((id: string, a: "show" | "later") => commit((x) => answer(x, id, a)), [commit]);
+  const onAnswer = useCallback((id: string, a: "show" | "later") => {
+    commit((x) => answer(x, id, a));
+    // A one button notice: Ok is the end of it on every device of this person (saved with their settings).
+    if (INTROS.find((d) => d.id === id)?.ack) {
+      const done = cleanDone(settingsData(live.current.s).introsDone);
+      if (!done.includes(id)) void saveSettings({ introsDone: [...done, id] }).catch(() => { /* this device still never shows it again */ });
+    }
+  }, [commit]);
   const onGone = useCallback((why?: string) => {
     setOpen(null);
     holdUntil.current = Date.now() + (why ? recheckMs("busy") : 15_000);
@@ -152,6 +188,8 @@ export function FeatureIntroHost() {
 }
 
 type Phase = "ask" | "card" | "guide" | "out";
+/** The logo moment's card width and logo size (points). */
+const ACK_W = 260, LOGO_PX = 92;
 
 function IntroStage({ def, onShown, onAnswer, onGone }: { def: IntroDef; onShown: (id: string) => void; onAnswer: (id: string, a: "show" | "later") => void; onGone: (why?: string) => void }) {
   const viaIsland = PS && feature("island-moments");
@@ -192,16 +230,30 @@ function IntroStage({ def, onShown, onAnswer, onGone }: { def: IntroDef; onShown
     if (phase !== "card" || shownOnce.current) return;
     shownOnce.current = true;
     onShown(def.id);
+    if (def.ack) return;   // V1.62 the logo moment chimes as the logo lands (below)
     if (!PS) sfx.island("done");   // on the Mac the island plays the chime itself (its Island sounds switch)
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  // V1.62 the logo moment: a soft chime as the logo lands out of the island (the Island sounds switch, never in Do Not Disturb).
+  // On the Mac PS plays it (sfx goes to the app by name); its own chime already marked the island's bounce.
+  useEffect(() => {
+    if (phase !== "card" || !def.ack) return;
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const t = window.setTimeout(() => {
+      const st = settingsData(vault);
+      if (logoChime({ islandSounds: islandPrefs(st.island).sounds, dnd: dndActive(st.dnd, Date.now()) })) sfx.island("done");
+    }, calm ? 0 : LOGO_MOMENT.land);
+    return () => window.clearTimeout(t);
+  }, [phase === "card"]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const finish = (a: "show" | "later") => {
     if (phaseRef.current === "out") return;
+    if (def.ack) a = "show";   // V1.62: a one button notice has no Later: Ok, Esc and Back all close it for good
     onAnswer(def.id, a);
-    if (a === "show") { setGuide(true); setPhase("guide"); return; }
+    if (a === "show" && !def.ack) { setGuide(true); setPhase("guide"); return; }
     setPhase("out");
     const quick = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.setTimeout(() => onGone(), quick ? 0 : 340);
+    // The logo moment: the logo goes back into the island first, then the card folds back up (then the island shrinks back).
+    window.setTimeout(() => onGone(), quick ? (def.ack ? 220 : 0) : def.ack ? LOGO_MOMENT.backCard : 340);
   };
   const closeGuide = useCallback(() => { setGuide(false); onGone(); }, [onGone]);
 
@@ -231,19 +283,27 @@ function IntroStage({ def, onShown, onAnswer, onGone }: { def: IntroDef; onShown
     return createPortal(def.guide ? GUIDES[def.guide]({ onClose: closeGuide, anchor }) : <StepsGuide def={def} onClose={closeGuide} anchor={anchor} />, document.body);
   }
   if (phase !== "card" && phase !== "out") return null;
-  const at = anchor ? attachedLayout(anchor, window.innerWidth, CARD_W) : null;
+  const at = anchor ? attachedLayout(anchor, window.innerWidth, def.ack ? ACK_W : CARD_W) : null;
   const hung = at ? ({ "--fi-left": `${at.left}px`, "--fi-top": `${at.top}px`, "--fi-ox": `${at.originX}px`, "--fi-from": at.from } as CSSProperties) : undefined;
   return createPortal(
-    <div className={`fi-layer${at ? " isl" : " plain"}${phase === "out" ? " out" : ""}`} style={hung} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-      <section className="fi-card" role="dialog" aria-modal="true" aria-labelledby="fi-title" style={{ "--fi-w": `${Math.min(CARD_W, window.innerWidth - 16)}px` } as CSSProperties}>
-        <div className="fi-row">
-          <span className="fi-mark" aria-hidden="true">{MARKS[def.mark](30)}</span>
-          <b id="fi-title" className="fi-head">{def.headline}</b>
-        </div>
-        <p className="fi-ask">{def.ask}</p>
+    <div className={`fi-layer${at ? " isl" : " plain"}${def.ack ? " fi-ack" : ""}${phase === "out" ? " out" : ""}`} style={hung} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      <section className="fi-card" role="dialog" aria-modal="true" aria-labelledby="fi-title" style={{ "--fi-w": `${Math.min(def.ack ? ACK_W : CARD_W, window.innerWidth - 16)}px` } as CSSProperties}>
+        {def.ack ? (
+          // V1.62 the logo moment: the logo comes out of the island, big, with a shine; the words under it.
+          <>
+            <span className="fi-logo" aria-hidden="true"><span className="fi-logo-glow" />{MARKS[def.mark](LOGO_PX)}<span className="fi-logo-shine" /></span>
+            <b id="fi-title" className="fi-head">{def.headline}</b>
+          </>
+        ) : (
+          <div className="fi-row">
+            <span className="fi-mark" aria-hidden="true">{MARKS[def.mark](30)}</span>
+            <b id="fi-title" className="fi-head">{def.headline}</b>
+          </div>
+        )}
+        {def.ask && <p className="fi-ask">{def.ask}</p>}
         <div className="fi-btns">
           <button type="button" className="fi-btn go" autoFocus onClick={() => { sfx.click(); finish("show"); }}>{def.show}</button>
-          <button type="button" className="fi-btn" onClick={() => { sfx.click(); finish("later"); }}>{def.later}</button>
+          {!def.ack && def.later && <button type="button" className="fi-btn" onClick={() => { sfx.click(); finish("later"); }}>{def.later}</button>}
         </div>
       </section>
     </div>,

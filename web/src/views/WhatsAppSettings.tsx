@@ -1,13 +1,14 @@
 // Settings, WhatsApp settings (PS 1.60): status and Test connection, Link WhatsApp (the guide), Unlink, the switches, the shared quick
-// replies, and Who messages me. Off for everyone until they link it. Only offered to the first owner of their own Supabase project
+// replies, and Who messages me. Nothing arrives until they link it. Only offered to the first owner of their own Supabase project
 // (the messages are sealed to that project's owner). The guide is views/WaGuide.tsx.
+// V1.62: the switch is on by default (the public build gets every feature), so the line says nothing shows until you link.
 import { useCallback, useEffect, useState } from "react";
 import { saveSettings } from "../core/actions";
 import { settingsData } from "../core/select";
 import { mailCan } from "../core/mailswitch";
 import { cleanSwitches } from "../core/features";
 import { mailSwitchChanged, sb } from "../core/vault";
-import { WA_FEATURE, waSwitch } from "../core/wasnap";
+import { WA_FEATURE, waAccount, waSwitch } from "../core/wasnap";
 import { prefsOf, setListed, normalizePhone, showPhone } from "../core/whatsapp";
 import { refreshWaTemplates, saveWaPrefs, waInvoke } from "../core/waactions";
 import { PS, psPost } from "../ps";
@@ -26,7 +27,7 @@ export function WhatsAppSettings() {
   const s = useVault();
   const can = mailCan(s);
   const st = settingsData(s), p = prefsOf(st);
-  const on = waSwitch(st.squadFeatures) && p.on !== false;
+  const on = waSwitch(st.squadFeatures, waAccount(s)) && p.on !== false;
   const [status, setStatus] = useState<WaStatus | null>(null);
   const [guide, setGuide] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -64,7 +65,7 @@ export function WhatsAppSettings() {
     <section className="panel stack" aria-labelledby="wa-h">
       <div className="stack tight" style={{ gap: 2 }}>
         <h2 className="h2" id="wa-h"><WaMark size={16} /> WhatsApp settings</h2>
-        <p className="small muted">Reply to WhatsApp messages from PS. Off until you link your number. {`Messages go through Meta's servers to your own Supabase, where PS seals them.`}</p>
+        <p className="small muted">Reply to WhatsApp messages from PS. Nothing shows until you link your number. {`Messages go through Meta's servers to your own Supabase, where PS seals them.`}</p>
       </div>
       <p className="small" role="status">{status?.linked ? <>Linked{status.number ? `: ${status.number}` : ""}</> : "Not linked"}{status?.last_error ? ` (last problem: ${status.last_error})` : ""}</p>
       <div className="wa-row">

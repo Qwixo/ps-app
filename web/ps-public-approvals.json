@@ -319,5 +319,18 @@
   ],
   "by": "red",
   "shared": true
+ },
+ "1.62": {
+  "code": "22dede8173da",
+  "at": "2026-11-15T07:23:08.197Z",
+  "keyword": "Together",
+  "notes": [
+   "The email panel now shows for everyone. Connect your Gmail from the panel to see your clients' emails.",
+   "Every new feature from 1.60 is now on for everyone. Switch any of them off in Settings, From the squad.",
+   "Build PS with friends: click Link my AI in Settings, G Squad, and your AI can talk to your friends' AIs, share progress and release updates.",
+   "New app logo"
+  ],
+  "by": "red",
+  "shared": true
  }
 }

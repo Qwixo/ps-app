@@ -9,7 +9,7 @@ import { islandPrefs } from "../core/island";
 import { IslandSettingsWindow } from "./IslandSettings";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { meetingTitleKey, workingIdsOf, type AwareItem, type AwayEntry, type DimxItem, type DimxZone, type CalEvent, type ClientRec, type Doc, type Goal, type MeetingNote, type Settings, type StandingNote, type TaskGroup, type TimelineItem, type Todo } from "../core/model";
-import { calendarDocs, calendarSnap, campaignStats, clientViews, openReplies, screenLines, screenTimeDays, settingsData, tabLayoutDoc, todos, allTodos } from "../core/select";
+import { calendarDocs, calendarSnap, campaignStats, clientViews, openReplies, replies, screenLines, screenTimeDays, settingsData, tabLayoutDoc, todos, allTodos } from "../core/select";
 import { inboxTasks } from "../core/aiinbox";
 import { HOUR, clipTimeline, joinLines } from "../core/stline";
 import { askPhoneLine, usePhoneLine } from "../stlive";
@@ -47,6 +47,8 @@ import { applyMeetHide, meetKey, visibleEvents, MEET_HIDE, type MeetHideOp } fro
 import { ackGym } from "../core/gym";
 import { isRedAccount } from "../core/account";
 import { mailOnSnap } from "../core/mailsnap";
+import { MAIL_EMPTY_WORDS, mailPanelShows } from "../core/mailempty";
+import { useGmailKnown } from "./gmailknown";
 import { waOnSnap } from "../core/wasnap";
 import { WaMail } from "./WaMail";
 import { PhoneTilesHost } from "../gos/PhonePages";
@@ -3600,7 +3602,27 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
   useEffect(() => { for (const [id, st] of status) if (st.kind === "replied" && replyDrafts.has(id) && !undo.has(id)) replyDrafts.clear(id); }, [status, undo]);
   const openIds = useMemo(() => new Set(list.map((r) => r.cardId)), [list]);
   const replied = useMemo(() => inline ? repliedRows(outs, openIds, Date.now()) : [], [inline, outs, openIds]);
-  if (!list.length && !replied.length) return null;
+  // V1.62: the panel shows with nothing in it too (Client emails is on for everyone now). Empty and no Gmail connected yet:
+  // a short prompt and Connect Gmail, which opens Settings, Client emails (the 1.60 connect guide). Gmail is only asked
+  // about while the panel is empty and nothing in this vault already proves a connection (core/mailempty.ts).
+  const seen = useMemo(() => replies(s).length > 0 || !!irepFeed(s) || mirrored.length > 0, [s, mirrored]);
+  const empty = !list.length && !replied.length;
+  const gmail = useGmailKnown(empty && !seen);
+  const shows = mailPanelShows({ rows: list.length, replied: replied.length, gmail, seen });
+  if (shows === "wait") return null;
+  if (shows !== "list") return (
+    <aside className="tm-meet tm-mail" aria-label="Client emails" onMouseDown={(e) => e.stopPropagation()}>
+      <span className="tm-meet-h">Client emails</span>
+      {shows === "connect" ? (
+        <div className="tm-mail-empty">
+          <span className="tm-mail-p">{MAIL_EMPTY_WORDS.connect}</span>
+          <span className="tm-mail-a">
+            <button type="button" className="tm-meet-j tm-mail-reply" onClick={() => { sfx.click(); openSettings("notify", { jump: "client-emails" }); }}>{MAIL_EMPTY_WORDS.button}</button>
+          </span>
+        </div>
+      ) : <span className="tm-mail-p tm-mail-none">{MAIL_EMPTY_WORDS.none}</span>}
+    </aside>
+  );
   const leadsIn = list.some((r) => r.via === "instantly");
   const dropUndo = (id: string) => setUndo((m) => { const n = new Map(m); n.delete(id); return n; });
   const sendFrom = (r: MailRow, text: string) => {

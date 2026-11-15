@@ -30,3 +30,41 @@
 @media (prefers-reduced-motion: reduce) {
   .fi-card, .fi-mark, .fi-head, .fi-ask, .fi-btns { animation: none !important; }
 }
+
+/* V1.62 the new app logo moment (core/featureintro.ts LOGO_MOMENT has the same times). The card hangs from the island in the same
+   black, rounder, and grows out of its width on the spring. The logo starts tiny inside the island and springs out to full size with
+   a soft overshoot (the spring peaks at about 520 ms, when the landing chime plays), a glow breathes out behind it and a shine runs
+   across it; then the words and Ok fade in. On Ok the words go, the logo sinks back up into the island, then the card folds back up
+   and the island shrinks back. Only transform and opacity animate. */
+.fi-ack .fi-card { justify-items: center; text-align: center; padding: 20px 18px 18px; gap: 12px; }
+.fi-layer.isl.fi-ack .fi-card { border-radius: 0 0 40px 40px; animation: fi-grow .8s var(--fi-spring) both; }
+.fi-layer.plain.fi-ack .fi-card { border-radius: 36px; }
+.fi-logo { position: relative; display: block; width: 92px; height: 92px; transform-origin: 50% 50%; animation: fi-emerge .9s .08s var(--fi-spring) both; }
+.fi-logo img { position: relative; display: block; }
+.fi-logo-glow { position: absolute; inset: -18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(205, 228, 242, .42), rgba(205, 228, 242, 0)); opacity: 0;
+  animation: fi-glow 1.7s .42s ease-out both; }
+.fi-logo-shine { position: absolute; inset: 0; border-radius: 22%; overflow: hidden; pointer-events: none; }
+.fi-logo-shine::after { content: ""; position: absolute; top: -25%; bottom: -25%; left: 0; width: 38%; background: linear-gradient(100deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .8), rgba(255, 255, 255, 0));
+  transform: translateX(-140%) skewX(-18deg); animation: fi-shine .85s .64s cubic-bezier(.3, .6, .3, 1) both; }
+.fi-ack .fi-head { font-size: 17px; animation: fi-text .5s .6s ease both; }
+.fi-ack .fi-btns { width: 100%; animation: fi-text .45s .82s ease both; }
+.fi-ack .fi-btn.go { background: #f5f5f7; color: #000; }
+.fi-ack .fi-btn.go:hover { background: #fff; }
+.fi-layer.fi-ack.out .fi-head, .fi-layer.fi-ack.out .fi-btns { animation: fi-hide .16s ease both; }
+.fi-layer.fi-ack.out .fi-logo { animation: fi-sink .3s cubic-bezier(.5, 0, .75, .3) both; }
+.fi-layer.fi-ack.out .fi-logo-glow, .fi-layer.fi-ack.out .fi-logo-shine { display: none; }
+.fi-layer.isl.fi-ack.out .fi-card { animation: fi-back .3s .26s cubic-bezier(.5, 0, .75, .3) both; }
+.fi-layer.plain.fi-ack.out .fi-card { animation: fi-away .3s .26s ease both; }
+@keyframes fi-emerge { from { opacity: 0; transform: translateY(-84px) scale(.14); } 18% { opacity: 1; } }
+@keyframes fi-sink { to { opacity: 0; transform: translateY(-84px) scale(.14); } }
+@keyframes fi-glow { from { opacity: 0; transform: scale(.6); } 35% { opacity: 1; } to { opacity: 0; transform: scale(1.3); } }
+@keyframes fi-shine { to { transform: translateX(380%) skewX(-18deg); } }
+@keyframes fi-hide { to { opacity: 0; } }
+@keyframes fi-fade { from { opacity: 0; } }
+/* Reduced motion: a simple fade in and out, no swoop, no glow, no shine. */
+@media (prefers-reduced-motion: reduce) {
+  .fi-ack .fi-card { animation: fi-fade .25s ease both !important; }
+  .fi-layer.fi-ack.out .fi-card { animation: fi-hide .2s ease both !important; }
+  .fi-ack .fi-logo, .fi-ack .fi-head, .fi-ack .fi-btns, .fi-ack .fi-logo-shine::after { animation: none !important; }
+  .fi-ack .fi-logo-glow, .fi-ack .fi-logo-shine { display: none; }
+}

@@ -5,7 +5,9 @@ import {
   type IntroDef, type IntroFacts, type IntroState,
 } from "../src/core/featureintro.ts";
 // These rules are checked on the first intro (WhatsApp) alone, as before; a later entry (screen recording, 12b) has its own tests in screenrecisland.test.ts.
-const nextIntro = (s: IntroState, f: IntroFacts, defs: IntroDef[] = [INTROS[0]]) => nextOf(s, f, defs);
+// V1.62: the new app logo notice is first in the list now, so the WhatsApp intro is found by its id.
+const WA = INTROS.find((d) => d.id === "whatsapp")!;
+const nextIntro = (s: IntroState, f: IntroFacts, defs: IntroDef[] = [WA]) => nextOf(s, f, defs);
 import { islandQueueRuntime } from "../src/core/islandqueue.ts";
 
 let fails = 0, n = 0;
@@ -20,7 +22,7 @@ const shows = (s: IntroState, f: IntroFacts, defs?: IntroDef[]) => { const p = n
 const waits = (s: IntroState, f: IntroFacts) => { const p = nextIntro(s, f); return p && "wait" in p ? p.wait : null; };
 
 // ---- the list
-ok("the list has the WhatsApp intro with its words", INTROS[0].id === "whatsapp" && INTROS[0].headline === "WhatsApp messages now supported" && INTROS[0].ask === "Did you know you can link WhatsApp?" && INTROS[0].show === "Show me" && INTROS[0].later === "Later");
+ok("the list has the WhatsApp intro with its words", WA.id === "whatsapp" && WA.headline === "WhatsApp messages now supported" && WA.ask === "Did you know you can link WhatsApp?" && WA.show === "Show me" && WA.later === "Later");
 ok("ids are unique", new Set(INTROS.map((d) => d.id)).size === INTROS.length);
 ok("no dashes in the words", INTROS.every((d) => !/[–—]/.test(j(d))));
 
@@ -90,7 +92,7 @@ ok("Show me ends it for good", showMe.recs.whatsapp.closed === true && nextIntro
 ok("an answer for an intro never shown changes nothing", j(answer(active(), "whatsapp", "show")) === j(active()));
 
 // ---- one intro at a time, at least a day apart
-const two: IntroDef[] = [INTROS[0], { ...INTROS[0], id: "second", headline: "Second thing", mark: "spark" }];
+const two: IntroDef[] = [WA, { ...WA, id: "second", headline: "Second thing", mark: "spark" }];
 ok("with two waiting, the first in the list goes first, alone", (() => { const p = nextIntro(active(), calm(T0), two); return !!p && "show" in p && p.show.id === "whatsapp"; })());
 const afterFirst = answer(markShown(active(), "whatsapp", T0), "whatsapp", "show");
 ok("the second does not follow the first within a day", (() => { const p = nextIntro(afterFirst, calm(T0 + DAY - 1000), two); return !!p && "wait" in p && p.wait === "gap"; })());

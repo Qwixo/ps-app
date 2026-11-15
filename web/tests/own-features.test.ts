@@ -1,8 +1,9 @@
 // Run: node --experimental-strip-types tests/own-features.test.ts
 // V1.61: the developer's own build has his friends' features. The developer's layer profile (ps-layer/profile.json) says othersShared "on"
 // and switches Client emails on. A build made from his private tree carries only those two values (vite.config.ts
-// `own`), and the page uses them ONLY on the developer's own account (core/features.ts whoFor). Everyone else, core and the
-// public build keep core's defaults; a person's own switch (Settings, From the squad) still wins over the profile.
+// `own`), and the page uses them ONLY on the developer's own account (core/features.ts whoFor). V1.62: every other signed in account
+// gets Jan's shared features at their defaults (on), Client emails and WhatsApp included (tests/public-on.test.ts); the developer's
+// own build stays as 1.61 left it (WhatsApp off through his profile). A person's own switch still wins over the profile.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 let n = 0;
@@ -28,10 +29,10 @@ const answers = (account: "red" | "other" | null, mine?: Record<string, boolean>
   return F.featureAnswers(F.registry(), F.whoFor(P.profile(), account), mine);
 };
 
-ok("The developer's layer profile: others' shared features on, Client emails on, WhatsApp and Screen recording left to their defaults", () => {
+ok("The developer's layer profile: others' shared features on, Client emails on, WhatsApp off as 1.61 left it, Screen recording at its default", () => {
   assert.equal(layerProfile.name, "red");
   assert.equal(layerProfile.othersShared, "on");
-  assert.deepEqual(layerProfile.features, { "client-emails": true });
+  assert.deepEqual(layerProfile.features, { "client-emails": true, whatsapp: false });
   assert.equal(layerProfile.rules.tabOverProtectedApps, false, "the 1Password and Signal rules are untouched");
   assert.equal(layerProfile.rules.islandOverProtectedApps, false);
 });
@@ -44,9 +45,9 @@ ok("Jan's 1.60 features are all in core's registry (13 of them)", () => {
 ok("The developer's build, the developer's account: every one of Jan's default on features is on, and Client emails", () => {
   P.setBuildForTests(redBuild);
   const a = answers("red");
-  for (const id of jansOn) assert.equal(a[id], true, id);
+  for (const id of jansOn) if (id !== "whatsapp") assert.equal(a[id], true, id);
   assert.equal(a["client-emails"], true);
-  assert.equal(a.whatsapp, false, "WhatsApp needs his own Meta setup: stays at its default, off");
+  assert.equal(a.whatsapp, false, "WhatsApp needs his own Meta setup: off in his build, as 1.61 left it");
   assert.equal(a["screen-recording"], true, "Screen recording at its default; nothing records until he says yes in its own setup");
   assert.equal(a.campaigns, false, "core's features keep core's values");
   assert.equal(a["notebook-looks"], false);
@@ -54,13 +55,14 @@ ok("The developer's build, the developer's account: every one of Jan's default o
   P.setBuildForTests(undefined);
 });
 
-ok("The developer's build, anyone else's account: Jan's features off until they switch them on, Client emails off", () => {
+ok("The developer's build, anyone else's account (V1.62): every one of Jan's features on, Client emails on; the developer's profile never applies to them", () => {
   P.setBuildForTests(redBuild);
   const a = answers("other");
-  for (const f of jans) assert.equal(a[f.id], false, f.id);
-  assert.equal(M.mailSwitch(undefined, "other"), false);
-  assert.equal(M.mailSwitch(undefined), false, "the default account is anyone else");
-  assert.equal(F.feature("island-moments"), false);
+  for (const f of jans) assert.equal(a[f.id], true, f.id);
+  assert.equal(a.whatsapp, true, "The developer's whatsapp: false is his own, never a friend's");
+  assert.equal(M.mailSwitch(undefined, "other"), true);
+  assert.equal(M.mailSwitch(undefined), true, "the default account is anyone else");
+  assert.equal(F.feature("island-moments"), true);
   const before = answers(null);
   for (const f of jans) assert.equal(before[f.id], false, `${f.id} before anyone is signed in`);
   P.setBuildForTests(undefined);
@@ -74,9 +76,9 @@ ok("Client emails: on for the developer in his build, off for a stranger's build
   assert.equal(M.mailOn({ status: "unlocked", role: "owner", primary: true }, M.mailSwitch(undefined, "red")), true);
   assert.equal(M.mailOn({ status: "unlocked", role: "owner", primary: false }, M.mailSwitch(undefined, "red")), false, "still only the project's first owner");
   P.setBuildForTests(publicBuild);
-  assert.equal(M.mailSwitch(undefined, "red"), false, "the public build: core's default, off");
-  assert.equal(M.mailSwitch(undefined, "other"), false);
-  assert.equal(M.mailSwitch({ "client-emails": true }, "other"), true, "anyone can still switch it on");
+  assert.equal(M.mailSwitch(undefined, "red"), false, "core's tree (no own) on the developer's account: others' features off");
+  assert.equal(M.mailSwitch(undefined, "other"), true, "V1.62: on for a friend by default");
+  assert.equal(M.mailSwitch({ "client-emails": false }, "other"), false, "a friend's own Off wins");
   P.setBuildForTests(undefined);
 });
 

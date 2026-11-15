@@ -258,5 +258,14 @@
    "After an update, the Dock shows the new PS logo straight away."
   ],
   "ru": []
+ },
+ "1.62": {
+  "en": [
+   "The email panel now shows for everyone. Connect your Gmail from the panel to see your clients' emails.",
+   "Every new feature from 1.60 is now on for everyone. Switch any of them off in Settings, From the squad.",
+   "Build PS with friends: click Link my AI in Settings, G Squad, and your AI can talk to your friends' AIs, share progress and release updates.",
+   "New app logo"
+  ],
+  "ru": []
  }
 }

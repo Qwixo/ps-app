@@ -348,6 +348,12 @@ export function tourPlan(deck: readonly TourCard[], now: TourNow, choices: Choic
   ops.push({ to: "looks", patch: looks });
   return ops;
 }
+/** V1.62: Create's choices without the "setup done" mark. The last step (Make PS yours, core/setuplooks.ts) comes after Create,
+ *  and the menu must stay open for it, so the mark is written when that step closes (Done or Esc, tourSeenOnly). */
+export function holdDone(ops: TourOp[]): TourOp[] {
+  return ops.map((o) => (o.to === "looks" ? { ...o, patch: Object.fromEntries(Object.entries(o.patch).filter(([k]) => k !== "welcomeDone")) } : o))
+    .filter((o) => o.to !== "looks" || Object.keys(o.patch).length > 0);
+}
 /** Not now, or closed with Esc: nothing changes, the menu is only marked as seen. */
 export const tourSeenOnly = (done: string): TourOp[] => [{ to: "looks", patch: { welcomeDone: done } }];
 

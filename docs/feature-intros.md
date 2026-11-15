@@ -21,6 +21,10 @@ A feature intro is the "Did you know?" the island shows once, after an update, f
    }
    ```
 
+   A one button notice (V1.62, "New app logo"): leave out `ask`, `later`, `steps` and `settings`, and add `ack: true` with
+   `show: "Ok"`. Ok, Esc and Back end it for good, saved with the person's settings (`introsDone`), so it shows once per
+   person. Add `updatersOnly: true` and a `DONE_PROBES` line using `updaterProbe` to keep it from first installs.
+
 2. Say who it is for. By default an intro applies to everyone. To stop it for people who already did the thing (like WhatsApp
    for people who linked it), add one line to `DONE_PROBES` in `web/src/views/FeatureIntro.tsx`: a function that answers
    `"done"` (never show again), `"open"` (show) or `"unknown"` (wait, never guess).

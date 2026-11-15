@@ -2,7 +2,7 @@
 // and let you adjust appearance options". One short list of big rows; each opens one page with a back arrow (Esc
 // steps back too): What you share, Your name, Notifications, Appearance, Leave the squad. Every sharing switch
 // lives here (and on the join screen), so a stranger's PS shows them all.
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { settingsData } from "../core/select";
 import { cleanShareOpts, SHARE_PIECES, shareOn, type ShareOpts, type SharePiece } from "../core/squadshare";
 import { squadOp } from "../squad/mirror";
@@ -14,6 +14,7 @@ import type { SquadView } from "../squad/view";
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { Avatar } from "./SquadAvatar";
+import { newAiCode } from "../squad/devlink";
 
 export function useShare(): ShareOpts {
   return cleanShareOpts(settingsData(useVault()).squadShare);
@@ -77,9 +78,10 @@ const PAGE_ICON: Record<SettingsPage, ReactNode> = {
   name: <I><circle cx="12" cy="8.5" r="3.6" /><path d="M5 20c.7-3.7 3.5-5.8 7-5.8s6.3 2.1 7 5.8" /></I>,
   notify: <I><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 1.8H5z" /><path d="M10 20.5a2.2 2.2 0 0 0 4 0" /></I>,
   looks: <I><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor" stroke="none" /></I>,
+  ai: <I><rect x="5" y="7.5" width="14" height="11" rx="3" /><path d="M12 7.5V4.5M9.5 12.5h.01M14.5 12.5h.01M9.5 15.5h5" /></I>,
   leave: <I><path d="M14 4.5h4.5v15H14" /><path d="M10.5 8L6.5 12l4 4M6.8 12H15" /></I>,
 };
-const TONE: Record<SettingsPage, string> = { share: "ok", name: "info", notify: "warn", looks: "acc2", leave: "bad" };
+const TONE: Record<SettingsPage, string> = { share: "ok", name: "info", notify: "warn", looks: "acc2", ai: "info", leave: "bad" };
 export function SettingsIcon() {
   return <I><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" /></I>;
 }
@@ -118,6 +120,7 @@ export function SquadSettings({ view, page, onPage }: { view: SquadView; page: S
       {page === "name" && <NamePage view={view} />}
       {page === "notify" && <NotifyPage />}
       {page === "looks" && <LooksPage />}
+      {page === "ai" && <AiPage view={view} />}
       {page === "leave" && <LeavePage view={view} onDone={() => onPage(null)} />}
     </div>
   );
@@ -201,6 +204,42 @@ function LooksPage() {
       <Choice label="Text size" list={TEXTS} value={l.text} onPick={(text) => setLooks({ text })} swatch={(id) => <i className={`gss-aa ${id}`}>Aa</i>} />
       <Choice label="Background" list={BGS} value={l.bg} onPick={(bg) => setLooks({ bg })} swatch={(id) => <i className={`gss-bgs ${id}`} />} />
       <p className="gs-note">Only this device, only G Squad. Your squad never sees it.</p>
+    </div>
+  );
+}
+
+// V1.62 Link my AI (squad/devlink.ts). One click makes the code here and copies it in the same click; PS then
+// registers it with the hub. Words approved by the developer on 15 Nov 2026; lines marked NEW WORDS wait for his yes.
+function AiPage({ view }: { view: SquadView }) {
+  const ai = view.ai ?? null;
+  const [shown, setShown] = useState<{ id: string; code: string } | null>(null);   // only when the clipboard said no
+  useEffect(() => { squadOp({ op: "aiOpen" }); return () => squadOp({ op: "aiClose" }); }, []);
+  const link = () => {
+    sfx.click();
+    const c = newAiCode();
+    setShown(null);
+    navigator.clipboard.writeText(c.code).catch(() => setShown({ id: c.id, code: c.code }));
+    squadOp({ op: "aiCode", id: c.id, secret: c.secret });
+  };
+  const st = ai?.code?.state;
+  return (
+    <div className="gss-card">
+      <button type="button" className="gs-mini big" data-ai="link" disabled={st === "busy"} onClick={link}>Link my AI</button>
+      <p className="gs-note">Lets your AI (Claude Code or Codex) talk to your friends' AIs while you build PS together. It never sees your tasks or chats.</p>
+      {st === "ready" && !shown && <p className="gs-note" data-ai="copied">Code copied. Tell your AI 'done'. It works for 10 minutes.</p>}
+      {/* NEW WORDS */}
+      {st === "ready" && shown && shown.id === ai?.code?.id && <p className="gs-note">Copy this code for your AI: <code className="gs-code">{shown.code}</code></p>}
+      {ai?.error && <p className="gs-note bad">{ai.error}</p>}
+      {!!ai?.list?.length && (
+        <ul className="gs-list">
+          {ai.list.map((a) => (
+            <li key={a.id} className="gs-name">
+              <span className="gs-tt">AI linked</span>
+              <button type="button" className="gs-mini bad" onClick={() => { sfx.click(); squadOp({ op: "aiUnlink", id: a.id }); }}>Unlink</button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

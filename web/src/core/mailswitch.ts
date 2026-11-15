@@ -5,13 +5,13 @@
 //   1. the vault is unlocked and the account is an owner (never a client member of someone's workspace);
 //   2. the account is the primary owner of the Supabase project it is signed in to (`primary`, set from the
 //      database's own vault_role(); nobody's account counts as the developer's, this is a separate fact);
-//   3. the person switched "Client emails" on. That switch is the feature "client-emails" in features.json, so it is the same
-//      switch as Settings, From the squad: stored per person in settings.squadFeatures, default off.
+//   3. "Client emails" is on for them. That switch is the feature "client-emails" in features.json, so it is the same
+//      switch as Settings, From the squad: stored per person in settings.squadFeatures. Default on since V1.62 (the developer: the
+//      public build gets every feature); the person's own Off wins.
 // Why the primary owner: the mail functions seal every email to the one app_owner of the project they run on, so only
 // that account can ever open them. Someone else's emails can never reach your vault.
 import type { Snapshot } from "./vault.ts";
-import { cleanSwitches, registry, whoFor, type Account } from "./features.ts";
-import { profile } from "./profile.ts";
+import { switchOn, type Account } from "./features.ts";
 
 export const MAIL_FEATURE = "client-emails";
 export type MailWho = Pick<Snapshot, "status" | "role"> & { primary?: boolean };
@@ -25,13 +25,11 @@ export function mailOn(s: MailWho, switchedOn: unknown): boolean {
   return mailCan(s) && switchedOn === true;
 }
 /** The person's own switch, read from their settings against this build's registry. The person's answer wins, then the
- *  profile's own override, else off. It does not matter whose build this is (a person's own build included), so the
- *  Settings switch always works. Not in the registry: off (fails closed).
- *  `account` (V1.61): the developer's own account in a build from his private tree also takes his layer's override (core/features.ts
- *  whoFor), so Client emails is on for him until he switches it off. Anyone else: as before. */
+ *  build's answer for their account (core/features.ts switchOn): the feature's default (on since V1.62) and the profile's
+ *  override. It does not matter whose build this is (a person's own build included), so the Settings switch always works.
+ *  Not in the registry: off (fails closed).
+ *  `account`: the developer's own account in a build from his private tree takes his layer's override (V1.61); anyone else signed in
+ *  gets the default, on (V1.62). Nobody signed in: off. */
 export function mailSwitch(squadFeatures: unknown, account: Account = "other"): boolean {
-  if (!registry().some((x) => x.id === MAIL_FEATURE)) return false;
-  const mine = cleanSwitches(squadFeatures)[MAIL_FEATURE];
-  if (typeof mine === "boolean") return mine;
-  return whoFor(profile(), account).overrides[MAIL_FEATURE] === true;
+  return switchOn(MAIL_FEATURE, squadFeatures, account);
 }

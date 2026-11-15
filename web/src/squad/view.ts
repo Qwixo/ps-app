@@ -31,6 +31,24 @@ export interface SquadView {
   /** V1.49 one squad, everyone in: where your automatic join stands while you are not in (squad/autoengine.ts). */
   auto?: { stage: AutoStage; error?: string | null; /** V1.57 asked: the check code the admin sees too */ code?: string | null } | null;
   friend?: FriendView | null;    // V1.44 Add friend: the QR code's link (made fresh each time the page opens)
+  ai?: AiView | null;            // V1.62 Link my AI (squad/devlink.ts): your linked AIs and the code just made
+}
+/** V1.62 Link my AI. code: the one the Tab list just copied (it made it); state of registering it with the hub. */
+export interface AiView {
+  list: { id: string; linkedAt: string; beatAt: string | null }[] | null;   // null while loading
+  code: { id: string; state: "busy" | "ready" | "error"; expiresAt: string | null } | null;
+  error: string | null;
+}
+export function cleanAiView(v: unknown): AiView | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return null;
+  const s = (x: unknown, n: number) => (typeof x === "string" ? x.slice(0, n) : "");
+  const list = Array.isArray(o.list) ? o.list.slice(0, 8).map((a) => { const x = a as Record<string, unknown>;
+    return { id: s(x?.id, 40), linkedAt: s(x?.linkedAt, 40), beatAt: typeof x?.beatAt === "string" ? x.beatAt.slice(0, 40) : null }; }) : null;
+  const c = o.code as Record<string, unknown> | null;
+  const code = c && typeof c === "object" && (c.state === "busy" || c.state === "ready" || c.state === "error")
+    ? { id: s(c.id, 40), state: c.state as "busy" | "ready" | "error", expiresAt: typeof c.expiresAt === "string" ? c.expiresAt.slice(0, 40) : null } : null;
+  return { list, code, error: typeof o.error === "string" ? o.error.slice(0, 200) : null };
 }
 /** Where the automatic join stands, as the Tab list may take it from PS (squad/mirror.ts). V1.57: "asked" with its
  *  check code (the code only for that stage). */
@@ -81,7 +99,9 @@ export type SquadOp =
   // V1.43 names
   | { op: "renameSquad"; name: string } | { op: "renameMe"; name: string }
   // V1.44 Add friend: a fresh code, and done with it
-  | { op: "friend" } | { op: "friendClose" };
+  | { op: "friend" } | { op: "friendClose" }
+  // V1.62 Link my AI: load the list, register the code the Tab list already copied, unlink one, done with the page
+  | { op: "aiOpen" } | { op: "aiCode"; id: string; secret: string } | { op: "aiUnlink"; id: string } | { op: "aiClose" };
 export const DIR_OPS = new Set(["dir", "ask", "askCancel", "askClear", "approve", "decline"]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -112,6 +132,9 @@ export function cleanSquadOp(v: unknown): SquadOp | null {
     case "dir": case "askCancel": case "askClear": return { op: o.op };
     case "ask": return typeof o.squad === "string" && UUID.test(o.squad) && text(o.me, 40) ? { op: "ask", squad: o.squad.toLowerCase(), me: text(o.me, 40) } : null;
     case "approve": case "decline": return typeof o.id === "string" && UUID.test(o.id) ? { op: o.op, id: o.id.toLowerCase() } : null;
+    case "aiOpen": case "aiClose": return { op: o.op };
+    case "aiCode": return typeof o.id === "string" && UUID.test(o.id) && typeof o.secret === "string" && /^[A-Za-z0-9_-]{43}$/.test(o.secret) ? { op: "aiCode", id: o.id.toLowerCase(), secret: o.secret } : null;
+    case "aiUnlink": return typeof o.id === "string" && UUID.test(o.id) ? { op: "aiUnlink", id: o.id.toLowerCase() } : null;
     case "renameSquad": case "renameMe": { const name = cleanName(o.name); return name ? { op: o.op, name } : null; }
   }
   return null;

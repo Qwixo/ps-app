@@ -1,7 +1,7 @@
 // Settings, G Squad, "From the squad" (V1.58, multiple developers; design: ps-handover-notes/v158-multidev-design.md
 // section 3). Every shared feature made by someone else (not this build's own person, not core), each with its name, who
-// made it, the version it came in and an On/Off switch. In a person's own build each one starts off until they switch it
-// on (the developer's too); in the G Squad build each one starts on. The switch is saved with the other settings in the vault
+// made it, the version it came in and an On/Off switch. In the G Squad build, and since V1.62 on every friend's account in
+// The developer's one build for everyone, each one starts on; in a core build on the developer's own account they start off. The switch is saved with the other settings in the vault
 // (squadFeatures), so it follows the person to every device, and src/featuresync.ts hands the answers to the Mac.
 // Shown in every build (public too: every public feature has a visible switch). It sits inside Settings, so Esc closes it
 // with Settings (views/SettingsScreen.tsx).

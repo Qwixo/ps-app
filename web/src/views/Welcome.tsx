@@ -9,6 +9,8 @@
 // Like What's new, it only shows while the Tab list is on screen and asks PS for the keyboard ("dimx"). If PS hides
 // the list (System Settings opening for a permission), the menu comes back where it was the next time the list shows.
 // The words and rules are in core/welcome.ts; the drawing is views/MiniPs.tsx.
+// V1.62: after Create comes one last step, Make PS yours (views/SetupLooks.tsx, core/setuplooks.ts): a background that is not the
+// blank one and an effect must be picked before Done. The "setup done" mark is written when it closes (Done or Esc).
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { PS, psPost, useOverlayShown, usePsSettings, usePsTab, type PsSettings, type RebootSettings } from "../ps";
@@ -24,7 +26,7 @@ import { accountOlderThan } from "../core/whatsnew";
 import { EXAMPLE_WORDS, hasExamples } from "../core/examples";
 import {
   cardPerms, choiceLabel, cleanWelcomeDone, clampStep, fillApp, lastStep, PERM_WORDS, PERMS, progressWords, sectionAt, SETUP_GEN, setupAsked, startChoices, TOUR_DEFAULTS, TOUR_WORDS, tourDeck,
-  tourPlan, tourProgress, tourSeenOnly, WELCOME_LOCAL_KEY, welcomeStep, type ChoiceValue, type Choices, type PermId, type TourCard, type TourNow, type TourOp,
+  holdDone, tourPlan, tourProgress, tourSeenOnly, WELCOME_LOCAL_KEY, welcomeStep, type ChoiceValue, type Choices, type PermId, type TourCard, type TourNow, type TourOp,
 } from "../core/welcome";
 import { taskMapActions } from "./TaskMap";
 import { openSettings, settingsWanted } from "./SettingsScreen";
@@ -39,6 +41,7 @@ import { useFitTheme } from "../fitness/theme";
 import { setCalendarOn } from "./CalSwitch";
 import { SharingList } from "./GSquad";
 import { StoreBox } from "./LocalFirst";
+import { SetupLooks, SetupLooksDoneButton } from "./SetupLooks";
 import { registerSetup, type SetupDetail } from "../setuphook";
 import type { Settings } from "../core/model";
 import "./whatsnew.css";
@@ -47,7 +50,7 @@ import "./welcome.css";
 // ---------- open requests, whether it is up (What's new waits), and where it was (a hidden list comes back to it) ----------
 let manual = 0;
 let showing = false;
-let resume: { step: number; touched: Choices } | null = null;
+let resume: { step: number; touched: Choices; looks?: boolean } | null = null;
 const subs = new Set<() => void>();
 const emit = () => subs.forEach((f) => f());
 const sub = (f: () => void) => { subs.add(f); return () => { subs.delete(f); }; };
@@ -173,12 +176,14 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
   const [dir, setDir] = useState<1 | -1>(1);
   const [touched, setTouched] = useState<Choices>(resume?.touched ?? {});
   const [phase, setPhase] = useState<"in" | "creating" | "created" | "out">("in");
+  // V1.62 the last step, Make PS yours (views/SetupLooks.tsx): after Create, before the menu closes.
+  const [looks, setLooks] = useState(resume?.looks ?? false);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
   const choices: Choices = { ...startChoices(deck, now), ...touched };
   const last = lastStep(deck);
   const at = clampStep(step, deck);
-  const card: TourCard | null = at >= 1 && at <= deck.length ? deck[at - 1] : null;
+  const card: TourCard | null = !looks && at >= 1 && at <= deck.length ? deck[at - 1] : null;
   const prog = tourProgress(at, deck);
   const pw = progressWords(prog);
   const sec = sectionAt(at, deck);
@@ -186,7 +191,7 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
   const examples = s.status === "unlocked" && hasExamples(set.examples, s.docs.values(), set.aware, set.timelines);
   const [exGone, setExGone] = useState(false);
   const [exKept, setExKept] = useState(false);
-  resume = { step: at, touched };
+  resume = { step: at, touched, looks };
 
   const go = (to: number) => {
     const t = clampStep(to, deck);
@@ -213,7 +218,8 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
     phaseRef.current = "creating";
     setPhase("creating");
     window.setTimeout(() => { setPhase("created"); phaseRef.current = "created"; }, 650);
-    window.setTimeout(() => close(ops), 1900);
+    // V1.62: the choices are set now, then the last step, Make PS yours. "Setup done" is written when it closes (Done or Esc).
+    window.setTimeout(() => { run(holdDone(ops)); phaseRef.current = "in"; setPhase("in"); setDir(1); setLooks(true); }, 1900);
   };
   /** The Appearance card: save what was picked so far, then open Settings on Looks. */
   const openLooks = () => {
@@ -229,12 +235,13 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
     psPost({ type: "reboot:refresh" });
     return () => { psPost({ type: "dimx", open: false }); };
   }, []);
-  const keys = useRef({ go, close, at });
-  keys.current = { go, close, at };
+  const keys = useRef({ go, close, at, looks });
+  keys.current = { go, close, at, looks };
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const k = keys.current;
       if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); k.close(null); }
+      else if (k.looks) return;   // the last step has no steps either side (Create already ran)
       else if (e.key === "ArrowRight") { e.preventDefault(); e.stopImmediatePropagation(); if (k.at < last) k.go(k.at + 1); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); e.stopImmediatePropagation(); k.go(k.at - 1); }
     };
@@ -249,7 +256,7 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
     };
   }, [last]);
 
-  const summary = at === last;
+  const summary = at === last && !looks;
   const showPerm = !!card?.perm && (card.permWhen === "always" || choices[card.id] === true);
   const sections = useMemo(() => [...new Set(deck.map((c) => c.section))], [deck]);
   const where = card ? (showPerm ? PERMS[card.perm!].where : card.where) : null;
@@ -257,9 +264,9 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
   return createPortal(
     <div className={`wt-layer${phase === "out" ? " out" : ""}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <div className="wt-dim" aria-hidden="true" />
-      <section className={`wt-card wn-card${summary ? " sum" : ""}${at === 0 ? " intro" : ""}${card ? " two" : ""}`} role="dialog" aria-modal="true" aria-labelledby="wt-title">
+      <section className={`wt-card wn-card${summary || looks ? " sum" : ""}${at === 0 && !looks ? " intro" : ""}${card ? " two" : ""}${looks ? " lk" : ""}`} role="dialog" aria-modal="true" aria-labelledby="wt-title">
         <div className="wn-glow" aria-hidden="true" />
-        {at > 0 && (
+        {at > 0 && !looks && (
           <div className="wt-prog" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={prog.pct} aria-label={`${pw.done}, ${pw.left}`}>
             <div className="wt-bar"><i style={{ transform: `scaleX(${Math.max(0.02, prog.pct / 100)})` }} /></div>
             <div className="wt-prog-t">
@@ -271,8 +278,9 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
         )}
         <div className="wt-body-grid">
           <div className="wt-stage">
-            <div key={at} className={`wt-page ${dir > 0 ? "fwd" : "back"}`}>
-              {at === 0 && (
+            <div key={looks ? "looks" : at} className={`wt-page ${dir > 0 ? "fwd" : "back"}`}>
+              {looks && <SetupLooks />}
+              {at === 0 && !looks && (
                 <div className="wt-intro">
                   <span className="wt-orb" aria-hidden="true">
                     <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -358,7 +366,12 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
             </aside>
           )}
         </div>
-        <footer className="wt-foot">
+        {looks ? (
+          <footer className="wt-foot">
+            <span className="wt-gap" />
+            <SetupLooksDoneButton onDone={() => close(null)} />
+          </footer>
+        ) : <footer className="wt-foot">
           {at === 0
             ? <button type="button" className="wt-btn ghost" onClick={() => { sfx.click(); close(null); }}>{w("later")}</button>
             : <button type="button" className="wt-btn ghost" onClick={() => go(at - 1)} disabled={phase !== "in"}>{w("back")}</button>}
@@ -373,7 +386,7 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
               </button>
             )
             : <button type="button" className="wt-btn go" onClick={() => go(at + 1)}>{at === 0 ? (update ? w("startUpdate") : w("start")) : w("next")}</button>}
-        </footer>
+        </footer>}
       </section>
     </div>,
     document.body,

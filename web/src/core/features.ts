@@ -41,8 +41,9 @@ export const NOTEBOOK_ON = false;
 // else: othersShared of the profile (and the feature's default), then the profile's override, then the person's own switch
 // in Settings, "From the squad" (views/FromTheSquad.tsx), saved per account with the other settings (squadFeatures).
 // A build with no profile (every V1.58 build made the V1.57 way) uses the per account answer instead: the developer's account is
-// like his own profile, and on every account others' features stay off until the person switches them on. It never acts
-// as the G Squad build (fails closed). Before anyone is signed in: nobody else's feature runs.
+// like his own profile; since V1.62 every other signed in account gets others' shared features at their defaults (on),
+// as the G Squad build does, because the developer's release is the one build his friends run. Its rules (1Password and Signal)
+// never act as the G Squad build (fails closed). Before anyone is signed in: nobody else's feature runs.
 // The two switches above (CAMPAIGNS_ON, NOTEBOOK_ON) stay plain constants, so the bundle is exactly V1.57's; they are in
 // core's features.json as "campaigns" and "notebook-looks" with the same default (tests/features.test.ts checks that).
 import { ID_RE, NAME_RE, profile, buildFile, ownDefaults, type OwnDefaults, type Profile } from "./profile.ts";
@@ -116,7 +117,23 @@ export function whoFor(p: Profile | null, account: Account, own: OwnDefaults | n
   // othersShared and the overrides), so his build has his friends' features without the profile ever applying to anyone
   // else. No `own` (core, a test): off, as before.
   if (account === "red") return { name: "red", othersShared: own?.othersShared ?? "off", overrides: { ...(own?.features ?? {}) } };
-  return { name: "", othersShared: "off", overrides: {} };
+  // V1.62: anyone else signed in (a G Squad friend on their own project) gets every shared feature at its default, like the
+  // G Squad profile (othersShared "on"). The developer's releases are one build for everyone, so before 1.62 every friend had all of
+  // Jan's features off (the developer, 15 Nov 2026: the public build gets every feature, on, each with its switch in Settings, From
+  // the squad). Their own Off still wins. This is only about features: the 1Password and Signal rules never come from here.
+  if (account === "other") return { name: "", othersShared: "on", overrides: {} };
+  return { name: "", othersShared: "off", overrides: {} };   // nobody signed in yet: nobody else's feature runs
+}
+
+/** One feature's answer for a person's own switch (Settings), V1.62: their own On or Off wins (also for a feature made by
+ *  this build's own person, so the Settings switch always works), else the build's answer for their account. Not in the
+ *  registry: off (fails closed). Used by Client emails (core/mailswitch.ts) and WhatsApp (core/waswitch.ts). */
+export function switchOn(id: string, squadFeatures: unknown, account: Account): boolean {
+  const f = registry().find((x) => x.id === id);
+  if (!f) return false;
+  const mine = cleanSwitches(squadFeatures)[id];
+  if (typeof mine === "boolean") return mine;
+  return featureOn(f, whoFor(profile(), account), undefined);
 }
 
 /** True when this feature is made by someone else than this build's person (and not core): the ones with a switch. */

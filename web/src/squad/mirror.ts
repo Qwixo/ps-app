@@ -2,7 +2,7 @@
 // On the website (V1.44, the To-do page in web form) the engine runs in this very page (squad/webhost.ts), so the
 // screens read it and call it directly, the way the chat does (squad/chatmirror.ts).
 import { useSyncExternalStore } from "react";
-import { cleanAutoView, cleanSquadOp, EMPTY_VIEW, type DirView, type FriendView, type SquadOp, type SquadView } from "./view";
+import { cleanAiView, cleanAutoView, cleanSquadOp, EMPTY_VIEW, type DirView, type FriendView, type SquadOp, type SquadView } from "./view";
 import { runSquadOp, squadStore } from "./engine";
 import { runBoardOp } from "./board";
 import { cleanBoardView } from "./boardmirror";
@@ -50,6 +50,7 @@ export function setSquadMirror(v: unknown) {
       return { id: str(x.id, 40), name: str(x.name, 40), code: str(x.code, 8), at: str(x.at, 40), ok: x.ok === true }; }),
     auto: cleanAutoView(o.auto),
     friend: cleanFriendView(o.friend),
+    ai: cleanAiView(o.ai),
   };
   if (o) mirrorSet = true;
   if (JSON.stringify(next) === JSON.stringify(mirror)) return;

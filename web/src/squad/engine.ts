@@ -25,6 +25,7 @@ import { DIR_OPS, EMPTY_VIEW, type FriendView, type SquadOp, type SquadView } fr
 import { dirCardMessage, dirOpen, dirPulse, dirSync, runDirOp, startDir } from "./direngine";
 import { autoAgain, autoGone, autoLeft, autoOpen, autoPulse, startAuto } from "./autoengine";
 import { hasCard } from "../core/squadauto";
+import { aiError, listAis, registerAiCode, unlinkAi } from "./devlink";
 export { dirCardMessage };
 
 const BEAT_MS = 3 * 60_000, OPEN_PULL_MS = 20_000, PEEK_MS = 60_000, PUSH_DELAY_MS = 4_000;
@@ -290,6 +291,27 @@ export async function runSquadOp(o: SquadOp): Promise<void> {
       case "rejoin": await autoAgain(); return;
       case "friend": { set({ friend: { kind: "busy" } }); const f = await friendCode(); if (f !== CLOSED) set({ friend: f }); return; }
       case "friendClose": await friendClose(); set({ friend: null }); return;
+      // V1.62 Link my AI (squad/devlink.ts). Errors stay on the page, never the squad's own error line.
+      case "aiOpen": await aiRefresh(); return;
+      case "aiClose": set({ ai: null }); return;
+      case "aiCode": {
+        if (!rec) return;
+        const cur = view.ai ?? { list: null, code: null, error: null };
+        set({ ai: { ...cur, code: { id: o.id, state: "busy", expiresAt: null }, error: null } });
+        try {
+          const r = await registerAiCode(rec, o.id, o.secret);
+          set({ ai: { ...(view.ai ?? cur), code: { id: o.id, state: "ready", expiresAt: r.expiresAt }, error: null } });
+        } catch (e) {
+          set({ ai: { ...(view.ai ?? cur), code: { id: o.id, state: "error", expiresAt: null }, error: aiError(e) } });
+        }
+        return;
+      }
+      case "aiUnlink": {
+        if (!rec) return;
+        try { await unlinkAi(rec, o.id); } catch (e) { set({ ai: { ...(view.ai ?? { list: null, code: null }), error: aiError(e) } }); return; }
+        await aiRefresh();
+        return;
+      }
       // V1.47 (the developer, 10 Nov 2026): one squad, The G Squad. Nobody makes a new squad from PS any more; the op is still
       // read (an older Tab list may send it) and does nothing. The hub and every existing squad stay as they are.
       case "create": return;
@@ -422,6 +444,12 @@ export async function friendCode(): Promise<FriendView> {
   }
 }
 /** The code closed (Esc, back, or the page left): a join code nobody used is deleted on the hub. */
+async function aiRefresh(): Promise<void> {
+  if (!rec) return;
+  const cur = view.ai ?? { list: null, code: null, error: null };
+  try { set({ ai: { ...cur, list: await listAis(rec), error: null } }); }
+  catch (e) { set({ ai: { ...cur, error: aiError(e) } }); }
+}
 export async function friendClose(): Promise<void> {
   friendRound++;
   const s = shown;

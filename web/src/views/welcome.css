@@ -167,3 +167,34 @@
 .wt-open-row { display: flex; animation: wn-item .45s .26s cubic-bezier(.2, 1.1, .35, 1) both; }
 .wt-open { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
 @media (prefers-reduced-motion: reduce) { .wt-share, .wt-open-row { animation: none; } }
+
+/* V1.62 the last step, Make PS yours (views/SetupLooks.tsx): the two choices with their More, and a small live preview of the
+   picked background with the picked rain falling over it. Reduced motion: the rain in the preview stands still. */
+.wt-card.wn-card.lk { width: min(760px, 100%); }
+.wt-looks { display: grid; gap: calc(12px * var(--k-dn, 1)); }
+.wt-lk-prev { position: relative; height: calc(92px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); overflow: hidden; isolation: isolate;
+  background: var(--lk-bg, linear-gradient(170deg, #1A2230, #0E141D)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); transition: background .35s ease; }
+.wt-lk-prev.blank { background: color-mix(in srgb, var(--k-surface, #160E13) 92%, #ffffff); }
+.wt-lk-prev .tm-p1-scene { z-index: 0; }
+.wt-lk-video { position: absolute; inset: 0; background: linear-gradient(150deg, #10202E, #3A2F5C 60%, #0B1018); }
+.wt-lk-list { position: absolute; left: 50%; top: 14px; bottom: 14px; width: 42%; translate: -50% 0; z-index: 1; display: grid; align-content: start; gap: 7px; padding: 10px 12px;
+  border-radius: 10px; background: rgba(12, 12, 16, .62); box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
+.wt-lk-list i { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .55); }
+.wt-lk-list i:nth-child(2) { width: 78%; } .wt-lk-list i:nth-child(3) { width: 56%; }
+.wt-lk-prev .ms-rain-sample.wt-lk-rain { z-index: 2; background: none; pointer-events: none; }
+.wt-lk-prev .ms-rain-sample.wt-lk-rain i { inset: -60px 0 0 0; animation: wt-lk-fall 1.1s linear infinite; }
+.wt-lk-prev .ms-rain-sample.rs-glass.wt-lk-rain i { animation-duration: 4s; }
+@keyframes wt-lk-fall { from { transform: translateY(0); } to { transform: translateY(60px); } }
+.wt-lk-part { display: grid; gap: calc(6px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(14px * var(--k-rd, 1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-fg, #ffffff) 12%, transparent); transition: box-shadow .25s ease; }
+.wt-lk-part.met { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); }
+.wt-lk-h { margin: 0; display: flex; align-items: center; gap: 6px; font-size: calc(14px * var(--k-fs, 1)); font-weight: 750; }
+.wt-lk-tick { color: var(--k-acc, #EC4E86); }
+.wt-lk-more { justify-self: start; }
+.wt-lk-extra { animation: wt-lk-open .3s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes wt-lk-open { from { opacity: 0; transform: translateY(-4px); } }
+.wt-foot .wt-btn.go:disabled { opacity: .45; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .wt-lk-prev .ms-rain-sample.wt-lk-rain i, .wt-lk-extra { animation: none; }
+  .wt-lk-prev, .wt-lk-part { transition: none; }
+}

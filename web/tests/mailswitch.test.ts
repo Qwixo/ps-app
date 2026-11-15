@@ -6,7 +6,8 @@ import { readFileSync, readdirSync } from "node:fs";
 let n = 0;
 const ok = async (name: string, fn: () => unknown) => { await fn(); n++; console.log("ok -", name); };
 const file = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
-const rootFile = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
+// In core the root is one folder up; in the private tree core's root files live in core-root/ (V1.62: runs in both).
+const rootFile = (p: string) => { try { return readFileSync(new URL(`../../${p}`, import.meta.url), "utf8"); } catch { return readFileSync(new URL(`../core-root/${p}`, import.meta.url), "utf8"); } };
 
 const { RED_PROJECT_REF } = await import("../src/core/project.ts");
 const W = await import("../src/core/mailswitch.ts");
@@ -40,18 +41,21 @@ await ok("mailOn fails closed: needs the person's own switch and anything but ex
   assert.equal(W.mailOn(asOwner(false), true), false);
   assert.equal(W.mailOn({ status: "locked", role: "owner", primary: true }, true), false);
 });
-await ok("mailSwitch: the feature is client-emails, off by default, on only when the person turned it on, off with no registry", () => {
+await ok("mailSwitch: the feature is client-emails, on by default since V1.62, the person's own Off wins, off with no registry", () => {
   P.setBuildForTests(undefined);
   assert.equal(W.mailSwitch({ "client-emails": true }), false, "no registry: fails closed");
   P.setBuildForTests(gs as never);
-  assert.equal(W.mailSwitch(undefined), false);
-  assert.equal(W.mailSwitch({}), false);
+  assert.equal(W.mailSwitch(undefined), true, "its maker's build: its default, on");
+  assert.equal(W.mailSwitch({}), true);
   assert.equal(W.mailSwitch({ "client-emails": true }), true);
   assert.equal(W.mailSwitch({ "client-emails": false }), false);
-  assert.equal(W.mailSwitch({ "client-emails": "yes" }), false);
-  assert.equal(W.mailSwitch({ "other-feature": true }), false);
+  assert.equal(W.mailSwitch({ "client-emails": "yes" }), true, "a wrong value is ignored: the default");
+  assert.equal(W.mailSwitch(undefined, null), true, "its maker's build, before sign in: still its own default");
   P.setBuildForTests({ ...gs, profile: { ...gs.profile, name: "gsquad", othersShared: "on" } } as never);
-  assert.equal(W.mailSwitch({}), false, "the squad build does not turn it on by itself either");
+  assert.equal(W.mailSwitch({}), true, "the squad build: on by default");
+  assert.equal(W.mailSwitch({ "client-emails": false }), false, "the person's Off wins");
+  P.setBuildForTests({ ...gs, profile: { ...gs.profile, name: "gsquad", othersShared: "off" } } as never);
+  assert.equal(W.mailSwitch({}), false, "a build that keeps others' features off: off until switched on");
   assert.equal(W.mailSwitch({ "client-emails": true }), true);
   P.setBuildForTests({ ...gs, profile: { ...gs.profile, features: { "client-emails": true } } } as never);
   assert.equal(W.mailSwitch({}), true, "the profile's own override"); assert.equal(W.mailSwitch({ "client-emails": false }), false, "the person's answer wins");
@@ -219,9 +223,9 @@ await ok("ps-core.json lists the new migrations in order and the four functions;
   assert.ok(!m.redOnly.migrations.some((x: string) => /^(008|009|014|019|022|024)_/.test(x)));
   for (const x of m.migrations) if (/^03[1-7]/.test(x)) assert.ok(readdirSync(new URL("../supabase/migrations", import.meta.url)).includes(x), x);
 });
-await ok("features.json has client-emails (owner jan, shared, since 1.60, off), FEATURES.md names it, plugpoints no longer swap the mail files", () => {
+await ok("features.json has client-emails (owner jan, shared, since 1.60, on since 1.62), FEATURES.md names it, plugpoints no longer swap the mail files", () => {
   const f = JSON.parse(rootFile("features.json")).features.find((x: { id: string }) => x.id === "client-emails");
-  assert.ok(f); assert.equal(f.owner, "jan"); assert.equal(f.scope, "shared"); assert.equal(f.since, "1.60"); assert.equal(f.default, "off");
+  assert.ok(f); assert.equal(f.owner, "jan"); assert.equal(f.scope, "shared"); assert.equal(f.since, "1.60"); assert.equal(f.default, "on");
   assert.match(rootFile("FEATURES.md"), /\| Client emails \|/);
   const pp = JSON.parse(rootFile("layers/plugpoints.json"));
   for (const x of ["src/core/mail.ts", "src/core/mailcards.ts", "src/mailcards.ts", "src/replyengine.ts", "src/views/Replies.tsx", "src/views/MailCards.tsx", "src/views/ReplyWindow.tsx", "src/views/InstantlyInbox.tsx"]) assert.ok(!pp.web.includes(x), x);

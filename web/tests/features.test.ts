@@ -64,12 +64,13 @@ ok("bad entries are left out, a repeated id keeps the first, another schema is r
   assert.deepEqual(reg.map((f) => f.name), ["First"]);
   assert.deepEqual(F.cleanRegistry({ schema: 2, features: [feat({})] }), []);
 });
-ok("whoFor: the profile when there is one; no profile never acts as the G Squad (the developer owns his features, others start off)", () => {
+ok("whoFor: the profile when there is one; no profile: the developer owns his features, a friend gets others' shared features at their defaults (V1.62)", () => {
   assert.equal(F.whoFor(gsquad, "red").name, "gsquad");
   assert.deepEqual(F.whoFor(null, "red"), { name: "red", othersShared: "off", overrides: {} });
-  assert.deepEqual(F.whoFor(null, "other"), { name: "", othersShared: "off", overrides: {} });
-  assert.equal(F.featureOn(feat({ owner: "jan" }), F.whoFor(null, "other"), undefined), false, "no profile, a friend's account: off until switched on");
-  assert.equal(F.featureOn(feat({ owner: "jan" }), F.whoFor(null, "other"), { x: true }), true);
+  assert.deepEqual(F.whoFor(null, "other"), { name: "", othersShared: "on", overrides: {} });
+  assert.equal(F.featureOn(feat({ owner: "jan" }), F.whoFor(null, "other"), undefined), true, "no profile, a friend's account: on (V1.62, the developer's release is the build friends run)");
+  assert.equal(F.featureOn(feat({ owner: "jan" }), F.whoFor(null, "other"), { x: false }), false, "their own Off wins");
+  assert.equal(F.featureOn(feat({ owner: "jan", default: "off" }), F.whoFor(null, "other"), undefined), false, "a feature shipped off stays off");
   assert.deepEqual(F.whoFor(null, null), { name: "", othersShared: "off", overrides: {} });
 });
 ok("featureOn: core and the person's own features follow their default and the profile", () => {
@@ -98,9 +99,10 @@ ok("the V1.57 picture: on the developer's account and on a friend's, every regis
   for (const account of ["red", "other", null] as const) {
     const who = F.whoFor(null, account);
     for (const f of reg) {
-      // The developer's own (private) features on his account; a friend's shared ones (Jan's, V1.60) off with no profile and no
-      // `own` (core and the public build). The developer's build turns them on through `own`: tests/own-features.test.ts.
-      const want = f.owner === "core" ? f.default === "on" : f.owner === "red" && account === "red";
+      // The developer's own (private) features on his account. A friend's shared ones (Jan's, V1.60): on a friend's account at their
+      // default (V1.62); on the developer's account with no `own` (core) off, his build turns them on through `own`
+      // (tests/own-features.test.ts); nobody signed in: off.
+      const want = f.owner === "core" ? f.default === "on" : f.owner === "red" ? account === "red" : account === "other" && f.scope === "shared" && f.default === "on";
       assert.equal(F.featureOn(f, who, undefined), want, `${f.id} on ${account}`);
     }
   }

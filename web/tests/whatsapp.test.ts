@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 let n = 0;
 const ok = async (name: string, fn: () => unknown) => { await fn(); n++; console.log("ok -", name); };
-const rootFile = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
+// In core the root is one folder up; in the private tree core's root files live in core-root/ (V1.62: runs in both).
+const rootFile = (p: string) => { try { return readFileSync(new URL(`../../${p}`, import.meta.url), "utf8"); } catch { return readFileSync(new URL(`../core-root/${p}`, import.meta.url), "utf8"); } };
 const W = await import("../src/core/whatsapp.ts");
 const D = await import("../src/core/maildedupe.ts");
 const R = await import("../src/core/mailreply.ts");
@@ -209,24 +210,26 @@ await ok("the panel hand over (Tab list to main window) is checked, and only a c
   assert.equal(O.cleanWaOp({ op: "drop", chatId: "11111111-2222-5333-8444-555555555555" }), null);
   assert.equal(O.cleanWaOp(null), null);
 });
-await ok("the switch fails closed: no registry, not the first owner, not switched on, switched off in settings", () => {
+await ok("the switch fails closed: no registry, not the first owner, switched off by the person or in settings (on by default since V1.62)", () => {
   const owner = (primary: boolean) => ({ status: "unlocked", role: "owner", primary, docs: new Map([["s", { id: "s", kind: "settings", data: { squadFeatures: { whatsapp: true } }, ws: null, author: null, updatedAt: "2026-11-14T00:00:00Z" }]]) }) as never;
   P.setBuildForTests(undefined);
   assert.equal(SN.waSwitch({ whatsapp: true }), false, "no registry: off");
   P.setBuildForTests(gs as never);
-  assert.equal(SN.waSwitch(undefined), false, "off by default");
+  assert.equal(SN.waSwitch(undefined), true, "V1.62: on by default (nothing arrives until the number is linked)");
+  assert.equal(SN.waSwitch({ whatsapp: false }), false, "the person's own Off wins");
   assert.equal(SN.waSwitch({ whatsapp: true }), true);
-  assert.equal(SN.waSwitch({ whatsapp: "yes" }), false);
-  assert.equal(SN.waSwitch({ "client-emails": true }), false, "the email switch does not turn it on");
+  assert.equal(SN.waSwitch({ whatsapp: "yes" }), true, "a wrong value is ignored: the default");
+  assert.equal(SN.waSwitch({ "client-emails": false }), true, "the email switch does not turn it off");
   assert.equal(SN.waOn(owner(true), { squadFeatures: { whatsapp: true } }), true);
   assert.equal(SN.waOn(owner(true), { squadFeatures: { whatsapp: true }, wa: { on: false } }), false, "switched off in WhatsApp settings");
-  assert.equal(SN.waOn(owner(true), { squadFeatures: {} }), false, "not switched on");
+  assert.equal(SN.waOn(owner(true), { squadFeatures: { whatsapp: false } }), false, "switched off");
+  assert.equal(SN.waOn(owner(true), { squadFeatures: {} }), true, "V1.62: on by default");
   assert.equal(SN.waOn(owner(false), { squadFeatures: { whatsapp: true } }), false, "an invited owner never");
   assert.equal(SN.waOn({ ...(owner(true) as object), status: "locked" } as never, { squadFeatures: { whatsapp: true } }), false);
   assert.equal(SN.waOn({ ...(owner(true) as object), role: "client" } as never, { squadFeatures: { whatsapp: true } }), false);
   P.setBuildForTests(undefined);
   const f = reg.features.features.find((x: any) => x.id === "whatsapp");
-  assert.deepEqual([f.owner, f.scope, f.default, f.since], ["jan", "shared", "off", "1.60"]);
+  assert.deepEqual([f.owner, f.scope, f.default, f.since], ["jan", "shared", "on", "1.60"]);
 });
 await ok("the guide: steps from the person's own project, the verify token and code only when known, the example is marked and loops", () => {
   const steps = S.waSteps({ ref: "abcdefghijklmnopqrst", which: "normal", code: "abc", hash: "h1", verifyToken: "tok1" });

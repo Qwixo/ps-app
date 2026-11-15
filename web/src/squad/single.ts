@@ -29,6 +29,7 @@ export const SETTINGS_PAGES = [
   { id: "name", title: "Your name", line: "How the squad sees you" },
   { id: "notify", title: "Notifications", line: "Message cards, sound, Do Not Disturb" },
   { id: "looks", title: "Appearance", line: "Light or dark, colour, bubbles, text size, background" },
+  { id: "ai", title: "Link my AI", line: "Let your AI talk to your friends' AIs" },
   { id: "leave", title: "Leave the squad", line: "Take your shared things off" },
 ] as const;
 export type SettingsPage = (typeof SETTINGS_PAGES)[number]["id"];

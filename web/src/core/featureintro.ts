@@ -5,7 +5,7 @@
 //
 // ADD THE NEXT INTRO = add one entry to INTROS. Nothing else (docs/feature-intros.md says how).
 //
-import { cleanAnchor, type IslandAnchor } from "./whatsnew.ts";
+import { cleanAnchor, cleanVersion, cmpVersion, type IslandAnchor } from "./whatsnew.ts";
 import { SR_INTRO } from "./screenrecmeet.ts";
 
 // The rules (all in nextIntro):
@@ -23,23 +23,40 @@ export interface IntroDef {
   id: string;
   /** The first line the island says. */
   headline: string;
-  /** The question, with the two buttons. */
-  ask: string;
+  /** The question, with the two buttons. Left out for an `ack` intro. */
+  ask?: string;
   show: string;
-  later: string;
+  later?: string;
   /** Which picture swoops in (views/FeatureIntro.tsx MARKS). */
-  mark: "whatsapp" | "spark" | "record";
+  mark: "whatsapp" | "spark" | "record" | "logo";
+  /** V1.62: a one button notice ("Ok"): no question, no Later, no guide. Ok (or Esc, or Back) ends it for good, and it is saved
+   *  with the person's settings (introsDone), so it shows once per person, not once per device. */
+  ack?: true;
+  /** V1.62: only for people who ran PS before this build (an update, never a first install). views/FeatureIntro.tsx asks
+   *  updaterAnswer below; any doubt means it does not show. */
+  updatersOnly?: true;
   /** What "Show me" opens (views/FeatureIntro.tsx GUIDES). Without one, `steps` are shown in a small generic guide. */
   guide?: "wa-link";
   /** A few plain steps for the generic guide (one short sentence each). */
   steps?: string[];
   /** A link to a demo or a page about it (opened from the generic guide). */
   demo?: string;
-  /** Where the guide stays reachable for good. */
-  settings: string;
+  /** Where the guide stays reachable for good (not for an `ack` intro). */
+  settings?: string;
 }
 
 export const INTROS: IntroDef[] = [
+  {
+    // V1.62 (the developer, 15 Nov 2026): "about a minute later when you download 1.62, the dynamic island expands out with the new app logo
+    // and shows 'New app logo' ... only to people that are updating from a previous version. Then you can click 'Ok' on it."
+    // First in the list, so an updater sees it after the first minute of use even when an older intro is still waiting.
+    id: "new-logo-162",
+    headline: "New app logo",
+    show: "Ok",
+    mark: "logo",
+    ack: true,
+    updatersOnly: true,
+  },
   {
     id: "whatsapp",
     headline: "WhatsApp messages now supported",
@@ -192,4 +209,47 @@ export function introReply(m: unknown): IntroReply {
   if (o.state === "go") return { phase: "go", anchor: cleanAnchor(o.rect) };
   if (o.state === "blocked") { const why = macBlocked(o.why); return why ? { phase: "blocked", why } : null; }
   return null;
+}
+
+// ---------- V1.62: once per person, and only for people who are updating ----------
+/** The ids of the one button notices this person already closed, from their synced settings (introsDone). */
+export function cleanDone(v: unknown): string[] {
+  return Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && /^[a-z0-9-]{1,48}$/.test(x)))].slice(0, 50) : [];
+}
+/** Is this an update for this person (they ran PS before this build), a first install, or not known yet?
+ *  done: closed on another device already, or a first install (it is retired for good, never shown);
+ *  open: an update and not closed yet; unknown: wait, never show on a guess.
+ *  The signal is the one What's new uses (core/whatsnew.ts accountOlderThan): the account holds a record last changed before
+ *  this build was made, or this device had handled an earlier version before this page started (`seenAtStart`, read before
+ *  What's new records the new one). */
+export function updaterAnswer(i: {
+  id: string; unlocked: boolean; docs: number; done: readonly string[]; accountOlder: boolean; seenAtStart: string | null; version: string;
+}): "done" | "open" | "unknown" {
+  if (!i.unlocked || i.docs === 0) return "unknown";
+  if (i.done.includes(i.id)) return "done";
+  const seen = cleanVersion(i.seenAtStart);
+  const ranBefore = i.accountOlder || (!!seen && cmpVersion(seen, i.version) < 0);
+  return ranBefore ? "open" : "done";
+}
+
+// ---------- V1.62: the new app logo's moment (the developer: "a very fancy animation with the dynamic island ... the logo coming out of the
+// dynamic island, with nice chime sounds") ----------
+// The Mac's island does its squeeze and spring bounce and its own chime as the card starts (SetupIsland.featureIntro, the Island
+// sounds switch). The card hangs from the island in the same black and grows out of its width; the logo starts small inside the
+// island and springs out to full size with a soft overshoot, a shine runs across it, then the words and Ok fade in. A second soft
+// chime plays as the logo lands, a light click on Ok, and on Ok the logo goes back up into the island before the card folds away.
+// Times in ms from the moment the card is drawn; views/featureintro.css uses the same numbers.
+export const LOGO_MOMENT = {
+  /** The logo's spring out of the island (it peaks a little past full size and settles). */
+  outDelay: 80, outDur: 900,
+  /** It has landed (the spring's overshoot top): the landing chime. */
+  land: 520,
+  /** The shine across the logo, then the words, then Ok. */
+  shine: 640, words: 600, ok: 820,
+  /** After Ok: the logo goes back into the island, then the card folds back up; the island then shrinks back. */
+  backLogo: 300, backCard: 560,
+} as const;
+/** May the landing chime play? The island's sounds switch (Settings, Island) on, and not muted by Do Not Disturb. */
+export function logoChime(o: { islandSounds: boolean; dnd: boolean }): boolean {
+  return o.islandSounds && !o.dnd;
 }
