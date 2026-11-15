@@ -31,6 +31,13 @@ export function loadGSquadFake() {
     { id: "t5", member: ANA, t: "Client call prep", p: 2, d: null, x: false, a: true },
     { id: "t6", member: ANA, t: "Draft the new landing page", p: 3, d: null, x: true },
   ];
+  // PS 1.63 Priority 1 rows (core/squadp1.ts P1Row): made up, started so one is open, one nearly out, one missed, one done.
+  const p1 = [
+    { id: "p1a", member: ANA, t: "Draft the new landing page", s: ago(60 * 22 + 40), x: false },
+    { id: "p1b", member: SAM, t: "Fix the checkout bug", s: ago(60 * 5), x: false },
+    { id: "p1c", member: KIT, t: "Send the invoices", s: ago(60 * 26), x: false },
+    { id: "p1d", member: SAM, t: "Review the pricing page", s: ago(60 * 20), x: true, xa: ago(60 * 2) },
+  ];
   const entry = (member: string, rank: number, n: number) => ({ member, state: "ok" as const, rank, n });
   const board = {
     rules: { money: "revenue", show: "rank", currency: "GBP" },
@@ -55,7 +62,7 @@ export function loadGSquadFake() {
       ? notIn("error", "G Squad could not be reached. Check your internet and try again.")
     : mode === "solo"
       ? { in: true, name: "The G Squad", me: ME, meName: "Alex", creator: true, count: 1, waiting: 0, members: [members[0]], tasks: [], hands: [], link: null, busy: null, error: null, loaded: true, board, asks: [] }
-      : { in: true, name: "The G Squad", me: ME, meName: "Alex", creator: true, count: 3, waiting: 1, members, tasks,
+      : { in: true, name: "The G Squad", me: ME, meName: "Alex", creator: true, count: 3, waiting: 1, members, tasks, p1,
         hands: [{ id: id(700), from: SAM, to: ME, state: "open", t: "Review the pricing page", d: null, at: ago(30) }], link: null, busy: null, error: null, loaded: true, board, asks };
 
   const day = (d: number, h: number, m: number) => { const x = new Date(); x.setDate(x.getDate() - d); x.setHours(h, m, 0, 0); return x.toISOString(); };

@@ -12,14 +12,16 @@ import type { ClientRec, Doc, Settings, Todo } from "./model.ts";
 import { prioNumbers, sortPrio } from "./prio.ts";
 import { clientTerms, squadTitle, type ClientTerm } from "./squadanon.ts";
 import { copyFp, seal, sqAad, taskSquadId } from "./squadcrypto.ts";
+import { p1Copies } from "./squadp1.ts";
 
-export type SharePiece = "tasks" | "working" | "money" | "screen" | "fitness" | "sleep";
+export type SharePiece = "tasks" | "p1" | "working" | "money" | "screen" | "fitness" | "sleep";
 export type ShareOpts = Partial<Record<SharePiece, boolean>>;
 
 /** Every switch, in the order the Sharing list shows them. `ready: false` = the switch works (and is saved) but
  *  nothing of that piece is built yet; later V1.40 chats fill them in. */
 export const SHARE_PIECES: { id: SharePiece; label: string; line: string; ready: boolean }[] = [
   { id: "tasks", label: "Tasks", line: "Only the tasks you mark Share with G Squad: title, priority, date and done.", ready: true },
+  { id: "p1", label: "Priority 1 tasks", line: "Your Priority 1 tasks: title, date, done and the 24 hour clock. Hide any one from the squad.", ready: true },
   { id: "working", label: "Working status", line: "Whether PS app is running on your Mac or phone right now.", ready: true },
   { id: "money", label: "Money", line: "What you made each month, for the leaderboard.", ready: true },
   { id: "screen", label: "Screen time", line: "Your daily total only, never which apps.", ready: true },
@@ -30,6 +32,7 @@ export const isPiece = (v: unknown): v is SharePiece => SHARE_PIECES.some((p) =>
 
 export function shareOn(opts: ShareOpts | null | undefined, piece: SharePiece): boolean {
   if (piece === "tasks") return opts?.tasks === true;   // V1.43: off unless switched on (never set = off)
+  if (piece === "p1") return opts?.p1 === true;         // PS 1.63: off until the person said yes (setup for a new person, one question for the rest)
   return !opts || opts[piece] !== false;
 }
 /** One task the squad may see (with the Tasks switch on): you marked it Share with G Squad, and not Not shared.
@@ -57,7 +60,7 @@ export async function sealForSquad(opts: ShareOpts | null | undefined, piece: Sh
 
 // ---------- shared tasks ----------
 /** The squad copy of one task: title (or the neutral one), priority, date, done. Nothing else ever leaves. */
-export interface TaskCopy { t: string; p: number | null; d: string | null; x: boolean; xa?: string | null; e?: boolean; a?: boolean }
+export interface TaskCopy { t: string; p: number | null; d: string | null; x: boolean; xa?: string | null; e?: boolean; a?: boolean; s?: string }
 
 const DONE_DAYS = 7, MAX_SHARED = 150;
 /** Which of your tasks the squad sees, and how, before anything is sealed. Nothing while Tasks is switched off (or
@@ -94,13 +97,23 @@ export async function planTaskSync(input: {
   squad: string; member: string; secret: string; key: SquadKeyRef; have: Map<string, string>; now?: number;
 }): Promise<{ put: TaskRow[]; del: string[] }> {
   const opts = input.settings?.squadShare;
-  const want = new Map<string, TaskCopy>();
-  for (const c of taskCopies(input.todos, input.settings, input.clients, input.now)) want.set(await taskSquadId(input.secret, c.todoId), c.copy);
+  // One map of what the squad holds: an ordinary shared task (Tasks piece) and a Priority 1 task (P1 piece). A task that is both
+  // is one row, sealed as a task (that switch is on and the task was shared on purpose) with the P1 start time added.
+  const want = new Map<string, { copy: TaskCopy; piece: SharePiece }>();
+  const p1 = new Map<string, TaskCopy>();
+  for (const c of p1Copies(input.todos, opts, input.clients, input.now ?? Date.now())) p1.set(await taskSquadId(input.secret, c.todoId), c.copy);
+  for (const c of taskCopies(input.todos, input.settings, input.clients, input.now)) {
+    const id = await taskSquadId(input.secret, c.todoId);
+    const extra = p1.get(id);
+    want.set(id, { copy: extra?.s ? { ...c.copy, s: extra.s } : c.copy, piece: "tasks" });
+    p1.delete(id);
+  }
+  for (const [id, copy] of p1) want.set(id, { copy, piece: "p1" });
   const put: TaskRow[] = [];
-  for (const [id, copy] of want) {
+  for (const [id, { copy, piece }] of want) {
     const fp = await copyFp(input.secret, copy, input.key.gen);
     if (input.have.get(id) === fp) continue;
-    const s = await sealForSquad(opts, "tasks", input.key, copy, sqAad.task(input.squad, input.member, id, input.key.gen));
+    const s = await sealForSquad(opts, piece, input.key, copy, sqAad.task(input.squad, input.member, id, input.key.gen));
     if (!s) continue;
     put.push({ id, ct: s.ct, gen: s.gen, fp });
   }

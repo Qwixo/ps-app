@@ -25,6 +25,9 @@ import { DIR_OPS, EMPTY_VIEW, type FriendView, type SquadOp, type SquadView } fr
 import { dirCardMessage, dirOpen, dirPulse, dirSync, runDirOp, startDir } from "./direngine";
 import { autoAgain, autoGone, autoLeft, autoOpen, autoPulse, startAuto } from "./autoengine";
 import { hasCard } from "../core/squadauto";
+import { feature } from "../core/features";
+import { P1_FEATURE, p1Panel, p1Rows, type P1Row } from "../core/squadp1";
+import { startP1 } from "./p1engine";
 import { aiError, listAis, registerAiCode, unlinkAi } from "./devlink";
 export { dirCardMessage };
 
@@ -73,11 +76,16 @@ export const squadStore = {
 /** The plain view for the Tab list (no keys, no ids from your vault except your own task ids for its menus). */
 export function squadView(): SquadView { return view; }
 function set(p: Partial<SquadView>) { view = { ...view, ...p }; emit(); }
+/** Every open or recent P1 of the squad from all the shared copies held (never cut to the panel's few rows). The alerts read this. */
+function p1All(): P1Row[] {
+  return feature(P1_FEATURE) && rec ? p1Rows([...tasks.values()], { me: rec.memberId, live: new Set([...members.values()].filter((m) => !m.left).map((m) => m.id)), now: Date.now() }) : [];
+}
 function rebuild() {
   set({
     members: [...members.values()].filter((m) => !m.left).sort((a, b) => Number(b.me) - Number(a.me) || Number(b.working) - Number(a.working) || a.name.localeCompare(b.name))
       .map((m) => ({ id: m.id, name: m.name, me: m.me, creator: m.creator, working: m.working })),
     tasks: [...tasks.values()].filter((t) => members.has(t.member) && !members.get(t.member)!.left).slice(0, 600),
+    p1: p1Panel(p1All()),
     hands: [...hands.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 100),
   });
 }
@@ -261,7 +269,10 @@ async function push() {
     const s = vaultStore.get();
     const todos = docs<Todo>("todo").filter((d) => d.ws === null);
     const clients = docs<ClientRec>("client").map((d) => d.data);
-    const plan = await planTaskSync({ todos, settings: settingsData(s), clients, squad: rec.squadId, member: rec.memberId, secret: rec.secret, key: currentKey(rec), have });
+    // PS 1.63: with the squad-p1 feature off, the Priority 1 piece is off too (the gate then refuses it before the key is touched).
+    const st = settingsData(s);
+    const gated = feature(P1_FEATURE) ? st : { ...st, squadShare: { ...cleanShareOpts(st.squadShare), p1: false } };
+    const plan = await planTaskSync({ todos, settings: gated, clients, squad: rec.squadId, member: rec.memberId, secret: rec.secret, key: currentKey(rec), have });
     for (let i = 0; i < plan.put.length; i += 100) {
       const rows = plan.put.slice(i, i + 100);
       await api.putTasks(rows);
@@ -367,10 +378,11 @@ export async function runSquadOp(o: SquadOp): Promise<void> {
       }
       case "share": {
         await saveSettings({ squadShare: { ...share(), [o.piece]: o.on } });
-        if (o.piece === "tasks") schedulePush();
+        if (o.piece === "tasks" || o.piece === "p1") schedulePush();
         if (o.piece === "working") restartBeat();
         return;
       }
+      case "p1show": await saveSettings({ squadP1Show: o.on }); void pull(); return;
       case "task": {
         const d = docs<Todo>("todo").find((x) => x.id === o.id);
         if (!d) return;
@@ -517,5 +529,7 @@ export function startSquad(post: ((m: object) => void) | null = null) {
       if (sig !== lastTodos) { lastTodos = sig; schedulePush(); }
     }
   });
+  // PS 1.63 Priority 1 (squad/p1engine.ts): the 24 hour clock on your own P1 tasks, the side panel's data, the missed task cards.
+  startP1({ post, rec: () => rec, view: () => view, p1All, onPulled: (f) => { hooks.add({ pulled: f }); }, pull: () => void pull(), push: () => schedulePush(), isOpen: () => open });
   window.addEventListener("online", () => { void beat(); if (open) void pull(); schedulePush(); });
 }

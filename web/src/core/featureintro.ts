@@ -35,6 +35,9 @@ export interface IntroDef {
   /** V1.62: only for people who ran PS before this build (an update, never a first install). views/FeatureIntro.tsx asks
    *  updaterAnswer below; any doubt means it does not show. */
   updatersOnly?: true;
+  /** PS 1.63: a question with two answers (`show` is Yes, `later` is No). Both answers end it for good, nothing opens, and what the
+   *  answer does is in views/FeatureIntro.tsx CHOICES. Esc, Back and a page that goes away are no answer: it asks once more later. */
+  choice?: true;
   /** What "Show me" opens (views/FeatureIntro.tsx GUIDES). Without one, `steps` are shown in a small generic guide. */
   guide?: "wa-link";
   /** A few plain steps for the generic guide (one short sentence each). */
@@ -66,6 +69,17 @@ export const INTROS: IntroDef[] = [
     mark: "whatsapp",
     guide: "wa-link",
     settings: "Settings, WhatsApp settings, Link WhatsApp",
+  },
+  {
+    // PS 1.63 (the developer's friend, 15 Nov 2026): everyone gets this same question once they are in a squad (views/FeatureIntro.tsx
+    // DONE_PROBES, core/squadp1.ts p1Default). Nothing of theirs is shared until they click Yes. No button takes focus when it appears.
+    id: "squad-p1",
+    headline: "Priority 1 with your squad",
+    ask: "Share your Priority 1 tasks with the squad?",
+    show: "Yes",
+    later: "No",
+    mark: "spark",
+    choice: true,
   },
   {
     // PS 1.60 (pull request 12b). Only for people who said No or have not answered (views/FeatureIntro.tsx DONE_PROBES, core/screenrecmeet.ts introAudience).

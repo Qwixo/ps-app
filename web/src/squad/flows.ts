@@ -76,7 +76,8 @@ export async function taskView(rec: SquadRec, t: HubTaskRow): Promise<TaskView |
     const c = await S.open<TaskCopy>(raw, t.ct, S.sqAad.task(rec.squadId, t.member_id, t.id, t.gen));
     if (!c || typeof c.t !== "string") return null;
     return { id: t.id, member: t.member_id, t: c.t.slice(0, 300), p: Number.isInteger(c.p) ? c.p : null, d: typeof c.d === "string" ? c.d.slice(0, 10) : null, x: c.x === true,
-      ...(typeof c.xa === "string" ? { xa: c.xa } : {}), ...(c.e ? { e: true } : {}), ...(c.a ? { a: true } : {}) };
+      ...(typeof c.xa === "string" ? { xa: c.xa } : {}), ...(c.e ? { e: true } : {}), ...(c.a ? { a: true } : {}),
+      ...(typeof c.s === "string" && Number.isFinite(Date.parse(c.s)) ? { s: new Date(c.s).toISOString() } : {}) };
   } catch { return null; }
 }
 export async function handView(rec: SquadRec, h: HubHandRow): Promise<HandView | null> {

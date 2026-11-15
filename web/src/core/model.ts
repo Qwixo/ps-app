@@ -252,6 +252,7 @@ export interface Todo {
   group?: string | null;         // in one of the developer's task groups (settings.tmGroups) instead of Priorities or Every day (the developer, 29 Oct 2026), see core/groups.ts
   sqOff?: boolean;               // G Squad (V1.40): Not shared, the squad never gets a copy (core/squadshare.ts)
   sqOn?: boolean;                // G Squad (V1.43): Share with G Squad, the only way a task is shared (needs the Tasks switch on too)
+  p1At?: string | null;          // G Squad Priority 1 (PS 1.63): when it became Priority 1 (ISO), the 24 hour clock starts here; set by core/squadp1.ts p1Stamps, cleared when it leaves P1
   sqAnon?: boolean | null;       // G Squad: true = the squad sees "Client task", false = the real title; unset = not asked yet (core/squadanon.ts)
   ai?: boolean;                  // Task API: an AI on this Mac added it (the small AI marker, kept wherever it goes), core/aiinbox.ts
   aiInbox?: boolean;             // Task API: still in the AI Inbox (Dimension X), on no list yet; moving it anywhere clears it
@@ -394,6 +395,7 @@ export interface TaskGroup { id: string; name: string }
 export interface Settings {
   squadShare?: import("./squadshare").ShareOpts;   // G Squad (V1.40): what you share, one switch per piece (missing = on, except Tasks: missing = off since V1.43)
   squadMoney?: import("./squadboard").SquadMoney;   // G Squad Leaderboard (V1.40): your monthly money answers, their time zone and snooze (core/squadboard.ts)
+  squadP1Show?: boolean;         // G Squad Priority 1 (PS 1.63): show the squad's Priority 1 tasks in the Tab list's side panel (missing = on)
   squadNotify?: boolean;         // G Squad message notifications (PS 1.60, core/squadnotify.ts): pop up card with Reply (missing = on)
   squadNotifySound?: boolean;    // the sound with that card (missing = on)
   squadNoteIsland?: boolean;     // PS 1.63: on the Mac the message comes out of the Dynamic Island (core/squadnotify.ts noteIsland, missing = on)

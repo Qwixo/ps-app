@@ -197,7 +197,7 @@ ok("switches: on unless switched off, except Tasks (off unless switched on, V1.4
   assert.ok(shareOn({ tasks: true }, "tasks"));
   assert.ok(!shareOn({ tasks: false }, "tasks"));
   assert.deepEqual(cleanShareOpts({ tasks: false, money: "no", nonsense: false }), { tasks: false });
-  assert.deepEqual(SHARE_PIECES.map((p) => p.id).sort(), ["fitness", "money", "screen", "sleep", "tasks", "working"]);
+  assert.deepEqual(SHARE_PIECES.map((p) => p.id).sort(), ["fitness", "money", "p1", "screen", "sleep", "tasks", "working"]);
   assert.ok(!SHARE_PIECES.some((p) => /private mode/i.test(p.label + p.line)), "never called Private mode");
 });
 ok("an opted out piece is never encrypted with the squad key", async () => {

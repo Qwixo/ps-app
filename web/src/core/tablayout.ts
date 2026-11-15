@@ -70,6 +70,7 @@ export const SLOTS: readonly SlotInfo[] = [
   { id: "pskeys", label: "Tab and Lock", keep: true },
   { id: "mail", label: "Client emails", mail: true },
   { id: "screenrec", label: "Record screen", ps: true },   // PS 1.60 (views/ScreenRec.tsx): right below the email panel, only after the person switched screen recording on
+  { id: "squadp1", label: "Squad Priority 1" },   // PS 1.63 (views/SquadP1Panel.tsx): under the email panel and Record screen, above Sleep
   { id: "meetnotes", label: "Meeting notes" },
   { id: "leftovers", label: "Notes left over" },
   { id: "undo", label: "Undo" },
@@ -82,7 +83,7 @@ export const SLOTS: readonly SlotInfo[] = [
   { id: "privacy", label: "Private mode", inner: "meetings" },
 ];
 /** Panels wide enough to get a width handle in the overview (buttons only get the size handle). */
-const WIDE = new Set(["clocks", "timelines", "meetings", "campaigns", "dimx", "glass", "mail", "meetnotes", "leftovers", "newtasks", "overdue", "series", "numerology"]);
+const WIDE = new Set(["clocks", "timelines", "meetings", "campaigns", "dimx", "glass", "mail", "squadp1", "meetnotes", "leftovers", "newtasks", "overdue", "series", "numerology"]);
 const KNOWN = new Map(SLOTS.map((s) => [s.id, s]));
 /** The kind of a panel: its own id, or the part before the dot for a copy ("sleep.k3f9a" is a Sleep). */
 export const kindOf = (id: string) => id.split(".")[0];

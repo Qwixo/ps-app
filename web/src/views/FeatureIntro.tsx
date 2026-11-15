@@ -25,6 +25,9 @@ import { addActive, answer, CARD_W, cleanDone, LOGO_MOMENT, logoChime, cleanStat
 import { accountOlderThan, LOCAL_KEY as WN_SEEN_KEY } from "../core/whatsnew";
 import { islandPrefs } from "../core/island";
 import { saveSettings } from "../core/actions";
+import { cleanShareOpts } from "../core/squadshare";
+import { P1_FEATURE, p1Default } from "../core/squadp1";
+import { squadStore } from "../squad/engine";
 import type { Snapshot } from "../core/vault";
 import logoPng from "../assets/ps-icon.png";
 import { sleepState } from "../sleepmode/engine";
@@ -91,12 +94,25 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   // V1.62 the new app logo: only people updating from an earlier version, once per person (Ok on any device ends it everywhere).
   "new-logo-162": async (_can, s) => updaterProbe("new-logo-162", s),
   // Screen recording (12b): shown only to people who said No or have not answered. Yes retires it. Asks the Mac for its saved choice only (nothing from macOS).
+  // PS 1.63 Priority 1 with the squad: a person who already answered is done. Everyone else (new or existing) is asked the same one question
+  // once they are in a squad. This probe NEVER saves anything: the only code that writes p1 = true is the Yes click (CHOICES below).
+  // Nothing is shared before an answer exists (core/squadshare.ts shareOn "p1" is only true for a saved yes).
+  "squad-p1": async (_can, s) => {
+    if (!feature(P1_FEATURE)) return "unknown";
+    const todo = p1Default(squadStore.get().in, cleanShareOpts(settingsData(s).squadShare));
+    return todo === "keep" ? "done" : todo === "ask" ? "open" : "unknown";
+  },
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault
     const st = await readWaStatus();
     return !st ? "unknown" : st.linked ? "done" : "open";
   },
+};
+
+/** What a choice intro's answer does (core/featureintro.ts `choice`). Yes and No are both saved as the person's own answer. */
+const CHOICES: Record<string, (yes: boolean, s: Snapshot) => void> = {
+  "squad-p1": (yes, s) => { void saveSettings({ squadShare: { ...cleanShareOpts(settingsData(s).squadShare), p1: yes } }).catch(() => { /* asks again later */ }); },
 };
 
 /** Mounted once, next to the What's new panel (views/PsApp.tsx for the Mac, App.tsx for the website and the phone). */
@@ -179,19 +195,20 @@ export function FeatureIntroHost() {
       if (!done.includes(id)) void saveSettings({ introsDone: [...done, id] }).catch(() => { /* this device still never shows it again */ });
     }
   }, [commit]);
+  const onChoose = useCallback((id: string, yes: boolean) => { CHOICES[id]?.(yes, live.current.s); }, []);
   const onGone = useCallback((why?: string) => {
     setOpen(null);
     holdUntil.current = Date.now() + (why ? recheckMs("busy") : 15_000);
   }, []);
   if (!open) return null;
-  return <IntroStage key={open.id} def={open} onShown={onShown} onAnswer={onAnswer} onGone={onGone} />;
+  return <IntroStage key={open.id} def={open} onShown={onShown} onAnswer={onAnswer} onChoose={onChoose} onGone={onGone} />;
 }
 
 type Phase = "ask" | "card" | "guide" | "out";
 /** The logo moment's card width and logo size (points). */
 const ACK_W = 260, LOGO_PX = 92;
 
-function IntroStage({ def, onShown, onAnswer, onGone }: { def: IntroDef; onShown: (id: string) => void; onAnswer: (id: string, a: "show" | "later") => void; onGone: (why?: string) => void }) {
+function IntroStage({ def, onShown, onAnswer, onChoose, onGone }: { def: IntroDef; onShown: (id: string) => void; onAnswer: (id: string, a: "show" | "later") => void; onChoose: (id: string, yes: boolean) => void; onGone: (why?: string) => void }) {
   const viaIsland = PS && feature("island-moments");
   // The page's own queue first (a web card of this page goes before it), then on the Mac the island's queue.
   const turn = useIslandTurn(`intro:${def.id}`, true, "low");
@@ -245,11 +262,12 @@ function IntroStage({ def, onShown, onAnswer, onGone }: { def: IntroDef; onShown
     return () => window.clearTimeout(t);
   }, [phase === "card"]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const finish = (a: "show" | "later") => {
+  const finish = (a: "show" | "later", yes = true) => {
     if (phaseRef.current === "out") return;
+    if (def.choice && a === "show") onChoose(def.id, yes);   // PS 1.63: Yes or No is the end of it, no guide
     if (def.ack) a = "show";   // V1.62: a one button notice has no Later: Ok, Esc and Back all close it for good
     onAnswer(def.id, a);
-    if (a === "show" && !def.ack) { setGuide(true); setPhase("guide"); return; }
+    if (a === "show" && !def.ack && !def.choice) { setGuide(true); setPhase("guide"); return; }
     setPhase("out");
     const quick = matchMedia("(prefers-reduced-motion: reduce)").matches;
     // The logo moment: the logo goes back into the island first, then the card folds back up (then the island shrinks back).
@@ -302,8 +320,8 @@ function IntroStage({ def, onShown, onAnswer, onGone }: { def: IntroDef; onShown
         )}
         {def.ask && <p className="fi-ask">{def.ask}</p>}
         <div className="fi-btns">
-          <button type="button" className="fi-btn go" autoFocus onClick={() => { sfx.click(); finish("show"); }}>{def.show}</button>
-          {!def.ack && def.later && <button type="button" className="fi-btn" onClick={() => { sfx.click(); finish("later"); }}>{def.later}</button>}
+          <button type="button" className="fi-btn go" autoFocus={!def.choice} onClick={() => { sfx.click(); finish("show"); }}>{def.show}</button>
+          {!def.ack && def.later && <button type="button" className="fi-btn" onClick={() => { sfx.click(); if (def.choice) finish("show", false); else finish("later"); }}>{def.later}</button>}
         </div>
       </section>
     </div>,

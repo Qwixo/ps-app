@@ -4,6 +4,8 @@
 // lives here (and on the join screen), so a stranger's PS shows them all.
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { settingsData } from "../core/select";
+import { feature } from "../core/features";
+import { P1_FEATURE } from "../core/squadp1";
 import { cleanShareOpts, SHARE_PIECES, shareOn, type ShareOpts, type SharePiece } from "../core/squadshare";
 import { squadOp } from "../squad/mirror";
 import { chatOp, useChat } from "../squad/chatmirror";
@@ -17,6 +19,7 @@ import { Avatar } from "./SquadAvatar";
 import { loadGifsStore, useLoadGifs } from "./GSquadPickers";
 import { signalOn } from "../squad/signal";
 import { newAiCode } from "../squad/devlink";
+import { SquadP1Switch } from "./SquadP1Switch";
 
 export function useShare(): ShareOpts {
   return cleanShareOpts(settingsData(useVault()).squadShare);
@@ -27,7 +30,7 @@ export const useLooks = (): GsLooks => useSyncExternalStore(looksStore.subscribe
 /** Every sharing switch, on every account. Off = never encrypted with the squad key, never sent. */
 export function SharingList({ only }: { only?: SharePiece }) {
   const share = useShare();
-  const list = only ? SHARE_PIECES.filter((p) => p.id === only) : SHARE_PIECES;
+  const list = only ? SHARE_PIECES.filter((p) => p.id === only) : SHARE_PIECES.filter((p) => p.id !== "p1" || feature(P1_FEATURE));
   return (
     <div className="gs-share">
       {!only && <span className="gs-h">What you share</span>}
@@ -118,7 +121,7 @@ export function SquadSettings({ view, page, onPage }: { view: SquadView; page: S
         Squad settings
       </button>
       <h3 className="gss-h">{title}</h3>
-      {page === "share" && <SharingList />}
+      {page === "share" && <><SharingList /><SquadP1Switch /></>}
       {page === "name" && <NamePage view={view} />}
       {page === "notify" && <NotifyPage />}
       {page === "looks" && <LooksPage />}
