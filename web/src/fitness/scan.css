@@ -107,3 +107,19 @@
 }
 .fg .fg-scan-go { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .fg .fg-add-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* V1.60: a Scan button inside every exercise search box */
+.sc-field { position: relative; display: block; width: 100%; }
+.sc-field > input { padding-right: calc(104px * var(--k-dn, 1)) !important; }
+.sc-field-go {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%); min-height: 44px; padding: 0 14px 0 12px; display: inline-flex; align-items: center; gap: 7px;
+  border: 0; border-radius: 999px; background: var(--f-accent, #C6F432); color: var(--f-on-accent, #0A0A0A);
+  font: inherit; font-size: calc(15px * var(--k-fs, 1)); font-weight: 850; cursor: pointer; transition: transform .14s ease, opacity .2s ease;
+}
+.sc-field-go:active { transform: translateY(-50%) scale(.95); }
+.sc-field-go svg { flex: none; }
+.fg.fg-scanhost { position: fixed; inset: 0; z-index: 95; height: auto; padding: 0; background: transparent; overflow: hidden; pointer-events: none; }
+.fg.fg-scanhost .fg-ov { pointer-events: auto; position: fixed; }
+/* a taller frame, so a name written up the side of a label fits inside it as well as one across the top */
+.fg .sc-frame { top: 20%; height: 52%; }
+@media (prefers-reduced-motion: reduce) { .sc-field-go { transition: none; } }

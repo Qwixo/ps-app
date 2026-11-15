@@ -1,6 +1,7 @@
 // PS Fitness exercises (V1.43): the 153 exercise library with its pictures, in one place to browse. Search by name,
 // filter by body part, tap a row for the big card (the rep playing, the muscles it works, the one line form tip).
 // Read only: adding an exercise still happens in the gym (Add) or in a program, as before.
+import { ScanSearch } from "./Scan";
 import { useMemo, useRef, useState } from "react";
 import { haptic } from "../gos/bridge";
 import { LIBRARY, MUSCLE_LABEL, searchExercises } from "./library";
@@ -33,7 +34,7 @@ export function Exercises({ desk }: { desk?: boolean }) {
   return (
     <div className="fn-list fn-ex">
       <div className="fn-ex-top">
-        <input className="fn-search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search exercises" aria-label="Search exercises" enterKeyHint="search" autoFocus={desk} />
+        <ScanSearch className="fn-search" value={q} onChange={setQ} placeholder="Search exercises" label="Search exercises" autoFocus={desk} />
         <div className="fn-chips" role="radiogroup" aria-label="Body part">
           {GROUPS.map((x) => (
             <button key={x.k} type="button" role="radio" aria-checked={g === x.k} className={g === x.k ? "on" : ""} onClick={() => { haptic("tick"); setG(x.k); }}>{x.t}</button>

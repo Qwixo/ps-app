@@ -12,7 +12,8 @@ import type { FitTab } from "./FitnessApp";
 import { rest, useKeepAwake, useRest, useRestLeft, type RestNow } from "./rest";
 import { LIB, libById, searchLib, type LibEx } from "./lib";
 import { ExPic, picCardOpen } from "./ExPic";
-import { CamIcon, newExFor, ScanPanel, scanOn } from "./Scan";
+import { CamIcon, newExFor, ScanPanel, ScanSearch, scanOn } from "./Scan";
+import { Overlay } from "./Overlay";
 import { Info } from "./Info";
 import { CommentBox, CommentBtn, CommentLine } from "./SetComment";
 import {
@@ -1073,9 +1074,17 @@ function AddPanel({ workouts, programs, prefs, swapFor, close, onAdd, onScan }: 
   return (
     <div className="fg-add">
       <h3 className="fg-h3">{swapFor ? `Swap ${swapFor} for` : "Add an exercise"}</h3>
-      <input className="fg-search" type="search" placeholder="Search: curl, chest, squat" value={q} autoFocus enterKeyHint="search"
-        onChange={(e) => setQ(e.currentTarget.value)} aria-label="Search exercises" />
-      {onScan && !q && <button type="button" className="fg-second fg-scan-go" onClick={() => { haptic("press"); onScan(); }}><CamIcon /> Scan a machine</button>}
+      {/* The Scan button sits inside the search box (V1.60). Scanning from a workout adds the exercise (the Scan screen), a swap has no scan. */}
+      {onScan ? (
+        <div className="sc-field">
+          <input className="fg-search sc-in-box" type="search" placeholder="Search: curl, chest, squat" value={q} autoFocus enterKeyHint="search"
+            onChange={(e) => setQ(e.currentTarget.value)} aria-label="Search exercises" />
+          <button type="button" className="sc-field-go" onClick={() => { haptic("press"); onScan(); }} aria-label="Scan a machine"><CamIcon size={20} /><span>Scan</span></button>
+        </div>
+      ) : (
+        <input className="fg-search" type="search" placeholder="Search: curl, chest, squat" value={q} autoFocus enterKeyHint="search"
+          onChange={(e) => setQ(e.currentTarget.value)} aria-label="Search exercises" />
+      )}
       {mine.length > 0 && (
         <ul className="fg-results fg-mine" aria-label="Your exercises">
           {mine.map((x) => (
@@ -1139,31 +1148,6 @@ function SummaryCard({ s, label, onClose }: { s: Summary; label: string; onClose
 }
 function Stat({ n, l, gold }: { n: string; l: string; gold?: boolean }) {
   return <span className={cx("fg-stat", gold && "gold")}><b className="f-num">{n}</b><small>{l}</small></span>;
-}
-
-// ---------- a panel that slides up over the screen (and back down) ----------
-function Overlay({ label, kind, onClose, children }: { label: string; kind?: string; onClose: () => void; children: (close: () => void) => ReactNode }) {
-  const [out, setOut] = useState(false);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  const gone = useRef(false);
-  const close = () => { if (gone.current) return; gone.current = true; setOut(true); window.setTimeout(() => closeRef.current(), 240); };
-  const closeFn = useRef(close);
-  closeFn.current = close;
-  useEffect(() => {
-    // The phone's back button and Escape close the panel first (capture: before the sheets' own handling).
-    const back = (e: Event) => { if (picCardOpen()) return; e.preventDefault(); e.stopImmediatePropagation(); closeFn.current(); };
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); closeFn.current(); } };
-    window.addEventListener("gos-back", back, true);
-    window.addEventListener("keydown", key);
-    return () => { window.removeEventListener("gos-back", back, true); window.removeEventListener("keydown", key); };
-  }, []);
-  return (
-    <div className={cx("fg-ov", out && "out", kind && `fg-ov-${kind}`)} role="dialog" aria-modal="true" aria-label={label}>
-      <div className="fg-ov-bg" onClick={close} />
-      <div className="fg-sheet">{children(close)}</div>
-    </div>
-  );
 }
 
 // ---------- icons ----------

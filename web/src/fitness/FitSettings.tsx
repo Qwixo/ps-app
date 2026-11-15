@@ -179,6 +179,8 @@ function Sets({ v }: { v: FitView }) {
         <button type="button" className="fs-step" onClick={() => step(1)} disabled={n >= SETS_HI} aria-label="One set more"><Plus /></button>
       </div>
       <p className="fs-help">New exercises start with this many. A program's own number comes first.<Info k="set" /></p>
+      <Toggle label="New sets start at your last weight" on={v.prefs.startLast ?? true} onChange={(on) => void savePrefs({ startLast: on })} />
+      <p className="fs-help">Each new set starts with the weight and reps of the last set you did on that exercise: this workout first, else the last time.<Info k="start-last" /></p>
       <div className="fs-own">
         {own > 0 ? (
           <>

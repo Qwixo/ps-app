@@ -93,6 +93,7 @@ export const OTHER_WORDS: Record<string, string> = {
 export const EN_PHRASES: [RegExp, string][] = [
   [/\bpec deck reverse\b|\breverse pec deck\b|\bbutterfly reverse\b|\breverse butterfly\b/g, "reverse pec deck"],
   [/\bab crunch\b/g, "ab crunch"],
+  [/\bpectorals?\b(?! press)/g, "pec fly"],   // Technogym style "PECTORAL" (a pec fly machine)
   [/\bleg curl lying\b/g, "lying leg curl"],
   [/\bleg curl seated\b/g, "seated leg curl"],
   [/\brow seated\b/g, "seated row"],
@@ -108,7 +109,7 @@ export const BRANDS: Record<string, string> = {
   hoist: "Hoist", freemotion: "Freemotion", ergofit: "ergo-fit", "ergo fit": "ergo-fit", schnell: "Schnell", compass: "Compass",
   "pure strength": "Pure Strength", "sygnum": "Gym80 Sygnum", "insignia": "Life Fitness Insignia", "signature series": "Life Fitness Signature",
   "selection": "Technogym Selection", "kraftwerk": "Kraftwerk", "atlantis": "Atlantis", "impulse": "Impulse", "nordic": "",
-  "dhz": "DHZ", "johnson": "Johnson", "keiser": "Keiser", "flexx": "Flexx", "rogers": "Rogers", "prime": "Prime",
+  mywellness: "", "my wellness": "", lk: "L+K", "l k": "L+K", "l+k": "L+K", "dhz": "DHZ", "johnson": "Johnson", "keiser": "Keiser", "flexx": "Flexx", "rogers": "Rogers", "prime": "Prime",
 };
 
 /** Words on labels in any language that never name an exercise. */

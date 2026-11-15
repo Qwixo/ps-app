@@ -6,6 +6,7 @@
 // (swap, add, remove, move, sets, rest, names) before it is saved as the active program. Or: start from scratch with
 // empty days, or use your own program (Programs). Every tap is saved (setup-store.ts), so closing anything resumes
 // right here. Back, Esc and the phone's back gesture go one step; from the first step they leave setup.
+import { ScanSearch } from "./Scan";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { fmtClock, restFor, type FitDay, type FitPlanEx } from "../core/fitness";
@@ -404,7 +405,7 @@ function PickSheet({ host, d, v, sheet, onClose, onPick }: { host: HTMLElement |
           <b>{ex ? `Swap ${ex.name}` : `Add to ${day.name}`}</b>
           <button type="button" className="fsu-x" onClick={close} aria-label="Close"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
         </div>
-        <input className="fsu-search" type="search" placeholder="Search exercises" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search exercises" />
+        <ScanSearch className="fsu-search" value={q} onChange={setQ} label="Search exercises" placeholder="Search exercises" prefs={v.prefs} />
         <p className="fsu-note">{q.trim() ? `Exercises you can do with ${GEARS.find((g) => g.k === r.gear)!.t.toLowerCase()}.` : ex ? "Good swaps: the same movement first, then the same muscle." : "Good picks for your plan. Search for anything else."}</p>
         <ul className="fsu-picks">
           {list.map((x) => (
