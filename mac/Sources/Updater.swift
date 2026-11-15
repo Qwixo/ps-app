@@ -191,6 +191,7 @@ final class Updater {
           DispatchQueue.main.async {
             let signed = UpdateHandoff.conn >= 0 || UpdatePaths.test
             self?.pageSet("done", ["kind": "app"] as [String: Any], unseen: true)
+            Island.shared.updateDone(version: Updater.parts(PSVersion.name).0)   // PS 1.60: the island's own short moment
             // The card only when the Tab list page never said hello (missing or broken web files).
             DispatchQueue.main.asyncAfter(deadline: .now() + 25) {
               guard let self, !self.usePage else { return }
@@ -854,6 +855,7 @@ final class Updater {
             self.app?.checkLocalUpdate()          // reloads the pages as soon as that is safe
             self.busy = false; self.staged = nil; self.plan = .none; self.newest = nil; self.working(false); self.lastInstallEnd = Date()
             self.pageSet("done", ["kind": "web"], unseen: true)   // the Tab list's card says "Updated to" once
+            Island.shared.updateDone(version: Updater.parts(PSVersion.name).0)   // PS 1.60: the island's own short moment
             self.updatedThisRun = true   // the reloaded page may bring a setup menu (setup:can)
             if self.viaPanel || !self.usePage { self.showDone("\(AppName.current) updated", "Now on \(PSVersion.name). No restart needed.") }
           }

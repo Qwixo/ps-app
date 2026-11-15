@@ -35,6 +35,26 @@ export function IslandFullScreenRow({ prefs, save }: { prefs: IslandPrefs; save:
   );
 }
 
+/** The island's chime at its big moments: database loaded, update done, What's new (settings.island.sounds, PS 1.60). On by
+ *  default. The small chimes cards already had keep their own switches. */
+export const ISLAND_SOUNDS_LABEL = "Island sounds";
+export const ISLAND_SOUNDS_HINT = "On: a soft chime when the island finishes loading your database, finishes an update, or opens What's new. Off: the island stays silent.";
+export function IslandSoundsRow({ prefs, save }: { prefs: IslandPrefs; save: (p: IslandPrefs) => void }) {
+  const islandOn = prefs.mode !== "off";
+  const on = prefs.sounds;
+  return (
+    <div className="ih-row" role="group" aria-label={ISLAND_SOUNDS_LABEL}>
+      <span className="ih-l">{ISLAND_SOUNDS_LABEL}<em>{islandOn ? ISLAND_SOUNDS_HINT : "The island is off."}</em></span>
+      <div className="ih-chips" role="radiogroup" aria-label={ISLAND_SOUNDS_LABEL}>
+        <button type="button" role="radio" aria-checked={on} className={`ih-chip${on ? " sel" : ""}`} disabled={!islandOn}
+          onClick={() => { if (!on) save({ ...prefs, sounds: true }); }}>On</button>
+        <button type="button" role="radio" aria-checked={!on} className={`ih-chip${!on ? " sel" : ""}`} disabled={!islandOn}
+          onClick={() => { if (on) save({ ...prefs, sounds: false }); }}>Off</button>
+      </div>
+    </div>
+  );
+}
+
 /** Which side of the island the tick circle sits on, at rest and open alike (settings.island.tickSide, ps-mac
  *  Island.swift). The developer, 12 Nov 2026: "Make it so it's always on the left. Make this adjustable in the dynamic island
  *  settings too". Left by default, everyone's, in both island settings places. */

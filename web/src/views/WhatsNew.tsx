@@ -13,7 +13,8 @@ import { createPortal } from "react-dom";
 import { PS, psPost, useOverlayShown } from "../ps";
 import { useVault } from "../ui/kit";
 import { settingsData } from "../core/select";
-import { accountOlderThan, cleanWhatsNew, deviceRan, LOCAL_KEY, seenToSave, whatsNewPlan, type WhatsNew } from "../core/whatsnew";
+import { accountOlderThan, attachedLayout, cleanWhatsNew, deviceRan, ISLAND_ASK_MS, ISLAND_QUEUED_MS, islandReply, LOCAL_KEY, seenToSave, whatsNewPlan, type IslandAnchor, type WhatsNew } from "../core/whatsnew";
+import { feature } from "../core/features";
 import { blocksFor, cleanBlocks, type NoteBlock } from "../core/notehistory";
 import { NoteGroups } from "../ui/NoteGroups";
 import { taskMapActions } from "./TaskMap";
@@ -25,7 +26,7 @@ import { vaultStore } from "../core/vault";
 import { PRIVATE_LABEL, privateNotesFor } from "../core/privatenotes";
 import { useWelcomeShowing } from "./Welcome";
 import { byLine, listable, madeOfBuild } from "../core/releaseby";
-import { setWhatsNewShowing, useFaceShowing } from "../updateface";
+import { setWhatsNewShowing, useFaceShowing, useIslandTurn } from "../updateface";
 
 const RAW = typeof __PS_WHATSNEW__ === "object" ? __PS_WHATSNEW__ : { version: "", keyword: "", notes: [], code: "", built: "", history: [] };
 // V1.58: the multiple developers build file (vite.config.ts defines it when the build has one; older builds do not).
@@ -202,7 +203,9 @@ export function WhatsNewHost() {
   const tour = useWelcomeShowing();       // the welcome tour (views/Welcome.tsx) goes first; this waits for it
   const face = useFaceShowing();          // the update card's "Updated to" (views/UpdateFace.tsx) says it first
   const open = want && listShown && front && !tour && !face;
-  useEffect(() => { setWhatsNewShowing(open); return () => setWhatsNewShowing(false); }, [open]);
+  // PS 1.60: one card at a time (core/islandqueue.ts): the panel takes its turn after any other island card of this page.
+  const showing = useIslandTurn("whatsnew", open, "low");
+  useEffect(() => { setWhatsNewShowing(showing); return () => setWhatsNewShowing(false); }, [showing]);
 
   // Seen on another device before it got its turn here: it stays away.
   useEffect(() => { if (auto && !back && w && !open && seenToSave(w.version, synced) === null) setAuto(false); }, [auto, back, w, open, synced]);   // (not for a device with no record of its own: it never showed these itself)
@@ -216,11 +219,35 @@ export function WhatsNewHost() {
     if (auto && w) record(w.version, synced);
     setAuto(false); setAsked(0);
   };
-  if (!open || !w) return null;
-  return <WhatsNewPanel w={w} mine={mine} fresh={auto} blocks={blocks} since={auto && !back ? since : auto ? null : demoSince} onDone={done} />;
+  if (!showing || !w) return null;
+  return <WhatsNewGate w={w} mine={mine} fresh={auto} blocks={blocks} since={auto && !back ? since : auto ? null : demoSince} onDone={done} />;
 }
 
-function WhatsNewPanel({ w, mine, fresh, blocks, since, onDone }: { w: WhatsNew; mine: string[]; fresh: boolean; blocks: NoteBlock[]; since: string | null; onDone: () => void }) {
+/** PS 1.60: on the Mac the panel comes out of the island. The page asks first (the Mac's island queue says when it is the panel's
+ *  turn and the island squeezes, bounces and says "What's new"); the answer carries where the island is, and the panel then
+ *  hangs from it. No answer in 2 seconds, the setting off, Reduce Motion, or the website: the panel opens in the middle, as it always did. */
+function WhatsNewGate(p: { w: WhatsNew; mine: string[]; fresh: boolean; blocks: NoteBlock[]; since: string | null; onDone: () => void }) {
+  const viaIsland = PS && feature("island-moments");
+  const [st, setSt] = useState<{ go: boolean; anchor: IslandAnchor | null }>({ go: !viaIsland, anchor: null });
+  useEffect(() => {
+    if (!viaIsland) return;
+    const g = window as Window & { __psWnIsland?: (m: unknown) => void };
+    let timer = window.setTimeout(() => setSt({ go: true, anchor: null }), ISLAND_ASK_MS);
+    g.__psWnIsland = (m) => {
+      const r = islandReply(m);
+      if (!r) return;
+      window.clearTimeout(timer);
+      if (r.phase === "queued") timer = window.setTimeout(() => setSt({ go: true, anchor: null }), ISLAND_QUEUED_MS);
+      else setSt({ go: true, anchor: r.anchor });
+    };
+    psPost({ type: "island:whatsnew", start: true });
+    return () => { window.clearTimeout(timer); delete g.__psWnIsland; psPost({ type: "island:whatsnew", start: false }); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!st.go) return null;
+  return <WhatsNewPanel {...p} anchor={st.anchor} />;
+}
+
+function WhatsNewPanel({ w, mine, fresh, blocks, since, onDone, anchor }: { w: WhatsNew; mine: string[]; fresh: boolean; blocks: NoteBlock[]; since: string | null; onDone: () => void; anchor: IslandAnchor | null }) {
   // V1.52: more than one version to list (a jump such as 1.49 to 1.52): one block per version, newest open first.
   const many = blocks.length > 1;
   const cur = blocks[0]?.notes ?? w.notes;
@@ -235,7 +262,7 @@ function WhatsNewPanel({ w, mine, fresh, blocks, since, onDone }: { w: WhatsNew;
     sfx.drop();
     setPhase("out");
     const quick = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.setTimeout(onDone, quick ? 0 : 240);
+    window.setTimeout(onDone, quick ? 0 : anchor ? 340 : 240);   // out of the island: it shrinks back up into it
   };
   // PS: keep the list up and give it the keyboard while the panel is open (never over 1Password or Signal,
   // PS checks), and let go when it closes. A no-op on the website.
@@ -258,8 +285,11 @@ function WhatsNewPanel({ w, mine, fresh, blocks, since, onDone }: { w: WhatsNew;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Out of the island: hung from its lower edge, the same black, joined to it, growing out of its width.
+  const at = anchor ? attachedLayout(anchor, window.innerWidth) : null;
+  const hung = at ? ({ "--wn-left": `${at.left}px`, "--wn-top": `${at.top}px`, "--wn-ox": `${at.originX}px`, "--wn-from": at.from } as CSSProperties) : undefined;
   return createPortal(
-    <div className={`wn-layer${phase === "out" ? " out" : ""}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+    <div className={`wn-layer${at ? " isl" : ""}${phase === "out" ? " out" : ""}`} style={hung} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <div className="wn-dim" onMouseDown={(e) => { if (e.button === 0) close(); }} aria-hidden="true" />
       <section className="wn-card" role="dialog" aria-modal="true" aria-labelledby="wn-title">
         <div className="wn-glow" aria-hidden="true" />

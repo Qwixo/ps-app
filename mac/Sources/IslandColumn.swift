@@ -17,7 +17,7 @@ final class IslandColumn {
 
   /// `arrived`: the window made its entrance and has stayed in the column since; `target`: where it was last sent.
   private struct Entry { var id: String; var kind: String; weak var window: NSWindow?; var size: CGSize; var replace: () -> Void
-    var arrived = false; var target: NSRect? = nil }
+    var arrived = false; var target: NSRect? = nil; var alpha: CGFloat = 1 }
   /// The windows under the island now, in the order they came (the first is next to the island).
   private var entries: [Entry] = []
   private var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
@@ -30,38 +30,89 @@ final class IslandColumn {
     return NoteDrop.route(kind: kind, island: Island.shared.noteAnchor() != nil, top: Island.shared.model.st.cardsTop)
   }
 
+  /// How urgent each kind of pop up is when several want the island at once (IslandQueueCore: one at a time).
+  static func priority(_ kind: String) -> IslandPriority {
+    switch kind {
+    case "reminders", "helper": return .high
+    case "update", "notes": return .normal
+    default: return .low
+    }
+  }
+
   /// Where this window goes under the island, or nil for its usual place (the caller then does what it always did).
   /// `replace`: how the window places itself again (the island moved, a window before it came or went).
+  /// PS 1.60: one pop up at a time (IslandQueue.swift). A window that is not first in line is kept out of sight and gets
+  /// the same place when its turn comes (put() does nothing for it until then), so none is ever drawn over another.
   func frame(id: String, kind: String, size: CGSize, window: NSWindow, replace: @escaping () -> Void) -> NSRect? {
     guard wants(kind), let a = Island.shared.noteAnchor() else { leave(id); return nil }
     if let i = entries.firstIndex(where: { $0.id == id }) {
       let grew = abs(entries[i].size.height - size.height) > 0.5
       entries[i].size = size; entries[i].window = window; entries[i].replace = replace
-      if grew { DispatchQueue.main.async { [weak self] in self?.relayout(after: id) } }
+      if grew && IslandQueue.shared.isActive(id) { DispatchQueue.main.async { Toast.shared.islandChanged() } }
     } else {
       entries.append(Entry(id: id, kind: kind, window: window, size: size, replace: replace))
-      DispatchQueue.main.async { Toast.shared.islandChanged() }   // the card stack makes room under it
     }
-    let before = entries.prefix { $0.id != id }.map { $0.size.height }
-    return NoteDrop.columnFrame(a, size: size, offset: NoteDrop.columnHeight(before))
+    // Not known to the queue yet (a new window), or let go of it (its window was gone too long): ask for the island.
+    if !IslandQueue.shared.isActive(id) && !IslandQueue.shared.isWaiting(id) {
+      let o = IslandQueue.shared.enqueue(id: id, kind: kind, priority: IslandColumn.priority(kind),
+                                         show: { [weak self] in self?.turn(id) },
+                                         visible: { [weak self] in self?.entries.first { $0.id == id }?.window?.isVisible == true })
+      if o == .showNow { DispatchQueue.main.async { Toast.shared.islandChanged() } }   // the card stack makes room under it
+    }
+    if !IslandQueue.shared.isActive(id), window.isVisible { window.orderOut(nil) }
+    return NoteDrop.columnFrame(a, size: size, offset: 0)
   }
 
-  /// The window went (closed, answered, hidden): the windows after it and the card stack move up into its place.
+  /// Its turn has come: the window goes to its place under the island and arrives as always.
+  private func turn(_ id: String) {
+    guard let i = entries.firstIndex(where: { $0.id == id }), entries[i].window != nil, let a = Island.shared.noteAnchor(),
+          let f = NoteDrop.columnFrame(a, size: entries[i].size, offset: 0) else {
+      entries.removeAll { $0.id == id }
+      IslandQueue.shared.finish(id)
+      return
+    }
+    put(entries[i].window!, f, alpha: entries[i].alpha)
+    DispatchQueue.main.async { Toast.shared.islandChanged() }
+  }
+
+  /// The window went (closed, answered, hidden): the next pop up takes its place, and the card stack moves up.
   func leave(_ id: String) {
     guard let i = entries.firstIndex(where: { $0.id == id }) else { return }
     entries.remove(at: i)
-    let after = entries.suffix(from: i).map { $0.replace }
-    DispatchQueue.main.async {
-      after.forEach { $0() }
-      Toast.shared.islandChanged()
-    }
+    IslandQueue.shared.finish(id)
+    DispatchQueue.main.async { Toast.shared.islandChanged() }
   }
 
-  /// How far the column reaches from the island (the card stack starts past it). Windows that went away on their own
-  /// (closed without a leave) no longer count.
+  /// A window under the island goes away as a card shrinks back into it (PS 1.60): it slides up toward the island while it
+  /// fades, the island gulps it in (a soft bulge), and then the next pop up may come. False when the window is not under
+  /// the island (the caller fades it out as it always did). Under Reduce Motion a short fade only.
+  @discardableResult
+  func retire(_ w: NSWindow, id: String, completion: @escaping () -> Void) -> Bool {
+    guard Features.on("island-moments"), !Toast.testCopy || testIsland, entries.contains(where: { $0.id == id && $0.window === w }),
+          IslandQueue.shared.isActive(id), w.isVisible else { return false }
+    let calm = reduceMotion
+    let side = Island.shared.noteAnchor().map { NoteDrop.spot($0, cap: $0.visible.height).side } ?? .below
+    let tuck = calm ? 0 : min(36, w.frame.height * CGFloat(IslandMotionCore.backTuck))
+    let to = w.frame.offsetBy(dx: 0, dy: side == .below ? tuck : -tuck)
+    Island.shared.swell(false)
+    NSAnimationContext.runAnimationGroup({ ctx in
+      ctx.duration = IslandMotionCore.backDuration(reduceMotion: calm)
+      ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.5, 0, 0.75, 0.3)
+      w.animator().setFrame(to, display: true)
+      w.animator().alphaValue = 0
+    }, completionHandler: { [weak self] in
+      completion()
+      // A new card for the same id may have taken this entry over while the old one shrank: it stays.
+      if let self, self.entries.first(where: { $0.id == id })?.window === w { self.leave(id) }
+    })
+    return true
+  }
+
+  /// How far the column reaches from the island (the card stack starts past it): the one pop up on screen. Windows that
+  /// went away on their own (closed without a leave) no longer count.
   var height: CGFloat {
-    entries.removeAll { $0.window == nil || $0.window?.isVisible != true }
-    return NoteDrop.columnHeight(entries.map { $0.size.height })
+    guard let id = IslandQueue.shared.activeId, let e = entries.first(where: { $0.id == id }), e.window?.isVisible == true else { return 0 }
+    return NoteDrop.columnHeight([e.size.height])
   }
 
   /// The island moved, hid, came back, or a choice changed: every window places itself again (some go back to their
@@ -70,18 +121,17 @@ final class IslandColumn {
     let all = entries.map { $0.replace }
     all.forEach { $0() }
   }
-  private func relayout(after id: String) {
-    guard let i = entries.firstIndex(where: { $0.id == id }) else { return }
-    entries.suffix(from: i + 1).map { $0.replace }.forEach { $0() }
-    Toast.shared.islandChanged()
-  }
-
   /// Puts a window at its place under the island: a window already showing glides there; a new one slides down from
   /// behind the island while it fades in, and the island swells. `alpha`: what the window shows at (0 in a test copy).
   /// V1.56 hang fix: a window that already arrived only glides from now on, even while it is still fading in (in V1.55
   /// its arrival started again on every island change and each arrival swelled the island: an endless main thread loop).
   func put(_ w: NSWindow, _ f: NSRect, alpha: CGFloat = 1) {
     let i = entries.firstIndex { $0.window === w }
+    if let i {
+      entries[i].alpha = alpha
+      // Not its turn yet: it waits out of sight (IslandQueue.swift), never on top of the one showing.
+      if !IslandQueue.shared.isActive(entries[i].id) { if w.isVisible { w.orderOut(nil) }; return }
+    }
     let step = NoteDrop.putStep(arrived: i.map { entries[$0].arrived } ?? false, visible: w.isVisible, alpha: w.alphaValue,
                                 current: w.frame, target: i.flatMap { entries[$0].target }, to: f)
     if let i { entries[i].arrived = true; entries[i].target = f }

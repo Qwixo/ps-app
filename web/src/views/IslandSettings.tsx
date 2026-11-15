@@ -16,7 +16,7 @@ import { sfx } from "../ui/sfx";
 import type { IslandPrefs } from "../core/island";
 import { islandPicVars } from "../core/looksample";
 import { IslandHideRow } from "./IslandHide";
-import { IslandCardsRows, IslandFullScreenRow, IslandTickSideRow } from "./IslandCards";
+import { IslandCardsRows, IslandFullScreenRow, IslandSoundsRow, IslandTickSideRow } from "./IslandCards";
 import { IslandLookEditor, LookEditButton, noNotch, type LookKind } from "./IslandLook";
 import "./islandsettings.css";
 
@@ -120,6 +120,8 @@ export function IslandSectionRows({ id, prefs, save, edit, setEdit }: { id: IslS
   return (<>
     {/* V1.55: the Mac's notification cards come out of the island, and which kinds go to the top right instead. */}
     {PS && <IslandCardsRows prefs={prefs} save={full} />}
+    {/* PS 1.60: the chime of the island's big moments. */}
+    {PS && <IslandSoundsRow prefs={prefs} save={full} />}
   </>);
 }
 

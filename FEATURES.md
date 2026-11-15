@@ -31,6 +31,7 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Tab overlay | Hold Tab over any app to see your list. | Menu bar icon, "Tab Overlay: On". Keys: Settings, Keyboard and Tab. |
 | Dynamic Island | A small island at the notch for the time, meetings and notifications. | Settings, Mac, Dynamic Island, "Show it": Off. |
 | Island notifications | Cards come out of the island instead of the top right. | Settings, Mac, Dynamic Island, "Notifications come from the Dynamic Island". |
+| Island moments | The island squeezes in a little and bounces out into each card, one card at a time, reminders and the update card shrink back in, the island ticks "Database loaded" and "Updated", and What's new comes out of the island. | Settings, Mac, Dynamic Island, "Island sounds" for the chime. The whole feature: Settings, From the squad, "Island moments". |
 | Notification pop ups | PS's own pop up cards. | Settings, Notifications and Do Not Disturb, "Notification pop-ups". |
 | Meetings from this Mac's Calendar | Shows your Calendar meetings, read only. | Settings, Notifications and Do Not Disturb, "Meetings from this Mac's Calendar". |
 | Meeting alerts | A warning before a meeting starts. | Settings, Notifications and Do Not Disturb, "Meetings". |
