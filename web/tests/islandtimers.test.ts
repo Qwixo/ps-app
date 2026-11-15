@@ -70,7 +70,7 @@ ok("Try it now: one stand-up 15 seconds away, whatever the schedule", () => {
 const ev = (id: string, title: string, s: number, e: number, link: string | null = "https://meet.google.com/abc-defg-hij") =>
   ({ id, title, start: new Date(s).toISOString(), end: new Date(e).toISOString(), allDay: false, link, attendees: [] });
 ok("meeting bubble defaults: on, 15 minutes before; the lead is kept in range", () => {
-  assert.deepEqual(meetBubblePrefs(undefined), { on: true, lead: 15 });
+  assert.deepEqual(meetBubblePrefs(undefined), { on: true, lead: 15, style: "blob" });
   assert.equal(meetBubblePrefs({ lead: 0 }).lead, 1); assert.equal(meetBubblePrefs({ lead: 500 }).lead, 120);
 });
 ok("the next meeting within the lead time, sent a little early so the island starts it on time", () => {

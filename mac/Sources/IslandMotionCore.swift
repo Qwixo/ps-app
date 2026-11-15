@@ -13,6 +13,9 @@ enum IslandMoment: String, CaseIterable {
   case updateDone     // an update finished installing
   case dbLoaded       // the database finished loading: a green tick
   case whatsNew       // the island says "What's new", then the panel comes out
+  case welcomeBack    // the island shrinks a little, then grows into the Welcome back panel (PS 1.60, WelcomeBackCore.swift)
+  case workoutDone    // "Workout complete": a squeeze and a big pop before the summary grows out (WorkoutSummaryCore.swift)
+  case faceID         // Done on Welcome back: the Face ID style tick, a soft pop
 }
 
 struct IslandStep: Equatable {
@@ -50,6 +53,19 @@ enum IslandMotionCore {
               IslandStep(at: squeezeFor, to: 1.1, response: 0.22, damping: 0.5),
               IslandStep(at: squeezeFor + 0.24, to: 0.35, response: 0.2, damping: 0.6),
               IslandStep(at: squeezeFor + 0.46, to: 0, response: 0.46, damping: 0.5)]
+    case .welcomeBack:
+      // it shrinks a little (deeper than a card's squeeze, held a breath), then grows with a springy overshoot
+      return [IslandStep(at: 0, to: -0.7, response: 0.16, damping: 0.85),
+              IslandStep(at: 0.16, to: 1.0, response: 0.3, damping: 0.58),
+              IslandStep(at: 0.42, to: 0, response: 0.5, damping: 0.55)]
+    case .workoutDone:
+      return [IslandStep(at: 0, to: squeeze, response: 0.12, damping: 0.85),
+              IslandStep(at: squeezeFor, to: 1.15, response: 0.22, damping: 0.5),
+              IslandStep(at: squeezeFor + 0.26, to: 0.3, response: 0.2, damping: 0.6),
+              IslandStep(at: squeezeFor + 0.48, to: 0, response: 0.46, damping: 0.5)]
+    case .faceID:
+      return [IslandStep(at: 0, to: 0.6, response: 0.2, damping: 0.5),
+              IslandStep(at: 0.18, to: 0, response: 0.46, damping: 0.5)]
     case .dbLoaded:
       return [IslandStep(at: 0, to: squeeze * 0.5, response: 0.12, damping: 0.85),
               IslandStep(at: 0.07, to: 0.6, response: 0.22, damping: 0.5),
@@ -71,8 +87,8 @@ enum IslandMotionCore {
   static func chimes(_ m: IslandMoment, soundOn: Bool, dndMutesSounds: Bool) -> Bool {
     guard soundOn, !dndMutesSounds else { return false }
     switch m {
-    case .updateDone, .dbLoaded, .whatsNew: return true
-    case .cardOut, .cardBack: return false
+    case .updateDone, .dbLoaded, .whatsNew, .workoutDone, .faceID: return true
+    case .cardOut, .cardBack, .welcomeBack: return false
     }
   }
 

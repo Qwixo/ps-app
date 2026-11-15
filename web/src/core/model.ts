@@ -461,6 +461,8 @@ export interface Settings {
   standup?: Partial<import("./standup").StandPrefs>;   // Stand-up reminders (core/standup.ts, V1.58): on, how often, how long, sound, active hours
   meetBubble?: Partial<import("./meetbubble").MeetBubblePrefs>;   // the next meeting bubble on the island (core/meetbubble.ts, V1.58): on, minutes before
   pomoIntro?: boolean;           // the first Pomodoro card (it recommends the Dynamic Island) was answered
+  welcomeBack?: Partial<import("./welcomeback").WelcomePrefs>;   // Welcome back on the Mac island after being away (core/welcomeback.ts, PS 1.60): on, minutes
+  workoutMac?: Partial<import("./workoutsummary").SummaryPrefs>;   // Workout summary on the Mac after a workout on the phone (core/workoutsummary.ts, PS 1.60): on
   standAsk?: boolean;            // V1.59: the first stand-up's question ("Do you want to turn stand-up reminders off?") was seen; asked once per person
   dnd?: Dnd;                     // PS Do Not Disturb (core/dnd.ts, the developer 30 Oct 2026): the moon top right of the Tab list; muted cards are held, never lost
   meetHidden?: MeetHide[];       // meetings the developer took off the Meetings panel (core/meethide.ts, the developer 2 Nov 2026): PS only, his calendar is never touched

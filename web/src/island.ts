@@ -23,6 +23,11 @@ import { meetBubblePrefs, meetIsland } from "./core/meetbubble";
 import { dndMutes } from "./core/dnd";
 import { runPomoOp } from "./pomodoro";
 import { fitIslandPart } from "./fitness/fitisland";
+import { welcomeDoneIds, welcomeIsland, type WelcomeIn } from "./core/welcomeback";
+import { pendingSummary, summaryPrefs } from "./core/workoutsummary";
+import { feature } from "./core/features";
+import type { FitWorkout } from "./core/fitness";
+import { workoutPatch } from "./fitness/store";
 
 type Post = (m: object) => void;
 let post: Post = () => {};
@@ -35,6 +40,8 @@ const seen = new Set<string>();
 let lastTick: IslandTick | null = null;
 /** What the island was last told it shows: a tick may only reach one of these tasks (V1.44 #10). */
 let shown: IslandState | null = null;
+/** What Welcome back was last told (the only tasks its Done may tick). */
+let welcomeTold: WelcomeIn | null = null;
 
 /** Client emails, Instantly replies and finished chats, each with whether it just arrived. */
 function cardsNow(s: Snapshot, now: number): { mail: number; leads: number; cards: IslandCard[] } {
@@ -84,8 +91,18 @@ function sync(force = false) {
   const stand = standIsland(standPrefs(st.standup), now, soundOk, (at) => breaks.some(([a, b]) => at >= a && at < b), standTest, standAskDue(st));
   // The next meeting bubble (core/meetbubble.ts): the meetings the Meetings panel already has.
   const meet = meetIsland(cal?.data.events, st.meetHidden, meetBubblePrefs(st.meetBubble), now, !!st.privateMode);
+  // PS 1.60: Welcome back (the tasks being worked on) and the workout summary waiting for this Mac, each only with its
+  // feature and switch on. The workout's mark is saved on the workout when the Mac says it showed it (islandMessage).
+  const welcome = feature("welcome-back") ? welcomeIsland(todos(s) as Doc<Todo>[], st, !!st.privateMode) : null;
+  welcomeTold = welcome;
+  const workout = feature("workout-summary") && !st.privateMode ? pendingSummary(fitWorkouts(s), now, summaryPrefs(st.workoutMac)) : null;
   // V1.60 Fitness on the phone's island (src/fitness/fitisland.ts): Scanning, Found, Workout added, rest, progress hints. Null off the phone.
-  send({ ...shown, meets, pomo, stand, meet, fit: fitIslandPart(now) }, force);
+  send({ ...shown, meets, pomo, stand, meet, welcome, workout, fit: fitIslandPart(now) }, force);
+}
+function fitWorkouts(s: Snapshot): { id: string; data: FitWorkout }[] {
+  const out: { id: string; data: FitWorkout }[] = [];
+  for (const d of s.docs.values()) if ((d.kind as string) === "fwork") out.push({ id: d.id, data: d.data as unknown as FitWorkout });
+  return out;
 }
 function send(state: object, force: boolean) {
   const json = JSON.stringify(state);
@@ -106,6 +123,18 @@ export function islandMessage(m: { type?: string; action?: string; id?: string }
     const st = settingsData(s);
     const patch = standAskPatch(m.id, st.standup);
     if (patch && (st.standAsk !== true || patch.standup)) void saveSettings(patch).then(() => sync(true));
+    return true;
+  }
+  // PS 1.60 Welcome back: Done with the ticked ids (a JSON list in `id`). Each is ticked like a tick on the island.
+  if (m.action === "welcomeDone") {
+    const ids = welcomeDoneIds(m.id, welcomeTold?.tasks ?? [], new Map(todos(s).map((d) => [d.id, d])));
+    for (const id of ids) void toggleTodo(id);
+    return true;
+  }
+  // PS 1.60 workout summary: this Mac showed it. The mark goes on the workout (once, synced), so no other Mac shows it.
+  if (m.action === "workoutShown") {
+    const d = typeof m.id === "string" ? s.docs.get(m.id) : undefined;
+    if (d && (d.kind as string) === "fwork" && !(d.data as unknown as FitWorkout).macShown) void workoutPatch(d.id, { macShown: new Date().toISOString() }).then(() => sync(true));
     return true;
   }
   if (m.action === "privateOff") {

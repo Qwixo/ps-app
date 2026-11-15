@@ -7,8 +7,10 @@
 import type { CalEvent } from "./model";
 import { visibleEvents, type MeetHide } from "./meethide.ts";
 
-export interface MeetBubblePrefs { on: boolean; lead: number }
-export const MEET_BUBBLE_DEFAULT: MeetBubblePrefs = { on: true, lead: 15 };
+/** style: "blob" is the small stacked blob on the end of the island (PS 1.60), "pill" the older long pill. */
+export type MeetStyle = "blob" | "pill";
+export interface MeetBubblePrefs { on: boolean; lead: number; style: MeetStyle }
+export const MEET_BUBBLE_DEFAULT: MeetBubblePrefs = { on: true, lead: 15, style: "blob" };
 export const MEET_LEAD_LIMITS = [1, 120] as const;
 /** In the last 2 minutes before it starts, the bubble is a Join button (when the meeting has a link). */
 export const MEET_JOIN_MS = 120_000;
@@ -20,18 +22,21 @@ export const MEET_WORDS = {
   meeting: "Meeting",
   settingOn: "Next meeting on the island",
   settingLead: "Show it this long before",
+  settingStyle: "Look of the meeting countdown",
+  styleBlob: "Small blob",
+  stylePill: "Long pill",
 } as const;
 
 export function meetBubblePrefs(v: unknown): MeetBubblePrefs {
   const o = v && typeof v === "object" ? v as Record<string, unknown> : {};
   const n = typeof o.lead === "number" ? o.lead : Number(o.lead);
-  return { on: o.on !== false, lead: Number.isFinite(n) ? Math.min(MEET_LEAD_LIMITS[1], Math.max(MEET_LEAD_LIMITS[0], Math.round(n))) : MEET_BUBBLE_DEFAULT.lead };
+  return { on: o.on !== false, style: o.style === "pill" ? "pill" : "blob", lead: Number.isFinite(n) ? Math.min(MEET_LEAD_LIMITS[1], Math.max(MEET_LEAD_LIMITS[0], Math.round(n))) : MEET_BUBBLE_DEFAULT.lead };
 }
 
 /** Sent this long before the bubble shows, so the island (which the page tells once a minute) starts it on time. */
 export const SEND_EARLY_MS = 120_000;
 /** What the island is told. from: when the bubble starts showing (start less the lead time). link: https only. */
-export interface MeetIsland { id: string; title: string; start: number; end: number; from: number; link: string | null }
+export interface MeetIsland { id: string; title: string; start: number; end: number; from: number; link: string | null; style: MeetStyle }
 
 const safeLink = (v: unknown) => (typeof v === "string" && /^https:\/\/[^\s]{3,1500}$/.test(v) ? v : null);
 
@@ -52,7 +57,7 @@ export function meetIsland(events: CalEvent[] | null | undefined, hidden: MeetHi
   const m = shown.find((x) => x.start > now) ?? shown[0] ?? list[0];
   if (!m) return null;
   const title = priv ? MEET_WORDS.meeting : (m.e.title || "").replace(/\s+/g, " ").trim().slice(0, 80) || MEET_WORDS.meeting;
-  return { id: m.e.id.slice(0, 120), title, start: m.start, end: m.end, from: m.start - lead, link: safeLink(m.e.link) };
+  return { id: m.e.id.slice(0, 120), title, start: m.start, end: m.end, from: m.start - lead, link: safeLink(m.e.link), style: p.style };
 }
 
 /** "12m", "1h 5m", "45s" (under a minute). Rounded up, so it never says 0m while time is left. */
