@@ -16,6 +16,7 @@ object IslandShow {
     const val MEET_JOIN_MS = 120_000L     // core/meetbubble.ts
     const val EVENT_MS = 8_000L           // a pop on the phone (the Mac's is 12 s; a phone's heads up says it too)
     const val REMINDER_MS = 10_000L
+    const val REST_OVER_MS = 3_000L       // web core/fitisland.ts REST_OVER_MS: "Rest over" holds this long
 
     enum class Tone { PINK, GREEN, AMBER, BLUE, CORAL }
 
@@ -23,7 +24,11 @@ object IslandShow {
     data class Stand(val at: Long, val len: Long)
     data class Meet(val title: String, val start: Long, val end: Long, val from: Long, val link: String?)
     data class Pop(val id: String, val tone: Tone, val title: String, val sub: String, val open: String, val until: Long)
-    data class Page(val on: Boolean, val private: Boolean, val working: Boolean, val pomo: Pomo?, val stand: Stand?, val meet: Meet?, val event: Pop?)
+    /** V1.60 Fitness (web core/fitisland.ts): one moment (Scanning, Found, Not found, Workout added, a progress hint, a nudge) and the rest. */
+    data class Fit(val id: String, val kind: String, val at: Long, val until: Long, val title: String, val sub: String, val fig: IslandFig.Fig?, val sound: Boolean)
+    data class FitRest(val endsAt: Long, val exercise: String, val set: Int, val of: Int, val over: Boolean, val overAt: Long)
+    data class Page(val on: Boolean, val private: Boolean, val working: Boolean, val pomo: Pomo?, val stand: Stand?, val meet: Meet?, val event: Pop?,
+                    val fit: Fit? = null, val rest: FitRest? = null)
 
     val OFF = Page(false, false, false, null, null, null, null)
 
@@ -31,7 +36,12 @@ object IslandShow {
         /** The black pill hugging the camera, nothing in it (a small dot while a task is in progress). Not touchable. */
         data class Idle(val dot: Boolean) : Look()
         /** A short line and its value (a countdown, "Join"), just below the status bar. tick: counts each second. */
-        data class Compact(val tone: Tone, val left: String, val right: String, val tick: Boolean, val open: String, val backId: String? = null) : Look()
+        data class Compact(val tone: Tone, val left: String, val right: String, val tick: Boolean, val open: String, val backId: String? = null,
+                           /** V1.60: a spinner where the value goes (Scanning). */ val spin: Boolean = false) : Look()
+        /** V1.60 Found: the island grows to the exercise's name and its little figure, a tick on the right. `id` tells two founds apart. */
+        data class Found(val id: String, val name: String, val fig: IslandFig.Fig?, val open: String = "list") : Look()
+        /** V1.60 Workout added: the Face ID style square, a big tick, the figure and "Workout added". */
+        data class Added(val id: String, val title: String, val name: String, val fig: IslandFig.Fig?, val open: String = "list") : Look()
         /** Opens downwards: a title and a line, for a few seconds. */
         data class Big(val tone: Tone, val title: String, val sub: String, val open: String) : Look()
     }
@@ -69,6 +79,8 @@ object IslandShow {
         val pop = (pops + listOfNotNull(p.event.takeIf { p.on })).filter { now < it.until }.maxByOrNull { it.until }
         if (pop != null) return Look.Big(pop.tone, pop.title, pop.sub, pop.open)
         if (!p.on) return Look.Idle(false)
+        // 1b. A Fitness moment (the scan, a progress hint): the page sends it with its own end time.
+        p.fit?.let { f -> fitLook(f, now)?.let { return it } }
         fun backOk(id: String) = seen[id]?.let { now - it < BACK_SHOW_MS } ?: true
         // 2. The green tick after a break.
         pomoBackId(p.pomo, now)?.let { if (backOk(it)) return Look.Compact(Tone.GREEN, "Back to work", "✓", false, "list", it) }
@@ -90,6 +102,11 @@ object IslandShow {
             // 5. The 15 seconds before one (never in a break: the break counts as standing).
             if (now >= s.at - STAND_LEAD_MS && now < s.at && !breakNow(po, s.at)) return Look.Compact(Tone.AMBER, "Stand up in", "${(s.at - now + 999) / 1000}", true, "list")
         }
+        // 5b. The rest between sets: counts down live, then "Rest over" for a moment (the sound is the shell's own, Fitness.kt).
+        p.rest?.let { r ->
+            if (!r.over && now < r.endsAt) return Look.Compact(Tone.BLUE, "Rest", clock(r.endsAt - now), true, "list")
+            if (r.over && now - r.overAt < REST_OVER_MS) return Look.Compact(Tone.GREEN, "Rest over", "Go", false, "list")
+        }
         // 6. The next meeting.
         val m = p.meet
         if (m != null && now >= m.from && now < m.end) {
@@ -109,6 +126,21 @@ object IslandShow {
         return Look.Idle(p.working)
     }
 
+    /** The look of a Fitness moment, or null when it is over (its end time passed). */
+    fun fitLook(f: Fit, now: Long): Look? {
+        if (now >= f.until) return null
+        return when (f.kind) {
+            "scanning" -> Look.Compact(Tone.BLUE, "Scanning", "", false, "list", spin = true)
+            "found" -> Look.Found(f.id, f.title, f.fig)
+            "notfound" -> Look.Compact(Tone.CORAL, "Not found", "", false, "list")
+            "added" -> Look.Added(f.id, f.title, f.sub, f.fig)
+            "better" -> Look.Big(Tone.GREEN, f.title, f.sub, "list")
+            "same" -> Look.Big(Tone.AMBER, f.title, f.sub, "list")
+            "nudge" -> Look.Big(Tone.AMBER, f.title, f.sub, "list")
+            else -> null
+        }
+    }
+
     /** When the look may change next with no new message (null: never by itself). The service sleeps until then. */
     fun wakeAt(p: Page, pops: List<Pop>, now: Long, hideUntil: Long): Long? {
         val t = mutableListOf<Long>()
@@ -117,6 +149,8 @@ object IslandShow {
             p.event?.let { t += it.until }
             p.pomo?.let { t += it.endsAt; t += it.endsAt + BACK_SHOW_MS; t += it.backAt + BACK_SHOW_MS }
             p.stand?.let { t += it.at - STAND_LEAD_MS; t += it.at; t += it.at + it.len; t += it.at + it.len + BACK_SHOW_MS }
+            p.fit?.let { t += it.until }
+            p.rest?.let { t += it.endsAt; t += it.overAt + REST_OVER_MS }
             p.meet?.let { t += it.from; t += it.start - MEET_JOIN_MS; t += it.start; t += it.end }
         }
         t += hideUntil
@@ -155,6 +189,24 @@ object IslandShow {
             Pop("ev:$id", tone, title, sub, if (kind == "chat") "list" else "inbox", now + EVENT_MS)
         }
         val working = st.optJSONObject("task") != null
-        return Page(true, priv, working, pomo, stand, meet, event)
+        return Page(true, priv, working, pomo, stand, meet, event, fit(st.optJSONObject("fit")), fitRest(st.optJSONObject("fit")))
     }
+
+    // ---------- Fitness (V1.60) ----------
+    /** The `fit.moment` of the island state. Unknown kinds and a moment with no end time are dropped. */
+    fun fit(f: JSONObject?): Fit? {
+        val m = f?.optJSONObject("moment") ?: return null
+        val kind = str(m, "kind", 12)
+        if (kind !in KINDS) return null
+        val id = str(m, "id", 60).ifEmpty { return null }
+        val at = num(m, "at") ?: return null
+        val until = num(m, "until") ?: return null
+        return Fit(id, kind, at, until.coerceAtMost(at + 60_000L), str(m, "title", 80), str(m, "sub", 80), IslandFig.parse(m.optJSONObject("fig")), m.optBoolean("sound", true))
+    }
+    fun fitRest(f: JSONObject?): FitRest? {
+        val r = f?.optJSONObject("rest") ?: return null
+        val ends = num(r, "endsAt") ?: return null
+        return FitRest(ends, str(r, "exercise", 60), (num(r, "set") ?: 0L).toInt().coerceIn(0, 999), (num(r, "of") ?: 0L).toInt().coerceIn(0, 999), r.optBoolean("over"), num(r, "overAt") ?: 0L)
+    }
+    val KINDS = setOf("scanning", "found", "notfound", "added", "better", "same", "nudge")
 }

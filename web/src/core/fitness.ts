@@ -114,6 +114,8 @@ export interface FitPrefs {
   sound?: boolean;                        // Mac: chime when the rest ends
   startLast?: boolean;                    // V1.60: a new set starts at the last weight and reps of that exercise (default on)
   scan?: boolean;                         // Gym scan (V1.59, src/fitness/Scan.tsx): the Scan button in a workout, default on
+  island?: boolean;                       // V1.60: the phone's island shows Scanning, Found, Workout added, rest and progress hints (default on)
+  islandSound?: boolean;                  // V1.60: each island moment has its own sound (default on)
   weekGoal?: number;                      // days a week, for "3 of 4 this week"
   // Sleep (V1.40, core/sleep.ts)
   sleepTarget?: number;                   // minutes, 7 to 9 h (default 7 h)

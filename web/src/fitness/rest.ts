@@ -112,6 +112,10 @@ export const rest = {
   /** "Rest over" seen (the next set started): gone from the screen. */
   clear() { if (cur?.over) { set(null); hideCard(); } },
   onEnd(f: (r: RestNow) => void) { endListeners.add(f); return () => { endListeners.delete(f); }; },
+  /** The rest as it is now (null: none). */
+  now: (): RestNow | null => cur,
+  /** Any change to the rest: started, +15, skipped, over, cancelled. Returns the function that stops listening. */
+  onChange(f: (r: RestNow | null) => void) { const g = () => f(cur); subs.add(g); return () => { subs.delete(g); }; },
   perms: () => perms,
   setSound(on: boolean) { sound = on; },
 };

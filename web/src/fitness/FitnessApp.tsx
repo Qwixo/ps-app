@@ -8,6 +8,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useLookActive } from "../looks/engine";
 import { useFitness } from "./store";
+import { fitIslandPrefs, startFitIsland } from "./fitisland";
+import { islandOn, islandSoundOn } from "../core/fitisland";
 import { rest } from "./rest";
 import { Gym } from "./Gym";
 import { Programs } from "./Programs";
@@ -63,6 +65,8 @@ export function FitnessApp({ desk = false, onBack, backLabel = `Back to ${appNam
   useEffect(() => { if (tryStyle && v.prefs.style === tryStyle) setTryStyle(null); }, [tryStyle, v.prefs.style]);
   useEffect(() => { try { localStorage.setItem(STYLE_KEY, style); } catch { /* storage off */ } }, [style]);
   useEffect(() => { rest.setSound(v.prefs.sound !== false); }, [v.prefs.sound]);
+  // V1.60 the phone's island in workouts (fitisland.ts): the two switches, and start listening to the scan and the rest.
+  useEffect(() => { fitIslandPrefs({ on: islandOn(v.prefs), sound: islandSoundOn(v.prefs) }); startFitIsland(); }, [v.prefs.island, v.prefs.islandSound]); // eslint-disable-line react-hooks/exhaustive-deps
   // A PS look other than the default (Settings > Appearance) dresses Fitness too: its own looks wait under the default.
   const lookOn = useLookActive();
   const ownTheme = useFitTheme(style);
