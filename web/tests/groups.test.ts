@@ -1,6 +1,7 @@
 // Sections and task groups in the Tab list (core/groups.ts): order, membership and what a move saves.
 import assert from "node:assert/strict";
-import { accepts, cleanGroups, cleanSecOrder, mergeOrder, planMove, planUngroup, sectionOrder, tabLists } from "../src/core/groups.ts";
+import { readFileSync } from "node:fs";
+import { accepts, cleanGroups, cleanSecOrder, dropAbovePrioIsP1, hitSection, mergeOrder, planMove, planUngroup, sectionOrder, tabLists } from "../src/core/groups.ts";
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
@@ -91,5 +92,65 @@ ok("only clean groups and section keys are saved", () => {
   assert.deepEqual(cleanGroups([{ id: "aaaa1", name: "  Big   launch " }, { id: "aaaa1", name: "dup" }, { id: "BAD!", name: "x" }, { id: "cccc3", name: "" }, "junk"]),
     [{ id: "aaaa1", name: "Big launch" }, { id: "cccc3", name: "Group" }]);
   assert.deepEqual(cleanSecOrder(["p1", "p1", "g:aaaa1", "evil", 3, "daily"]), ["p1", "g:aaaa1", "daily"]);
+});
+// ---------- dragging a task onto Priority 1 (the developer's friend, 15 Nov 2026) ----------
+ok("a Priorities task let go on Priority 1 becomes Priority 1, at the spot, whatever its place", () => {
+  for (const index of [0, 1, 2]) {
+    const p = patches(planMove(L(), { ids: ["y"], to: "p1", index }));
+    assert.equal(p.y.p1, true, `index ${index}`);
+  }
+  const mid = patches(planMove(L(), { ids: ["y"], to: "p1", index: 1 }));
+  assert.equal(mid.y.order, 1);
+  assert.equal(mid.p1b.order, 2, "the P1 task below makes room");
+});
+ok("a task with no priority yet dropped on Priority 1 becomes Priority 1 and ranked", () => {
+  const p = patches(planMove(L(), { ids: ["z"], to: "p1", index: 2 }));
+  assert.equal(p.z.p1, true);
+  assert.equal(p.z.unranked, false);
+});
+ok("several picked tasks dropped on Priority 1 all become Priority 1, in the order picked", () => {
+  const out = planMove(L(), { ids: ["x", "y"], to: "p1", index: 0 });
+  const p = patches(out);
+  assert.equal(p.x.p1, true); assert.equal(p.y.p1, true);
+  assert.equal(p.x.order, 0); assert.equal(p.y.order, 1);
+});
+ok("a task from a group dropped on Priority 1 leaves the group and is Priority 1", () => {
+  assert.deepEqual({ g: patches(planMove(L(), { ids: ["g1"], to: "p1", index: 0 })).g1.group, p: patches(planMove(L(), { ids: ["g1"], to: "p1", index: 0 })).g1.p1 }, { g: null, p: true });
+});
+ok("Priority 1 back into Priorities clears the flag; Every day tasks are refused by Priority 1", () => {
+  assert.equal(patches(planMove(L(), { ids: ["p1a"], to: "prio", index: 2 })).p1a.p1, false);
+  assert.deepEqual(planMove(L(), { ids: ["gym"], to: "p1", index: 0 }), []);
+  assert.deepEqual(planMove(L(), { ids: ["x", "gym"], to: "p1", index: 0 }), [], "one daily in the bundle refuses it all");
+});
+ok("a task dropped on its own Priority 1 group stays Priority 1 and only reorders", () => {
+  const p = patches(planMove(L(), { ids: ["p1b"], to: "p1", index: 0 }));
+  assert.equal(p.p1b.p1, undefined);
+  assert.equal(p.p1b.order, 0); assert.equal(p.p1a.order, 1);
+});
+
+const box = (key: string, top: number, bottom: number, left = 100, right = 500) => ({ key, left, top, right, bottom });
+const BOXES = [box("p1", 100, 260), box("prio", 290, 800), box("daily", 830, 1000)];
+ok("hitSection finds the section under the pointer, with 40 px of room either side, and none in the gap", () => {
+  assert.equal(hitSection(BOXES, 300, 150), "p1");
+  assert.equal(hitSection(BOXES, 300, 120), "p1", "its header");
+  assert.equal(hitSection(BOXES, 300, 500), "prio");
+  assert.equal(hitSection(BOXES, 70, 500), "prio", "40 px left of the box");
+  assert.equal(hitSection(BOXES, 50, 500), null);
+  assert.equal(hitSection(BOXES, 300, 275), null, "the gap between sections");
+  assert.equal(hitSection([], 300, 150), null);
+});
+ok("a Priorities task let go in the gap above Priorities is Priority 1 only while a Priority 1 group is there", () => {
+  const prio = BOXES[1], p1 = BOXES[0];
+  assert.equal(dropAbovePrioIsP1(2, prio, p1, 300, 275), true);
+  assert.equal(dropAbovePrioIsP1(0, prio, p1, 300, 275), false, "no group yet: the old rule (the top starts one) stays");
+  assert.equal(dropAbovePrioIsP1(2, prio, p1, 300, 400), false, "inside Priorities");
+  assert.equal(dropAbovePrioIsP1(2, prio, p1, 700, 275), false, "far to the side");
+  assert.equal(dropAbovePrioIsP1(2, prio, null, 300, 275), false);
+  assert.equal(dropAbovePrioIsP1(2, prio, box("p1", 900, 960), 300, 275), false, "Priority 1 drawn below Priorities");
+});
+ok("TaskMap finds sections on the shown list page, not only as direct children of the list box", () => {
+  const src = readFileSync(new URL("../src/views/TaskMap.tsx", import.meta.url), "utf8");
+  assert.ok(!/\.tm-inner > \.tm-sec/.test(src), "a section sits inside .tl-page (V1.55), so the direct child selector finds none");
+  assert.ok(/sectionOnShownPage/.test(src) && /tl-near/.test(src), "pages beside the shown one are left out");
 });
 console.log(`\n${n} passed`);

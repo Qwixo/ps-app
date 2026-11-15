@@ -146,3 +146,23 @@ export function planUngroup(lists: TabLists, gid: string): { id: string; patch: 
     ? { id: d.id, patch: { group: null, order: ++daily } }
     : { id: d.id, patch: { group: null, order: ++once, p1: false, unranked: false } });
 }
+
+// ---------- where a dragged task is let go (the hit tests, pure so they can be tested) ----------
+/** A section's box on screen. */
+export type SecBox = { key: string; left: number; top: number; right: number; bottom: number };
+
+/** The section under the pointer, with a little room either side (40 px), or null between sections.
+ *  The developer's friend, 15 Nov 2026: a task dragged from Priorities onto Priority 1 stayed where it was,
+ *  because the sections were looked for as direct children of the list box and the list pages (V1.55) put
+ *  a page between them. The pointer found no section at all, so no drop on another section ever counted. */
+export function hitSection(boxes: SecBox[], x: number, y: number): string | null {
+  for (const b of boxes) if (x >= b.left - 40 && x <= b.right + 40 && y >= b.top && y <= b.bottom) return b.key;
+  return null;
+}
+
+/** A task from Priorities let go above the Priorities section (the gap under Priority 1) while a Priority 1
+ *  group exists is Priority 1 too: it joins the end of that group. */
+export function dropAbovePrioIsP1(p1Count: number, prio: SecBox | null, p1: SecBox | null, x: number, y: number): boolean {
+  if (!p1Count || !prio || !p1 || p1.top >= prio.top) return false;
+  return y < prio.top && y >= p1.top && x >= prio.left - 40 && x <= prio.right + 40;
+}
