@@ -22,7 +22,7 @@ import type { SquadView } from "./view";
 
 type Post = (m: object) => void;
 const PS_PAGE = import.meta.env.MODE === "ps";
-const LEDGER_KEY = "ps-gsquad-p1-announced", SINCE_KEY = "ps-gsquad-p1-since";
+const LEDGER_STORE = "ps-gsquad-p1-announced", SINCE_STORE = "ps-gsquad-p1-since";
 const TICK_MS = 60_000, QUIET_PULL_MS = 5 * 60_000;
 
 let phonePost: Post | null = null;
@@ -32,10 +32,10 @@ const device = (): "mac" | "phone" | "web" => (PS_PAGE ? "mac" : phonePost ? "ph
 
 let memLedger: Ledger = {}, memSince: string | null = null;
 // Read from storage each time, so two tabs of the website share one list; a blocked storage keeps this run's list in memory.
-const readLedger = (): Ledger => { try { memLedger = cleanLedger(JSON.parse(localStorage.getItem(LEDGER_KEY) || "{}")); } catch { /* the memory copy */ } return memLedger; };
-const writeLedger = (l: Ledger) => { memLedger = l; try { localStorage.setItem(LEDGER_KEY, JSON.stringify(l)); } catch { /* storage blocked */ } };
-const getSince = (): string | null => { try { return localStorage.getItem(SINCE_KEY) || memSince; } catch { return memSince; } };
-const setSince = (v: string | null) => { memSince = v; try { if (v) localStorage.setItem(SINCE_KEY, v); else localStorage.removeItem(SINCE_KEY); } catch { /* storage blocked */ } };
+const readLedger = (): Ledger => { try { memLedger = cleanLedger(JSON.parse(localStorage.getItem(LEDGER_STORE) || "{}")); } catch { /* the memory copy */ } return memLedger; };
+const writeLedger = (l: Ledger) => { memLedger = l; try { localStorage.setItem(LEDGER_STORE, JSON.stringify(l)); } catch { /* storage blocked */ } };
+const getSince = (): string | null => { try { return localStorage.getItem(SINCE_STORE) || memSince; } catch { return memSince; } };
+const setSince = (v: string | null) => { memSince = v; try { if (v) localStorage.setItem(SINCE_STORE, v); else localStorage.removeItem(SINCE_STORE); } catch { /* storage blocked */ } };
 
 let sentryNow: () => boolean = () => false;
 if (PS_PAGE) void import("../views/Sentry").then((m) => { sentryNow = m.sentryUp; }).catch(() => { /* no Sentry here */ });
