@@ -94,13 +94,12 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   // V1.62 the new app logo: only people updating from an earlier version, once per person (Ok on any device ends it everywhere).
   "new-logo-162": async (_can, s) => updaterProbe("new-logo-162", s),
   // Screen recording (12b): shown only to people who said No or have not answered. Yes retires it. Asks the Mac for its saved choice only (nothing from macOS).
-  // PS 1.63 Priority 1 with the squad: a person who already answered is done. Everyone else (new or existing) is asked the same one question
-  // once they are in a squad. This probe NEVER saves anything: the only code that writes p1 = true is the Yes click (CHOICES below).
-  // Nothing is shared before an answer exists (core/squadshare.ts shareOn "p1" is only true for a saved yes).
+  // PS 1.63 Priority 1 with the squad: shared by default (opt out). A person who already answered is done. Everyone else (new or existing)
+  // sees the same one notice once they are in a squad. This probe NEVER saves anything: only a click on the card saves (CHOICES below).
   "squad-p1": async (_can, s) => {
     if (!feature(P1_FEATURE)) return "unknown";
     const todo = p1Default(squadStore.get().in, cleanShareOpts(settingsData(s).squadShare));
-    return todo === "keep" ? "done" : todo === "ask" ? "open" : "unknown";
+    return todo === "keep" ? "done" : todo === "tell" ? "open" : "unknown";
   },
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {

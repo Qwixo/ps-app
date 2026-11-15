@@ -15,7 +15,7 @@ import { cleanShareOpts } from "../core/squadshare";
 import { dndMutes } from "../core/dnd";
 import { cleanLedger, type Ledger } from "../core/maildedupe";
 import { noteSound } from "../core/squadnotify";
-import { P1_FEATURE, P1_GRACE_MS, alertCard, p1Clockable, p1PanelOn, p1Stamps, planMissedAlerts, planOwnReminders, cleanStart, type AlertCard, type P1Row } from "../core/squadp1";
+import { P1_FEATURE, P1_GRACE_MS, alertCard, p1Clockable, p1On, p1PanelOn, p1Stamps, planMissedAlerts, planOwnReminders, cleanStart, type AlertCard, type P1Row } from "../core/squadp1";
 import { sleepState } from "../sleepmode/engine";
 import type { SquadRec } from "../core/squadrec";
 import type { SquadView } from "./view";
@@ -56,7 +56,7 @@ export function startP1(h: P1Hooks) {
   let hadRec = false, working = false, again = false, lastPull = 0, lastTick = Date.now();
   const myTodos = (): Doc<Todo>[] => docs<Todo>("todo").filter((d) => d.ws === null);
   const owner = () => { const s = vaultStore.get(); return s.status === "unlocked" && s.role === "owner" && s.userId !== "ps-overlay" && s.userId !== "dev"; };
-  const sharing = () => !!h.rec() && feature(P1_FEATURE) && cleanShareOpts(settingsData(vaultStore.get()).squadShare).p1 === true;
+  const sharing = () => !!h.rec() && feature(P1_FEATURE) && p1On(cleanShareOpts(settingsData(vaultStore.get()).squadShare));
 
   /** The clock on your own tasks (core/squadp1.ts p1Stamps). Runs after every change of your tasks. */
   async function reconcile() {
@@ -67,7 +67,7 @@ export function startP1(h: P1Hooks) {
       // Opted out (switch off, feature off, or left the squad) takes every start off, so turning it on again starts a fresh 24 hours.
       const inSquad = !!h.rec();
       if (inSquad) hadRec = true;
-      const wants = feature(P1_FEATURE) && cleanShareOpts(settingsData(vaultStore.get()).squadShare).p1 === true;
+      const wants = feature(P1_FEATURE) && p1On(cleanShareOpts(settingsData(vaultStore.get()).squadShare));
       const leftSquad = !inSquad && hadRec;
       if (leftSquad) hadRec = false;
       const stamps = p1Stamps(myTodos(), { active: wants && inSquad, opted: wants && (inSquad || !leftSquad), now: Date.now() });
