@@ -649,6 +649,25 @@ final class SetupIsland {
     }
   }
 
+  /// A feature intro from the island (PS 1.60, "WhatsApp messages now supported"): the island squeezes in a little and bounces out, with a
+  /// soft chime (the Island sounds switch and Reduce Motion are respected), then `ready` gives the island's place in the Tab list window
+  /// (x centre, y of its bottom edge, width) so the page can hang its card from it. `ready(nil)` when the island cannot do it (off, moments
+  /// off, Reduce Motion, not on screen): the page draws the same card plainly. The words and the mark are the page's (core/featureintro.ts).
+  func featureIntro(overlay: NSWindow?, ready: @escaping ([String: Double]?) -> Void) {
+    guard enabled, IslandIntroCore.hangsFromIsland(islandOff: facts.islandOff, reduceMotion: model.reduce, momentsOn: Features.on("island-moments"),
+                                                   islandOnScreen: Island.shared.shapeOnScreen() != nil), let o = overlay, let r = Island.shared.shapeOnScreen() else {
+      ready(nil); return
+    }
+    psLog("PS island moment: featureIntro")
+    log.append("moment:featureIntro")
+    Island.shared.moment(.featureIntro)
+    // The chime lands as the mark swoops in (the page starts the swoop when it gets the place, a beat after the squeeze).
+    after(IslandMotionCore.introLead) { [self] in
+      if IslandMotionCore.chimes(.featureIntro, soundOn: settingSounds, dndMutesSounds: false) { play("chime", SetupIslandSound.chime, 0.3) }
+      ready(["x": Double(r.midX - o.frame.minX), "bottom": Double(o.frame.maxY - r.minY), "w": Double(r.width)])
+    }
+  }
+
   private func nudge() {
     guard model.look == .hint, panel?.isVisible == true else { return }
     psLog("PS setup island: nudge")

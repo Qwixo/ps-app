@@ -19,6 +19,7 @@ import { putDrop } from "../second/drops";
 import { installDropZones } from "../second/dragzone";
 import { runSecondOp, sendFile } from "../second/store";
 import { WhatsNewHost } from "./WhatsNew";
+import { FeatureIntroHost } from "./FeatureIntro";
 import { TipsHost } from "./Tips";
 import { NewPopupsHost } from "./NewPopups";
 import { WalkthroughHost } from "./Walkthrough";
@@ -196,6 +197,7 @@ export function PsOverlay() {
     <>
       <Overlay key={gen} onClose={close} hint="Let go of Tab to close. Click a task to work on it, tick it off, or drag it to set its priority." controls={<OverlayControls inline />} />
       <WhatsNewHost />
+      <FeatureIntroHost />{/* "Did you know?" intros from the island, one at a time (views/FeatureIntro.tsx, PS 1.60) */}
       <WelcomeHost />{/* the welcome tour, once on every account (views/Welcome.tsx, G Squad) */}
       <UpdateFace />{/* the update card on the list itself (V1.40, the developer: "I want it to be in your face") */}
       <TipsHost />{/* the first use tips (V1.55): gentle, one at a time, once per account (views/Tips.tsx) */}

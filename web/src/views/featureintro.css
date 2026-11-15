@@ -1,0 +1,32 @@
+/* Feature intros (views/FeatureIntro.tsx). On the Mac the card hangs from the island: the same black, flat joined top, rounded bottom,
+   growing out of the island's own width (--fi-from) on a spring. On the website and the phone it is a plain black card at the top.
+   Only transform and opacity animate. Reduced motion: no animation at all. */
+.fi-layer { position: fixed; inset: 0; z-index: 2147483100; pointer-events: none; font-family: var(--k-font, "Inter Variable", Inter, system-ui, -apple-system, sans-serif);
+  --fi-spring: linear(0, 0.016, 0.059, 0.122, 0.198, 0.284, 0.374, 0.465, 0.553, 0.637, 0.715, 0.786, 0.848, 0.903, 0.949, 0.987, 1.018, 1.042, 1.06, 1.072, 1.079, 1.083, 1.083, 1.081, 1.077, 1.071, 1.064, 1.057, 1.049, 1.042, 1.034, 1.028, 1.021, 1.016, 1.011, 1.006, 1.003, 1, 0.998, 0.996, 1); }
+.fi-card { position: absolute; width: var(--fi-w, 340px); box-sizing: border-box; pointer-events: auto; background: #000; color: #f5f5f7; padding: 14px 16px 16px; display: grid; gap: 10px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .5); }
+.fi-layer.isl .fi-card { left: var(--fi-left); top: var(--fi-top); border-radius: 0 0 26px 26px; transform-origin: var(--fi-ox) 0; animation: fi-grow .7s var(--fi-spring) both; }
+.fi-layer.plain .fi-card { left: 50%; top: calc(env(safe-area-inset-top, 0px) + 10px); margin-left: calc(var(--fi-w, 340px) / -2); border-radius: 26px; transform-origin: 50% 0; animation: fi-drop .7s var(--fi-spring) both; }
+.fi-layer.isl.out .fi-card { animation: fi-back .34s cubic-bezier(.5, 0, .75, .3) both; }
+.fi-layer.plain.out .fi-card { animation: fi-away .3s ease both; }
+.fi-row { display: flex; align-items: center; gap: 10px; }
+.fi-mark { flex: none; display: grid; place-items: center; width: 34px; height: 34px; animation: fi-swoop .8s .12s var(--fi-spring) both; }
+.fi-head { font-size: 15px; font-weight: 800; letter-spacing: -.01em; animation: fi-text .45s .22s ease both; }
+.fi-ask { margin: 0; font-size: 13.5px; line-height: 1.4; color: rgba(245, 245, 247, .78); animation: fi-text .45s .55s ease both; }
+.fi-btns { display: flex; gap: 8px; animation: fi-text .45s .7s ease both; }
+.fi-btn { flex: 1; text-align: center; text-decoration: none; font: inherit; font-weight: 700; font-size: 13.5px; padding: 9px 12px; border: 0; border-radius: 99px; cursor: pointer; color: #f5f5f7; background: rgba(255, 255, 255, .14); }
+.fi-btn:hover { background: rgba(255, 255, 255, .22); }
+.fi-btn.go { background: #25D366; color: #04210e; }
+.fi-btn.go:hover { background: #3be07a; }
+.fi-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.fi-steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; line-height: 1.4; }
+@keyframes fi-grow { from { opacity: .6; transform: scale(var(--fi-from, .5), .08); } 35% { opacity: 1; } }
+@keyframes fi-back { to { opacity: 0; transform: scale(var(--fi-from, .5), .08); } }
+@keyframes fi-drop { from { opacity: 0; transform: translateY(-24px) scale(.9); } }
+@keyframes fi-away { to { opacity: 0; transform: translateY(-16px); } }
+/* the mark swoops in from the side and above, turning as it lands, on the spring */
+@keyframes fi-swoop { from { opacity: 0; transform: translate(-90px, -46px) rotate(-35deg) scale(.3); } 25% { opacity: 1; } }
+@keyframes fi-text { from { opacity: 0; transform: translateY(5px); } }
+@media (prefers-reduced-motion: reduce) {
+  .fi-card, .fi-mark, .fi-head, .fi-ask, .fi-btns { animation: none !important; }
+}

@@ -2,7 +2,7 @@
 // copy buttons and live checks; top right, a live example that is clearly marked "Example" (made up names, sends nothing).
 // Esc closes it on a Mac or the website, Back on the phone. The island intro that opens this guide is a separate piece (the feature
 // intro list, 9c).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { activeProject } from "../core/project";
 import { newCode, sha256Hex, validRef } from "../core/mailsetup";
 import { DEMO, PRIVACY_LINE, WHICH, demoState, waSteps, whichAnswer, type Which } from "../core/wasetup";
@@ -10,12 +10,16 @@ import { sb } from "../core/vault";
 import { toast } from "../ui/kit";
 import { readWaStatus, type WaStatus } from "./WhatsAppSettings";
 import { WaMark } from "./WaMark";
+import { attachedLayout, type IslandAnchor } from "../core/whatsnew";
+import { GUIDE_W } from "../core/featureintro";
 
 async function copy(text: string) {
   try { await navigator.clipboard.writeText(text); toast("Copied"); } catch { toast("Could not copy. Select the text and copy it."); }
 }
 
-export function WaGuide({ onClose }: { onClose: () => void }) {
+/** `anchor`: the guide was opened from the island intro (views/FeatureIntro.tsx) and grows out of the island, still attached: the same black,
+ *  its top touching the island's lower edge. Without it (Settings, Link WhatsApp) it is the plain dialog. */
+export function WaGuide({ onClose, anchor }: { onClose: () => void; anchor?: IslandAnchor | null }) {
   const ref = (() => { const r = activeProject()?.ref ?? null; return validRef(r) ? r : null; })();
   const [which, setWhich] = useState<Which | null>(null);
   const [i, setI] = useState(0);
@@ -40,8 +44,10 @@ export function WaGuide({ onClose }: { onClose: () => void }) {
   const live = (k?: string) => k === "linked" ? !!status?.linked : k === "verified" ? !!status?.verified_at : k === "message" ? landed : null;
   const done = steps[i].live === "message" && landed;
   const canNext = i === 0 ? !!which : true;
+  const at = anchor ? attachedLayout(anchor, window.innerWidth, GUIDE_W) : null;
+  const hung = at ? ({ "--fi-left": `${at.left}px`, "--fi-top": `${at.top}px`, "--fi-ox": `${at.originX}px`, "--fi-from": at.from, "--fi-w": `${Math.min(GUIDE_W, window.innerWidth - 16)}px` } as CSSProperties) : undefined;
   return (
-    <div className="wa-guide" role="dialog" aria-modal="true" aria-label="Link WhatsApp" onMouseDown={(e) => e.stopPropagation()}>
+    <div className={`wa-guide${at ? " isl" : ""}`} style={hung} role="dialog" aria-modal="true" aria-label="Link WhatsApp" onMouseDown={(e) => e.stopPropagation()}>
       <div className="wa-guide-card">
         <header className="wa-g-head"><b><WaMark size={16} /> Link WhatsApp</b>
           <button type="button" className="btn quiet sm" onClick={onClose} aria-label="Close the guide">Close</button></header>
