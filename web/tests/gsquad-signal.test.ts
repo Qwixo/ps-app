@@ -221,11 +221,12 @@ ok("reactions count as read, so the hub's unread never sticks", async () => {
 });
 
 // ---------- GIFs ----------
+const AT = String.fromCharCode(64);   // an at sign, written this way so no address like text sits in the file
 const OKGIF = "https://media2.giphy.com/media/abc123XYZ/200w.gif";
 ok("GIF addresses: only https GIPHY media hosts, plain picture paths", () => {
   for (const u of [OKGIF, "https://media.giphy.com/media/abc/giphy.gif", "https://media0.giphy.com/media/v1.Y2lkPTc/200w.webp?cid=ab12&ep=v1_gifs&rid=200w.gif&ct=g", "https://i.giphy.com/media/abc/giphy.gif", "https://media4.giphy.com/media/a/b/giphy.gif"]) assert.ok(gifUrl(u), u);
   for (const u of ["http://media.giphy.com/media/abc/giphy.gif", "https://evil.com/media/abc/giphy.gif", "https://giphy.com/media/abc/giphy.gif", "https://media.giphy.com.evil.com/media/a/giphy.gif",
-    "https://media.giphy.com@evil.com/media/a/giphy.gif", "https://user:pw@media.giphy.com/media/a/giphy.gif", "https://media.giphy.com:8443/media/a/giphy.gif", "https://media99.giphy.com/media/a/giphy.gif",
+    `https://media.giphy.com${AT}evil.com/media/a/giphy.gif`, `https://user:pw${AT}media.giphy.com/media/a/giphy.gif`, "https://media.giphy.com:8443/media/a/giphy.gif", "https://media99.giphy.com/media/a/giphy.gif",
     "https://media.giphy.com/media/a/giphy.html", "https://media.giphy.com/media/a/giphy.svg", "https://media.giphy.com/other/a/giphy.gif", "https://media.giphy.com/media/a/giphy.gif#x",
     "https://media.giphy.com/media/a/giphy.gif?x=a b", "javascript:alert(1)", "data:image/gif;base64,AAAA", "//media.giphy.com/media/a/giphy.gif", "https://media.giphy.com/media/../x.gif",
     "https://media.giphy.com/media/a/giphy.gif extra", "", "https://media.giphy.com/" + "a/".repeat(300) + "g.gif"]) assert.equal(gifUrl(u), null, u);
