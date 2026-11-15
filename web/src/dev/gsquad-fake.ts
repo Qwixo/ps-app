@@ -64,13 +64,15 @@ export function loadGSquadFake() {
     { id: id(2), from: ANA, name: "Ana Petrova", mine: false, t: "Me, after my client call", at: day(1, 9, 5), edited: false, left: false },
     { id: id(3), from: ME, name: "Alex", mine: true, t: "In. Starting the onboarding copy", at: day(1, 9, 6), edited: false, left: false },
     { id: id(4), from: KIT, name: "Kit", mine: false, t: "I'll join at 11, gym first", at: day(1, 9, 20), edited: false, left: false },
-    { id: id(5), from: SAM, name: "Sam Rivera", mine: false, t: "New bench best today", at: day(0, 8, 41), edited: false, left: false, a: { k: "gym", l: "Barbell bench press, 72.5 kg x 4" } },
+    { id: id(5), from: SAM, name: "Sam Rivera", mine: false, t: "New bench best today", at: day(0, 8, 41), edited: false, left: false, a: { k: "gym", l: "Barbell bench press, 72.5 kg x 4" }, r: [{ e: "🔥", n: 3, mine: true, who: ["You", "Ana Petrova", "Kit"] }, { e: "💪", n: 1, mine: false, who: ["Kit"] }] },
     { id: id(6), from: SAM, name: "Sam Rivera", mine: false, t: "Felt strong. Two more weeks of this block", at: day(0, 8, 42), edited: false, left: false },
-    { id: id(7), from: ME, name: "Alex", mine: true, t: "That is a big jump, nice one", at: day(0, 8, 50), edited: false, left: false },
+    { id: id(7), from: ME, name: "Alex", mine: true, t: "That is a big jump, nice one", at: day(0, 8, 50), edited: false, left: false, r: [{ e: "👍", n: 1, mine: false, who: ["Sam Rivera"] }] },
     { id: id(8), from: ME, name: "Alex", mine: true, t: "Handing you the pricing page review, it is in your Tasks", at: day(0, 8, 51), edited: true, left: false },
     { id: id(9), from: ANA, name: "Ana Petrova", mine: false, t: "Done with the landing page draft. 92 tasks this month, catch me if you can", at: day(0, 9, 14), edited: false, left: false },
+    { id: id(10), from: SAM, name: "Sam Rivera", mine: false, t: "🎉", at: day(0, 9, 16), edited: false, left: false },
+    { id: id(11), from: ME, name: "Alex", mine: true, t: "😂😂", at: day(0, 9, 17), edited: false, left: false },
   ];
-  const chat = { in: !["none", "joining", "left", "removed", "full", "error"].includes(mode), ready: true, open: true, unread: 2, lines, more: false, votes: [], note: null, sound: false, notify: true, notifyOn: true, noteSound: true, sending: 0, error: null, loaded: true };
+  const chat = { in: !["none", "joining", "left", "removed", "full", "error"].includes(mode), ready: true, open: true, unread: 2, lines, more: false, votes: [], note: null, sound: false, notify: true, notifyOn: true, noteSound: true, sending: 0, error: null, loaded: true, gif: { on: true, q: "", items: [], next: null, busy: false, failed: false } };
 
   setTimeout(() => {
     setSquadMirror(squad);

@@ -60,7 +60,7 @@ object WebHost {
 
     private fun csp(): String {
         val sb = BuildConfig.SUPABASE_URL
-        return "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; " +
+        return "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://*.giphy.com; " +
             // plus the G Squad hub (V1.40): its one edge function over https, never the vault (web src/squad/hub.ts)
             "media-src 'self' blob:; connect-src 'self' $sb ${sb.replace("https", "wss")} $SQUAD_HUB; worker-src 'self'; frame-src blob: https://$VIDEO_FRAME_HOST; " +
             "frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'"
