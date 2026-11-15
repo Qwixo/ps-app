@@ -396,6 +396,7 @@ export interface Settings {
   squadMoney?: import("./squadboard").SquadMoney;   // G Squad Leaderboard (V1.40): your monthly money answers, their time zone and snooze (core/squadboard.ts)
   squadNotify?: boolean;         // G Squad message notifications (PS 1.60, core/squadnotify.ts): pop up card with Reply (missing = on)
   squadNotifySound?: boolean;    // the sound with that card (missing = on)
+  squadNoteIsland?: boolean;     // PS 1.63: on the Mac the message comes out of the Dynamic Island (core/squadnotify.ts noteIsland, missing = on)
   squadNoteSeen?: string;        // dismissed or replied up to this message time (ISO): the other devices drop their cards too
   squadChatSound?: boolean;      // G Squad chat (V1.40): a short sound for new messages, Mac only (missing = off, the developer)
   radar?: { handled?: Record<string, string>; snoozed?: Record<string, string> };   // Follow-up Radar marks (core/radar.ts)

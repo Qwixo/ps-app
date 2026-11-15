@@ -21,16 +21,18 @@ export interface ChatView {
   notify: boolean;                // the feature gsquad-notify is on in this build (core/squadnotify.ts)
   notifyOn: boolean;              // Squad settings, Notifications, Message notifications (missing = on)
   noteSound: boolean;             // the sound with that card (missing = on)
+  islandOk: boolean;              // PS 1.63: this is the Mac and gsquad-island-reply is on in this build (the switch below shows only then)
+  noteIsland: boolean;            // Squad settings, Notifications, "Show messages on the island" (missing = on)
   sending: number;                // messages on their way
   error: string | null;
   loaded: boolean;
 }
-export const EMPTY_CHAT: ChatView = { in: false, ready: false, open: false, unread: 0, lines: [], more: false, votes: [], note: null, sound: false, notify: false, notifyOn: true, noteSound: true, sending: 0, error: null, loaded: false };
+export const EMPTY_CHAT: ChatView = { in: false, ready: false, open: false, unread: 0, lines: [], more: false, votes: [], note: null, sound: false, notify: false, notifyOn: true, noteSound: true, islandOk: false, noteIsland: true, sending: 0, error: null, loaded: false };
 
 export type ChatOp =
   | { op: "open"; on: boolean } | { op: "send"; text: string; a?: ChatAbout } | { op: "edit"; id: string; text: string } | { op: "del"; id: string }
   | { op: "vote"; id: string; yes: boolean } | { op: "older" } | { op: "sound"; on: boolean } | { op: "retry" }
-  | { op: "notify"; on: boolean } | { op: "noteSound"; on: boolean };
+  | { op: "notify"; on: boolean } | { op: "noteSound"; on: boolean } | { op: "noteIsland"; on: boolean };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const id = (v: unknown) => (typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null);
@@ -42,7 +44,7 @@ export function cleanChatOp(v: unknown): ChatOp | null {
     case "open": return { op: "open", on: o.on === true };
     case "older": case "retry": return { op: o.op };
     case "sound": return typeof o.on === "boolean" ? { op: "sound", on: o.on } : null;
-    case "notify": case "noteSound": return typeof o.on === "boolean" ? { op: o.op, on: o.on } : null;
+    case "notify": case "noteSound": case "noteIsland": return typeof o.on === "boolean" ? { op: o.op, on: o.on } : null;
     case "send": { const t = cleanText(o.text); if (!t) return null; const a = cleanAbout(o.a); return a ? { op: "send", text: t, a } : { op: "send", text: t }; }
     case "edit": { const i = id(o.id), t = cleanText(o.text); return i && t ? { op: "edit", id: i, text: t } : null; }
     case "del": { const i = id(o.id); return i ? { op: "del", id: i } : null; }
@@ -69,7 +71,7 @@ export function cleanChatView(v: unknown): ChatView {
   return {
     in: o.in === true, ready: o.ready === true, open: o.open === true, unread: n(o.unread), lines, more: o.more === true, votes,
     note: typeof o.note === "string" ? o.note.slice(0, 300) : null, sound: o.sound === true,
-    notify: o.notify === true, notifyOn: o.notifyOn !== false, noteSound: o.noteSound !== false, sending: n(o.sending),
+    notify: o.notify === true, notifyOn: o.notifyOn !== false, noteSound: o.noteSound !== false, islandOk: o.islandOk === true, noteIsland: o.noteIsland !== false, sending: n(o.sending),
     error: typeof o.error === "string" ? o.error.slice(0, 200) : null, loaded: o.loaded === true,
   };
 }

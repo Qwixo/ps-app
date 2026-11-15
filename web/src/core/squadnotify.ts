@@ -18,6 +18,11 @@ import { cleanLedger, ledgerDecide, type Ledger } from "./maildedupe.ts";
 import { dndMutes, type Dnd } from "./dnd.ts";
 
 export const NOTIFY_FEATURE = "gsquad-notify";
+/** PS 1.63: the Mac's Dynamic Island shows the message as a card you can Reply to (its own switch: it is a separate look, and
+ *  the people who want the plain corner card keep it). */
+export const ISLAND_FEATURE = "gsquad-island-reply";
+/** The one chat today; the island collapses a burst from one chat into "3 new messages". */
+export const NOTE_CHAT = "g";
 /** The most cards one look puts up (the rest are marked as announced, never queued). */
 export const NOTE_SHOW_MAX = 3;
 /** A message older than this never pops up (a Mac that slept all night does not announce yesterday). */
@@ -33,11 +38,16 @@ export const NOTE_PREFIX = "g:";
 /** A message of someone in the squad, as the card logic needs it. */
 export interface NoteMsg { id: string; from: string; name: string; t: string; at: string }
 
-export interface NoteSettings { squadNotify?: boolean; squadNotifySound?: boolean; squadNoteSeen?: string; tmNotify?: boolean; tmMuted?: boolean; dnd?: Dnd }
+export interface NoteSettings { squadNotify?: boolean; squadNotifySound?: boolean; squadNoteIsland?: boolean; squadNoteSeen?: string; tmNotify?: boolean; tmMuted?: boolean; dnd?: Dnd }
 
 /** Notifications for G Squad messages are on: the feature, this person's switch (missing = on) and the pop-ups gear. */
 export function noteOn(featureOn: boolean, st: NoteSettings | null | undefined): boolean {
   return featureOn && st?.squadNotify !== false && st?.tmNotify !== false;
+}
+/** The message comes out of the Mac's Dynamic Island: the feature and this person's switch "Show messages on the island" (missing = on).
+ *  Only the Mac has an island; the Mac decides the rest (island on screen, Do Not Disturb, Sleep, Sentry, screen sharing). */
+export function noteIsland(featureOn: boolean, st: NoteSettings | null | undefined): boolean {
+  return featureOn && st?.squadNoteIsland !== false;
 }
 /** The sound with a card: the switch (missing = on), the Tab list sounds speaker, and Do Not Disturb's sounds. */
 export function noteSound(st: NoteSettings | null | undefined, now: number, device: "mac" | "phone" | "web"): boolean {
@@ -109,10 +119,13 @@ const oneLine = (v: string, max: number) => v.replace(/\s+/g, " ").trim().slice(
 
 /** The card the Mac's stack, the website and the phone show. id "g:<message id>", the rev is the message id too, so the
  *  phone's own per card memory (NoteLedger) also shows it once. reply: true makes the Mac's card draw its Reply button. */
-export function noteCard(m: NoteMsg) {
+export interface NoteCardOpts { island?: boolean; sound?: boolean; group?: string }
+export function noteCard(m: NoteMsg, o: NoteCardOpts = {}) {
   return {
     id: `${NOTE_PREFIX}${m.id}`.slice(0, 40), rev: m.id, tone: "squad", icon: "chat", title: oneLine(m.name || "Someone", NOTE_NAME_MAX) || "Someone",
     sub: "G Squad", body: m.t.trim().slice(0, NOTE_BODY_MAX), at: m.at, discreetText: NOTE_DISCREET, reply: true,
+    // PS 1.63: the Mac's island reads these (SquadIslandCore.parse); the old card ignores them.
+    ...(o.island ? { island: true, chat: NOTE_CHAT, sound: o.sound !== false, ...(o.group ? { group: oneLine(o.group, 40) } : {}) } : {}),
   };
 }
 export type NoteCard = ReturnType<typeof noteCard>;
@@ -123,6 +136,13 @@ export const isNoteCard = (id: unknown): id is string => typeof id === "string" 
 export function withHeld<T extends { id: string }>(live: T[], held: T[]): T[] {
   const have = new Set(live.map((c) => c.id));
   return [...live, ...held.filter((h) => !have.has(h.id))];
+}
+
+/** What the island is told after a reply it handed over (cardAction "reply" or "retry"): did it go? `failed` counts the replies
+ *  the chat still holds as not sent (squad/chatengine.ts pending), `error` is the chat's own plain sentence. */
+export function replyOutcome(failed: number, error: string | null): { ok: boolean; why?: string } {
+  if (failed <= 0) return { ok: true };
+  return { ok: false, why: (error ?? "Could not send").replace(/\s+/g, " ").trim().slice(0, 60) || "Could not send" };
 }
 
 // ---------- the reply box ----------

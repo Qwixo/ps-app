@@ -134,6 +134,50 @@ ok("the card's words are cut and a blank name is Someone; the discreet line has 
   assert.equal(c.title, "Someone"); assert.equal(c.body.length, N.NOTE_BODY_MAX); assert.ok(!c.discreetText.includes("y"));
 });
 
+// ---------- PS 1.63: the message on the Mac's island ----------
+ok("the island switch: the feature and the person's switch, missing = on", () => {
+  assert.equal(N.ISLAND_FEATURE, "gsquad-island-reply");
+  assert.equal(N.noteIsland(true, {}), true); assert.equal(N.noteIsland(true, null), true);
+  assert.equal(N.noteIsland(true, { squadNoteIsland: false }), false); assert.equal(N.noteIsland(false, {}), false);
+  assert.equal(N.noteIsland(true, { squadNoteIsland: true }), true);
+});
+ok("the island switch is apart from the notification switch (off here, the corner card stays)", () => {
+  assert.equal(N.noteOn(true, { squadNoteIsland: false }), true);
+  assert.equal(N.noteOn(true, { squadNotify: false }), false);
+});
+ok("the card without the island option is exactly the old card", () => {
+  const m = { id: "x1", from: "kit", name: "Kit", t: "hi", at: ago(1) };
+  assert.deepEqual(N.noteCard(m), N.noteCard(m, {})); assert.deepEqual(N.noteCard(m, { island: false }), N.noteCard(m));
+  assert.ok(!("island" in N.noteCard(m)) && !("chat" in N.noteCard(m)));
+});
+ok("the card for the island carries the flag, the chat, the sound and the group", () => {
+  const c = N.noteCard({ id: "x1", from: "kit", name: "Kit", t: "hi", at: ago(1) }, { island: true, sound: false, group: "  Gym   crew " }) as Record<string, unknown>;
+  assert.equal(c.island, true); assert.equal(c.chat, N.NOTE_CHAT); assert.equal(c.sound, false); assert.equal(c.group, "Gym crew");
+  assert.equal(c.tone, "squad"); assert.equal(c.id, "g:x1");
+  assert.equal((N.noteCard({ id: "x1", from: "k", name: "K", t: "t", at: ago(1) }, { island: true }) as Record<string, unknown>).sound, true);
+});
+ok("what the island is told after a reply: went, or still held as not sent", () => {
+  assert.deepEqual(N.replyOutcome(0, null), { ok: true }); assert.deepEqual(N.replyOutcome(0, "old error"), { ok: true });
+  assert.deepEqual(N.replyOutcome(1, "No connection"), { ok: false, why: "No connection" });
+  assert.deepEqual(N.replyOutcome(2, null), { ok: false, why: "Could not send" });
+  assert.equal(N.replyOutcome(1, "x".repeat(200)).why?.length, 60);
+});
+ok("the view and the request carry the island switch, checked", () => {
+  assert.deepEqual(V.cleanChatOp({ op: "noteIsland", on: false }), { op: "noteIsland", on: false });
+  assert.equal(V.cleanChatOp({ op: "noteIsland", on: "no" }), null);
+  assert.equal(V.cleanChatView({}).noteIsland, true); assert.equal(V.cleanChatView({}).islandOk, false);
+  assert.equal(V.cleanChatView({ noteIsland: false, islandOk: true }).noteIsland, false); assert.equal(V.cleanChatView({ islandOk: true }).islandOk, true);
+});
+ok("the engine, the settings and the Mac are wired for the island", () => {
+  const eng = readFileSync(new URL("../src/squad/chatengine.ts", import.meta.url), "utf8");
+  assert.ok(eng.includes("noteCard(m, { island, sound })") && eng.includes('type: "sqresult"') && eng.includes('action === "retry"') && eng.includes('o.op === "noteIsland"'));
+  const ui = readFileSync(new URL("../src/views/GSquadSettings.tsx", import.meta.url), "utf8");
+  assert.ok(ui.includes("Show messages on the island") && ui.includes("c.islandOk"));
+  const feats = JSON.parse(readFileSync(new URL("../../features.json", import.meta.url), "utf8")).features;
+  const f = feats.find((x: { id: string }) => x.id === "gsquad-island-reply");
+  assert.ok(f && f.owner === "jan" && f.scope === "shared" && f.since === "1.63" && f.default === "on");
+});
+
 // ---------- Reply through the composer's send, with a short Undo ----------
 const T0 = 1_000_000;
 ok("Reply opens an empty box; typing fills it", () => {

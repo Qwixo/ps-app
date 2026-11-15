@@ -18,7 +18,7 @@ import { joinerLine, voteCardDue, voteWords } from "../core/squadchat";
 import { homeTz } from "../core/tz";
 import { dndMutes } from "../core/dnd";
 import { feature } from "../core/features";
-import { NOTIFY_FEATURE, cleanNoteLedger, isNoteCard, laterSeen, noteCard, noteMuted, noteOn, noteSound, planNotes, staleNotes, type NoteCard, type NoteMsg } from "../core/squadnotify";
+import { ISLAND_FEATURE, NOTIFY_FEATURE, cleanNoteLedger, isNoteCard, laterSeen, noteCard, noteIsland, noteMuted, noteOn, noteSound, planNotes, replyOutcome, staleNotes, type NoteCard, type NoteMsg } from "../core/squadnotify";
 import { buildSend } from "./chatsend";
 import { ChatSession, type ChatMsg } from "./chatflows";
 import { HubError } from "./hub";
@@ -85,7 +85,7 @@ function rebuild() {
   view = {
     in: !!s, ready: !!s && !!st && !st.rot && s.keys.has(st.epoch), open, unread: open ? 0 : st?.u ?? 0,
     lines: open ? lines() : [], more: !!s?.more, votes: votes(), note: s ? joinerLine(mine, s.hasHistory()) : null,
-    sound: settings().squadChatSound === true, notify: feature(NOTIFY_FEATURE), notifyOn: settings().squadNotify !== false, noteSound: settings().squadNotifySound !== false, sending: [...pending.values()].filter((p) => !p.failed).length, error, loaded: !!s?.loaded,
+    sound: settings().squadChatSound === true, notify: feature(NOTIFY_FEATURE), notifyOn: settings().squadNotify !== false, noteSound: settings().squadNotifySound !== false, islandOk: PS_PAGE && feature(ISLAND_FEATURE), noteIsland: settings().squadNoteIsland !== false, sending: [...pending.values()].filter((p) => !p.failed).length, error, loaded: !!s?.loaded,
   };
   emit();
   showCards();
@@ -172,7 +172,9 @@ function refreshNotes(announce = true) {
     const msgs: NoteMsg[] = cur.list(60).map((m) => ({ id: m.id, from: m.from, name: cur.people.get(m.from)?.name ?? "Someone", t: m.t, at: m.at }));
     const plan = planNotes(msgs, { me: cur.rec.memberId, since: getSince(), read, seen, chatOpen: open, muted, now, ledger: readLedger() });
     writeLedger(plan.ledger);
-    for (const m of plan.show) { putNote(noteCard(m)); changed = true; }
+    // PS 1.63: on the Mac the card says whether the person wants it on the island; the Mac decides if the island can take it.
+    const island = PS_PAGE && noteIsland(feature(ISLAND_FEATURE), st), sound = noteSound(st, now, noteDevice());
+    for (const m of plan.show) { putNote(noteCard(m, { island, sound })); changed = true; }
     if (plan.show.length && noteSound(st, now, noteDevice()) && post && PS_PAGE) post({ type: "sfx", name: "note-drop", vol: Math.max(0.3, (st.tmSound ?? 40) / 100), card: true });
   }
   if (changed) publishNotes();
@@ -197,9 +199,19 @@ export function noteAction(id: string, action: string, text?: string): void {
   }
   if (action === "reply" && typeof text === "string") {
     const op = buildSend(text);
-    if (op) void runChatOp(op);
+    if (op) void runChatOp(op).then(() => tellIsland(id));
+    else tellIsland(id, "Nothing to send");
     finishNote(id);
+    return;
   }
+  // PS 1.63: Retry on the island's "Not sent": the chat still holds the failed reply, so it is sent again, never typed twice.
+  if (action === "retry") void runChatOp({ op: "retry" }).then(() => tellIsland(id));
+}
+/** The Mac's island waits for the answer to a reply (ps-mac SquadIsland.swift): it went, or the chat still holds it as not sent. */
+function tellIsland(id: string, why?: string) {
+  if (!PS_PAGE || !post) return;
+  const o = why ? { ok: false, why } : replyOutcome([...pending.values()].filter((p) => p.failed).length, error);
+  post({ type: "sqresult", id, ok: o.ok, ...(o.why ? { why: o.why } : {}) });
 }
 
 // ---------- the hub ----------
@@ -266,6 +278,7 @@ export async function runChatOp(o: ChatOp): Promise<void> {
   if (o.op === "sound") { await saveSettings({ squadChatSound: o.on }); rebuild(); return; }
   if (o.op === "notify") { await saveSettings({ squadNotify: o.on }); rebuild(); refreshNotes(); return; }
   if (o.op === "noteSound") { await saveSettings({ squadNotifySound: o.on }); rebuild(); return; }
+  if (o.op === "noteIsland") { await saveSettings({ squadNoteIsland: o.on }); rebuild(); return; }
   if (o.op === "open") { setOpen(o.on); return; }
   const cur = s;
   if (!cur) return;
