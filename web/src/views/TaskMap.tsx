@@ -49,6 +49,7 @@ import { isRedAccount } from "../core/account";
 import { mailOnSnap } from "../core/mailsnap";
 import { MAIL_EMPTY_WORDS, mailPanelShows } from "../core/mailempty";
 import { useGmailKnown } from "./gmailknown";
+import { CopyForAiButton } from "./CopyForAi";
 import { waOnSnap } from "../core/wasnap";
 import { WaMail } from "./WaMail";
 import { PhoneTilesHost } from "../gos/PhonePages";
@@ -3629,6 +3630,7 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
           <span className="tm-mail-p">{MAIL_EMPTY_WORDS.connect}</span>
           <span className="tm-mail-a">
             <button type="button" className="tm-meet-j tm-mail-reply" onClick={() => { sfx.click(); openSettings("notify", { jump: "client-emails" }); }}>{MAIL_EMPTY_WORDS.button}</button>
+            <CopyForAiButton className="tm-meet-j tm-mail-copy" />
           </span>
         </div>
       ) : <span className="tm-mail-p tm-mail-none">{MAIL_EMPTY_WORDS.none}</span>}

@@ -802,6 +802,9 @@ html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > *, html:not(.gos) .tm-over
 /* Reply (PS on the Mac, core/overlaymail.ts): the first and brightest button; Open then looks like Done. */
 .tm-mail-a .tm-mail-reply { border: 0; cursor: pointer; font-family: inherit; background: var(--k-acc, #EC4E86); color: var(--k-on-acc, #FFFFFF); }
 .tm-mail-a .tm-mail-reply:hover { filter: brightness(1.08); }
+.tm-mail-a .tm-mail-copy { border: 0; cursor: pointer; font-family: inherit; background: color-mix(in srgb, currentColor 12%, transparent); color: inherit; }
+.tm-mail-a .tm-mail-copy:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
+.tm-mail-a .ce-copied { align-self: center; font-size: calc(11px * var(--k-fs, 1)); opacity: .75; }
 .tm-mail-a a.tm-mail-done { text-decoration: none; display: inline-flex; align-items: center; }
 .tm-mail-who .tm-mail-via { color: var(--k-acc-t, #F49BBE); }
 /* V1.59 Reply in the email panel (views/ReplyBox.tsx): the box opens in the row; the row's line says how the reply went. */
