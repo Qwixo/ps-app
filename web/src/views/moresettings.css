@@ -31,7 +31,7 @@
 .ms-work-sample i { height: 14px; border-radius: calc(5px * var(--k-rd, 1)); background: var(--k-surface, #2A1D25); }
 .ms-work-sample.white i:first-child { background: var(--k-fg, #FFFFFF); box-shadow: 0 0 12px color-mix(in srgb, var(--k-glow, #FFFFFF) 70%, transparent); }
 .ms-work-sample.lightning i:first-child { background: var(--k-surface, #2A0F18); box-shadow: 0 0 0 1.5px var(--k-bad, #FF2E43), 0 0 12px color-mix(in srgb, var(--k-bad, #FF2E43) 80%, transparent); }
-/* preview: the window steps aside, the list shows for 2 s; a click anywhere ends it */
+/* preview: the window steps aside, the list shows for 5 s; a click anywhere ends it */
 .ms-layer .cs-dim, .ms-layer .ms-win { transition: opacity .16s ease; }
 .ms-layer.peek .cs-dim, .ms-layer.peek .ms-win { opacity: 0; pointer-events: none; }
 .ms-catch { position: absolute; inset: 0; z-index: 60; pointer-events: auto; cursor: pointer; }

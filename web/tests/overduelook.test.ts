@@ -8,7 +8,7 @@ import {
 import { contrast } from "../src/core/prio.ts";
 import { SETTINGS } from "../src/core/settingsindex.ts";
 import { LOOKS_OPTIONS, PART_SHOWN, looksOption } from "../src/core/looksoptions.ts";
-import { previewStage } from "../src/core/lookspreview.ts";
+import { LOOKS_PREVIEW_MS, LOOKS_PREVIEW_NOTE_MS, previewStage } from "../src/core/lookspreview.ts";
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
@@ -141,7 +141,21 @@ ok("the real card takes the look (and the one being tried), and a preview with n
   assert.equal(looksOption("overdue").part, "overdue");
   assert.ok(LOOKS_OPTIONS.find((o) => o.id === "overdue")!.everyone);
   assert.ok(PART_SHOWN.overdue);
-  assert.ok(/html\[data-pv="overdue"\]/.test(src("src/looks/peek.css")));
+  // Since 15 Nov 2026 a preview no longer fades the rest of the list: it shows exactly what it will look like.
+  assert.doesNotMatch(src("src/looks/peek.css"), /html\[data-pv=[^{]*\{[^}]*(opacity|filter)/);
+});
+
+ok("a Looks preview shows the real list for 5 seconds and never greys it out (the developer's friend, 15 Nov 2026)", () => {
+  assert.equal(LOOKS_PREVIEW_MS, 5000);
+  assert.ok(LOOKS_PREVIEW_NOTE_MS > LOOKS_PREVIEW_MS, "a preview with a sentence to read stays a little longer");
+  const css = src("src/looks/peek.css");
+  assert.doesNotMatch(css, /data-pv[^{]*\{[^}]*(opacity|filter)\s*:/, "nothing fades while a preview runs");
+  const screen = src("src/views/SettingsScreen.tsx");
+  assert.match(screen, /const PREVIEW_MS = LOOKS_PREVIEW_MS;/);
+  assert.match(screen, /const PREVIEW_NOTE_MS = LOOKS_PREVIEW_NOTE_MS;/);
+  assert.match(src("src/views/SetupLooks.tsx"), /setTimeout\(clear, LOOKS_PREVIEW_MS\)/);
+  for (const f of ["src/looks/AppearanceSettings.tsx", "src/views/TaskMap.tsx", "src/views/OverdueLook.tsx", "src/views/SetupLooks.tsx"])
+    assert.doesNotMatch(src(f), /for 2 seconds|two seconds/, `${f} says the new length`);
 });
 
 console.log(`${n} of ${n} ok`);

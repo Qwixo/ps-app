@@ -28,6 +28,7 @@ import { PART_SHOWN, type LooksPart } from "../core/looksoptions";
 import { setPeekPart, usePeek } from "../looks/peek";
 import "../looks/peek.css";
 import { GROUPS, groupById, groupsFor, landingOf, rowsOf, searchSettings, settingById, type Ctx, type Go, type GroupId, type SetEntry } from "../core/settingsindex";
+import { LOOKS_PREVIEW_MS, LOOKS_PREVIEW_NOTE_MS } from "../core/lookspreview";
 
 /** The old tab names (V1.32 to V1.42), still accepted: General is Your list now, Mac settings is Mac. */
 export type SettingsTab = "general" | "notify" | "looks" | "mac";
@@ -60,11 +61,11 @@ const useWant = () => useSyncExternalStore((f) => { subs.add(f); return () => { 
 const gearOf = (owner: SettingsOwner) => document.querySelector<HTMLElement>(owner === "docked"
   ? ".tm-overlay.tm-docked button[aria-label=Settings]" : ".tm-overlay:not(.tm-docked) .tm-tr button[aria-label=Settings]");
 
-/** What a Looks preview needs: show a look for 2 seconds while the screen steps aside. `part` says which part of PS it
+/** What a Looks preview needs: show a look for 5 seconds (LOOKS_PREVIEW_MS) while the screen steps aside. `part` says which part of PS it
  *  changes (core/looksoptions.ts): the Tab list makes sure that part is on screen and highlights it (looks/peek.ts). */
 export type Preview = (label: string, set: () => void, clear: () => void, part?: LooksPart) => void;
-const PREVIEW_MS = 2000;
-const PREVIEW_NOTE_MS = 3600;   // a preview that needs a sentence of explaining stays a little longer, to read it
+const PREVIEW_MS = LOOKS_PREVIEW_MS;
+const PREVIEW_NOTE_MS = LOOKS_PREVIEW_NOTE_MS;   // a preview that needs a sentence of explaining stays a little longer, to read it
 const MORPH = { body: ".cs-content", tint: ".cs-morph" };
 const FLASH_MS = 2200;
 
@@ -200,7 +201,7 @@ export function SettingsScreen({ owner, ctx, controls, onGo, phone = false }: {
 
   // V1.53 (the developer: "the background of the settings menu randomly go dark then light, then dark again"): the Tab list's
   // moving looks (lightning, a background video, storm rain's flash, the scenes) rest behind this screen, as they do
-  // behind Fitness and the Soundboard (core/screenrest.ts). A Looks preview lets them show again for its 2 seconds.
+  // behind Fitness and the Soundboard (core/screenrest.ts). A Looks preview lets them show again for its 5 seconds.
   const rests = settingsRests(phase, peek !== null);
   useLayoutEffect(() => {
     const root = gearOf(owner)?.closest(".tm-overlay") ?? document.querySelector(".tm-overlay:not(.tm-docked)");

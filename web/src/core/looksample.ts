@@ -38,9 +38,9 @@ export function islandPicVars(kind: "pill" | "notch", look: PillLook | NotchLook
   return { "--isl-bg": fill, "--isl-bg2": fill, "--isl-edge": t.tinted ? t.glow : "transparent", "--isl-acc": t.accent };
 }
 
-/** A lightning Preview lasts 2 seconds, but lightning strikes every few seconds: the preview strikes at these times
+/** A lightning Preview lasts 5 seconds (LOOKS_PREVIEW_MS), but lightning strikes every few seconds: the preview strikes at these times
  *  (ms after it starts), so every lightning background is really seen while it is previewed. */
-export const PREVIEW_STRIKES_MS: readonly number[] = [120, 850, 1600];
+export const PREVIEW_STRIKES_MS: readonly number[] = [120, 1300, 2600, 3900];
 
 /** The "How much rain" picture: the first layer of drops fades in up to half way, the second (in between) after it. */
 export function rainLayers(amount: number): { a: number; b: number } {

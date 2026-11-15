@@ -164,7 +164,7 @@ export function OverdueLookSettings({ preview }: { preview: Preview }) {
         </div>
         <div className="od-btns">
           <button type="button" className="btn quiet sm" onClick={() => preview("Your Overdue card", () => {}, () => {}, "overdue")}
-            title="Shows the real Overdue card for 2 seconds (an example one if nothing is overdue)">See it on screen</button>
+            title="Shows the real Overdue card for 5 seconds (an example one if nothing is overdue)">See it on screen</button>
           <button type="button" className="btn quiet sm" disabled={isDefault} title={overdueSummary(look)}
             onClick={() => { setWheel(null); sfx.click(); tryOverdue({ ...OVERDUE_DEFAULT }); }}>Reset to default</button>
         </div>

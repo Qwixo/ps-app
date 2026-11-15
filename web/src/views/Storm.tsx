@@ -119,7 +119,7 @@ export function Storm({ kind, intensity, frequency, sound, volume, soon }: {
       const f01 = Math.max(0, Math.min(1, opts.current.frequency / 100));
       t = window.setTimeout(strike, (1500 + 20000 * (1 - f01) * (1 - f01)) * rnd(0.5, 1.5));
     };
-    // A preview (two seconds): strike at fixed times inside it whatever the frequency, so it is really seen (V1.43:
+    // A preview (five seconds): strike at fixed times inside it whatever the frequency, so it is really seen (V1.43:
     // one strike near the start used to fade before the eye found it, and the preview looked empty).
     const extra = soon ? PREVIEW_STRIKES_MS.slice(1).map((ms) => window.setTimeout(() => { clearTimeout(t); strike(); }, ms)) : [];
     t = window.setTimeout(strike, soon ? PREVIEW_STRIKES_MS[0] : rnd(500, 1500));

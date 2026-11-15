@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PREVIEW_STRIKES_MS, islandPicVars, rainLayers, sampleVars } from "../src/core/looksample.ts";
+import { LOOKS_PREVIEW_MS } from "../src/core/lookspreview.ts";
 import { ACCENT_PRESETS, DENSITIES, FONTS, LOOKS, TEXT_SIZES, type Appearance } from "../src/core/looks.ts";
 import "../src/core/looks-productivity.ts";
 import { ISLAND_COLORS, NOTCH_DEFAULT, PILL_DEFAULT, PILL_STYLES } from "../src/core/islandlook.ts";
@@ -49,7 +50,7 @@ ok("the island menu pictures take the pill's and the notch's own colours", () =>
 });
 ok("PREVIEW: a lightning preview strikes at least 3 times inside its 2 seconds", () => {
   assert.ok(PREVIEW_STRIKES_MS.length >= 3);
-  assert.ok(PREVIEW_STRIKES_MS.every((t, i) => t > 0 && t < 2000 - 300 && (i === 0 || t - PREVIEW_STRIKES_MS[i - 1] >= 500)), "spread out, each with time to be seen");
+  assert.ok(PREVIEW_STRIKES_MS.every((t, i) => t > 0 && t < LOOKS_PREVIEW_MS - 300 && (i === 0 || t - PREVIEW_STRIKES_MS[i - 1] >= 500)), "spread out, each with time to be seen");
   assert.ok(PREVIEW_STRIKES_MS[0] <= 200, "the first one almost at once");
   assert.match(src("views/Storm.tsx"), /PREVIEW_STRIKES_MS/);
 });
