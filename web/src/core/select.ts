@@ -10,6 +10,7 @@ import { cleanPhoneLayout, defaultPhoneLayout, pickPhoneLayout, type PhoneKind, 
 import { phonesOf, type PhoneDev } from "./phonedevices";
 import { pickRemind, type RemindRec } from "./remind";
 import { mainCalendar } from "./calfeeds";
+import { hasOff, shownEvents, type CalInfo } from "./calpick";
 import { belongsTo, daysOf } from "./screentime";
 import { daysFromToday, todayISO } from "../ui/kit";
 
@@ -245,12 +246,24 @@ export function journal(s: Snapshot): Map<string, Doc<JournalEntry>> {
 export function ithreads(s: Snapshot): Doc<IThread>[] {
   return byKind<IThread>(s, "ithread").sort((a, b) => (b.data.lastAt || "").localeCompare(a.data.lastAt || ""));
 }
-/** The latest Google Calendar snapshot, if the calendar is connected. */
-export function calendarSnap(s: Snapshot): Doc<CalendarSnap> | null {
-  return mainCalendar(byKind<CalendarSnap>(s, "calendar"));   // V1.55: never a calendar linked to one panel (core/calfeeds.ts)
+/** A calendar copy without the events of calendars set to Off (core/calpick.ts). The same object when nothing is Off, so the
+ *  developer's calendar and everyone who never chose are exactly as before. */
+function shownDoc(d: Doc<CalendarSnap> | null, s: Snapshot): Doc<CalendarSnap> | null {
+  if (!d) return d;
+  const choices = settingsData(s).calChoices;
+  return hasOff(choices) ? { ...d, data: { ...d.data, events: shownEvents(d.data.events || [], choices) } } : d;
 }
-/** Every calendar copy (the usual one and those linked to single Meetings panels). */
-export const calendarDocs = (s: Snapshot): Doc<CalendarSnap>[] => byKind<CalendarSnap>(s, "calendar");
+/** The latest calendar snapshot (Google for the developer, the Mac's Calendar for everyone else), if connected. Calendars set
+ *  to Off are already left out: everything that shows an event uses this. What counts as a meeting is `meetingEvents`. */
+export function calendarSnap(s: Snapshot): Doc<CalendarSnap> | null {
+  return shownDoc(mainCalendar(byKind<CalendarSnap>(s, "calendar")), s);   // V1.55: never a calendar linked to one panel (core/calfeeds.ts)
+}
+/** The Mac's calendars as the last read saw them (names, colours, account), for the picker. */
+export function calendarList(s: Snapshot): CalInfo[] {
+  return mainCalendar(byKind<CalendarSnap>(s, "calendar"))?.data.cals ?? [];
+}
+/** Every calendar copy (the usual one and those linked to single Meetings panels), calendars set to Off left out. */
+export const calendarDocs = (s: Snapshot): Doc<CalendarSnap>[] => byKind<CalendarSnap>(s, "calendar").map((d) => shownDoc(d, s)!);
 /** The newest campaign statistics package (Tab list > Campaign stats), or null. */
 export function campaignStats(s: Snapshot): Doc<CampaignStats> | null {
   return byKind<CampaignStats>(s, "cstats").sort((a, b) => (b.data.exportedAt || "").localeCompare(a.data.exportedAt || ""))[0] ?? null;

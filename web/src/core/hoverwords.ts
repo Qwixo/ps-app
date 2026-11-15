@@ -103,6 +103,7 @@ const W: Record<string, Words> = {
   "refresh meetings from calendar": ["Refresh meetings", "Reads your Calendar again now"],
   "refresh meetings from google calendar": ["Refresh meetings", "Reads Google Calendar again now"],
   "refresh calendar": ["Refresh calendar", "Reads your calendar again now"],
+  "choose calendars": ["Choose calendars", "Pick which calendars PS uses"],
   "refresh instantly": ["Refresh Instantly", "Reads your Instantly replies again now"],
   "new note": ["New note", "A blank note"],
   "new email draft": ["New email draft", "A draft for you to approve. Nothing is sent"],

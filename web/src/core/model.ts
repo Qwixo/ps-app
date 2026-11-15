@@ -279,8 +279,10 @@ export interface CalEvent {
   link?: string | null; place?: string | null; open?: string | null; attendees: CalAttendee[];
   /** V1.55: the Mac Calendar account it comes from (ps-mac LocalCalendar.swift), so a Meetings panel can show one. */
   acct?: string | null;
+  /** The calendar of the Mac's Calendar app it comes from (its identifier), so a calendar can be set to Meetings, Show only or Off (core/calpick.ts). None: a meeting. */
+  cal?: string | null;
 }
-export interface CalendarSnap { account: string; at: string; from: string; to: string; events: CalEvent[] }
+export interface CalendarSnap { account: string; at: string; from: string; to: string; events: CalEvent[]; /** The Mac's calendars: names and colours only (core/calpick.ts). */ cals?: import("./calpick").CalInfo[] }
 
 /** One email from the Instantly Unibox, kept forever in the vault (owner private). */
 export interface IEmail {
@@ -475,6 +477,7 @@ export interface Settings {
   workoutMac?: Partial<import("./workoutsummary").SummaryPrefs>;   // Workout summary on the Mac after a workout on the phone (core/workoutsummary.ts, PS 1.60): on
   standAsk?: boolean;            // V1.59: the first stand-up's question ("Do you want to turn stand-up reminders off?") was seen; asked once per person
   dnd?: Dnd;                     // PS Do Not Disturb (core/dnd.ts, the developer 30 Oct 2026): the moon top right of the Tab list; muted cards are held, never lost
+  calChoices?: import("./calpick").CalChoices;   // which of the Mac's calendars are Show only or Off (core/calpick.ts, 15 Nov 2026); unlisted = Meetings
   meetHidden?: MeetHide[];       // meetings the developer took off the Meetings panel (core/meethide.ts, the developer 2 Nov 2026): PS only, his calendar is never touched
   sentry?: import("./sentry").SentryPrefs;   // Sentry mode (core/sentry.ts, V1.48): screen dim or off, stop at low battery, lid closed, the warning seen
   sleepMode?: SleepModePrefs;    // Sleep mode (core/sleepmode.ts, V1.40): the button, alarms, counts only or full details, the panel, asking to log

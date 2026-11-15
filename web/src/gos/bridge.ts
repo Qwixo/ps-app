@@ -29,6 +29,7 @@ import { gymShellMessage, gymWake, startGymWatch } from "../gymwatch";
 import { remShellMessage, remWake, startRemWatch } from "../remwatch";
 import { calRefreshIfStale, startCalRefresh } from "../calrefresh";
 import { visibleEvents } from "../core/meethide";
+import { meetingEvents } from "../core/calpick";
 import { startTgBot } from "../tgbot";
 import { startIsland } from "../island";
 import { isRedAccount } from "../core/account";
@@ -146,7 +147,7 @@ function sendSchedule() {
     .sort((a, b) => ((b.data as CalendarSnap).at || "").localeCompare((a.data as CalendarSnap).at || ""))[0];
   const now = Date.now();
   // Meetings the developer took off the panel ring no alarm either (core/meethide.ts).
-  const list = visibleEvents(cal ? (cal.data as CalendarSnap).events : [], settingsData(s).meetHidden)
+  const list = visibleEvents(meetingEvents(cal ? (cal.data as CalendarSnap).events : [], settingsData(s).calChoices), settingsData(s).meetHidden)
     .filter((e) => isMeeting(e) && Date.parse(e.end!) > now && Date.parse(e.start!) < now + 2 * 864e5)
     .slice(0, 40)
     .map((e) => ({ id: `ms:${shortHash(e.id)}`, title: String(e.title || "Call").slice(0, 120), start: Date.parse(e.start!), end: Date.parse(e.end!) }));

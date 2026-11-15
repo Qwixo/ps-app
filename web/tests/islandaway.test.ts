@@ -38,7 +38,7 @@ ok("long ids are cut", () => {
 ok("the page sends them with the island state, from the Meetings panel's calendar, hidden meetings left out", () => {
   const s = readFileSync("src/island.ts", "utf8");
   // V1.58 merge: the meetings are worked out first, then sent with the Pomodoro, Stand-up and meeting bubble state.
-  assert.match(s, /const meets = islandMeetings\(visibleEvents\(cal \? cal\.data\.events : \[\], st\.meetHidden\), now\);/);
+  assert.match(s, /const meets = islandMeetings\(visibleEvents\(meetEv, st\.meetHidden\), now\);/);
   assert.match(s, /send\(\{ \.\.\.shown, meets[,} ]/);
   assert.match(s, /const cal = calendarSnap\(s\);/);
 });

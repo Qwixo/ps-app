@@ -37,6 +37,7 @@ import { openSettings } from "./SettingsScreen";
 import { frontIsProtected, screenNow, sinceLastKeyMs, typingNow } from "./Tips";
 import { popupOn, setWalkOn, setWalkWaiting, tipOn } from "./popupstate";
 import type { CalendarSnap } from "../core/model";
+import { meetingEvents } from "../core/calpick";
 import "./tips.css";
 import "./newpopups.css";
 import "./walkthrough.css";
@@ -137,7 +138,7 @@ export function WalkthroughHost() {
         typing,
         screenOpen: screen,
         setupOpen: setup || touring,
-        inMeeting: !!st && afkMeetWindows(cal ? (cal.data as CalendarSnap).events : [], st.meetHidden, now).some(([a, b]) => now >= a && now < b),
+        inMeeting: !!st && afkMeetWindows(meetingEvents(cal ? (cal.data as CalendarSnap).events : [], st.calChoices), st.meetHidden, now).some(([a, b]) => now >= a && now < b),
         sleepMode: sleepState().here,
         sentry: sentryUp(),
         dnd: !!st && dndActive(st.dnd, now),

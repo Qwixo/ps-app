@@ -101,8 +101,11 @@ final class LocalCalendar {
       let pred = self.store.predicateForEvents(withStart: from, end: to, calendars: nil)
       let list = self.store.events(matching: pred).sorted { $0.startDate < $1.startDate }.prefix(Self.maxEvents)
       let events = list.map { Self.row($0) }
+      // The calendars themselves (identifier, name, colour, account: nothing else), so the page can offer Meetings, Show only or Off for each
+      // (web/src/core/calpick.ts). Read on this same queue; a calendar with no events in the next days is listed too.
+      let cals = CalPickCore.list(self.store.calendars(for: .event).compactMap { Self.calInfo($0) })
       let iso = ISO8601DateFormatter()
-      let msg: [String: Any] = ["status": "ok", "at": iso.string(from: Date()), "from": iso.string(from: from), "to": iso.string(from: to), "events": events]
+      let msg: [String: Any] = ["status": "ok", "at": iso.string(from: Date()), "from": iso.string(from: from), "to": iso.string(from: to), "events": events, "cals": cals]
       DispatchQueue.main.async {
         self.reading = false
         self.reply(msg)
@@ -110,7 +113,7 @@ final class LocalCalendar {
     }
   }
 
-  /// One event in the same shape as the Google copy (core/model.ts CalEvent). No notes, no calendar names.
+  /// One event in the same shape as the Google copy (core/model.ts CalEvent). No notes; its calendar only by identifier, name and colour.
   /// V1.55 (Edit mode overview): the ACCOUNT it comes from (the Calendar app's account name, for example "iCloud" or a
   /// Google address), so each Meetings panel can show one account. It goes only into this person's own vault.
   static func row(_ e: EKEvent) -> [String: Any] {
@@ -124,6 +127,8 @@ final class LocalCalendar {
     out["place"] = e.location.map { String($0.prefix(300)) } ?? NSNull()
     let acct: String? = e.calendar?.source?.title
     out["acct"] = acct.map { String($0.prefix(80)) } ?? NSNull()
+    // The calendar it is in (identifier, title, colour), for the "which calendars" choice (CalPickCore.swift).
+    out.merge(CalPickCore.eventFields(id: e.calendar?.calendarIdentifier, name: e.calendar?.title, color: e.calendar.flatMap { colorHex($0) })) { a, _ in a }
     let organizer = e.organizer?.url.absoluteString.lowercased()
     out["attendees"] = (e.attendees ?? []).prefix(60).compactMap { p -> [String: Any]? in
       let u = p.url.absoluteString
@@ -134,6 +139,16 @@ final class LocalCalendar {
               "self": p.isCurrentUser, "organizer": organizer == u.lowercased()]
     }
     return out
+  }
+
+  /// One calendar for the page's list: its identifier, name, colour and account.
+  static func calInfo(_ c: EKCalendar) -> [String: Any]? {
+    CalPickCore.info(id: c.calendarIdentifier, name: c.title, color: colorHex(c), acct: c.source?.title)
+  }
+  /// A calendar's colour as "#rrggbb" (nil when it has none that can be read).
+  static func colorHex(_ c: EKCalendar) -> String? {
+    guard let cg = c.cgColor, let ns = NSColor(cgColor: cg)?.usingColorSpace(.sRGB) else { return nil }
+    return CalPickCore.hex(r: Double(ns.redComponent), g: Double(ns.greenComponent), b: Double(ns.blueComponent))
   }
 
   /// Google's words for an answer, so the meeting alerts read both copies the same way.

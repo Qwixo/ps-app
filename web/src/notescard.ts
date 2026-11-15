@@ -8,6 +8,7 @@
 import { vaultStore } from "./core/vault";
 import { settingsData } from "./core/select";
 import { visibleEvents } from "./core/meethide";
+import { meetingEvents } from "./core/calpick";
 import { saveSettings } from "./core/actions";
 import type { CalendarSnap, MeetingNote, Settings } from "./core/model";
 import { NOTES_DEFAULTS, notesCard, pruneLocal, type NotesLocal, type NotesPrefs } from "./core/notescard";
@@ -35,7 +36,7 @@ function writeLocal(l: NotesLocal) { try { localStorage.setItem(LOCAL, JSON.stri
 function events(): CalendarSnap["events"] {
   const s = vaultStore.get();
   const cal = [...s.docs.values()].filter((d) => d.kind === "calendar").sort((a, b) => ((b.data as CalendarSnap).at || "").localeCompare((a.data as CalendarSnap).at || ""))[0];
-  return visibleEvents(cal ? (cal.data as CalendarSnap).events : [], settingsData(s).meetHidden);   // not the meetings the developer took off the panel
+  return visibleEvents(meetingEvents(cal ? (cal.data as CalendarSnap).events : [], settingsData(s).calChoices), settingsData(s).meetHidden);   // not the meetings the developer took off the panel
 }
 
 function sync() {

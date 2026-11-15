@@ -1,0 +1,22 @@
+/* The calendar picker (views/CalPicker.tsx, 15 Nov 2026): thin, calm. Only colour and opacity change. */
+.cp { display: grid; gap: 12px; }
+.cp-line, .cp-none { margin: 0; font-size: 12.5px; opacity: .62; }
+.cp-group { display: grid; gap: 4px; }
+.cp-acct { margin: 0 0 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; opacity: .5; }
+.cp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.cp-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 9px; transition: background .15s ease; }
+.cp-row:hover { background: color-mix(in srgb, currentColor 5%, transparent); }
+.cp-dot { width: 10px; height: 10px; border-radius: 50%; background: color-mix(in srgb, currentColor 35%, transparent); }
+.cp-name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity .15s ease; }
+.cp-off .cp-name { opacity: .45; }
+.cp-off .cp-dot { opacity: .4; }
+.cp-seg { display: inline-flex; padding: 2px; border-radius: 8px; background: color-mix(in srgb, currentColor 7%, transparent); }
+.cp-seg button { all: unset; box-sizing: border-box; cursor: pointer; font-size: 11.5px; line-height: 1; padding: 5px 9px; border-radius: 6px; opacity: .6; transition: background .15s ease, opacity .15s ease; }
+.cp-seg button:hover { opacity: .95; }
+.cp-seg button:focus-visible { outline: 2px solid color-mix(in srgb, currentColor 55%, transparent); outline-offset: 1px; }
+.cp-seg button.on { opacity: 1; background: color-mix(in srgb, currentColor 16%, transparent); }
+@media (max-width: 520px) { .cp-row { grid-template-columns: 10px minmax(0, 1fr); } .cp-seg { grid-column: 1 / -1; justify-self: start; } }
+/* The gear in the Meetings panel sits just left of the refresh button. */
+.tm-cal-pick { right: 128px; }
+.tm-cal-pick.solo { right: 90px; }
+.tm-meet-h.has-pick { padding-right: calc(162px * var(--k-dn, 1)); }

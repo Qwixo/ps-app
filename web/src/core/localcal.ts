@@ -6,6 +6,7 @@
 // The page keeps it in that person's own vault (encrypted, only when an event changed). Pure.
 import type { CalAttendee, CalEvent, CalendarSnap } from "./model";
 import { agoText, type CalStatus } from "./calstatus.ts";
+import { cleanCals } from "./calpick.ts";
 
 export type LocalCalStatus = "ok" | "denied" | "ask" | "test" | "red" | "error";
 const STATUSES = new Set<LocalCalStatus>(["ok", "denied", "ask", "test", "red", "error"]);
@@ -36,6 +37,7 @@ export function localEvent(v: unknown): CalEvent | null {
     id, title: str(o.title, 300) || "(no title)", start, end: iso(o.end) ?? start, allDay: o.allDay === true,
     link: link && link.startsWith("https://") ? link : null, place: str(o.place, 300),
     ...(str(o.acct, 80) ? { acct: str(o.acct, 80) } : {}),
+    ...(str(o.cal, 200) ? { cal: str(o.cal, 200) } : {}),   // the calendar it is in (core/calpick.ts); an older Mac sends none
     attendees: (Array.isArray(o.attendees) ? o.attendees : []).slice(0, LOCAL_CAL.maxAttendees).map(attendee).filter((a): a is CalAttendee => !!a),
   };
 }
@@ -48,7 +50,8 @@ export function localSnap(m: unknown): CalendarSnap | null {
   if (!at || !from || !to) return null;
   const events = o.events.slice(0, LOCAL_CAL.maxEvents).map(localEvent).filter((e): e is CalEvent => !!e)
     .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
-  return { account: LOCAL_CAL.account, at, from, to, events };
+  const cals = cleanCals(o.cals);   // the Mac's calendars, names and colours only (core/calpick.ts); an older Mac sends none
+  return { account: LOCAL_CAL.account, at, from, to, events, ...(cals.length ? { cals } : {}) };
 }
 
 /** The Calendar switch (G Squad, the developer's rule: every feature that runs for friends has its own switch, and macOS is asked

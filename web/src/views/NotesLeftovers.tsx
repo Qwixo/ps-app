@@ -3,6 +3,7 @@
 // meeting notes as the Meetings panel and the pop-up (core/notescard.ts leftovers).
 import { useMemo } from "react";
 import { settingsData, calendarSnap } from "../core/select";
+import { meetingEvents } from "../core/calpick";
 import { leftovers } from "../core/notescard";
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
@@ -13,7 +14,7 @@ export function NotesLeftovers() {
   const s = useVault();
   const st = settingsData(s);
   const notes = st.meetingNotes || [];
-  const list = useMemo(() => leftovers(Date.now(), calendarSnap(s)?.data.events || [], notes), [s, notes]);
+  const list = useMemo(() => leftovers(Date.now(), meetingEvents(calendarSnap(s)?.data.events || [], settingsData(s).calChoices), notes), [s, notes]);
   if (!list.length) return null;
   const close = (key: string, ids: string[]) =>
     taskMapActions.meetingNotes({ meetingNotes: notes.map((n) => (n.key === key ? { ...n, items: n.items.map((x) => (ids.includes(x.id) ? { ...x, done: true } : x)) } : n)) });

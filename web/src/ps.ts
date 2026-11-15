@@ -78,6 +78,7 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (p.pomoIntro === true) o.pomoIntro = true;                                    // the first Pomodoro card was answered
   if (p.standAsk === true) o.standAsk = true;                                      // the first stand-up's question was seen (core/standup.ts, V1.59)
   if (p.standup && typeof p.standup === "object") o.standup = standPrefs(p.standup);   // Stand-up reminders (core/standup.ts, V1.58)
+  if (p.calChoices && typeof p.calChoices === "object") o.calChoices = cleanChoices(p.calChoices);   // which calendars are Show only or Off (core/calpick.ts, 15 Nov 2026)
   if (p.meetBubble && typeof p.meetBubble === "object") o.meetBubble = meetBubblePrefs(p.meetBubble);   // the next meeting bubble (core/meetbubble.ts, V1.58)
   if (Array.isArray(p.tmGroups)) o.tmGroups = cleanGroups(p.tmGroups);
   Object.assign(o, cleanPagesLooks(p));                                              // V1.55: the developer's lists, their names, the swipe direction (core/lists.ts)
@@ -124,6 +125,7 @@ import { runPomoOp, startPomodoro } from "./pomodoro";
 import { cleanOp, pomoPrefs } from "./core/pomodoro";
 import { standPrefs } from "./core/standup";
 import { meetBubblePrefs } from "./core/meetbubble";
+import { cleanChoices, sameChoices, tidyChoices } from "./core/calpick";
 import { cleanAppearance, workStyle } from "./core/looks";
 import { trailPrefs } from "./core/trail";
 import { cleanLooksStore, mergeLooksKinds } from "./core/looksprofiles";
@@ -850,7 +852,12 @@ export function startPsBridge() {
         const st = vaultStore.get();
         if (st.status === "unlocked" && !st.red && settingsData(st).macCalendar !== false) {   // the Calendar switch is off: nothing read is kept
           const cal = localSnap(m);
-          if (cal) void saveLocalCalendar(cal);
+          if (cal) {
+            void saveLocalCalendar(cal);
+            // A choice for a calendar that has been gone for a long time is dropped, and one still here is marked seen (core/calpick.ts).
+            const cur = settingsData(st).calChoices, tidy = tidyChoices(cur, cal.cals ?? []);
+            if (!sameChoices(cur, tidy)) void saveSettings({ calChoices: tidy });
+          }
           calStatus.set(localStatusPatch(m, Date.now()));
         }
       }
