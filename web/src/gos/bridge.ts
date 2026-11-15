@@ -342,6 +342,8 @@ export function startMobileWeb() {
 export const gos = {
   setPrefs: (p: Partial<GosPrefs>) => gosPost({ type: "prefs:set", prefs: p }),
   openPermission: (which: keyof GosPerms) => gosPost({ type: "perm", which }),
+  /** PS 1.60: PS app's own settings page (the camera switch, and the three dots with Allow restricted settings). */
+  openAppSettings: () => gosPost({ type: "perm", which: "app" }),
   checkUpdate: () => gosPost({ type: "update:check" }),
   installUpdate: () => gosPost({ type: "update:install" }),
   forget: () => gosPost({ type: "remember:forget" }),

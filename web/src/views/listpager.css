@@ -29,7 +29,7 @@
   background: color-mix(in srgb, var(--k-surface, #160E13) 70%, transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   -webkit-user-select: none; user-select: none; touch-action: pan-y;
 }
-html.gos .tl-dots { bottom: 10px; }
+html.gos .tl-dots { bottom: calc(var(--gos-bottom, 0px) + var(--gos-dock-h, 0px) + 16px); }
 .tm-docked .tl-dots { position: sticky; left: auto; bottom: 12px; transform: none; justify-self: center; grid-column: 1 / -1; margin: 8px auto 0; }
 .tl-dot {
   position: relative; z-index: 1; width: 22px; height: 26px; padding: 0; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer;
@@ -147,3 +147,26 @@ html.pg-turning::view-transition-new(root) { animation: pg-vt-in .3s cubic-bezie
 /* While a swipe moves, the list pages and the list's name get their own layers (opacity and translate only). */
 .tl-pager.moving .tl-page { will-change: opacity; }
 .tm-overlay[data-pgsw] .tl-strip { will-change: opacity, translate; }
+
+/* PS 1.60 (phone): the iPhone's page dots. One frosted pill (.tl-bed) holds the dots, at least 44 points tall; the two +
+   buttons stand outside it with a gap, so a tap on a page never adds one. Tap the left or right half to go back or
+   forward, press and slide to scrub (views/ListPager.tsx, core/pagedots.ts). The pill grows a little while held. */
+.tl-dots.tl-phone { gap: 14px; padding: 0; background: none; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; min-height: 44px; touch-action: none; }
+.tl-phone .tl-bed {
+  position: relative; display: flex; align-items: center; justify-content: center; height: 44px; padding: 0 12px; border-radius: 999px; touch-action: none; cursor: pointer;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, rgba(20, 20, 24, .55)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 24%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5); box-shadow: 0 4px 16px rgba(0, 0, 0, .35);
+  transition: transform .25s cubic-bezier(.3, 1.4, .5, 1);
+}
+.tl-phone.held .tl-bed { transform: scale(1.08); }
+.tl-phone .tl-dot:not(.plus) { width: 26px; height: 44px; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 62%, transparent); pointer-events: none; }
+.tl-phone .tl-dot:not(.plus) i { width: 10px; height: 10px; }
+.tl-phone .tl-dot:not(.plus) svg { width: 15px; height: 15px; }
+.tl-phone .tl-dot.on { color: #FFFFFF; }
+.tl-phone .tl-dot.on i { transform: scale(1.15); box-shadow: 0 0 6px rgba(255, 255, 255, .6); }
+.tl-phone .tl-pill { width: 26px; height: 26px; margin: -13px 0 0 -13px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 30%, transparent); box-shadow: none; }
+.tl-phone .tl-dot.plus { flex: none; width: 44px; height: 44px; opacity: 1; border-radius: 50%; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, rgba(20, 20, 24, .55)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.tl-phone .tl-dot.plus svg { width: 16px; height: 16px; stroke-width: 1.8; }
+@media (prefers-reduced-motion: reduce) { .tl-phone .tl-bed { transition: none; } .tl-phone.held .tl-bed { transform: none; } }

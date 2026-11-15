@@ -153,7 +153,7 @@ html:not(.gos) .tm-done-bar :is(.tm-all, .tm-all-ask) + .slp-end { margin-left: 
   position: fixed; inset: 0; z-index: 2147483000; display: grid; grid-template-rows: 1fr auto auto; place-items: center; overflow: hidden; cursor: default; container-type: size;
   width: 100vw; height: 100vh; height: 100dvh; justify-self: stretch; align-self: stretch; box-sizing: border-box;
   color: var(--slp-amber); background: var(--slp-night); animation: slp-fade 1.2s ease-out;
-  padding: max(16px, env(safe-area-inset-top)) calc(16px * var(--k-dn, 1)) max(16px, env(safe-area-inset-bottom));
+  padding: max(16px, var(--sat, env(safe-area-inset-top, 0px))) calc(16px * var(--k-dn, 1)) max(16px, env(safe-area-inset-bottom));
   -webkit-user-select: none; user-select: none;
 }
 .slp-face { display: grid; justify-items: center; gap: calc(6px * var(--k-dn, 1)); transition: transform 6s ease-in-out; }
@@ -444,7 +444,7 @@ html:not(.gos) .tm-done-bar :is(.tm-all, .tm-all-ask) + .slp-end { margin-left: 
 .sls-set .gs-set-c .slp-panel { display: inline-flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); }
 
 /* V1.47: the gear in a corner of the web sleep screen, and Sleep settings opened over that screen */
-.slp-gear { position: absolute; top: max(14px, env(safe-area-inset-top)); right: calc(16px * var(--k-dn, 1)); z-index: 2; display: grid; place-items: center; width: calc(42px * var(--k-dn, 1)); height: calc(42px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; padding: 0;
+.slp-gear { position: absolute; top: max(14px, var(--sat, env(safe-area-inset-top, 0px))); right: calc(16px * var(--k-dn, 1)); z-index: 2; display: grid; place-items: center; width: calc(42px * var(--k-dn, 1)); height: calc(42px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; padding: 0;
   color: var(--slp-a45); background: transparent; border: 1px solid var(--slp-a14); transition: color .2s ease, background .2s ease; }
 .slp-gear:hover, .slp-gear:focus-visible { color: var(--slp-a82); background: var(--slp-a08); }
 .dx-layer.cs-layer.gs-layer.sls-layer.over-sleep { z-index: 2147483150; }

@@ -4,6 +4,10 @@
 html.gos {
   --gos-top: var(--gos-inset-top, env(safe-area-inset-top, 0px));   /* V1.56: + the navbar when it is at the top (phonepages.css) */
   --gos-bottom: env(safe-area-inset-bottom, 0px);
+  /* PS 1.60: the real status bar height, for every full screen panel (never the navbar's extra room). Inside the Android
+     WebView env(safe-area-inset-top) is always 0, so panels that asked for it drew their top bar under the clock. */
+  --sat: var(--gos-inset-top, env(safe-area-inset-top, 0px));
+  --safe-top: var(--sat);
   --gos-dock-h: 64px;
   --gos-ease: cubic-bezier(.22, 1, .36, 1);        /* long soft settle */
   --gos-spring: cubic-bezier(.34, 1.36, .5, 1);    /* a small overshoot */
@@ -446,7 +450,7 @@ html.gos:not([data-fit-live]) .gos-dock { transition: transform .45s var(--gos-e
    On the Gym screen the gym header says it instead (src/fitness/Gym.tsx), so the pill stays out of the way. */
 html.gos .gos-offline { pointer-events: none; }
 /* A background video that could not download (GosBackgrounds.tsx BgProblemCard): the update card's look, small. */
-.gos-bgerr { position: fixed; z-index: 62; left: 16px; right: 16px; top: calc(env(safe-area-inset-top, 0px) + 14px); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); display: grid; gap: calc(8px * var(--k-dn, 1));
+.gos-bgerr { position: fixed; z-index: 62; left: 16px; right: 16px; top: calc(var(--sat, 0px) + 14px); padding: calc(14px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(20px * var(--k-rd, 1)); display: grid; gap: calc(8px * var(--k-dn, 1));
   background: radial-gradient(140% 120% at 0% 0%, color-mix(in srgb, var(--k-bad-t, #FF7878) 16%, transparent), color-mix(in srgb, var(--k-surface, #181014) 96%, transparent) 60%); border: 1px solid color-mix(in srgb, var(--k-bad-t, #FF7878) 42%, transparent); box-shadow: 0 12px 30px rgba(0, 0, 0, .34);
   color: var(--k-fg, #FFFFFF); font: 500 calc(13px * var(--k-fs, 1))/1.4 var(--k-font, Inter, system-ui, sans-serif); animation: gos-rise .4s var(--gos-ease) both; }
 .gos-bgerr-t { font-weight: 700; font-size: calc(14px * var(--k-fs, 1)); }
@@ -460,3 +464,20 @@ html.gos body:has(.gos-gym) .gos-offline { display: none; }
 .gos-mac .gos-dot { font-size: calc(12px * var(--k-fs, 1)); opacity: 0.6; }
 .gos-mac .gos-dot.on { color: var(--k-ok-bg, #15803D); opacity: 1; }
 .gos-mac-b { display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); }
+
+/* ---------- PS 1.60 phone fixes ---------- */
+/* The dots pill (views/ListPager.tsx) sits above the navbar: the list and the thumb row make room for it. */
+html.gos:has(.tl-dots) { --gos-dots-h: 52px; }
+html.gos:has(.tl-dots) .gos-thumb { bottom: calc(var(--gos-dock-h) + var(--gos-bottom) + 18px + var(--gos-dots-h, 0px)); }
+html.gos .gos-home .tm-inner { padding-bottom: calc(28px * var(--k-dn, 1) + var(--gos-dots-h, 0px)); }
+/* Soundboard and every full screen phone panel: close, minimise and back are a real 44 point target, below the status bar. */
+.sb-layer.gos .sb-icon, .sb-layer.gos .sb-icon.sb-sm { width: 44px; height: 44px; }
+.sb-layer.gos .sb-body { padding-top: calc(var(--sat, 0px) + 10px); }
+html.gos .fit-bar-b, html.gos .fit-chrome-b, html.gos .fit-bar-back { min-width: 44px; min-height: 44px; }
+/* The update card: title and version on top, the notes full width as a list, then the button full width. */
+.gos-upd-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(8px * var(--k-dn, 1)); width: 100%; }
+.gos-upd-notes li { position: relative; padding-left: 18px; font-size: calc(14px * var(--k-fs, 1)); line-height: 1.4; overflow-wrap: anywhere; }
+.gos-upd-notes li::before { content: ""; position: absolute; left: 3px; top: .55em; width: 6px; height: 6px; border-radius: 50%; background: var(--k-acc, #EC4E86); }
+.gos-upd .gos-upd-go { width: 100%; min-height: 48px; font-size: calc(15px * var(--k-fs, 1)); }
+.gos-upd-t { overflow-wrap: anywhere; }
+.sc-open { min-height: 44px; align-self: center; margin: 4px auto 8px; }

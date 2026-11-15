@@ -71,7 +71,7 @@ object WebHost {
         "X-Content-Type-Options" to "nosniff",
         "Referrer-Policy" to "no-referrer",
         "Cross-Origin-Opener-Policy" to "same-origin",
-        "Permissions-Policy" to "camera=(), microphone=(), geolocation=()",
+        "Permissions-Policy" to CameraPolicy.header(),   // PS 1.60: camera=(self), the microphone and location stay off
         "Cache-Control" to "no-cache",
     )
 
@@ -176,9 +176,7 @@ object WebHost {
             // video (never the microphone), and only while the screen is up. Everything else is refused.
             override fun onPermissionRequest(r: android.webkit.PermissionRequest) {
                 val a = activity
-                val ours = r.origin?.scheme == "https" && r.origin?.host == "appassets.androidplatform.net"
-                val onlyVideo = r.resources.isNotEmpty() && r.resources.all { it == android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE }
-                if (a == null || !ours || !onlyVideo || !a.isShown) { r.deny(); return }
+                if (a == null || !CameraPolicy.allow(r.origin?.scheme, r.origin?.host, r.resources.toList(), a.isShown)) { r.deny(); return }
                 a.runOnUiThread { a.cameraFor(r) }
             }
         }
@@ -375,10 +373,10 @@ object WebHost {
         if (p.has("stay") && !Prefs.stay(c)) Remember.dropStay(c)
         if (p.has("notification") || p.has("bubble") || p.has("ays")) { Quiet.sync(c); WatchService.sync(c) }
         if (p.has("island") || p.has("live") || p.has("background")) { LiveService.sync(c); Quiet.sync(c) }
-        if (p.optBoolean("island") && !android.provider.Settings.canDrawOverlays(c)) onMain { activity?.openPermission("overlay") }
+        if (p.optBoolean("island") && !android.provider.Settings.canDrawOverlays(c)) onMain { activity?.askIsland(force = true) }
         if (p.optBoolean("tile")) onMain { activity?.offerTile() }
         if (p.optBoolean("widget")) onMain { activity?.offerWidget() }
-        if (p.optBoolean("bubble") && !android.provider.Settings.canDrawOverlays(c)) onMain { activity?.openPermission("overlay") }
+        if (p.optBoolean("bubble") && !android.provider.Settings.canDrawOverlays(c)) onMain { activity?.askIsland(force = true) }
     }
 
     // ---------- background check ----------
