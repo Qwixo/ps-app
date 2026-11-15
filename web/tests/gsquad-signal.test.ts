@@ -278,15 +278,15 @@ ok("the GIF button: only with the feature and a yes from the hub, remembered a w
   assert.equal(gifMemory(JSON.stringify({ on: false, at: now - GIF_NO_MS - 1000 }), now), null, "a no is asked again after 6 hours");
   for (const bad of [null, "", "x", "{}", JSON.stringify({ on: "yes", at: now }), JSON.stringify({ on: true, at: now + 1e9 })]) assert.equal(gifMemory(bad, now), null);
 });
-ok("Load GIFs: on unless switched off here, and storage trouble never breaks it", () => {
+ok("Load GIFs: off unless switched on here, and storage trouble never breaks it", () => {
   const mem = new Map<string, string>();
   const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); } };
-  assert.equal(readLoadGifs(store), true);
+  assert.equal(readLoadGifs(store), false, "off by default (GIFs skipped for now)");
   saveLoadGifs(false, store); assert.equal(readLoadGifs(store), false);
   saveLoadGifs(true, store); assert.equal(readLoadGifs(store), true);
   const broken = { getItem: () => { throw new Error("no"); }, setItem: () => { throw new Error("no"); } };
-  assert.equal(readLoadGifs(broken), true); saveLoadGifs(false, broken);
-  assert.equal(readLoadGifs(null), true);
+  assert.equal(readLoadGifs(broken), false); saveLoadGifs(false, broken);
+  assert.equal(readLoadGifs(null), false);
 });
 
 // ---------- the hub gif function (a FAKE GIPHY) ----------
@@ -389,7 +389,7 @@ ok("the Tab list's view: reaction pills and the GIF list are checked, the button
 ok("the feature is registered, documented and gated in code", () => {
   const f = JSON.parse(read("../features.json")).features.find((x: { id: string }) => x.id === "gsquad-signal");
   assert.ok(f); assert.equal(f.owner, "jan"); assert.equal(f.scope, "shared"); assert.equal(f.since, "1.63"); assert.equal(f.default, "on");
-  assert.match(read("../FEATURES.md"), /G Squad Signal look, emoji, reactions and GIFs/);
+  assert.match(read("../FEATURES.md"), /G Squad Signal look, emoji and reactions/);
   assert.match(read("src/squad/signal.ts"), /SIGNAL_FEATURE = "gsquad-signal"/);
   assert.match(read("src/views/GSquadWindow.tsx"), /signalOn\(\)/);
   assert.match(read("src/views/GSquadChat.tsx"), /const sig = signalOn\(\)/);

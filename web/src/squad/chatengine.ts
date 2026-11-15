@@ -18,7 +18,7 @@ import { joinerLine, voteCardDue, voteWords } from "../core/squadchat";
 import { homeTz } from "../core/tz";
 import { dndMutes } from "../core/dnd";
 import { feature } from "../core/features";
-import { GIF_FEATURE } from "./signal";
+import { GIF_FEATURE, GIFS_READY } from "./signal";
 import { ISLAND_FEATURE, NOT_CONNECTED, NOTIFY_FEATURE, cleanNoteLedger, isNoteCard, laterSeen, noteCard, noteIsland, noteMuted, noteOn, noteSound, planNotes, replyOutcome, staleNotes, type NoteCard, type NoteMsg } from "../core/squadnotify";
 import { buildSend } from "./chatsend";
 import { ChatSession, type ChatMsg } from "./chatflows";
@@ -71,8 +71,9 @@ function gifSetup(cur: ChatSession) {
   gifApiNow = gifApi({ member: cur.rec.memberId, priv: cur.rec.sign.priv });
   let mem: string | null = null;
   try { mem = localStorage.getItem(GIF_MEM); } catch { /* storage off: ask */ }
-  gifOn = feature(GIF_FEATURE) ? gifMemory(mem, Date.now()) : false;   // the feature off means no GIF calls at all
-  if (gifOn !== null || !feature(GIF_FEATURE)) return;
+  const want = GIFS_READY && feature(GIF_FEATURE);   // GIFs skipped for now (signal.ts GIFS_READY): no GIF calls at all
+  gifOn = want ? gifMemory(mem, Date.now()) : false;   // the feature off means no GIF calls at all
+  if (gifOn !== null || !want) return;
   const api = gifApiNow;
   void api.status().then((on) => {
     if (gifApiNow !== api) return;

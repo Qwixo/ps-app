@@ -54,7 +54,7 @@ export function cleanGifQuery(v: unknown): string {
 /** Whether the GIF button is shown: the feature, and the hub said yes (null = not asked yet, hidden). */
 export const gifButton = (featureOn: boolean, hubOn: boolean | null) => featureOn && hubOn === true;
 
-/** The hub's answer to "is it set up" is remembered: a yes for a week, a no for 6 hours (Red may deploy any time). */
+/** The hub's answer to "is it set up" is remembered: a yes for a week, a no for 6 hours (the developer may deploy any time). */
 export const GIF_YES_MS = 7 * 864e5, GIF_NO_MS = 6 * 36e5;
 export function gifMemory(raw: string | null, now: number): boolean | null {
   try {
@@ -68,7 +68,7 @@ export function gifMemory(raw: string | null, now: number): boolean | null {
 
 // ---------- device choices for G Squad chat (this device only, like the look) ----------
 export const LOADGIF_KEY = "gsquad.loadGifs";
-/** "Load GIFs" in Squad settings: on unless switched off here. */
-export function readLoadGifs(store: Pick<Storage, "getItem"> | null = safe()): boolean { try { return store?.getItem(LOADGIF_KEY) !== "off"; } catch { return true; } }
+/** "Load GIFs" in Squad settings: OFF unless switched on here (the developer, 15 Nov 2026: skip GIFs for now, so off by default). */
+export function readLoadGifs(store: Pick<Storage, "getItem"> | null = safe()): boolean { try { return store?.getItem(LOADGIF_KEY) === "on"; } catch { return false; } }
 export function saveLoadGifs(on: boolean, store: Pick<Storage, "setItem"> | null = safe()) { try { store?.setItem(LOADGIF_KEY, on ? "on" : "off"); } catch { /* storage off: this session only */ } }
 function safe(): Storage | null { try { return typeof localStorage === "undefined" ? null : localStorage; } catch { return null; } }

@@ -332,5 +332,19 @@
   ],
   "by": "red",
   "shared": true
+ },
+ "1.63": {
+  "code": "e81866a62a51",
+  "at": "2026-11-15T19:31:31.562Z",
+  "keyword": "Kinship",
+  "notes": [
+   "Squad Priority 1: your squad sees each other's Priority 1 tasks, with 24 hours to finish. Hide any task, or turn it off.",
+   "G Squad messages now come out of the Dynamic Island, with Reply.",
+   "G Squad has a slimmer look, with emoji and reactions.",
+   "Pick which calendars count as meetings, and connect Gmail with one 'Copy for your AI' button.",
+   "Fixes: drag a task onto Priority 1 to make it Priority 1, Looks Preview shows your real list for 5 seconds, and PS stops asking to update Supabase on every launch."
+  ],
+  "by": "red",
+  "shared": true
  }
 }
