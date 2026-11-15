@@ -77,4 +77,12 @@ ok("the button sits in Settings, Client emails and in the email panel's not conn
   assert.ok(!/<details[^>]*\bopen=/.test(ce), "the by hand steps never open by themselves");
   assert.match(file("src/views/TaskMap.tsx"), /<CopyForAiButton className="tm-meet-j tm-mail-copy" \/>/);
 });
+ok("step 6 is run by the person in their own Terminal (it waits for a Google sign in the AI cannot see)", () => {
+  const p = A.mailAiPrompt("abcdefghijklmnopqrst");
+  const step6 = p.split("\n").find((l) => l.startsWith("6. "))!;
+  assert.match(step6, /my own Terminal/);
+  assert.match(step6, /Wait until I say it is done/);
+  assert.match(step6, /gmail-connect\.mjs --project abcdefghijklmnopqrst/);
+});
+
 console.log(`${n} passed`);
