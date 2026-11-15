@@ -59,6 +59,6 @@ class NoteLedger(
         fun key(id: String, rev: String) = "${id.take(40)}|${rev.take(80)}".replace(Regex("[\\t\\r\\n]"), " ")
         /** Cards the page keeps until the developer answers them (client emails, lead replies, finished chats): a swipe in the
          *  shade is his Dismiss. Meeting cards and call alarms just leave the shade. */
-        fun swipeDismisses(id: String) = id.startsWith("m:") || id.startsWith("n:") || id.startsWith("c:")
+        fun swipeDismisses(id: String) = id.startsWith("m:") || id.startsWith("n:") || id.startsWith("c:") || id.startsWith("g:")
     }
 }

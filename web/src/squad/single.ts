@@ -27,7 +27,7 @@ export function notInStage(v: Pick<SquadView, "in" | "auto">): AutoStage | null 
 export const SETTINGS_PAGES = [
   { id: "share", title: "What you share", line: "Choose what the squad can see" },
   { id: "name", title: "Your name", line: "How the squad sees you" },
-  { id: "notify", title: "Notifications", line: "Sound for new messages, Do Not Disturb" },
+  { id: "notify", title: "Notifications", line: "Message cards, sound, Do Not Disturb" },
   { id: "looks", title: "Appearance", line: "Light or dark, colour, bubbles, text size, background" },
   { id: "leave", title: "Leave the squad", line: "Take your shared things off" },
 ] as const;

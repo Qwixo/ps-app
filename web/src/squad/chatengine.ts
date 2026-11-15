@@ -17,6 +17,9 @@ import { cleanSquadRec, type SquadRec } from "../core/squadrec";
 import { joinerLine, voteCardDue, voteWords } from "../core/squadchat";
 import { homeTz } from "../core/tz";
 import { dndMutes } from "../core/dnd";
+import { feature } from "../core/features";
+import { NOTIFY_FEATURE, cleanNoteLedger, isNoteCard, laterSeen, noteCard, noteMuted, noteOn, noteSound, planNotes, staleNotes, type NoteCard, type NoteMsg } from "../core/squadnotify";
+import { buildSend } from "./chatsend";
 import { ChatSession, type ChatMsg } from "./chatflows";
 import { HubError } from "./hub";
 import { EMPTY_CHAT, type ChatLine, type ChatOp, type ChatView, type ChatVoteView } from "./chatview";
@@ -82,7 +85,7 @@ function rebuild() {
   view = {
     in: !!s, ready: !!s && !!st && !st.rot && s.keys.has(st.epoch), open, unread: open ? 0 : st?.u ?? 0,
     lines: open ? lines() : [], more: !!s?.more, votes: votes(), note: s ? joinerLine(mine, s.hasHistory()) : null,
-    sound: settings().squadChatSound === true, sending: [...pending.values()].filter((p) => !p.failed).length, error, loaded: !!s?.loaded,
+    sound: settings().squadChatSound === true, notify: feature(NOTIFY_FEATURE), notifyOn: settings().squadNotify !== false, noteSound: settings().squadNotifySound !== false, sending: [...pending.values()].filter((p) => !p.failed).length, error, loaded: !!s?.loaded,
   };
   emit();
   showCards();
@@ -101,11 +104,102 @@ function showCards() {
   for (const id of [...cards.keys()]) if (!want.has(id)) { cards.delete(id); post({ type: "cardHide", id }); }
 }
 /** The card's buttons (Mac): Yes, No. */
-export function chatCardMessage(m: { type?: string; id?: string; action?: string }): boolean {
+export function chatCardMessage(m: { type?: string; id?: string; action?: string; text?: string }): boolean {
+  if (m.type === "cardAction" && isNoteCard(m.id)) { noteAction(m.id, String(m.action || ""), typeof m.text === "string" ? m.text : undefined); return true; }
   if (m.type !== "cardAction" || typeof m.id !== "string" || !m.id.startsWith("sqv:")) return false;
   const id = m.id.slice(4);
   if (m.action === "yes" || m.action === "no") void runChatOp({ op: "vote", id, yes: m.action === "yes" });
   return true;
+}
+
+// ---------- message notifications (PS 1.60, PR 10, core/squadnotify.ts has the rules) ----------
+// A new message from someone else becomes a card: the Mac's top right stack (cardShow path "meetCard", tone "squad"), the
+// website's corner (noteStore, drawn by views/SquadNoteCards.tsx) or the phone's notification (notePost, gos/bridge.ts).
+// Reply goes through the same send request as the chat's box (squad/chatsend.ts buildSend).
+const LEDGER_KEY = "ps-gsquad-announced", SINCE_KEY = "ps-gsquad-notify-since";
+let notePost: Post | null = null;
+let noteLedger: Record<string, number> | null = null;
+const noteShown = new Map<string, NoteCard>();     // cards on screen on this device: card id to its card
+const noteSubs = new Set<() => void>();
+let noteList: NoteCard[] = [];
+export const noteStore = {
+  subscribe(l: () => void) { noteSubs.add(l); return () => { noteSubs.delete(l); }; },
+  get: () => noteList,
+};
+/** The dev page only (?fake&gsquad&note): a made up card on the website's corner, never real data. */
+export function devShowNote(c: NoteCard) { noteShown.set(c.id, c); publishNotes(); }
+/** The phone's page: where its notifications go (gos/bridge.ts hands its card poster). */
+export function setNotePost(p: Post | null) { notePost = p; }
+const noteDevice = (): "mac" | "phone" | "web" => (PS_PAGE ? "mac" : notePost ? "phone" : "web");
+// Read from storage each time, so two tabs of the website share one list.
+const readLedger = () => { try { noteLedger = cleanNoteLedger(JSON.parse(localStorage.getItem(LEDGER_KEY) || "{}")); } catch { noteLedger = noteLedger ?? {}; } return noteLedger!; };
+const writeLedger = (l: Record<string, number>) => { noteLedger = l; try { localStorage.setItem(LEDGER_KEY, JSON.stringify(l)); } catch { /* storage blocked: this run's list still holds */ } };
+const getSince = (): string | null => { try { return localStorage.getItem(SINCE_KEY) || null; } catch { return null; } };
+const setSince = (v: string | null) => { try { if (v) localStorage.setItem(SINCE_KEY, v); else localStorage.removeItem(SINCE_KEY); } catch { /* storage blocked */ } };
+const noteEnabled = () => noteOn(feature(NOTIFY_FEATURE), settings());
+const putNote = (c: NoteCard) => {
+  noteShown.set(c.id, c);
+  if (PS_PAGE && post) post({ type: "meetCard", card: c });
+  else if (notePost) notePost({ type: "meetCard", card: c });
+};
+const dropNote = (id: string) => {
+  if (!noteShown.delete(id)) return;
+  if (PS_PAGE && post) post({ type: "cardHide", id });
+  else if (notePost) notePost({ type: "cardHide", id });
+};
+function publishNotes() {
+  noteList = [...noteShown.values()].sort((a, b) => a.at.localeCompare(b.at));
+  noteSubs.forEach((l) => l());
+}
+/** Look at the messages this device has: new ones become cards, cards that are no longer wanted go. Cheap, runs after
+ *  every pull and every settings change. Does nothing and clears every card while the feature or the switch is off. */
+function refreshNotes(announce = true) {
+  const cur = s;
+  const st = settings();
+  const now = Date.now();
+  if (!cur || !noteEnabled()) {
+    if (noteShown.size) { for (const id of [...noteShown.keys()]) dropNote(id); publishNotes(); }
+    if (getSince()) setSince(null);   // switched off: when it comes back on, only newer messages count
+    return;
+  }
+  if (!getSince()) { setSince(new Date(now).toISOString()); return; }
+  const muted = noteMuted(st, now, noteDevice());
+  const read = cur.status?.read ?? null, seen = st.squadNoteSeen ?? null;
+  const stale = staleNotes([...noteShown.values()], { read, seen, chatOpen: open, muted, enabled: true });
+  for (const id of stale) dropNote(id);
+  let changed = stale.length > 0;
+  if (announce && cur.loaded) {
+    const msgs: NoteMsg[] = cur.list(60).map((m) => ({ id: m.id, from: m.from, name: cur.people.get(m.from)?.name ?? "Someone", t: m.t, at: m.at }));
+    const plan = planNotes(msgs, { me: cur.rec.memberId, since: getSince(), read, seen, chatOpen: open, muted, now, ledger: readLedger() });
+    writeLedger(plan.ledger);
+    for (const m of plan.show) { putNote(noteCard(m)); changed = true; }
+    if (plan.show.length && noteSound(st, now, noteDevice()) && post && PS_PAGE) post({ type: "sfx", name: "note-drop", vol: Math.max(0.3, (st.tmSound ?? 40) / 100), card: true });
+  }
+  if (changed) publishNotes();
+}
+/** One note is finished with (Dismiss, Open, a sent Reply): it goes from this device, and "seen up to here" is saved so
+ *  the other devices drop it too (their cards leave when the settings reach them). */
+function finishNote(id: string) {
+  const c = noteShown.get(id);
+  dropNote(id);
+  publishNotes();
+  if (c) void saveSettings({ squadNoteSeen: laterSeen(settings().squadNoteSeen, c.at) });
+}
+/** A card's button, from the Mac's stack or the phone (ids "g:<message id>"). */
+export function noteAction(id: string, action: string, text?: string): void {
+  if (!isNoteCard(id)) return;
+  if (action === "dismiss") { finishNote(id); return; }
+  if (action === "open") {
+    finishNote(id);
+    // The Mac shell brings the Tab list up on the chat by itself (ps-mac main.swift, "squadOpen" to the Tab list, ps.ts).
+    if (!PS_PAGE) void import("./chatopen").then((m) => m.openSquadChat({}));
+    return;
+  }
+  if (action === "reply" && typeof text === "string") {
+    const op = buildSend(text);
+    if (op) void runChatOp(op);
+    finishNote(id);
+  }
 }
 
 // ---------- the hub ----------
@@ -123,8 +217,9 @@ async function tick() {
     if (!cur.loaded && (needNames || open)) await cur.pull();
     else if (open && st.last && st.last !== before?.last) await cur.pull();
     else if (needNames) await cur.pull();
-    if (before && !open && st.u > before.u) chime();
-    if (cur === s) { error = null; rebuild(); }
+    else if (!open && st.u > 0 && st.last && st.last !== before?.last && noteEnabled() && getSince()) await cur.pull();   // a new message: read it to show the card
+    if (before && !open && st.u > before.u && !noteEnabled()) chime();   // with notifications on the card has its own sound
+    if (cur === s) { error = null; rebuild(); refreshNotes(); }
   } catch (e) { if (!gone(e) && cur === s) { error = say(e); rebuild(); } }
   finally { ticking = false; }
 }
@@ -161,6 +256,7 @@ function setOpen(on: boolean) {
     pullTimer = window.setInterval(() => { if (PS_PAGE || document.visibilityState === "visible") void pull(); }, OPEN_PULL_MS);
   } else limit = PAGE;
   rebuild();
+  refreshNotes(false);   // the chat opened: its cards are done with
 }
 
 // ---------- what the chat asks for ----------
@@ -168,6 +264,8 @@ export async function runChatOp(o: ChatOp): Promise<void> {
   const st = vaultStore.get();
   if (st.status !== "unlocked" || st.role !== "owner") return;
   if (o.op === "sound") { await saveSettings({ squadChatSound: o.on }); rebuild(); return; }
+  if (o.op === "notify") { await saveSettings({ squadNotify: o.on }); rebuild(); refreshNotes(); return; }
+  if (o.op === "noteSound") { await saveSettings({ squadNotifySound: o.on }); rebuild(); return; }
   if (o.op === "open") { setOpen(o.on); return; }
   const cur = s;
   if (!cur) return;
@@ -224,6 +322,8 @@ function stop() {
   if (pullTimer !== undefined) window.clearInterval(pullTimer);
   tickTimer = pullTimer = undefined; open = false;
   view = { ...EMPTY_CHAT };
+  for (const id of [...noteShown.keys()]) dropNote(id);
+  publishNotes();
   emit();
   showCards();
 }
@@ -232,7 +332,7 @@ function sync() {
   if (st.status !== "unlocked" || st.role !== "owner" || st.userId === "ps-overlay" || st.userId === "dev") { if (s) stop(); return; }
   const rec = readRec();
   const next = rec ? `${rec.squadId}:${rec.memberId}` : "";
-  if (next === who) { if (s && view.sound !== (settings().squadChatSound === true)) rebuild(); return; }
+  if (next === who) { if (s && (view.sound !== (settings().squadChatSound === true) || view.notifyOn !== (settings().squadNotify !== false) || view.noteSound !== (settings().squadNotifySound !== false))) rebuild(); refreshNotes(); return; }
   if (s) stop();
   if (!rec) return;
   s = new ChatSession(rec); who = next;

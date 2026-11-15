@@ -88,6 +88,7 @@ export function GosLayer() {
     if (m.what === "settings") { settingsRef.current(); return; }
     if (m.what === "island-settings") { settingsRef.current("phone"); return; }   // V1.59 the island's hold menu, Settings
     openSettings(null);
+    if (m.what === "gsquad") { openGSquad(true, "chat"); return; }   // a G Squad message notification (ps-gos Notifier.kt, core/squadnotify.ts)
     if (m.what === "fitness") { fitPop.open(); return; }   // the rest timer's notification (ps-gos Fitness.kt)
     // V1.55 Open task on a reminder's notification (ps-gos Remind.kt): the list, with that task glowing (views/TaskMap.tsx).
     if (typeof m.what === "string" && m.what.startsWith("task:")) {

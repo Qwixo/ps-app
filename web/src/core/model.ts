@@ -394,6 +394,9 @@ export interface TaskGroup { id: string; name: string }
 export interface Settings {
   squadShare?: import("./squadshare").ShareOpts;   // G Squad (V1.40): what you share, one switch per piece (missing = on, except Tasks: missing = off since V1.43)
   squadMoney?: import("./squadboard").SquadMoney;   // G Squad Leaderboard (V1.40): your monthly money answers, their time zone and snooze (core/squadboard.ts)
+  squadNotify?: boolean;         // G Squad message notifications (PS 1.60, core/squadnotify.ts): pop up card with Reply (missing = on)
+  squadNotifySound?: boolean;    // the sound with that card (missing = on)
+  squadNoteSeen?: string;        // dismissed or replied up to this message time (ISO): the other devices drop their cards too
   squadChatSound?: boolean;      // G Squad chat (V1.40): a short sound for new messages, Mac only (missing = off, the developer)
   radar?: { handled?: Record<string, string>; snoozed?: Record<string, string> };   // Follow-up Radar marks (core/radar.ts)
   ownerName: string;

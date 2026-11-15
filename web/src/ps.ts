@@ -309,7 +309,7 @@ type ShellMsg = { type: "tick"; id: string; done?: boolean } | { type: "work"; i
   | { type: "afkDone"; list: unknown }
   | { type: "inboxMin"; at: string }
   | { type: "dimxList"; list: unknown }
-  | { type: "pull" } | { type: "wake" }
+  | { type: "pull" } | { type: "wake" } | { type: "squadOpen" }
   | { type: "awareDone"; id: string; todoId: string } | { type: "awareUndone"; item: unknown; index: number; todoId: string }
   | { type: "awareToList"; id: string; order: number; kind?: string; p1?: boolean }
   | { type: "localCal"; status?: unknown; at?: unknown; from?: unknown; to?: unknown; events?: unknown };   // this Mac's Calendar (ps-mac LocalCalendar.swift)
@@ -532,6 +532,7 @@ export function startPsOverlay() {
       else if (m.type === "appIcons") gotIcons(m.icons);
       else if (m.type === "timeline") { timeline = m; iconListeners.forEach((l) => l()); shareTimeline(m); }
       else if (m.type === "presence") { presence = { lastOn: m.lastOn || null, back: m.back || null }; iconListeners.forEach((l) => l()); }
+      else if (m.type === "squadOpen") void import("./squad/chatopen").then((c) => c.openSquadChat({}));   // a G Squad message card's Open (core/squadnotify.ts): the chat comes up
     },
   };
 }
@@ -618,7 +619,7 @@ export function startPsBridge() {
       if (gymCardMessage(m as { type?: string })) return;   // the gym reminder card (src/gymwatch.ts)
       if (remShellMessage(m as { type?: string })) return;   // an Annoying 15 min reminder card answered (src/remwatch.ts)
       if (dirCardMessage(m as { type?: string })) return;  // G Squad: "X asked to join" card, Approve and Decline (src/squad/direngine.ts)
-      if (chatCardMessage(m as { type?: string })) return;  // G Squad chat: the history vote card's Yes and No (src/squad/chatengine.ts)
+      if (chatCardMessage(m as { type?: string; id?: string; action?: string; text?: string })) return;  // G Squad chat: the history vote card's Yes and No (src/squad/chatengine.ts)
       if (islandMessage(m as { type?: string })) return;   // a tick on the Dynamic Island (src/island.ts)
       if (secondOn && secondMessage(m as unknown as { type?: string })) return;   // The developer only, see sayOwner   // Second Computer (src/second/store.ts)
       if (m.type === "mic") setMic(m);

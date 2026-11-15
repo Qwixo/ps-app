@@ -70,12 +70,16 @@ export function loadGSquadFake() {
     { id: id(8), from: ME, name: "Alex", mine: true, t: "Handing you the pricing page review, it is in your Tasks", at: day(0, 8, 51), edited: true, left: false },
     { id: id(9), from: ANA, name: "Ana Petrova", mine: false, t: "Done with the landing page draft. 92 tasks this month, catch me if you can", at: day(0, 9, 14), edited: false, left: false },
   ];
-  const chat = { in: !["none", "joining", "left", "removed", "full", "error"].includes(mode), ready: true, open: true, unread: 2, lines, more: false, votes: [], note: null, sound: false, sending: 0, error: null, loaded: true };
+  const chat = { in: !["none", "joining", "left", "removed", "full", "error"].includes(mode), ready: true, open: true, unread: 2, lines, more: false, votes: [], note: null, sound: false, notify: true, notifyOn: true, noteSound: true, sending: 0, error: null, loaded: true };
 
   setTimeout(() => {
     setSquadMirror(squad);
     setChatMirror(chat);
     const q = new URLSearchParams(location.search);
+    // &note: the website's G Squad message card (views/SquadNoteCards.tsx, PS 1.60) with a made up message (dev page /client/dev?fake&note).
+    if (q.has("note")) void Promise.all([import("../squad/chatengine"), import("../core/squadnotify")]).then(([e, n]) => {
+      e.devShowNote(n.noteCard({ id: id(50), from: SAM, name: "Sam Rivera", t: "Landing page is live. Can you check the pricing section before 3?", at: new Date().toISOString() }));
+    });
     if (q.has("open") || (globalThis as { __psMobile?: unknown }).__psMobile === true) void import("../views/GSquad").then((g) => g.openGSquad(true, q.get("gstab") || undefined));
     if (mode === "in" || mode === "asks") {
       loadGymFake();

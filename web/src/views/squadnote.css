@@ -1,0 +1,14 @@
+/* G Squad message cards on the website (views/SquadNoteCards.tsx): the client email card's look, in the bottom right corner. */
+.mc.mc-sq { top: auto; bottom: calc(16px + var(--safe-bottom, 0px)); max-height: calc(100vh - 40px); }
+@media (max-width: 760px) { .mc.mc-sq { bottom: calc(76px + var(--safe-bottom, 0px)); } }
+.mc-sqc .mc-sub { margin-left: 35px; }
+.mc-rep { border: 0; border-radius: calc(99px * var(--k-rd, 1)); padding: calc(7px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)); font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; cursor: pointer; white-space: nowrap;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc, #EC4E86) 28%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc-t, #F9A8C9) 45%, transparent); }
+.mc-rep:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); }
+.mc-sqbox { margin: 8px 0 0; }
+.mc-sqbox textarea { width: 100%; box-sizing: border-box; resize: none; border-radius: calc(12px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 30%, transparent); padding: 8px 10px; font: inherit; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.4;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); }
+.mc-sqbox textarea:focus-visible { outline: 2px solid var(--k-acc-t, #F9A8C9); outline-offset: 1px; }
+.mc-sqbox .mc-open:disabled { opacity: .5; cursor: default; }
+.mc-sqsay { margin: 0; }
+.mc-sqc .mc-acts button:focus-visible, .mc-sqc .mc-acts a:focus-visible { outline: 2px solid var(--k-acc-t, #F9A8C9); outline-offset: 2px; }
