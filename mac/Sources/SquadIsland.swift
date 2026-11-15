@@ -106,10 +106,10 @@ struct SquadIslandView: View {
         .frame(width: m.shape.width, height: m.shape.height)
         .shadow(color: Color.black.opacity(m.open ? 0.4 : 0), radius: 14, y: 6)
         .overlay(alignment: .top) { content.frame(width: m.shape.width, height: m.shape.height, alignment: .top).clipShape(HangShape(bottom: m.radius)) }
+        .onHover { h in m.over = h }   // the shape only, never the empty room round it
     }
     .frame(width: SquadIslandView.window(m.islandSize.height).width, height: SquadIslandView.window(m.islandSize.height).height, alignment: .top)
     .environment(\.colorScheme, .dark)
-    .onHover { h in m.over = h }
   }
 
   @ViewBuilder private var content: some View {
@@ -500,6 +500,8 @@ final class SquadIsland {
   }
   private func tick() {
     guard isOpen, !closing else { return }
+    // Sleep mode or Sentry mode came up over the card: it goes with nothing sent (an Undo that has not run out is cancelled).
+    if SleepScreen.shared.isUp || Sentry.shared.isUp { drop(); return }
     let now = Date()
     switch m.state {
     case .card:
