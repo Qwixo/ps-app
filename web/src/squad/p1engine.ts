@@ -15,7 +15,7 @@ import { cleanShareOpts } from "../core/squadshare";
 import { dndMutes } from "../core/dnd";
 import { cleanLedger, type Ledger } from "../core/maildedupe";
 import { noteSound } from "../core/squadnotify";
-import { P1_FEATURE, P1_GRACE_MS, alertCard, p1Clockable, p1PanelOn, p1Stamps, planMissedAlerts, planOwnReminders, cleanStart, type AlertCard } from "../core/squadp1";
+import { P1_FEATURE, P1_GRACE_MS, alertCard, p1Clockable, p1PanelOn, p1Stamps, planMissedAlerts, planOwnReminders, cleanStart, type AlertCard, type P1Row } from "../core/squadp1";
 import { sleepState } from "../sleepmode/engine";
 import type { SquadRec } from "../core/squadrec";
 import type { SquadView } from "./view";
@@ -44,6 +44,8 @@ export interface P1Hooks {
   post: Post | null;
   rec: () => SquadRec | null;
   view: () => SquadView;
+  /** All the squad's P1 rows (not the panel's short list): missed alerts are planned from these. */
+  p1All: () => P1Row[];
   onPulled: (f: () => void) => void;
   pull: () => void;
   push: () => void;
@@ -51,18 +53,24 @@ export interface P1Hooks {
 }
 
 export function startP1(h: P1Hooks) {
-  let working = false, again = false, lastPull = 0, lastTick = Date.now();
+  let hadRec = false, working = false, again = false, lastPull = 0, lastTick = Date.now();
   const myTodos = (): Doc<Todo>[] => docs<Todo>("todo").filter((d) => d.ws === null);
   const owner = () => { const s = vaultStore.get(); return s.status === "unlocked" && s.role === "owner" && s.userId !== "ps-overlay" && s.userId !== "dev"; };
   const sharing = () => !!h.rec() && feature(P1_FEATURE) && cleanShareOpts(settingsData(vaultStore.get()).squadShare).p1 === true;
 
   /** The clock on your own tasks (core/squadp1.ts p1Stamps). Runs after every change of your tasks. */
   async function reconcile() {
-    if (!owner() || !feature(P1_FEATURE)) return;
+    if (!owner()) return;
     if (working) { again = true; return; }
     working = true;
     try {
-      const stamps = p1Stamps(myTodos(), { active: sharing(), now: Date.now() });
+      // Opted out (switch off, feature off, or left the squad) takes every start off, so turning it on again starts a fresh 24 hours.
+      const inSquad = !!h.rec();
+      if (inSquad) hadRec = true;
+      const wants = feature(P1_FEATURE) && cleanShareOpts(settingsData(vaultStore.get()).squadShare).p1 === true;
+      const leftSquad = !inSquad && hadRec;
+      if (leftSquad) hadRec = false;
+      const stamps = p1Stamps(myTodos(), { active: wants && inSquad, opted: wants && (inSquad || !leftSquad), now: Date.now() });
       for (const x of stamps.slice(0, 60)) await updateTodo(x.id, { p1At: x.p1At });
     } catch { /* tried again at the next change */ }
     finally { working = false; if (again) { again = false; window.setTimeout(() => void reconcile(), 1500); } }
@@ -95,7 +103,7 @@ export function startP1(h: P1Hooks) {
     const quiet = held(now);
     if (seeing) {
       const v = h.view();
-      const plan = planMissedAlerts(v.p1 ?? [], { me: v.me, names: new Map(v.members.map((m) => [m.id, m.name])), now, since: getSince(), ledger, held: quiet });
+      const plan = planMissedAlerts(h.p1All(), { me: v.me, names: new Map(v.members.map((m) => [m.id, m.name])), now, since: getSince(), ledger, held: quiet });
       ledger = plan.ledger;
       show(plan.show, false, now);
     }

@@ -46,13 +46,12 @@ export const p1Answered = (opts: { p1?: unknown } | null | undefined): boolean =
 /** Does the person see the squad's P1 tasks in the side panel? (missing = on) */
 export const p1PanelOn = (featureOn: boolean, st: { squadP1Show?: boolean } | null | undefined): boolean => featureOn && st?.squadP1Show !== false;
 
-/** What to do about the P1 question for this person.
- *  keep: they already answered, nothing to do. on: a new person (first install), default yes, the setup answer.
- *  ask: someone who ran PS before: asked once, nothing is shared until they click. wait: not known yet, never act on a guess. */
-export function p1Default(updater: "done" | "open" | "unknown", opts: { p1?: unknown } | null | undefined): "keep" | "on" | "ask" | "wait" {
+/** What to do about the P1 question for this person. Everyone (new or existing) gets the same one question, once they are in a squad.
+ *  keep: they already answered. ask: ask now (the Yes/No card). wait: not in a squad yet, nothing shown.
+ *  No path decides a yes for anyone: the only code that saves p1 = true is the card's click (views/FeatureIntro.tsx CHOICES). */
+export function p1Default(inSquad: boolean, opts: { p1?: unknown } | null | undefined): "keep" | "ask" | "wait" {
   if (p1Answered(opts)) return "keep";
-  if (updater === "unknown") return "wait";
-  return updater === "done" ? "on" : "ask";
+  return inSquad ? "ask" : "wait";
 }
 
 // ---------- the 24 hour clock on your own tasks ----------
@@ -64,19 +63,29 @@ export function p1Clockable(t: Pick<Todo, "p1" | "type" | "sqOff" | "aiInbox">):
 /** What to write on your tasks so every P1 has its start time and no other task does:
  *  - a P1 you share with no start yet gets `now` (a task that was already P1 when this came in starts now, never in the past);
  *  - a start on a task that is no longer P1 (or is now hidden, daily or cleared) is taken off, whatever the settings say,
- *    so a later P1 never inherits an old clock.
- *  active: this person shares P1 (the feature is on and the switch is on); without it nothing is ever started. */
-export function p1Stamps(todos: Doc<Todo>[], o: { active: boolean; now: number }): { id: string; p1At: string | null }[] {
+ *    so a later P1 never inherits an old clock;
+ *  - a P1 that was done and then reopened starts a fresh clock (its done time is later than its start);
+ *  - while the person does not want P1 shared (`opted` false: the switch or the feature is off, or they left the squad) every
+ *    start is taken off, so switching it on again starts a fresh 24 hours and never an instant Missed for time spent opted out.
+ *  active: this person shares P1 now (opted, and in a squad); without it nothing is ever started.
+ *  opted: defaults to active. Pass opted true with active false for "wants it, squad not loaded yet": nothing is started or cleared. */
+export function p1Stamps(todos: Doc<Todo>[], o: { active: boolean; now: number; opted?: boolean }): { id: string; p1At: string | null }[] {
   const out: { id: string; p1At: string | null }[] = [];
   const nowIso = new Date(o.now).toISOString();
+  const opted = o.opted ?? o.active;
   for (const d of todos) {
     if (d.kind !== "todo" || !d.data) continue;
     const t = d.data;
-    const has = cleanStart(t.p1At, o.now) !== null;
+    const start = cleanStart(t.p1At, o.now);
     const keeps = live(d) && p1Clockable(t);
-    if (!keeps) { if (t.p1At) out.push({ id: d.id, p1At: null }); continue; }
-    if (!has && o.active) out.push({ id: d.id, p1At: nowIso });
-    else if (!has && t.p1At) out.push({ id: d.id, p1At: null });   // a start from the future or nonsense is dropped
+    if (!keeps || !opted) { if (t.p1At) out.push({ id: d.id, p1At: null }); continue; }
+    if (start && !t.done) {
+      const doneAt = ms(t.doneAt);
+      if (Number.isFinite(doneAt) && doneAt >= ms(start) && o.active) out.push({ id: d.id, p1At: nowIso });   // reopened
+      continue;
+    }
+    if (!start && o.active && !t.p1At) out.push({ id: d.id, p1At: nowIso });
+    else if (!start && t.p1At) out.push({ id: d.id, p1At: o.active ? nowIso : null });   // a start from the future or nonsense is replaced
   }
   return out;
 }
@@ -137,8 +146,10 @@ export function p1Rows(copies: { id: string; member: string; t: string; x: boole
     rows.push(row);
   }
   const rank = (r: P1Row, now: number) => (r.x ? 2 : now >= p1Deadline(r.s) ? 1 : 0);
-  return rows.sort((a, b) => rank(a, o.now) - rank(b, o.now) || p1Deadline(a.s) - p1Deadline(b.s) || a.id.localeCompare(b.id)).slice(0, P1_ROWS_MAX);
+  return rows.sort((a, b) => rank(a, o.now) - rank(b, o.now) || p1Deadline(a.s) - p1Deadline(b.s) || a.id.localeCompare(b.id));
 }
+/** The side panel shows the first few of all the rows. Alerts are always planned from ALL rows (p1Rows), never from this list. */
+export const p1Panel = (rows: P1Row[]): P1Row[] => rows.slice(0, P1_ROWS_MAX);
 
 export type P1State = { kind: "done" } | { kind: "open"; left: number } | { kind: "missed"; late: number };
 export function p1State(r: Pick<P1Row, "s" | "x">, now: number): P1State {

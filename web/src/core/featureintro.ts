@@ -71,8 +71,8 @@ export const INTROS: IntroDef[] = [
     settings: "Settings, WhatsApp settings, Link WhatsApp",
   },
   {
-    // PS 1.63 (the developer's friend, 15 Nov 2026): for people who ran PS before. A new person gets the answer at setup (views/FeatureIntro.tsx
-    // DONE_PROBES, core/squadp1.ts p1Default). Nothing of theirs is shared until they click Yes.
+    // PS 1.63 (the developer's friend, 15 Nov 2026): everyone gets this same question once they are in a squad (views/FeatureIntro.tsx
+    // DONE_PROBES, core/squadp1.ts p1Default). Nothing of theirs is shared until they click Yes. No button takes focus when it appears.
     id: "squad-p1",
     headline: "Priority 1 with your squad",
     ask: "Share your Priority 1 tasks with the squad?",

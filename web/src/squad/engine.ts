@@ -26,7 +26,7 @@ import { dirCardMessage, dirOpen, dirPulse, dirSync, runDirOp, startDir } from "
 import { autoAgain, autoGone, autoLeft, autoOpen, autoPulse, startAuto } from "./autoengine";
 import { hasCard } from "../core/squadauto";
 import { feature } from "../core/features";
-import { P1_FEATURE, p1Rows } from "../core/squadp1";
+import { P1_FEATURE, p1Panel, p1Rows, type P1Row } from "../core/squadp1";
 import { startP1 } from "./p1engine";
 import { aiError, listAis, registerAiCode, unlinkAi } from "./devlink";
 export { dirCardMessage };
@@ -76,12 +76,16 @@ export const squadStore = {
 /** The plain view for the Tab list (no keys, no ids from your vault except your own task ids for its menus). */
 export function squadView(): SquadView { return view; }
 function set(p: Partial<SquadView>) { view = { ...view, ...p }; emit(); }
+/** Every open or recent P1 of the squad from all the shared copies held (never cut to the panel's few rows). The alerts read this. */
+function p1All(): P1Row[] {
+  return feature(P1_FEATURE) && rec ? p1Rows([...tasks.values()], { me: rec.memberId, live: new Set([...members.values()].filter((m) => !m.left).map((m) => m.id)), now: Date.now() }) : [];
+}
 function rebuild() {
   set({
     members: [...members.values()].filter((m) => !m.left).sort((a, b) => Number(b.me) - Number(a.me) || Number(b.working) - Number(a.working) || a.name.localeCompare(b.name))
       .map((m) => ({ id: m.id, name: m.name, me: m.me, creator: m.creator, working: m.working })),
     tasks: [...tasks.values()].filter((t) => members.has(t.member) && !members.get(t.member)!.left).slice(0, 600),
-    p1: feature(P1_FEATURE) && rec ? p1Rows([...tasks.values()], { me: rec.memberId, live: new Set([...members.values()].filter((m) => !m.left).map((m) => m.id)), now: Date.now() }) : [],
+    p1: p1Panel(p1All()),
     hands: [...hands.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 100),
   });
 }
@@ -526,6 +530,6 @@ export function startSquad(post: ((m: object) => void) | null = null) {
     }
   });
   // PS 1.63 Priority 1 (squad/p1engine.ts): the 24 hour clock on your own P1 tasks, the side panel's data, the missed task cards.
-  startP1({ post, rec: () => rec, view: () => view, onPulled: (f) => { hooks.add({ pulled: f }); }, pull: () => void pull(), push: () => schedulePush(), isOpen: () => open });
+  startP1({ post, rec: () => rec, view: () => view, p1All, onPulled: (f) => { hooks.add({ pulled: f }); }, pull: () => void pull(), push: () => schedulePush(), isOpen: () => open });
   window.addEventListener("online", () => { void beat(); if (open) void pull(); schedulePush(); });
 }

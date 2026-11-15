@@ -77,15 +77,67 @@ ok("stamps: a start from the future or nonsense is replaced, never believed", ()
   assert.deepEqual(P.p1Stamps([todo("a", { p1: true, p1At: "junk" })], { active: false, now: NOW }), [{ id: "a", p1At: null }]);
 });
 
+ok("M1: opted out takes every start off, so turning it back on starts a fresh clock", () => {
+  const list = [todo("a", { p1: true, p1At: ago(30 * H) }), todo("b", { p1: true, p1At: ago(2 * H) })];
+  assert.deepEqual(P.p1Stamps(list, { active: false, now: NOW }), [{ id: "a", p1At: null }, { id: "b", p1At: null }], "switch or feature off");
+  const after = [todo("a", { p1: true }), todo("b", { p1: true })];   // what the tasks hold after that write
+  assert.deepEqual(P.p1Stamps(after, { active: true, now: NOW + 4 * H }), [{ id: "a", p1At: iso(NOW + 4 * H) }, { id: "b", p1At: iso(NOW + 4 * H) }]);
+  // the squad sees nothing missed: a fresh start is 4 hours old, nothing is past 24 hours, and the grace time holds it back
+  const c = P.p1Copies([todo("a", { p1: true, p1At: iso(NOW + 4 * H) })], { p1: true }, CLIENTS, NOW + 4 * H + 5 * MIN);
+  assert.deepEqual(c, [], "inside the grace time nothing is sealed");
+  assert.equal(P.p1State({ s: iso(NOW + 4 * H), x: false }, NOW + 5 * H).kind, "open");
+});
+ok("M1: wanted but the squad is not loaded yet changes nothing; leaving the squad clears", () => {
+  const list = [todo("a", { p1: true, p1At: ago(5 * H) }), todo("b", { p1: true })];
+  assert.deepEqual(P.p1Stamps(list, { active: false, opted: true, now: NOW }), [], "no wipe at startup");
+  assert.deepEqual(P.p1Stamps(list, { active: false, opted: false, now: NOW }), [{ id: "a", p1At: null }]);
+});
+ok("M1: hiding a task and showing it again, and the P1 piece off and on, restart the clock", () => {
+  assert.deepEqual(P.p1Stamps([todo("h", { p1: true, sqOff: true, p1At: ago(30 * H) })], { active: true, now: NOW }), [{ id: "h", p1At: null }]);
+  assert.deepEqual(P.p1Stamps([todo("h", { p1: true, sqOff: false })], { active: true, now: NOW }), [{ id: "h", p1At: iso(NOW) }]);
+  const w = src("squad/p1engine.ts");
+  assert.doesNotMatch(w, /if \(!owner\(\) \|\| !feature\(P1_FEATURE\)\) return;\n\s*if \(working\)/, "reconcile also runs while the feature is off");
+  assert.match(w, /opted: wants/);
+});
+ok("L2: a P1 that was done and then reopened starts a fresh clock", () => {
+  assert.deepEqual(P.p1Stamps([todo("a", { p1: true, p1At: ago(30 * H), done: false, doneAt: ago(2 * H) })], { active: true, now: NOW }), [{ id: "a", p1At: iso(NOW) }]);
+  assert.deepEqual(P.p1Stamps([todo("a", { p1: true, p1At: ago(3 * H), done: false, doneAt: ago(6 * H) })], { active: true, now: NOW }), [], "done before it became P1: nothing");
+  assert.deepEqual(P.p1Stamps([todo("a", { p1: true, p1At: ago(30 * H), done: true, doneAt: ago(2 * H) })], { active: true, now: NOW }), [], "still done: kept");
+});
+
 // ---------- the question and the default ----------
-ok("default: a saved yes or no is kept; a new person gets yes; an updater is asked; unknown waits", () => {
-  assert.equal(P.p1Default("done", { p1: false }), "keep");
-  assert.equal(P.p1Default("open", { p1: true }), "keep");
-  assert.equal(P.p1Default("done", {}), "on");
-  assert.equal(P.p1Default("done", undefined), "on");
-  assert.equal(P.p1Default("open", {}), "ask");
-  assert.equal(P.p1Default("unknown", {}), "wait");
-  assert.equal(P.p1Default("done", { p1: "yes" }), "on", "a non boolean is not an answer");
+ok("default: a saved yes or no is kept; everyone else is asked once in a squad, never given a yes; outside a squad it waits", () => {
+  assert.equal(P.p1Default(true, { p1: false }), "keep");
+  assert.equal(P.p1Default(false, { p1: true }), "keep");
+  assert.equal(P.p1Default(true, {}), "ask");
+  assert.equal(P.p1Default(true, undefined), "ask");
+  assert.equal(P.p1Default(true, { p1: "yes" }), "ask", "a non boolean is not an answer");
+  assert.equal(P.p1Default(false, {}), "wait");
+  for (const inSquad of [true, false]) for (const o of [undefined, {}, { p1: null }]) assert.notEqual(P.p1Default(inSquad, o) as string, "on", "no default ever says yes");
+});
+ok("H1: no code path saves the yes without the click handler", () => {
+  const f = src("views/FeatureIntro.tsx");
+  const probes = f.slice(f.indexOf("const DONE_PROBES"), f.indexOf("const CHOICES"));
+  assert.ok(probes.length > 100 && !/saveSettings|squadShare/.test(probes.replace(/\/\/.*$/gm, "").replace(/cleanShareOpts\(settingsData\(s\)\.squadShare\)/, "")), "the probe only reads");
+  assert.doesNotMatch(f, /p1: true/, "no literal yes in the intro host");
+  assert.equal((f.match(/p1: yes/g) || []).length, 1, "the one write is the click handler");
+  // every writer of the share switches in the whole app: the click handler, the squad's share op (a person's own switch click), nothing else
+  const files = ["squad/p1engine.ts", "squad/engine.ts", "squad/flows.ts", "core/squadshare.ts", "core/squadp1.ts", "core/featureintro.ts", "views/GSquadSettings.tsx", "views/SquadP1Switch.tsx", "views/SquadP1Panel.tsx"];
+  for (const p of files) {
+    const t = src(p).replace(/\/\/.*$/gm, "");
+    if (p === "squad/engine.ts") { assert.equal((t.match(/saveSettings\(\{ squadShare/g) || []).length, 1); assert.match(t, /squadShare: \{ \.\.\.share\(\), \[o\.piece\]: o\.on \}/); }
+    else assert.doesNotMatch(t, /saveSettings\(\{ squadShare/, p);
+    assert.doesNotMatch(t, /p1: true\s*\}?\s*\}\)/, p);
+  }
+  assert.doesNotMatch(src("core/squadp1.ts"), /return "on"|"on" \|/);
+});
+ok("M3: the Yes and No card takes no focus when it appears, so a stray Enter or Space answers nothing", () => {
+  const f = src("views/FeatureIntro.tsx");
+  assert.equal((f.match(/autoFocus/g) || []).length, 1);
+  assert.match(f, /autoFocus=\{!def\.choice\}/);
+  assert.ok(INTROS.find((x) => x.id === "squad-p1")!.choice === true);
+  assert.doesNotMatch(f.replace(/\/\/.*$/gm, ""), /\.focus\(\)/);
+  assert.doesNotMatch(f, /e\.key === "Enter"|key === " "/, "no key answers the card");
 });
 ok("until answered nothing of theirs is shared (off unless an explicit yes)", () => {
   for (const v of [undefined, null, {}, { p1: null }, { p1: "yes" }, { p1: 1 }, { p1: false }]) assert.equal(shareOn(cleanShareOpts(v), "p1"), false, JSON.stringify(v));
@@ -102,7 +154,6 @@ ok("the question is an intro with Yes and No, once; the new person path and the 
   assert.ok(d && d.choice === true && d.ask === "Share your Priority 1 tasks with the squad?" && d.show === "Yes" && d.later === "No");
   const f = src("views/FeatureIntro.tsx");
   assert.match(f, /"squad-p1": async/);
-  assert.match(f, /if \(todo === "on"\) \{ await saveSettings\(\{ squadShare: \{ \.\.\.opts, p1: true \} \}\); return "done"; \}/);
   assert.match(f, /CHOICES: Record<string/);
   assert.match(f, /finish\("show", false\)/);
   assert.match(src("core/features.ts") + src("../../features.json"), /squad-p1/);
@@ -207,7 +258,8 @@ ok("rows: open first by time left, then missed, then done; old missed and old do
 });
 ok("rows: at most 8", () => {
   const many = Array.from({ length: 20 }, (_, i) => copy("r" + i, "m2", { s: ago((i + 1) * 30 * MIN) }));
-  assert.equal(P.p1Rows(many, { me: "me", live: LIVE, now: NOW }).length, 8);
+  assert.equal(P.p1Panel(P.p1Rows(many, { me: "me", live: LIVE, now: NOW })).length, 8);
+  assert.equal(P.p1Rows(many, { me: "me", live: LIVE, now: NOW }).length, 20, "the full list is not cut");
 });
 ok("first name", () => { assert.equal(P.firstName("Kit Doe"), "Kit"); assert.equal(P.firstName("  "), "Someone"); assert.equal(P.firstName(null), "Someone"); assert.equal(P.firstName("Mo"), "Mo"); });
 ok("the panel is hidden when the feature or the Show switch is off", () => {
@@ -280,6 +332,35 @@ ok("alert cards are muted like G Squad messages by Do Not Disturb", () => {
   assert.equal(cardKind("sp:abc"), "gsquad");
   assert.match(src("squad/p1engine.ts"), /dndMutes\(st\.dnd, "gsquad"/);
   assert.match(src("squad/p1engine.ts"), /sleepState\(\)\.here \|\| sentryNow\(\)/);
+});
+
+ok("M2: missed alerts come from ALL copies, not the panel's 8 rows", () => {
+  // 10 open P1s of one member rank first; the missed P1 of another member would be row 11 and is cut from the panel
+  const copies = [...Array.from({ length: 10 }, (_, i) => copy("open" + i, "m2", { s: ago((i + 1) * 30 * MIN) })), copy("late", "m3", { s: ago(25 * H) })];
+  const all = P.p1Rows(copies, { me: "me", live: LIVE, now: NOW });
+  assert.equal(all.length, 11);
+  const panel = P.p1Panel(all);
+  assert.equal(panel.length, 8);
+  assert.ok(!panel.some((r) => r.id === "late"), "cut from the panel");
+  assert.deepEqual(P.planMissedAlerts(panel, inp()).show, [], "the old way: no card");
+  const plan = P.planMissedAlerts(all, inp());
+  assert.equal(plan.show.length, 1);
+  assert.equal(plan.show[0].title, "Ari did not complete their task");
+  const w = src("squad/p1engine.ts");
+  assert.match(w, /planMissedAlerts\(h\.p1All\(\)/);
+  assert.doesNotMatch(w, /planMissedAlerts\(v\.p1/);
+  assert.match(src("squad/engine.ts"), /p1: p1Panel\(p1All\(\)\)/);
+});
+ok("M2: more than 8 missed at once still show at most 3 cards, once each", () => {
+  const copies = Array.from({ length: 12 }, (_, i) => copy("m" + i, i % 2 ? "m2" : "m3", { s: ago(25 * H + i * MIN) }));
+  const all = P.p1Rows(copies, { me: "me", live: LIVE, now: NOW });
+  const a = P.planMissedAlerts(all, inp());
+  assert.equal(a.show.length, 3);
+  assert.equal(a.skipped.filter((x) => x.why === "capped").length, 9, "the rest are skipped, not repeated");
+  assert.equal(P.planMissedAlerts(all, inp({ ledger: a.ledger })).show.length, 0, "once each");
+});
+ok("L1: the Priority 1 switch row is hidden while the feature is off", () => {
+  assert.match(src("views/GSquadSettings.tsx"), /p\.id !== "p1" \|\| feature\(P1_FEATURE\)/);
 });
 
 // ---------- wiring ----------
