@@ -31,7 +31,7 @@ import { addDraft, addGate, addShape, cleanTitle, enterAction, quickDefaults, re
 import { typedEdit, typedOrder } from "../core/typedprio";
 import { PrioInput, useTypedPrio } from "./TypedPrio";
 import { addTodo, approveSuggestion, awareDone, awareToList, awareUndone, suggestionToAware, suggestionToDimx, resetTodos, deleteTodo, dismissSuggestion, saveSettings, setReplyHandled, setTodoOrder, setWorkingOn, subtaskOp, toggleTodo, setTodoDone, setTodosDone, clearTodos, reviveTodos, buryTodos, restoreTodo, updateTodo, moveTasks, ungroupTasks, setDnd, setJournal } from "../core/actions";
-import { accepts, cleanGroups, groupKey, mergeOrder, newGroupId, sectionOrder, tabLists, type TabLists, type TaskMove } from "../core/groups";
+import { accepts, cleanGroups, dropAbovePrioIsP1, groupKey, hitSection, mergeOrder, newGroupId, sectionOrder, tabLists, type TabLists, type TaskMove } from "../core/groups";
 import { fmtDate, todayISO, useVault } from "../ui/kit";
 import { GSquadButton, GSquadHost } from "./GSquad";
 import { isPhoneBuild } from "../squad/phonehost";
@@ -49,6 +49,7 @@ import { isRedAccount } from "../core/account";
 import { mailOnSnap } from "../core/mailsnap";
 import { MAIL_EMPTY_WORDS, mailPanelShows } from "../core/mailempty";
 import { useGmailKnown } from "./gmailknown";
+import { CopyForAiButton } from "./CopyForAi";
 import { waOnSnap } from "../core/wasnap";
 import { WaMail } from "./WaMail";
 import { PhoneTilesHost } from "../gos/PhonePages";
@@ -2808,7 +2809,9 @@ function Section({ skey, kind, title, list, working, today, numbered, editing, o
     onDrop: () => sfx.drop(),
     onMove: (x, y, id) => {
       const r = el.current?.querySelector<HTMLElement>(":scope > .tm-list > .tm-row[data-dragging]");
-      crossHint(el.current, x, y, skey, [byId.get(id)?.data.type ?? "once"], r ? r.offsetHeight + 10 : 60);
+      const t = crossHint(el.current, x, y, skey, [byId.get(id)?.data.type ?? "once"], r ? r.offsetHeight + 10 : 60);
+      const root = el.current?.closest(".tm-overlay");
+      if (!t && kind === "prio" && root && aboveIsP1(root, lists.p1.length, x, y)) hintP1(true, r ? r.offsetHeight + 10 : 60);
       listDragHint(x, y);   // V1.55: a dot or an edge takes it to another list (views/ListPager.tsx)
     },
     onEnd: (e: DragEnd) => {
@@ -2817,6 +2820,8 @@ function Section({ skey, kind, title, list, working, today, numbered, editing, o
       if (to) { crossHint(el.current, e.x, e.y, skey, [], 0, true); moveToList([e.id], to.page); return; }
       const t = crossHint(el.current, e.x, e.y, skey, [byId.get(e.id)?.data.type ?? "once"], 0, true);
       if (t) { void taskMapActions.moveTasks({ ids: [e.id], to: t.key, index: t.index }); return; }
+      const root = el.current?.closest(".tm-overlay");
+      if (kind === "prio" && root && aboveIsP1(root, lists.p1.length, e.x, e.y)) { hintP1(false); void taskMapActions.moveTasks({ ids: [e.id], to: "p1", index: lists.p1.length }); return; }
       if (!e.moved) return;
       if (kind === "p1") void taskMapActions.reorder([...e.next, ...lists.prio.map((d) => d.id)]);
       else if (kind === "prio") {
@@ -2916,14 +2921,21 @@ const tabNow: { full: string[]; shown: string[] } = { full: [], shown: [] };
 let renameNext: string | null = null;
 
 type DropAt = { key: string; list: HTMLElement; index: number };
-const sectionEls = (root: Element) => [...root.querySelectorAll<HTMLElement>(".tm-inner > .tm-sec[data-key]")];
+const sectionEls = (root: Element) => [...root.querySelectorAll<HTMLElement>(".tm-inner .tm-sec[data-key]")].filter((el) => sectionOnShownPage(el));
+/** Only the page on show counts: the pages beside it are drawn too (inert, tl-near), and a section is not a direct child of the list box. */
+const sectionOnShownPage = (el: Element) => !el.closest(".tl-near");
+const boxOf = (el: HTMLElement) => { const r = el.getBoundingClientRect(); return { key: el.dataset.key!, left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
 /** The section under the pointer (with a little room either side), if any. */
 function sectionAt(root: Element, x: number, y: number) {
-  for (const el of sectionEls(root)) {
-    const r = el.getBoundingClientRect();
-    if (x >= r.left - 40 && x <= r.right + 40 && y >= r.top && y <= r.bottom) return el;
-  }
-  return null;
+  const els = sectionEls(root);
+  const key = hitSection(els.map(boxOf), x, y);
+  return els.find((el) => el.dataset.key === key) ?? null;
+}
+/** Priorities let go above its own section, Priority 1 being there: the drop is Priority 1 (core/groups.ts). */
+function aboveIsP1(root: Element, p1Count: number, x: number, y: number) {
+  const find = (k: string) => sectionEls(root).find((el) => el.dataset.key === k);
+  const a = find("prio"), b = find("p1");
+  return dropAbovePrioIsP1(p1Count, a ? boxOf(a) : null, b ? boxOf(b) : null, x, y);
 }
 /** Where among a list's rows y falls (layout positions, so rows already moving aside don't count). */
 function rowIndex(list: HTMLElement, y: number) {
@@ -3618,6 +3630,7 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
           <span className="tm-mail-p">{MAIL_EMPTY_WORDS.connect}</span>
           <span className="tm-mail-a">
             <button type="button" className="tm-meet-j tm-mail-reply" onClick={() => { sfx.click(); openSettings("notify", { jump: "client-emails" }); }}>{MAIL_EMPTY_WORDS.button}</button>
+            <CopyForAiButton className="tm-meet-j tm-mail-copy" />
           </span>
         </div>
       ) : <span className="tm-mail-p tm-mail-none">{MAIL_EMPTY_WORDS.none}</span>}

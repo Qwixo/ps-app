@@ -148,7 +148,9 @@ ok("the panel shows in the Tab list with the connect prompt, and Connect Gmail o
   assert.match(file("src/core/settingsindex.ts"), /\{ id: "client-emails", group: "notify", /, "the jump lands on a real row");
   assert.match(file("src/views/SettingsGroups.tsx"), /"client-emails": block\(\(\) => <ClientEmailsSettings compact \/>\)/);
   const ce = file("src/views/ClientEmailsSettings.tsx");
-  assert.match(ce, /<details className="stack tight" open=\{gmail === false \|\| \(!compact && !on\)\}>/, "the connect guide is open while no Gmail is connected");
+  assert.match(ce, /<CopyForAiButton className="btn" \/>/, "the one Copy for your AI button leads the section");
+  assert.match(ce, /<details className="stack tight ce-hand">/, "the old step guide is closed behind one small link");
+  assert.match(ce, /\{AI_COPY_WORDS\.hand\}/);
   const hook = file("src/views/gmailknown.ts");
   assert.match(hook, /sb\.rpc\("gmail_status"\)/, "the same check as Settings, Gmail replies");
   assert.match(hook, /const KEEP_MS = 10 \* 60_000;/, "asked once per 10 minutes at most (egress)");
