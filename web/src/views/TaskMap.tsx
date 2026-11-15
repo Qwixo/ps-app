@@ -44,6 +44,7 @@ import { agoText, calLine, calStatus, type CalStatus } from "../core/calstatus";
 import { onRedProject } from "../core/project";
 import { CAL_WORDS, calMode, localLine } from "../core/localcal";
 import { applyMeetHide, meetKey, visibleEvents, MEET_HIDE, type MeetHideOp } from "../core/meethide";
+import { meetingEvents } from "../core/calpick";
 import { ackGym } from "../core/gym";
 import { isRedAccount } from "../core/account";
 import { mailOnSnap } from "../core/mailsnap";
@@ -116,6 +117,7 @@ import { BriefButton } from "./BriefTab";
 import { CampaignStats } from "./CampaignStats";
 import { MacUpdateDot } from "./MacUpdate";
 import { setCalendarOn } from "./CalSwitch";
+import { CalGear } from "./CalPicker";
 import { useMacUpdate } from "../macupdate";
 import { macUpdateBadge } from "../core/macupdate";
 import { NetButton } from "./NetMonitor";
@@ -1046,8 +1048,9 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
   // panel is everyone's (7 Nov 2026): the developer's from his Google calendar, anyone else's from their Mac's Calendar.
   const red = isRedAccount(s);
   const meet = useMemo(() => upcoming(s), [s]);
+  const meetReal = useMemo(() => upcoming(s, meetingEvents(calendarSnap(s)?.data.events ?? [], settingsData(s).calChoices)), [s]);   // only calendars set to Meetings (core/calpick.ts)
   // V1.56 Edit overview sounds (core/editsounds.ts): on unless switched off, quiet under Do Not Disturb and in a meeting.
-  setEditSoundCtx({ on: editSoundsOn(st), dndMutesSounds: dndMutes(st.dnd, "sounds", Date.now(), PS ? "mac" : "web"), meetingNow: meetingNow(meet) });
+  setEditSoundCtx({ on: editSoundsOn(st), dndMutesSounds: dndMutes(st.dnd, "sounds", Date.now(), PS ? "mac" : "web"), meetingNow: meetingNow(meetReal) });
   // V1.55: the Mac Calendar's accounts, for a Meetings panel that shows only one (views/EditMode.tsx CalMenu).
   useEffect(() => { if (!red) setMacAccounts(calendarSnap(s)?.data); }, [s, red]);
   // Edit mode (views/EditMode.tsx, G Squad): only the floating list, never the website's To-do page or the phone.
@@ -1346,7 +1349,7 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
       <SettingsHost st={st} gen={gen} owner={docked ? "docked" : "tab"} />
       {!docked && PS && <SecurityWindow s={s} />}
       {/* Minecraft mode is switched off for now (core/mcmode.ts MINECRAFT_ENABLED): no pop up, no bubble, no hook. */}
-      {MINECRAFT_ENABLED && !docked && PS && <MinecraftWindow dnd={st.dnd} events={calendarSnap(s)?.data.events} />}
+      {MINECRAFT_ENABLED && !docked && PS && <MinecraftWindow dnd={st.dnd} events={meetingEvents(calendarSnap(s)?.data.events ?? [], st.calChoices)} />}
       {!docked && <RuleBookHost owner="tab" />}
       {goalsOpen && <GoalsWindow goals={st.goals || []} onSave={(list) => void taskMapActions.goals(list)} onClose={() => setGoalsOpen(false)} />}
       {!docked && (<Slot id="glass">
@@ -3785,9 +3788,10 @@ function MeetingsPeek({ list: usual, notes, standing, privateOn, calAt, local, w
   return (
     <>
       <aside className="tm-meet" aria-label="Upcoming meetings" onMouseDown={(e) => e.stopPropagation()}>
-        <span className="tm-meet-h">Coming up{soon > 0 && <em> · {soon} in the next 24 hours</em>}</span>
+        <span className={`tm-meet-h${local ? " has-pick" : ""}`}>Coming up{soon > 0 && <em> · {soon} in the next 24 hours</em>}</span>
         {/* The three buttons top right can be dragged out to be buttons of their own (Edit mode overview, V1.55). */}
         {!(web && local) && <Inner kind="calrefresh"><CalRefresh local={local} /></Inner>}
+        {local && <CalGear solo={!!web} />}   {/* choose which calendars PS works with: lands on Settings, Calendars (core/calpick.ts) */}
         <Inner kind="privacy"><PrivateMask on={privateOn} /></Inner>
         {cal.kind === "google" ? <FeedUpdated feed={cal.feed} copyAt={own?.at ?? null} />
           : local ? <LocalCalUpdated copyAt={calAt} web={web} only={cal.kind === "mac" ? cal.account : undefined} /> : <CalUpdated copyAt={calAt} />}

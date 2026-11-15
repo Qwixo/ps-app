@@ -20,6 +20,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentTy
 import { createPortal } from "react-dom";
 import { useVault } from "../ui/kit";
 import { calendarSnap, phoneLayout, settingsData } from "../core/select";
+import { meetingEvents } from "../core/calpick";
 import { savePhoneLayout } from "../core/actions";
 import {
   COLS, HOME, addPage, addTile, cellAt, cellBox, cellsFor, defaultPhoneLayout, moveTile, orderPages, removeTile, renamePage,
@@ -160,7 +161,7 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
   // ---------- sounds: the shared tones, quiet on silent; the list's own clicks too while the phone is silent ----------
   const vol = st ? (st.tmMuted ? 0 : (st.tmSound ?? TM_SOUND_DEFAULT)) / 100 : 0;
   const gate = useMemo(() => {
-    const events = s.status === "unlocked" ? calendarSnap(s)?.data.events ?? [] : [];
+    const events = s.status === "unlocked" ? meetingEvents(calendarSnap(s)?.data.events ?? [], settingsData(s).calChoices) : [];
     const meets = events.filter((e) => e.start && e.end && !e.allDay).map((e) => ({ start: Date.parse(e.start!), end: Date.parse(e.end!) }));
     return { on: editSoundsOn(st), volume: vol, dndMutesSounds: !!st && dndMutes(st.dnd, "sounds", Date.now(), "phone"), meetingNow: meetingNow(meets) };
   }, [s, st, vol]);

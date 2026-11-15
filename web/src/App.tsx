@@ -43,6 +43,7 @@ import { MWEB } from "./gos/bridge";
 import { AppMark } from "./mobile/mark";
 import { MOBILE_APP_NAME } from "./core/appname";
 import { mainCalendar } from "./core/calfeeds";
+import { shownEvents } from "./core/calpick";
 import { MailCardsWeb } from "./views/MailCards";
 import { SquadNoteCards } from "./views/SquadNoteCards";
 import { ReplyWindow, startReplyWindow } from "./views/ReplyWindow";
@@ -452,7 +453,7 @@ function OwnerShell() {
           // Notes for a meeting (the pop-up and the Meetings panel), by event id or title and start time.
           const cal = mainCalendar(docs<CalendarSnap>("calendar"));   // the usual calendar (core/calfeeds.ts)
           const st = settingsData(vaultStore.get());
-          const r = applyNotesOp(o, cal?.data.events || [], st.meetingNotes || [], st.standingNotes || [], () => crypto.randomUUID());
+          const r = applyNotesOp(o, shownEvents(cal?.data.events || [], st.calChoices), st.meetingNotes || [], st.standingNotes || [], () => crypto.randomUUID());
           if (!r) throw new Error("Meeting not in the calendar yet");   // the package waits in the inbox and tries again
           await saveSettings({ meetingNotes: r.meetingNotes, standingNotes: r.standingNotes });
           done++;

@@ -29,6 +29,7 @@ import { GlobeAdd, ZoneAdd, useZones } from "./TzZones";
 import { doc } from "../core/vault";
 import { useInst, useInstSave, useShownHere } from "./EditMode";
 import { calendarDocs, remindRec, settingsData, todos } from "../core/select";
+import { meetingEvents } from "../core/calpick";
 import { FREE_LENGTHS, FREE_LEN_DEF, calendarCovers, checkFree, clashName, eventBlocks, lenShort, lenWords, taskBlocks, type Busy, type FreeLen } from "../core/tzfree";
 import type { PersonEntry } from "../core/tzpeople";
 import "./tz.css";
@@ -1051,7 +1052,7 @@ function FreeCheck({ start, home }: { start: number; home: string }) {
     const cals = calendarDocs(s);
     const set = settingsData(s);
     return {
-      meetings: eventBlocks(cals.flatMap((d) => d.data.events || []), home, set.meetHidden),
+      meetings: eventBlocks(meetingEvents(cals.flatMap((d) => d.data.events || []), set.calChoices), home, set.meetHidden),   // Show only calendars are not busy (core/calpick.ts)
       ranges: cals.map((d) => ({ from: d.data.from, to: d.data.to })),
       tasks: todos(s).map((d) => ({ id: d.id, title: d.data.title, due: d.data.due, done: d.data.done, clearedAt: d.data.clearedAt })),
       reminders: remindRec(s)?.list ?? [],

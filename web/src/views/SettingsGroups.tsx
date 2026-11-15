@@ -42,6 +42,7 @@ import { AiNotesChoice } from "./AiMessage";
 import { AutoApproveSettings } from "./AutoApprove";
 import { MeetPrefsPanel } from "./MeetPrefs";
 import { CalSwitch } from "./CalSwitch";
+import { CalPicker } from "./CalPicker";
 import { RemindSettings, RemTestCard } from "./RemindSettings";
 import { TelegramBotSettings } from "./TelegramBot";
 import { TaskApiSettings } from "./TaskApi";
@@ -235,6 +236,7 @@ export const CONTROLS: Controls = {
   "card-looks": block(() => <NotifyPage />, false),
   "meetings": block(() => <div className="gs-meet"><MeetPrefsPanel /></div>, false),
   "calendar": row(() => <CalSwitch />),
+  "calendars": block(() => <CalPicker />),
   // V1.46: the daily reminder lives in Annoying 15 min reminder now (reminder one); this row takes you there.
   "daily-reminder": function Daily({ e }) {
     return <SetRow e={e} right={<button type="button" className="gs-open" onClick={() => { sfx.click(); openSettings("remind", { jump: "reminders" }); }}>Open

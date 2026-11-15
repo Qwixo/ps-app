@@ -4,6 +4,7 @@
 import { vaultStore } from "./core/vault";
 import { calendarSnap, settingsData } from "./core/select";
 import { visibleEvents } from "./core/meethide";
+import { meetingEvents } from "./core/calpick";
 import { psStatus } from "./core/psstatus";
 
 let last = "";
@@ -14,7 +15,7 @@ export function startPsStatus(post: (m: object) => void) {
     const open = s.status === "unlocked" && s.role === "owner";
     const state = psStatus({
       open, online: s.online, lastSync: s.lastSync, pending: s.pendingCount, syncError: s.syncError,
-      events: open ? visibleEvents(calendarSnap(s)?.data.events ?? [], settingsData(s).meetHidden) : [], privateMode: open && settingsData(s).privateMode === true, now: Date.now(),
+      events: open ? visibleEvents(meetingEvents(calendarSnap(s)?.data.events ?? [], settingsData(s).calChoices), settingsData(s).meetHidden) : [], privateMode: open && settingsData(s).privateMode === true, now: Date.now(),
     });
     const json = JSON.stringify(state);
     if (json === last) return;

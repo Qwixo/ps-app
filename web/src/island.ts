@@ -12,6 +12,7 @@ import { islandMailOk } from "./core/mailopen";
 import { cleanLayout } from "./core/tablayout";
 import { islandMeetings } from "./core/islandaway";
 import { visibleEvents } from "./core/meethide";
+import { meetingEvents } from "./core/calpick";
 import { saveSettings, toggleTodo } from "./core/actions";
 import { workingIdsOf, type Doc, type Reply, type Todo } from "./core/model";
 import { mailCards } from "./core/mailcards";
@@ -89,7 +90,8 @@ function sync(force = false) {
   // V1.58: the meetings for "Disappear for this meeting" (core/islandaway.ts): the Meetings panel's own calendar copy,
   // the meetings taken off the panel left out. Only ids and times.
   const cal = calendarSnap(s);
-  const meets = islandMeetings(visibleEvents(cal ? cal.data.events : [], st.meetHidden), now);
+  const meetEv = meetingEvents(cal ? cal.data.events : [], st.calChoices);   // only calendars set to Meetings (core/calpick.ts)
+  const meets = islandMeetings(visibleEvents(meetEv, st.meetHidden), now);
   // Pomodoro (V1.58, core/pomodoro.ts): the run with wall clock end times, so the island counts down by itself (ps-mac
   // IslandPomo.swift). Sent with the island off too: the Mac then says it with a pop-up. Sound: the setting, then Do Not Disturb.
   const soundOk = !dndMutes(st.dnd, "sounds", now);
@@ -99,7 +101,7 @@ function sync(force = false) {
   const breaks = breakWindows(run, pp, now);
   const stand = standIsland(standPrefs(st.standup), now, soundOk, (at) => breaks.some(([a, b]) => at >= a && at < b), standTest, standAskDue(st));
   // The next meeting bubble (core/meetbubble.ts): the meetings the Meetings panel already has.
-  const meet = meetIsland(cal?.data.events, st.meetHidden, meetBubblePrefs(st.meetBubble), now, !!st.privateMode);
+  const meet = meetIsland(meetEv, st.meetHidden, meetBubblePrefs(st.meetBubble), now, !!st.privateMode);
   // PS 1.60: Welcome back (the tasks being worked on) and the workout summary waiting for this Mac, each only with its
   // feature and switch on. The workout's mark is saved on the workout when the Mac says it showed it (islandMessage).
   const welcome = feature("welcome-back") ? welcomeIsland(todos(s) as Doc<Todo>[], st, !!st.privateMode) : null;

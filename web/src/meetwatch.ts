@@ -16,6 +16,7 @@ import { homeTz, setHomeTz, tzLabel } from "./core/tz";
 import { isMeeting } from "./core/notescard";
 import { dndMutes } from "./core/dnd";
 import { visibleEvents } from "./core/meethide";
+import { meetingEvents } from "./core/calpick";
 import { notePref, noteSoundName } from "./core/notelook";
 import { afkMeetWindows, sameWindows, type MeetWindow } from "./core/afkmeet";
 import { askScreenRec, screenRecNow } from "./screenrec";
@@ -140,7 +141,8 @@ export function startMeetAlerts(post: Post) {
     const docs = [...s.docs.values()];
     const cal = docs.filter((d) => d.kind === "calendar").sort((a, b) => ((b.data as CalendarSnap).at || "").localeCompare((a.data as CalendarSnap).at || ""))[0];
     // Meetings the developer took off the Meetings panel stay quiet here too (core/meethide.ts).
-    const calEvents = visibleEvents(cal ? (cal.data as CalendarSnap).events : [], st.meetHidden);
+    // Only calendars set to Meetings count (core/calpick.ts): Show only and Off ones ring no alert, ask no private mode question.
+    const calEvents = meetingEvents(visibleEvents(cal ? (cal.data as CalendarSnap).events : [], st.meetHidden), st.calChoices);
     const prefs = meetPrefs(st);
     const home = homeTz();
     const r = meetAlerts({
@@ -176,11 +178,11 @@ export function startMeetAlerts(post: Post) {
     if (rec) post(rec);
     // "Are you sure" mode (Sources/AreYouSure.swift) is off while a real meeting (people or a video link) is on.
     const now = Date.now();
-    const real = (cal ? (cal.data as CalendarSnap).events : []).some((e) => isMeeting(e) && Date.parse(e.start!) <= now && Date.parse(e.end!) > now);
+    const real = meetingEvents(cal ? (cal.data as CalendarSnap).events : [], st.calChoices).some((e) => isMeeting(e) && Date.parse(e.start!) <= now && Date.parse(e.end!) > now);
     if (real !== wasRealMeeting) { wasRealMeeting = real; post({ type: "aysMeeting", on: real }); }
     // The AFK timer stays off during meetings (core/afkmeet.ts): the Mac gets each meeting's time, a few minutes
     // either side, and checks it with its own clock (Sources/MeetingTime.swift). Hidden meetings are left out.
-    const windows = afkMeetWindows(cal ? (cal.data as CalendarSnap).events : [], st.meetHidden, now);
+    const windows = afkMeetWindows(meetingEvents(cal ? (cal.data as CalendarSnap).events : [], st.calChoices), st.meetHidden, now);
     if (!sameWindows(sentWindows, windows)) { sentWindows = windows; post({ type: "afkMeetings", windows }); }
     const vol = st.tmMuted || dndMutes(st.dnd, "sounds", Date.now(), DEVICE) ? 0 : (st.tmSound ?? 40) / 100;
     // Settings, Notifications (core/notelook.ts, V1.36): meeting sounds off, or one sound for every meeting card;

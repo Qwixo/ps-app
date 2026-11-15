@@ -63,7 +63,7 @@ ok("the page asks for them by name (PS plays its own copy), honouring the switch
   const sfx = src("ui/sfx.ts");
   assert.match(sfx, /if \(!editSoundOk\(\{ \.\.\.editCtx, on: editCtx\.on \|\| preview, volume \}\)\) return;\n  if \(viaApp\(name\)\) return;/);
   const tm = src("views/TaskMap.tsx");
-  assert.match(tm, /setEditSoundCtx\(\{ on: editSoundsOn\(st\), dndMutesSounds: dndMutes\(st\.dnd, "sounds", Date\.now\(\), PS \? "mac" : "web"\), meetingNow: meetingNow\(meet\) \}\);/);
+  assert.match(tm, /setEditSoundCtx\(\{ on: editSoundsOn\(st\), dndMutesSounds: dndMutes\(st\.dnd, "sounds", Date\.now\(\), PS \? "mac" : "web"\), meetingNow: meetingNow\(meetReal\) \}\);/);
   // Where they play.
   const em = src("views/EditMode.tsx");
   for (const name of EDIT_SOUND_NAMES) assert.match(em, new RegExp(`editSfx\\("${name}"`), name);

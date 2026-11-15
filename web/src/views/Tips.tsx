@@ -36,6 +36,7 @@ import { sentryUp } from "./Sentry";
 import { editingNow } from "./EditMode";
 import { taskMapActions } from "./TaskMap";
 import type { CalendarSnap } from "../core/model";
+import { meetingEvents } from "../core/calpick";
 import "./tips.css";
 
 // ---------- small live facts ----------
@@ -184,7 +185,7 @@ export function TipsHost() {
         typing,
         screenOpen: screen,
         setupOpen: setup,
-        inMeeting: !!st && afkMeetWindows(cal ? (cal.data as CalendarSnap).events : [], st.meetHidden, now).some(([a, b]) => now >= a && now < b),
+        inMeeting: !!st && afkMeetWindows(meetingEvents(cal ? (cal.data as CalendarSnap).events : [], st.calChoices), st.meetHidden, now).some(([a, b]) => now >= a && now < b),
         sleepMode: sleepState().here,
         sentry: sentryUp(),
         dnd: !!st && dndActive(st.dnd, now),
