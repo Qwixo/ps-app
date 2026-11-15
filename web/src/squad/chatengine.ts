@@ -71,7 +71,7 @@ function gifSetup(cur: ChatSession) {
   gifApiNow = gifApi({ member: cur.rec.memberId, priv: cur.rec.sign.priv });
   let mem: string | null = null;
   try { mem = localStorage.getItem(GIF_MEM); } catch { /* storage off: ask */ }
-  gifOn = gifMemory(mem, Date.now());
+  gifOn = feature(GIF_FEATURE) ? gifMemory(mem, Date.now()) : false;   // the feature off means no GIF calls at all
   if (gifOn !== null || !feature(GIF_FEATURE)) return;
   const api = gifApiNow;
   void api.status().then((on) => {

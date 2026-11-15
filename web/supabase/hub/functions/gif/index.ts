@@ -60,7 +60,8 @@ async function handle(body: Record<string, unknown>) {
       // Rate limit: each ask leaves a marker row in squad_nonces (tidied by the other functions after 10 minutes).
       const since = new Date(Date.now() - 60_000).toISOString();
       const recent = await db.from("squad_nonces").select("nonce", { count: "exact", head: true }).eq("member_key", key).like("nonce", "gif-%").gt("at", since);
-      if (!allowed(recent.count ?? 0)) throw new Fail(429, "slow");
+      // A count that failed is treated as over the limit (never fail open: a beta GIPHY key has a small hourly limit).
+      if (recent.error || typeof recent.count !== "number" || !allowed(recent.count)) throw new Fail(429, "slow");
       await db.from("squad_nonces").insert({ member_key: key, nonce: `gif-${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}` });
       const ck = `${String(args.q ?? "")}|${String(args.pos ?? 0)}`;
       const hit = cache.get(ck);
