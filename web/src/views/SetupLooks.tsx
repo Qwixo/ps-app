@@ -9,6 +9,7 @@
 import { useState, type CSSProperties } from "react";
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
+import { LOOKS_PREVIEW_MS } from "../core/lookspreview";
 import { settingsData } from "../core/select";
 import { bgDesign } from "../core/prio";
 import { colourBgCss } from "../core/bgcolour";
@@ -22,8 +23,8 @@ import "../looks/peek.css";
 
 const W = SETUP_LOOKS_WORDS;
 const save = (patch: Parameters<typeof taskMapActions.looks>[0]) => void taskMapActions.looks(patch);
-/** A tile's Preview here: the list behind shows it for 2 seconds, then goes back. */
-const preview: Preview = (_label, set, clear) => { set(); window.setTimeout(clear, 2000); };
+/** A tile's Preview here: the list behind shows it for 5 seconds (LOOKS_PREVIEW_MS), then goes back. */
+const preview: Preview = (_label, set, clear) => { set(); window.setTimeout(clear, LOOKS_PREVIEW_MS); };
 
 /** The page of the step (its Done button is SetupLooksDoneButton, in the menu's footer). */
 export function SetupLooks() {

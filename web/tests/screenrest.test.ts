@@ -13,7 +13,7 @@ ok("Settings puts the moving looks to rest while it is up and while it shrinks a
   assert.equal(settingsRests("closing", false), true);
   assert.equal(settingsRests("closed", false), false);
 });
-ok("a Looks preview shows the list as it really is: the looks move again for those 2 seconds", () => {
+ok("a Looks preview shows the list as it really is: the looks move again for those 5 seconds", () => {
   assert.equal(settingsRests("open", true), false);
 });
 ok("the looks wake only when the last screen has gone (one closing never wakes them under another)", () => {

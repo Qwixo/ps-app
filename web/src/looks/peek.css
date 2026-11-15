@@ -1,34 +1,6 @@
-/* Looks preview highlight (V1.40, looks/peek.ts). While a preview runs <html data-pv="<part>"> is set: the part that
-   changes stays at full strength and everything that does not change steps back, so it is clear what you are seeing.
-   Looks, accent, text and spacing change everything, so nothing steps back for those. */
-.tm-overlay .tm-side, .tm-overlay .tm-tr, .tm-overlay .tm-head, .tm-overlay .tm-sec, .tm-overlay .tm-row, .tm-overlay .tm-sec-h,
-.tm-overlay .tm-rail, .tm-overlay .tm-glass-wrap, .tm-overlay .tm-empty { transition: opacity .28s ease; }
-
-/* the screen behind the list, and rain: the whole list steps back */
-html[data-pv="bg"] .tm-overlay .tm-side, html[data-pv="bg"] .tm-overlay .tm-tr, html[data-pv="bg"] .tm-overlay .tm-head,
-html[data-pv="bg"] .tm-overlay .tm-sec, html[data-pv="bg"] .tm-overlay .tm-rail, html[data-pv="bg"] .tm-overlay .tm-glass-wrap,
-html[data-pv="bg"] .tm-overlay .tm-empty,
-html[data-pv="rain"] .tm-overlay .tm-side, html[data-pv="rain"] .tm-overlay .tm-tr, html[data-pv="rain"] .tm-overlay .tm-head,
-html[data-pv="rain"] .tm-overlay .tm-sec, html[data-pv="rain"] .tm-overlay .tm-rail, html[data-pv="rain"] .tm-overlay .tm-glass-wrap,
-html[data-pv="rain"] .tm-overlay .tm-empty { opacity: .28; }
-
-/* the Priority 1 outline: only the Priority 1 group stays */
-html[data-pv="outline"] .tm-overlay .tm-side, html[data-pv="outline"] .tm-overlay .tm-tr, html[data-pv="outline"] .tm-overlay .tm-head,
-html[data-pv="outline"] .tm-overlay .tm-sec:not(.tm-sec-p1), html[data-pv="outline"] .tm-overlay .tm-rail,
-html[data-pv="outline"] .tm-overlay .tm-glass-wrap, html[data-pv="outline"] .tm-overlay .tm-empty { opacity: .28; }
-
-/* Working on: only the working task stays */
-html[data-pv="work"] .tm-overlay .tm-side, html[data-pv="work"] .tm-overlay .tm-tr, html[data-pv="work"] .tm-overlay .tm-head,
-html[data-pv="work"] .tm-overlay .tm-sec-h, html[data-pv="work"] .tm-overlay .tm-row:not(.working), html[data-pv="work"] .tm-overlay .tm-rail,
-html[data-pv="work"] .tm-overlay .tm-glass-wrap, html[data-pv="work"] .tm-overlay .tm-empty, html[data-pv="work"] .tm-overlay .tm-p1-frame:not(.mini) { opacity: .3; }
-
-/* the Overdue card (core/overduelook.ts, V1.44): only the card stays. The side panels sit in Edit mode slots that are
-   display: contents (an opacity on them paints nothing), so each panel steps back itself; a filter, because some
-   panels' entry animation holds their own opacity. */
-html[data-pv="overdue"] .tm-overlay .tm-side > :not(.ed-slot):not(.tm-overdue), html[data-pv="overdue"] .tm-overlay .tm-side > .ed-slot > :not(.tm-overdue),
-html[data-pv="overdue"] .tm-overlay :is(.tm-mn, .tm-meet, .tm-tl, .tm-ckdock, .tm-mail, .tm-undo):not(.tm-side *) { filter: opacity(.28); }
-html[data-pv="overdue"] .tm-overlay .tm-tr, html[data-pv="overdue"] .tm-overlay .tm-head, html[data-pv="overdue"] .tm-overlay .tm-sec,
-html[data-pv="overdue"] .tm-overlay .tm-rail, html[data-pv="overdue"] .tm-overlay .tm-glass-wrap, html[data-pv="overdue"] .tm-overlay .tm-empty { opacity: .28; }
+/* Looks preview (V1.40, looks/peek.ts). While a preview runs <html data-pv="<part>"> is set and the chip says what it
+   changes. Nothing steps back any more (the developer's friend, 15 Nov 2026: the preview showed "a little grayed out copy", the tasks faded
+   to 28 percent): the list shows exactly what it will look like, for 5 seconds (core/lookspreview.ts LOOKS_PREVIEW_MS). */
 
 /* the chip: what it changes, and a sentence when the preview had to stage something */
 .ms-peek-chip.has-note { flex-direction: column; align-items: center; gap: calc(4px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1)); white-space: normal; max-width: min(620px, calc(100vw - 40px)); text-align: center; }

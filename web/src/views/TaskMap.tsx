@@ -2218,7 +2218,7 @@ function BgVideoLayer({ id, file, shown, crop }: { id: string; file?: string; sh
 
 // ---------- More settings, now the Looks tab of the full screen Settings (V1.32) ----------
 // Every design choice in one place (the developer, 18 Oct 2026). Each choice is a tile (click only) with a Preview
-// button under it: the screen steps aside, the list shows that look for two seconds, then the screen comes
+// button under it: the screen steps aside, the list shows that look for five seconds, then the screen comes
 // back. A click anywhere ends the preview early. Tile samples exist only while the tab is open, so nothing
 // animates otherwise. The shell, the tabs and the preview timing live in views/SettingsScreen.tsx.
 /** Old name, kept for callers: true opens Settings on Looks, false closes Settings. */
@@ -2345,7 +2345,7 @@ function ColourPicker({ saved, onSave, onPreview }: { saved: string; onSave: (he
       <div className="ms-colour-row">
         <span className={`ms-colour-dot${on ? " on" : ""}`} style={{ background: hex }} aria-hidden="true" />
         <b className="num ms-colour-hex">{hex.toUpperCase()}</b>
-        <button type="button" className="ms-peek-btn ms-colour-peek" data-kind="bgc" data-id="custom" onClick={() => onPreview(hex)} aria-label="Preview your colour for 2 seconds">
+        <button type="button" className="ms-peek-btn ms-colour-peek" data-kind="bgc" data-id="custom" onClick={() => onPreview(hex)} aria-label="Preview your colour for 5 seconds">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
           Preview
         </button>
@@ -2426,7 +2426,7 @@ function MsTile({ kind, id, label, on, onPick, onPreview, children, title }: {
         <span className="tm-p1-sample" style={{ ["--p1x" as string]: "50%", ["--p1y" as string]: "50%", ["--p1w" as string]: "90px", ["--p1h" as string]: "34px" }}>{children}</span>
         <span className="tm-p1-name">{label}</span>
       </button>
-      <button type="button" className="ms-peek-btn" data-kind={kind} data-id={id} onClick={onPreview} aria-label={`Preview ${label} for 2 seconds`}>
+      <button type="button" className="ms-peek-btn" data-kind={kind} data-id={id} onClick={onPreview} aria-label={`Preview ${label} for 5 seconds`}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
         Preview
       </button>

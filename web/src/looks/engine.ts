@@ -1,7 +1,7 @@
 // The appearance engine, page side (V1.31): puts a look's tokens (core/looks.ts buildTokens) on <html>, with a smooth
 // switch. Runs on every PS page (the Tab list, the Second Computer window, the Fitness test view) and on the phone, so
 // the whole app changes at once. The website's own pages (cincee.com/client in a browser) never get a look.
-// Also: the preview (More settings shows a look for 2 seconds), and whether a look other than the default is on (for
+// Also: the preview (More settings shows a look for 5 seconds), and whether a look other than the default is on (for
 // parts that have looks of their own, like Fitness, which then follow the app's look).
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { NOTEBOOK_IDS, DEFAULT_LOOK, lookOffered, buildTokens, resolveAppearance, type Appearance, type AppearanceSettings } from "../core/looks";
@@ -36,7 +36,7 @@ export function useAppearance(st: AppearanceSettings): Appearance {
   return { ...saved, ...p, look, accent };
 }
 
-// The Working on look being tried (Appearance, Preview): the list shows it for 2 seconds.
+// The Working on look being tried (Appearance, Preview): the list shows it for 5 seconds.
 let workPrev: string | null = null;
 export function setWorkPreview(v: string | null) { workPrev = v; subs.forEach((f) => f()); }
 export function useWorkPreview() { return useSyncExternalStore(sub, () => workPrev, () => workPrev); }

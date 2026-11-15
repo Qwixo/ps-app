@@ -15,6 +15,11 @@ import { bgDesign, isVideoBg } from "./prio.ts";
 import { isColourBg } from "./bgcolour.ts";
 import type { LooksPart } from "./looksoptions";
 
+/** How long a Looks Preview shows the real list (the developer's friend, 15 Nov 2026: "The preview should show, I think it's five seconds
+ *  of what it will look like"; it was 2 seconds). A preview that explains what it staged stays a little longer. */
+export const LOOKS_PREVIEW_MS = 5000;
+export const LOOKS_PREVIEW_NOTE_MS = 6500;
+
 export const SCENES = ["spotlight", "converge", "tunnel", "hypno"];
 
 export type StageCtx = {

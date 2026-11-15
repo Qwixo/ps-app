@@ -1,6 +1,6 @@
 // Appearance (V1.31): one section in More settings with every look in three columns (the current looks, Notebook,
 // Productivity), the accent for the chosen look (presets or any colour, made readable automatically), and layout and
-// text (density, text size, font). Everything switches live with a smooth fade; Preview shows a look for 2 seconds.
+// text (density, text size, font). Everything switches live with a smooth fade; Preview shows a look on the real list for 5 seconds.
 // The look is saved in the vault settings (look, lookAccent, lookDensity, lookText, lookFont), so the Mac and the
 // phone match. Styles: src/looks/settings.css (ap-*).
 // V1.43 (the developer 8 Nov 2026: "the diagrams don't change colour at all"): the Accent and the Layout and text cards each have
@@ -35,7 +35,7 @@ export function AppearanceSection({ st, set, preview }: { st: Settings; set: (p:
       <div className="ap-top">
         <h3 className="ms-h" id="ap-h">Appearance</h3>
         <p className="ms-changes">{looksOption("look").changes}</p>
-        <p className="ms-note">Click a look to use it. The eye shows it on your list for 2 seconds. Your Mac and phone match.</p>
+        <p className="ms-note">Click a look to use it. The eye shows it on your list for 5 seconds. Your Mac and phone match.</p>
       </div>
       <LookPicker st={st} set={set} preview={preview} />
       <AccentCard st={st} set={set} look={spec} />
@@ -103,7 +103,7 @@ function LookRow({ l, on, accent, onPick, onPreview }: { l: LookSpec; on: boolea
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
         </span>
       </button>
-      <button type="button" className="ap-peek ms-peek-btn" data-kind={kindOf(l)} data-id={l.id} onClick={onPreview} aria-label={`Preview ${l.label} for 2 seconds`} title="Preview for 2 seconds">
+      <button type="button" className="ap-peek ms-peek-btn" data-kind={kindOf(l)} data-id={l.id} onClick={onPreview} aria-label={`Preview ${l.label} for 5 seconds`} title="Preview for 5 seconds">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
       </button>
     </div>
@@ -199,7 +199,7 @@ function WorkCard({ st, set, preview, look, accent }: { st: Settings; set: (p: P
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
               </span>
             </button>
-            <button type="button" className="ap-peek ms-peek-btn" data-kind="work" data-id={w.id} aria-label={`Preview ${w.label} for 2 seconds`} title="Preview for 2 seconds"
+            <button type="button" className="ap-peek ms-peek-btn" data-kind="work" data-id={w.id} aria-label={`Preview ${w.label} for 5 seconds`} title="Preview for 5 seconds"
               onClick={() => preview(w.label, () => setWorkPreview(w.id), () => setWorkPreview(null), "work")}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
             </button>
