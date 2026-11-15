@@ -10,6 +10,7 @@
 // x 1 is flush with the right edge, the same for y. So it lands in the same spot on any screen size and can never
 // be off screen. w and h are its size when it was dropped (w also fixes its width once it leaves its column).
 // In the lower half it hangs from the bottom, so a panel that grows (more meetings) grows up, never off screen.
+import { mailAllowed } from "./mailflag.ts";
 import { CAMPAIGNS_ON } from "./features.ts";
 
 export type SlotPos = { x: number; y: number; w: number; h: number };
@@ -39,7 +40,7 @@ export const MAX_EXTRA = 120;
 /** Every panel and button of the floating Tab list that Edit mode knows, top left to bottom right.
  *  off: switched off in this build (core/features.ts), so never offered in the tray.
  *  keep: never removable (the gear opens Settings). red: the developer's own (other accounts never see it, so never in their tray). */
-export type SlotInfo = { id: string; label: string; keep?: boolean; red?: boolean; off?: boolean; inner?: string; ps?: boolean; wide?: boolean };
+export type SlotInfo = { id: string; label: string; keep?: boolean; red?: boolean; mail?: boolean; off?: boolean; inner?: string; ps?: boolean; wide?: boolean };
 export const SLOTS: readonly SlotInfo[] = [
   { id: "clocks", label: "Time zones" },
   { id: "pomodoro", label: "Pomodoro" },   // V1.58: between Time zones and Sentry mode (views/Pomodoro.tsx)
@@ -67,7 +68,7 @@ export const SLOTS: readonly SlotInfo[] = [
   { id: "gsquad", label: "G Squad" },
   { id: "dnd", label: "Do Not Disturb" },
   { id: "pskeys", label: "Tab and Lock", keep: true },
-  { id: "mail", label: "Client emails", red: true },
+  { id: "mail", label: "Client emails", mail: true },
   { id: "meetnotes", label: "Meeting notes" },
   { id: "leftovers", label: "Notes left over" },
   { id: "undo", label: "Undo" },
@@ -187,8 +188,10 @@ export function showSlot(l: TabLayout, id: string, at: string): TabLayout {
 export const resetLayout = (at: string): TabLayout => ({ pos: {}, hidden: [], at });
 
 /** The hidden panels this account can bring back, in screen order (the developer's own ones only on his account). */
+/** A panel the person may have: the developer's own ones need the developer's account, Client emails needs its switch (core/mailswitch.ts). */
+const slotOk = (s: SlotInfo, red: boolean) => s.mail ? mailAllowed() : red || !s.red;
 export function trayOf(l: TabLayout, red: boolean): string[] {
-  return SLOTS.filter((s) => l.hidden.includes(s.id) && (red || !s.red) && !s.off).map((s) => s.id);
+  return SLOTS.filter((s) => l.hidden.includes(s.id) && slotOk(s, red) && !s.off).map((s) => s.id);
 }
 
 // ---------- V1.55: pages, copies, sizes and each panel's own settings (the Edit mode overview) ----------
@@ -213,7 +216,7 @@ export const cfgOf = (l: TabLayout, id: string): InstCfg => l.cfg?.[id] ?? {};
 /** Every panel shown on a page: the originals that sit there (in screen order, the removed ones left out) and the
  *  copies there (in the order they were added). red: the developer's account (his own panels are only ever his). */
 export function onPage(l: TabLayout, page: string, red: boolean, pages?: ReadonlySet<string>): string[] {
-  const ok = (id: string) => { const s = slotInfo(id); return !!s && !s.off && (red || !s.red); };
+  const ok = (id: string) => { const s = slotInfo(id); return !!s && !s.off && slotOk(s, red); };
   const orig = SLOTS.filter((s) => !s.inner && !l.hidden.includes(s.id) && ok(s.id) && pageOf(l, s.id, pages) === page).map((s) => s.id);
   const copies = (l.extra ?? []).filter((id) => ok(id) && pageOf(l, id, pages) === page);
   return [...orig, ...copies];
@@ -320,7 +323,7 @@ export function dropPage(l: TabLayout, page: string, at: string): TabLayout {
  *  with how many sit on the page shown and on all pages. ps: running in PS on a Mac (some only work there). */
 export type GalleryItem = { kind: string; label: string; here: number; all: number; removed: boolean; inner?: string };
 export function gallery(l: TabLayout, page: string, red: boolean, ps: boolean, pages?: ReadonlySet<string>): GalleryItem[] {
-  return SLOTS.filter((s) => !s.off && (red || !s.red) && (ps || !s.ps) && !s.keep).map((s) => {
+  return SLOTS.filter((s) => !s.off && slotOk(s, red) && (ps || !s.ps) && !s.keep).map((s) => {
     const ids = [...(!s.inner && !l.hidden.includes(s.id) ? [s.id] : []), ...(l.extra ?? []).filter((x) => kindOf(x) === s.id)];
     return { kind: s.id, label: s.label, here: ids.filter((id) => pageOf(l, id, pages) === page).length, all: ids.length, removed: !s.inner && l.hidden.includes(s.id), ...(s.inner ? { inner: s.inner } : {}) };
   });

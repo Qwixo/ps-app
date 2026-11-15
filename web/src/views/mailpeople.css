@@ -1,0 +1,18 @@
+/* Settings > Gmail replies: Always notify me, Muted, Who emails me (MailPeople.tsx). Layout only: colours come
+   from the theme tokens, so the website, the Mac settings window and the look engine all style it. */
+.mp-add { display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); align-items: center; }
+.mp-add .input { flex: 1 1 260px; min-width: 0; }
+.mp-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: calc(12px * var(--k-dn, 1)); }
+.mp-chips, .mp-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.mp-chips li { display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); padding: calc(6px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border: 1px solid var(--line); border-radius: calc(12px * var(--k-rd, 1)); min-width: 0; font-size: calc(13px * var(--k-fs, 1)); }
+.mp-chips li > span { flex: 1 1 auto; min-width: 0; }
+.mp-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.mp-rows { max-height: 460px; overflow-y: auto; overscroll-behavior: contain; }
+.mp-row { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border: 1px solid var(--line); border-radius: calc(12px * var(--k-rd, 1)); min-width: 0; }
+.mp-av { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: calc(13px * var(--k-fs, 1));
+  background: var(--soft); color: var(--pink-d); }
+.mp-who { flex: 1 1 220px; min-width: 0; display: grid; gap: calc(1px * var(--k-dn, 1)); }
+.mp-why { flex: none; white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.mp-acts { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); align-items: center; }
+.mp-acts .select { max-width: 190px; min-width: 0; }
+@media (max-width: 560px) { .mp-acts { flex: 1 1 100%; } .mp-acts .select { flex: 1 1 auto; max-width: none; } }

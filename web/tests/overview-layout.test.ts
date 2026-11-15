@@ -10,6 +10,8 @@ import {
 } from "../src/core/tablayout.ts";
 
 let n = 0;
+// Client emails is on for these accounts (core/mailswitch.ts via core/mailflag.ts): the panel is theirs, not the developer's.
+(await import("../src/core/mailflag.ts")).setMailAllowed(true);
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
 const AT = "2026-11-12T22:00:00.000Z";
 let seed = 1;

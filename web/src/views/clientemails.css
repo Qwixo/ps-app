@@ -1,0 +1,6 @@
+/* Settings, Client emails (views/ClientEmailsSettings.tsx): the switch, the Mac sends note and the step guide. Layout only. */
+.ce-steps { margin: 0; padding-left: 1.4em; display: grid; gap: 10px; }
+.ce-steps li { line-height: 1.4; }
+.ce-code { display: block; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, currentColor 7%, transparent); font: 12px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; user-select: all; }
+.ce-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.ce-note { border-left: 3px solid color-mix(in srgb, currentColor 35%, transparent); padding: 4px 10px; }

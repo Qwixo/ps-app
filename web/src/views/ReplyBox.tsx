@@ -46,6 +46,7 @@ export function ReplyBox({ cardId, who, last, onClose, onSent }: {
         onChange={(e) => type(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} />
       {err && <p className="tm-rb-err" role="alert">{err}</p>}
+      <p className="tm-rb-note" style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>{import.meta.env.MODE === "ps" ? "This Mac sends it." : "Your Mac sends it when it is on."}</p>
       <div className="tm-rb-acts">
         <button type="button" className="tm-meet-j tm-rb-send" onClick={send} title="Sends from the account and in the thread this email came in on, after a short Undo">Send</button>
         <button type="button" className="tm-mail-done" onClick={() => { drafts.set(cardId, textRef.current); onClose(); }} title="Closes the box. Your words stay for next time.">Cancel</button>

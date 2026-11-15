@@ -4,6 +4,9 @@
 import { createClient } from "@supabase/supabase-js";
 import * as C from "./crypto";
 import type { CalendarSnap, ClientRec, Doc, IEmail, IThread, Kind, Reply, Settings } from "./model";
+import { replyIdFor } from "./maildedupe";
+import { mailOnSnap } from "./mailsnap";
+import { setMailAllowed } from "./mailflag";
 import { applyInbound, applySent, buildMatcher, clientForInbound, parseAddress, type GmailInbound, type GmailSent } from "./mail";
 import { logInbound, mailVerdict, ownAccounts, staleSenders, type MailSender } from "./mailrules";
 import { DEFAULT_SETTINGS, uid } from "./model";
@@ -95,6 +98,7 @@ interface Meta {
   userId: string;
   role: "owner" | "client";
   red?: boolean;                // the primary owner (the developer): the only account the sealed feeds are sealed to
+  primary?: boolean;            // the primary owner of whatever project this is (not clamped to the developer's): client emails may switch on (core/mailswitch.ts)
   keys: KeysRow;
   wsKeys: { workspace_id: string; wrapped_key: string }[];
   cursor: string | null;
@@ -157,6 +161,7 @@ export interface Snapshot {
   status: Status;
   role: "owner" | "client" | null;
   red: boolean;                 // The developer's own account (core/account.ts). False for every other owner and client.
+  primary: boolean;             // The primary owner of the project this vault is on, any project (core/mailswitch.ts). False until the database says so.
   userId: string | null;
   username: string | null;
   online: boolean;
@@ -172,7 +177,7 @@ export interface Snapshot {
 }
 
 let snap: Snapshot = {
-  status: "locked", role: null, red: false, userId: null, username: null,
+  status: "locked", role: null, red: false, primary: false, userId: null, username: null,
   online: typeof navigator === "undefined" ? true : navigator.onLine,
   syncing: false, pendingCount: 0, lastSync: null, syncError: null, local: null,
   docs: new Map(), version: 0,
@@ -181,6 +186,7 @@ const listeners = new Set<() => void>();
 function emit(patch: Partial<Snapshot> = {}) {
   if (patch.red && !onRedProject()) patch = { ...patch, red: false };   // The developer's features: the developer's project only (fails closed)
   snap = { ...snap, ...patch, version: snap.version + 1 };
+  setMailAllowed(snap.primary && mailOnSnap(snap));   // the layout, Do Not Disturb and island choices follow the Client emails switch (core/mailflag.ts)
   listeners.forEach((l) => l());
 }
 export const vaultStore = {
@@ -250,7 +256,7 @@ async function fetchKeys(userId: string): Promise<KeysRow | null> {
 }
 // Which account this is. vault_role() (migration 025) answers "red", "owner" or "client". Until 025 is
 // applied it does not exist, and is_owner() (true only for the developer then) answers instead.
-async function fetchRole(): Promise<{ role: "owner" | "client"; red: boolean }> {
+async function fetchRole(): Promise<{ role: "owner" | "client"; red: boolean }> {   // red here is the database's answer: the primary owner of THIS project (clamped later)
   const { data, error } = await sb.rpc("vault_role");
   if (!error) return parseRole(data);
   if (error.code !== "PGRST202" && error.code !== "42883") throw error;
@@ -345,7 +351,7 @@ async function finishUnlock(login: string, username: string, userId: string, rol
   const cached = await kvGet<Meta>(kMeta(login));
   markDevice(!!cached && cached.userId === userId && !!cached.lastSync);
   meta = {
-    login, userId, role, red: role === "owner" && red && onRedProject(), keys,
+    login, userId, role, red: role === "owner" && red && onRedProject(), primary: role === "owner" && (red || (!!cached && cached.userId === userId && !!cached.primary)), keys,
     wsKeys: cached?.wsKeys ?? [],
     cursor: cached && cached.userId === userId ? cached.cursor : null,
     lastSync: cached?.lastSync ?? null,
@@ -364,7 +370,7 @@ async function finishUnlock(login: string, username: string, userId: string, rol
   await kvSet(kLastUser, username);
   await rebuildDocs();
   lastActivity = Date.now();
-  emit({ status: "unlocked", role, red: !!meta.red, userId, username, lastSync: meta.lastSync, syncError: null });
+  emit({ status: "unlocked", role, red: !!meta.red, primary: !!meta.primary, userId, username, lastSync: meta.lastSync, syncError: null });
   startLoops();
   void saveSession();
   void sync();
@@ -435,9 +441,11 @@ async function confirmRole() {
   const m = meta;
   try {
     const r = await fetchRole();
+    const primary = r.role === "owner" && r.red;   // the database says primary owner of THIS project (any project)
     r.red = r.red && onRedProject();   // the first owner of any other project is "red" there; never the developer here
     if (meta !== m) return;
     roleConfirmedFor = m.userId;
+    if (primary !== !!m.primary) { m.primary = primary; await persist(); emit({ primary }); }
     if (r.role !== m.role) { lock(); return; }   // an owner became a client or the reverse: sign in again
     if (r.red !== !!m.red) {
       m.red = r.red;
@@ -518,7 +526,7 @@ export async function restoreSession(): Promise<boolean> {
     await loadWsKeys(meta.wsKeys);
     await rebuildDocs();
     lastActivity = Date.now();
-    emit({ status: "unlocked", role: s.role, red: !!meta.red, userId: s.userId, username: s.username, lastSync: meta.lastSync, syncError: null });
+    emit({ status: "unlocked", role: s.role, red: !!meta.red, primary: !!meta.primary, userId: s.userId, username: s.username, lastSync: meta.lastSync, syncError: null });
     startLoops();
     void saveSession();
     void sync();
@@ -778,7 +786,7 @@ export function lock() {
   pkgQueue = []; importing.clear();
   seen = {}; lastResync = 0; inboxRetry = false;
   blobCache.clear();
-  emit({ status: "locked", docs: new Map(), role: null, red: false, userId: null, pendingCount: 0, local: null });
+  emit({ status: "locked", docs: new Map(), role: null, red: false, primary: false, userId: null, pendingCount: 0, local: null });
 }
 
 export async function signOutAndForget() {
@@ -1484,8 +1492,9 @@ async function pull() {
       seen.r = p.r ?? undefined; seen.rfp = p.rfp ?? undefined;
     }
     // The sealed inbox (Gmail, Telegram, Fireflies, Instantly, calendar, follow-ups, Claude's packages) is the developer's
-    // only: sealed to his key and developer-only by RLS. Other owners never even ask for it (egress).
-    if (meta.red && (fresh(p.i, seen.i) || inboxRetry)) {
+    // only: sealed to his key and developer-only by RLS. Other owners never even ask for it (egress), unless they switched on
+    // Client emails (core/mailswitch.ts): the primary owner of their own project, whose own functions sealed it to their own key.
+    if ((meta.red || (meta.primary && mailOnSnap(snap))) && (fresh(p.i, seen.i) || inboxRetry)) {
       inboxRetry = false;
       const r = await pullInbox();
       changed = r.changed || changed;
@@ -1574,7 +1583,9 @@ async function processMail(sent: { inboxId: string; p: GmailSent }[] = []): Prom
       ?? (mailVerdict(email, null, rules, own).why === "notify" ? "" : null);
     if (clientId === null) continue;
     const next = applyInbound(ex?.data, m.p, clientId);
-    done.set(m.inboxId, next ? await put<Reply>("reply", next, { id: ex?.id, ws: null }) : (ex?.id ?? ""));
+    // A thread's record id comes from its account and thread when there is none yet: two devices that both see it first write the
+    // SAME record (core/maildedupe.ts), so an email never has two cards.
+    done.set(m.inboxId, next ? await put<Reply>("reply", next, { id: ex?.id ?? await replyIdFor(m.p.account, m.p.threadId), ws: null }) : (ex?.id ?? ""));
   }
   // Who emails me: one small record per sender, changed only when one of their messages is new to it.
   const senders = new Map<string, Doc<MailSender>>();
@@ -1706,12 +1717,15 @@ async function pullInbox(): Promise<{ changed: boolean; ok: boolean }> {
   return { changed: true, ok: true };
 }
 
+/** The Client emails switch was just changed (Settings): look at the sealed inbox on the next sync, even with nothing new. */
+export function mailSwitchChanged() { inboxRetry = true; void sync(); }
+
 /** PS, each time the developer holds Tab: asks the gmail-inbox function to read Gmail now (owner only, at
  *  most every 20 seconds there and here), then syncs, so a client's email shows straight away
  *  instead of after the next 2 minute cron run. Nothing comes back but "ok". */
 let gmailAskedAt = 0;
 export async function refreshGmail() {
-  if (snap.status !== "unlocked" || !snap.red || Date.now() - gmailAskedAt < 20_000) return;
+  if (snap.status !== "unlocked" || !(snap.red || mailOnSnap(snap)) || Date.now() - gmailAskedAt < 20_000) return;
   gmailAskedAt = Date.now();
   try { await sb.functions.invoke("gmail-inbox", { body: { op: "refresh" } }); } catch { /* the cron run catches up */ }
   await sync();
@@ -1772,7 +1786,7 @@ export async function linkCalendar(url: string, feed?: string): Promise<{ ok: bo
 /** Emails refresh button: asks instantly-inbox to read Instantly now (owner only), then syncs. */
 export async function refreshInstantly(): Promise<{ ok: boolean; lastOk: string | null; connected: boolean; error?: string }> {
   let out = { ok: false, lastOk: null as string | null, connected: true, error: undefined as string | undefined };
-  if (!snap.red) return { ...out, connected: false };
+  if (!(snap.red || mailOnSnap(snap))) return { ...out, connected: false };
   try {
     const { data, error } = await sb.functions.invoke("instantly-inbox", { body: { op: "refresh" } });
     if (error) throw error;
@@ -2159,7 +2173,7 @@ export function __devLoad(list: Doc[], red = false) {   // red false: as someone
 
 // PS Mac app, overlay window only: show the to-do list the main PS window hands over in memory.
 // No keys live here; ticks go back to the main window, which encrypts and saves them.
-export function __mirrorLoad(unlocked: boolean, list: Doc[], lastSync: string | null, red = false, local: { since: string } | null = null) {
+export function __mirrorLoad(unlocked: boolean, list: Doc[], lastSync: string | null, red = false, local: { since: string } | null = null, primary = false) {
   if (import.meta.env.MODE !== "ps") return;
   const docs = new Map(list.map((d) => [d.id, d]));
   // Writes from this list still on their way (see put above) stay on top for a moment.
@@ -2171,8 +2185,8 @@ export function __mirrorLoad(unlocked: boolean, list: Doc[], lastSync: string | 
   }
   if (!unlocked) mirrorPending.clear();
   emit(unlocked
-    ? { status: "unlocked", role: "owner", red, userId: "ps-overlay", username: null, docs, lastSync, local: local && typeof local.since === "string" ? { since: local.since } : null }
-    : { status: "locked", role: null, red: false, userId: null, docs: new Map(), lastSync: null, local: null });
+    ? { status: "unlocked", role: "owner", red, primary, userId: "ps-overlay", username: null, docs, lastSync, local: local && typeof local.since === "string" ? { since: local.since } : null }
+    : { status: "locked", role: null, red: false, primary: false, userId: null, docs: new Map(), lastSync: null, local: null });
 }
 
 // Owner can open a sealed Fireflies style payload pasted by hand (no server involved).

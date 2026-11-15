@@ -11,6 +11,7 @@ import {
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
+const M = await import("../src/core/mailflag.ts");
 const AT = "2026-11-13T12:00:00.000Z";
 let seed = 7;
 const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -68,8 +69,12 @@ ok("cleaning: unknown pages and panels go, the built in pages come back where th
 });
 ok("cleaning keeps the developer only panels off a stranger's phone and GOS only ones off an iPhone", () => {
   const raw = { phone: "ios", pages: [{ id: "pqwerty12", kind: "panels", tiles: [{ id: "mail", c: 0, r: 0, w: 4, h: 3 }, { id: "clipboard", c: 0, r: 3, w: 1, h: 1 }, { id: "dnd", c: 1, r: 3, w: 1, h: 1 }] }] };
+  M.setMailAllowed(false);   // Client emails (core/mailswitch.ts) off: the panel is not theirs, whoever they are
   assert.deepEqual(cleanPhoneLayout(raw, "ios", false).pages.find((p) => p.kind === "panels")!.tiles!.map((t) => t.id), ["dnd"]);
-  assert.deepEqual(cleanPhoneLayout(raw, "ios", true).pages.find((p) => p.kind === "panels")!.tiles!.map((t) => t.id), ["mail", "dnd"]);
+  assert.deepEqual(cleanPhoneLayout(raw, "ios", true).pages.find((p) => p.kind === "panels")!.tiles!.map((t) => t.id), ["dnd"]);
+  M.setMailAllowed(true);    // switched on: anyone's, no matter whose account
+  assert.deepEqual(cleanPhoneLayout(raw, "ios", false).pages.find((p) => p.kind === "panels")!.tiles!.map((t) => t.id), ["mail", "dnd"]);
+  M.setMailAllowed(false);
   assert.ok(phoneCan("clipboard", "gos", false) && !phoneCan("clipboard", "ios", false));
   assert.ok(!phoneCan("sentry", "gos", true) && !phoneCan("glass", "ios", true) && !phoneCan("second", "gos", true), "Mac only panels never");
 });

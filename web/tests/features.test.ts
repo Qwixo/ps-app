@@ -21,12 +21,12 @@ const red = P.cleanProfile({ schema: 1, name: "red", display: "Owner", channel: 
 const feat = (o: Partial<import("../src/core/features.ts").Feature>) => F.cleanFeature({ id: "x", name: "X", owner: "jan", scope: "shared", since: "1.58", parts: ["web"], default: "on", ...o })!;
 
 // ---------- the files ----------
-ok("core's registry: every entry is valid, ids unique, all shared and made by core", () => {
+ok("core's registry: every entry is valid, ids unique, all shared, made by core or by a contributor's release name", () => {
   assert.equal(core.schema, 1);
   const reg = F.cleanRegistry(core);
   assert.equal(reg.length, core.features.length, "no entry is dropped");
   assert.equal(new Set(reg.map((f) => f.id)).size, reg.length);
-  for (const f of reg) { assert.equal(f.scope, "shared"); assert.equal(f.owner, "core"); }
+  for (const f of reg) { assert.equal(f.scope, "shared"); assert.ok(f.owner === "core" || /^[a-z][a-z0-9]*$/.test(f.owner), f.id); }
 });
 ok("core's defaults match today's constants, so the bundle is exactly V1.57's", () => {
   const reg = F.cleanRegistry(core);

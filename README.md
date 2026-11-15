@@ -31,10 +31,10 @@ Start with these:
 Features that only run on the developer's own account are not included. The app you download contains them
 too, switched off for every account but the developer's, so this repo is not the complete source of the download.
 
-- Left out: Second Computer, AirPods and microphone auto routing, email cards, replies and sending, the follow up
-  radar, the Instantly inbox, Campaigns, the Morning brief, Numerology, the PS rules, private release notes,
-  inviting other owners, and the server feeds behind them (Gmail, calendar, Instantly, Telegram, Fireflies, follow
-  up). Also the developer's release tools and notes.
+- Left out: Second Computer, AirPods and microphone auto routing, the follow up
+  radar, Campaigns, the Morning brief, Numerology, the PS rules, private release notes,
+  inviting other owners, and the server feeds behind them (calendar, Telegram, Fireflies, follow up). Client
+  emails (Gmail and Instantly replies, with Reply) is in core since 1.60, off until each person switches it on. Also the developer's release tools and notes.
 - Where public code calls into a left out feature, a small placeholder keeps the names and does nothing: web files
   that start with "Left out of the public source", `mac/Sources/DeveloperOnly.swift` and
   `phone/app/src/main/java/com/cincee/ps/gos/CmdKey.kt`. Two Mac files stay whole because public features use them

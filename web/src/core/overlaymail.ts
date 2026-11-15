@@ -1,22 +1,94 @@
-// Left out of the public source: email cards, replies and mail sending. It only runs on the developer's own account, so this
-// placeholder keeps the names the rest of the app imports and does nothing (scripts in the private tree:
-// open-source.mjs). See README.md, "What is left out".
-const inert: any = new Proxy(function () {}, {
-  get: (_t: unknown, k: string | symbol): any => (k === Symbol.toPrimitive ? () => "" : k === "then" ? undefined : k === Symbol.iterator ? function* () {} : inert),
-  apply: () => undefined,
-  construct: () => ({}),
-});
-const _v0: any = [];
-const _v1: any = [];
-const _v2: any = [];
-const _v3: any = [];
-export function cleanReplyCardId(_p0?: any, ..._more: any[]): string { return ""; }
-export function replyButtonShows(_p0?: any, ..._more: any[]): boolean { return false; }
-export function leadRows(_p0?: any, _p1?: any, ..._more: any[]): any[] { return _v0; }
-export function cleanLeadRows(_p0?: any, _p1?: any, ..._more: any[]): any[] { return _v1; }
-export function mailRows(_p0?: any, _p1?: any, _p2?: any, ..._more: any[]): any[] { return _v2; }
-export function setLeadMirror(_p0?: any, ..._more: any[]): void { return undefined; }
-export type MailRow = { [k: string]: any; cardId: any; via: "instantly" | "gmail"; replyId?: any; who: any; company: any; subject: any; preview: any; at: any; url: any; count: any };
-export type LeadRow = { [k: string]: any; preview: any; subject: any; at: any; company: any; cardId: any; who: any; url: any };
-export function gmailCardId(_p0?: any, ..._more: any[]): string { return ""; }
-export const leadMirror: { [k: string]: any; get: (..._more: any[]) => any[]; subscribe: (_p0?: (...a: any[]) => any, ..._more: any[]) => (..._more: any[]) => void } = { get: (..._a: any[]) => _v3, subscribe: (..._a: any[]) => (..._a: any[]) => undefined };
+// Reply from the Tab overlay (the developer, 10 Nov 2026: "I still don't see the ability to reply to emails in the tab overlay").
+// Until now the only ways into the reply panel were the Reply button on the email pop up cards (top right) and
+// Settings, Reply from PS. Once a card was dismissed, the Tab list's email panel had Open (Gmail) and Done only.
+// This file holds the rules for that panel, kept apart from the views so they can be tested:
+//  - the rows: client emails not dealt with yet (Gmail "reply" records) plus open lead replies (Instantly), newest first;
+//  - when the Reply button shows (PS on the Mac, the developer's account, an email PS can answer);
+//  - the card id a Reply or a lead's Done carries to the main page (the same ids the pop up cards use).
+// Nothing here sends. Reply only opens the panel; the developer writes the words and presses Send himself (hard rule 7).
+import type { LeadCard } from "./leadcards";
+
+/** One email in the Tab list's email panel. */
+export interface MailRow {
+  /** The pop up card id for the same email: "m:<reply record id>" (Gmail) or "n:<Instantly email id>". */
+  cardId: string;
+  via: "gmail" | "instantly";
+  /** Gmail: the reply record, for Done (marks it handled). */
+  replyId?: string;
+  who: string;
+  company: string | null;
+  subject: string;
+  preview: string;
+  at: string;
+  /** Open: the Gmail thread, or the email in Instantly's Unibox. */
+  url: string;
+  count: number;
+}
+
+/** A lead reply as the overlay mirror carries it (small: no feed, no other replies). */
+export type LeadRow = Omit<MailRow, "via" | "replyId" | "count">;
+
+/** The ids a card can have; anything else from the overlay is ignored. */
+const CARD_ID = /^[mn]:[\w-]{1,38}$/;
+export function cleanReplyCardId(v: unknown): string | null {
+  return typeof v === "string" && CARD_ID.test(v) ? v : null;
+}
+/** The card id for a Gmail reply record, exactly as the pop up card makes it (core/mailcards.ts). */
+export const gmailCardId = (replyId: string) => `m:${replyId}`.slice(0, 40);
+
+/** Where the Reply button shows: only PS on the Mac (it sends from the Mac's Keychain sign ins), only with Client emails on
+ *  (core/mailswitch.ts), and only for an email PS can answer. The website and the phone keep Open. */
+export function replyButtonShows(o: { mode: string; mail: boolean; cardId: string | null | undefined }): boolean {
+  return o.mode === "ps" && o.mail && !!cleanReplyCardId(o.cardId);
+}
+
+/** Lead reply cards (core/leadcards.ts) as rows: the first name, the company domain, the subject, the opening. */
+export function leadRows(cards: LeadCard[], max = 6): LeadRow[] {
+  return cards.slice(0, max).map((c) => ({
+    cardId: c.id,
+    who: c.name || c.title.replace(/ replied in Instantly$/, ""),
+    company: c.company || null,
+    subject: c.subject ?? "",
+    preview: c.body,
+    at: c.at,
+    url: c.url,
+  }));
+}
+
+/** The overlay mirror's lead rows, checked (the main page sends them; anything odd is dropped). */
+export function cleanLeadRows(v: unknown, max = 6): LeadRow[] {
+  if (!Array.isArray(v)) return [];
+  const str = (x: unknown, n: number) => (typeof x === "string" ? x.slice(0, n) : "");
+  const out: LeadRow[] = [];
+  for (const r of v) {
+    if (!r || typeof r !== "object") continue;
+    const o = r as Record<string, unknown>;
+    const cardId = cleanReplyCardId(o.cardId);
+    const url = str(o.url, 400);
+    if (!cardId || !cardId.startsWith("n:") || !/^https:\/\/app\.instantly\.ai\//.test(url) || !str(o.at, 40)) continue;
+    out.push({ cardId, who: str(o.who, 80) || "A lead", company: str(o.company, 120) || null, subject: str(o.subject, 200), preview: str(o.preview, 600), at: str(o.at, 40), url });
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** Client emails and lead replies together, newest first. */
+export function mailRows(gmail: MailRow[], leads: LeadRow[], max = 6): MailRow[] {
+  const all: MailRow[] = [...gmail, ...leads.map((l): MailRow => ({ ...l, via: "instantly", count: 1 }))];
+  return all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, max);
+}
+
+// The Tab overlay holds no Instantly feed: the main page sends the open lead rows with the overlay's state
+// ({type:"state"} field "leads", the developer only), and this keeps them for the email panel.
+let mirror: LeadRow[] = [];
+const subs = new Set<() => void>();
+export function setLeadMirror(v: unknown) {
+  const next = cleanLeadRows(v);
+  if (JSON.stringify(next) === JSON.stringify(mirror)) return;
+  mirror = next;
+  subs.forEach((f) => f());
+}
+export const leadMirror = {
+  get: (): LeadRow[] => mirror,
+  subscribe(f: () => void) { subs.add(f); return () => { subs.delete(f); }; },
+};

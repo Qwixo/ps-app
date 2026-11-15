@@ -1,0 +1,40 @@
+/* Client email cards on the website (views/MailCards.tsx): the same look as PS's pop-up cards. */
+.mc { position: fixed; top: calc(70px + var(--safe-top, 0px)); right: 16px; z-index: 70; width: min(380px, calc(100vw - 32px)); display: grid; gap: calc(10px * var(--k-dn, 1));
+  max-height: calc(100vh - 110px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.mc-card { padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(13px * var(--k-dn, 1)); border-radius: calc(18px * var(--k-rd, 1)); color: var(--k-fg, #FFFFFF); border: 1.5px solid color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--k-acc-bg, #6E163C) 97%, transparent), color-mix(in srgb, var(--k-surface, #1A0E14) 97%, transparent) 60%); box-shadow: 0 12px 30px rgba(0, 0, 0, .34);
+  animation: mc-in .45s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes mc-in { from { opacity: 0; transform: translateY(-10px) scale(.98); } }
+.mc-card header { display: flex; align-items: center; gap: calc(9px * var(--k-dn, 1)); }
+.mc-ic { flex: none; width: 26px; height: 26px; border-radius: calc(9px * var(--k-rd, 1)); display: grid; place-items: center; background: color-mix(in srgb, var(--k-acc, #EC4E86) 24%, transparent); color: var(--k-acc-t, #F9A8C9); }
+.mc-card b { flex: 1; min-width: 0; font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 700; line-height: 1.3; }
+.mc-card time { flex: none; font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.mc-sub { margin: 3px 0 0 35px; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; color: var(--k-acc-t, #F9A8C9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-b { margin: 6px 0 0 35px; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.45; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(86% * var(--k-ia, 1))), transparent); overflow-wrap: anywhere; }
+.mc-acts { display: flex; flex-wrap: wrap; gap: calc(6px * var(--k-dn, 1)); margin: 10px 0 0; }
+.mc-open, .mc-dis, .mc-rem { border: 0; border-radius: calc(99px * var(--k-rd, 1)); padding: calc(7px * var(--k-dn, 1)) calc(11px * var(--k-dn, 1)); font: inherit; font-size: calc(12px * var(--k-fs, 1)); white-space: nowrap; font-weight: 650; cursor: pointer; text-decoration: none; }
+.mc-open { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(92% * var(--k-ia, 1))), transparent); color: var(--k-surface, #17121A); }
+.mc-dis { margin-left: auto; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(28% * var(--k-ia, 1))), transparent); }
+.mc-dis:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(24% * var(--k-ia, 1))), transparent); }
+.mc-more { justify-self: end; border: 0; border-radius: calc(99px * var(--k-rd, 1)); padding: calc(6px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-surface, #181015) 94%, transparent); box-shadow: 0 4px 14px rgba(0, 0, 0, .3); cursor: pointer; }
+/* Remind me in 15 mins: one width for every time it can show (the two widest labels size it), so nothing
+   next to it moves while the wheel or a drag changes it; only the time ticks, with a short slide. */
+.mc-rem { position: relative; display: inline-grid; justify-content: center; align-items: center; color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-acc, #EC4E86) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k-acc-t, #F9A8C9) 45%, transparent); white-space: nowrap; font-variant-numeric: tabular-nums; cursor: ns-resize; user-select: none; -webkit-user-select: none; touch-action: pan-x;
+  transition: background .2s ease, transform .12s ease; }
+.mc-rem::before, .mc-rem::after { grid-area: 1 / 1; visibility: hidden; content: "Remind me in 55 mins"; }
+.mc-rem::after { content: "Remind me in 3h 55m"; }
+.mc-rem-in { grid-area: 1 / 1; text-align: left; }
+.mc-rem-v { display: inline-block; }
+.mc-rem-v.up { animation: mc-tick-up .2s cubic-bezier(.22, 1, .36, 1); }
+.mc-rem-v.down { animation: mc-tick-down .2s cubic-bezier(.22, 1, .36, 1); }
+@keyframes mc-tick-up { from { opacity: .25; transform: translateY(55%); } }
+@keyframes mc-tick-down { from { opacity: .25; transform: translateY(-55%); } }
+.mc-rem:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); }
+.mc-rem-ic { display: none; }
+/* PS GOS: its own row under Open in Gmail and Dismiss, thumb sized; drag up or down to change. */
+html.gos #root > .mc .mc-rem { order: 3; flex: 1 0 100%; min-height: 44px; padding: 0 calc(40px * var(--k-dn, 1)); font-size: calc(14.5px * var(--k-fs, 1)); }
+html.gos #root > .mc .mc-rem-ic { display: block; position: absolute; right: 16px; top: 50%; margin-top: -7px; opacity: .7; }
+html.gos #root > .mc .mc-rem:active { background: color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); }
+@media (prefers-reduced-motion: reduce) { .mc-card, .mc-rem-v.up, .mc-rem-v.down { animation: none; } }

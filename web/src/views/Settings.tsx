@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import "./extra.css";
 import { GmailSettings } from "./Replies";
+import { ClientEmailsSettings } from "./ClientEmailsSettings";
+import { mailCan } from "../core/mailswitch";
 import type { ClientRec, Settings } from "../core/model";
 import { settingsData } from "../core/select";
 import { saveSettings } from "../core/actions";
@@ -18,7 +20,8 @@ import { PsDownloads } from "./PsDownloads";
 
 export function SettingsView() {
   // Gmail and Claude access are the developer's own; Invite someone hides itself on every other account.
-  const red = isRedAccount(useVault());
+  const s = useVault();
+  const red = isRedAccount(s);
   return (
     <div className="stack loose">
       <div className="x-head">
@@ -31,7 +34,7 @@ export function SettingsView() {
         <Preferences />
         <PassphrasePanel />
       </div>
-      {red && <GmailSettings />}
+      {mailCan(s) ? <ClientEmailsSettings /> : red && <GmailSettings />}
       {red && <ClaudeAccess />}
       <InviteOwners />
       <SignInLog />

@@ -1,5 +1,5 @@
 {
-  "about": "What a personal PS Supabase project needs (5 Nov 2026, Connect your own Supabase). PS's setup applies these migrations in order and deploys these functions on a project someone links themselves (ps-mac Sources/ProjectSetup.swift), and applies new ones on update. scripts/ps-kit.mjs packs them into the Mac app (Contents/Resources/project-kit). tests/ps-core.test.ts checks every table and function the app calls exists after them. The developer only feeds (Gmail, calendar, Instantly, Telegram, follow up, cron and pg_net, Claude's drop keys) never go to anyone else's project. A release that changes this list or one of these files must be a release with the app (npm run release -- --app).",
+  "about": "What a personal PS Supabase project needs (5 Nov 2026, Connect your own Supabase). PS's setup applies these migrations in order and deploys these functions on a project someone links themselves (ps-mac Sources/ProjectSetup.swift), and applies new ones on update. scripts/ps-kit.mjs packs them into the Mac app (Contents/Resources/project-kit). tests/ps-core.test.ts checks every table and function the app calls exists after them. Since 1.60 the client emails feeds (Gmail and Instantly replies, migrations 031 to 037 and four functions) are part of every personal project, each sealed to that project's own owner; the developer only feeds (calendar, Telegram, follow up, Claude's drop keys) never go to anyone else's project. A release that changes this list or one of these files must be a release with the app (npm run release -- --app).",
   "migrations": [
     "001_vault.sql",
     "002_service_helpers.sql",
@@ -16,29 +16,102 @@
     "026_second.sql",
     "029_phone_signin.sql",
     "030_no_ip.sql",
+    "031_gmail_inbox.sql",
+    "032_gmail_readonly_flag.sql",
+    "033_instantly_inbox.sql",
+    "034_instantly_webhook.sql",
+    "035_instantly_threads_content_hash.sql",
+    "036_pg_net_to_extensions.sql",
+    "037_instantly_replies_cron.sql",
     "040_web_push.sql"
   ],
   "functions": [
-    { "slug": "vault-auth", "entry": "index.ts", "files": ["index.ts"], "verify_jwt": false, "secrets": [] },
-    { "slug": "rem-push", "entry": "index.ts", "files": ["index.ts", "logic.ts"], "verify_jwt": false, "secrets": ["VAPID_PRIVATE_KEY", "VAPID_SUBJECT"] }
+    {
+      "slug": "vault-auth",
+      "entry": "index.ts",
+      "files": [
+        "index.ts"
+      ],
+      "verify_jwt": false,
+      "secrets": []
+    },
+    {
+      "slug": "gmail-inbox",
+      "entry": "index.ts",
+      "files": [
+        "index.ts",
+        "lib.ts"
+      ],
+      "verify_jwt": false,
+      "secrets": [
+        "PS_SITE_ORIGINS"
+      ]
+    },
+    {
+      "slug": "instantly-inbox",
+      "entry": "index.ts",
+      "files": [
+        "index.ts"
+      ],
+      "verify_jwt": false,
+      "secrets": [
+        "INSTANTLY_API_KEY",
+        "PS_SITE_ORIGINS"
+      ]
+    },
+    {
+      "slug": "instantly-replies",
+      "entry": "index.ts",
+      "files": [
+        "index.ts"
+      ],
+      "verify_jwt": false,
+      "secrets": []
+    },
+    {
+      "slug": "instantly-webhook",
+      "entry": "index.ts",
+      "files": [
+        "index.ts"
+      ],
+      "verify_jwt": false,
+      "secrets": []
+    },
+    {
+      "slug": "rem-push",
+      "entry": "index.ts",
+      "files": [
+        "index.ts",
+        "logic.ts"
+      ],
+      "verify_jwt": false,
+      "secrets": [
+        "VAPID_PRIVATE_KEY",
+        "VAPID_SUBJECT"
+      ]
+    }
   ],
   "redOnly": {
     "migrations": [
-      "008_gmail_inbox.sql",
-      "009_gmail_readonly_flag.sql",
       "011_drop_keys.sql",
       "013_calendar_inbox.sql",
-      "014_instantly_inbox.sql",
       "017_telegram_inbox.sql",
       "018_followup_feed.sql",
-      "019_instantly_webhook.sql",
       "020_followup_drop_key_vault.sql",
-      "022_instantly_threads_content_hash.sql",
-      "024_pg_net_to_extensions.sql",
       "027_calendar_live.sql",
       "028_calendar_feeds.sql"
     ],
-    "functions": ["vault-drop", "gmail-inbox", "calendar-inbox", "instantly-inbox", "instantly-replies", "instantly-webhook", "telegram-inbox", "fireflies-inbox", "campaigns-live"],
-    "calls": ["gmail_status", "instantly_status", "gmail-inbox", "calendar-inbox", "instantly-inbox", "campaigns-live", "fireflies-inbox"]
+    "functions": [
+      "vault-drop",
+      "calendar-inbox",
+      "telegram-inbox",
+      "fireflies-inbox",
+      "campaigns-live"
+    ],
+    "calls": [
+      "calendar-inbox",
+      "campaigns-live",
+      "fireflies-inbox"
+    ]
   }
 }

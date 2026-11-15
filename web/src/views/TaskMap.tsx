@@ -46,6 +46,7 @@ import { CAL_WORDS, calMode, localLine } from "../core/localcal";
 import { applyMeetHide, meetKey, visibleEvents, MEET_HIDE, type MeetHideOp } from "../core/meethide";
 import { ackGym } from "../core/gym";
 import { isRedAccount } from "../core/account";
+import { mailOnSnap } from "../core/mailsnap";
 import { PhoneTilesHost } from "../gos/PhonePages";
 import { usePhoneBg } from "../gos/phonepage";
 import { CopySlots, EditButton, EditLayer, EditScope, Inner, Slot, editingNow, setMacAccounts, setOverviewPages, useEditing, useInst, useTabLayout } from "./EditMode";
@@ -1363,7 +1364,7 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
         </div>
       </div>
       <div className="tm-side tm-right">
-        {red && <Slot id="mail"><ClientMail s={s} red={red} /></Slot>}
+        {mailOnSnap(s) && <Slot id="mail"><ClientMail s={s} mail /></Slot>}
         <Slot id="meetnotes"><LiveMeetingNotes meet={meet} notes={st.meetingNotes || []} standing={st.standingNotes || []} /></Slot>
         <Slot id="leftovers"><NotesLeftovers /></Slot>
         <Slot id="undo"><UndoButton docked={docked} /></Slot>
@@ -3517,7 +3518,7 @@ const ago = (iso: string) => {
   const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
   return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
 };
-function ClientMail({ s, red }: { s: ReturnType<typeof useVault>; red: boolean }) {
+function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean }) {
   // The Tab overlay has no Instantly feed (the main page sends the rows); the website and the main window read it here.
   const mirrored = useSyncExternalStore(leadMirror.subscribe, leadMirror.get);
   const { list, total } = useMemo(() => {
@@ -3569,7 +3570,7 @@ function ClientMail({ s, red }: { s: ReturnType<typeof useVault>; red: boolean }
         {rows.map((r) => {
           const fresh = Date.now() - Date.parse(r.at) < 3600_000;
           const canInline = inline && !!cleanReplyCardId(r.cardId);
-          const canReply = !canInline && replyButtonShows({ mode: import.meta.env.MODE, red, cardId: r.cardId });
+          const canReply = !canInline && replyButtonShows({ mode: import.meta.env.MODE, mail, cardId: r.cardId });
           const u = undo.get(r.cardId), st = status.get(r.cardId), boxOpen = canInline && openId === r.cardId;
           const busy = !!u || st?.kind === "sending";
           return (

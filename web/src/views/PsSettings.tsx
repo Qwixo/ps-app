@@ -11,6 +11,9 @@ import { MediaGuardSettings } from "./MediaGuardSettings";
 import { MiddleClickSettings } from "./MiddleClickSettings";
 import { RemindSettings } from "./RemindSettings";
 import { MailPeople } from "./MailPeople";
+import { ClientEmailsSettings } from "./ClientEmailsSettings";
+import { mailOnSnap } from "../core/mailsnap";
+import { mailCan } from "../core/mailswitch";
 import { InviteOwners } from "./InviteOwners";
 import { SecondSettings } from "./Second";
 import { openSecurity } from "./Security";
@@ -67,7 +70,8 @@ export function PsSettingsView({ onBack, overlay }: { onBack?: () => void; overl
         <h2 className="h2" id="rem-ps-h">Annoying 15 min reminder</h2>
         <RemindSettings />
       </section>
-      {red && (
+      {mailCan(s) && <ClientEmailsSettings compact />}
+      {mailOnSnap(s) && (
         <section className="panel stack" aria-labelledby="gm-ps-h">
           <h2 className="h2" id="gm-ps-h">Gmail replies</h2>
           <MailPeople overlay={overlay} />

@@ -5,6 +5,7 @@ import "./extra.css";
 import type { ClientRec, Doc, Draft } from "../core/model";
 import { clientViews, drafts, settingsData } from "../core/select";
 import { isRedAccount } from "../core/account";
+import { mailOnSnap } from "../core/mailsnap";
 import { approveDraft, markDraftSent, saveDraft } from "../core/actions";
 import { doc, remove } from "../core/vault";
 import { TEMPLATES, buildEmail, hasLongDash, templateLabel, type TemplateKey } from "../core/templates";
@@ -37,8 +38,8 @@ type Pane = "inbox" | "drafts";
 const PANE_KEY = "cv-emails-pane";
 
 export function EmailsView() {
-  // The Instantly inbox is the developer's own; every other owner only has drafts.
-  const red = isRedAccount(useVault());
+  // The Instantly inbox comes with Client emails (core/mailswitch.ts); everyone else only has drafts.
+  const red = mailOnSnap(useVault());
   const [saved, setPane] = useState<Pane>(() => { try { return (localStorage.getItem(PANE_KEY) as Pane) || "inbox"; } catch { return "inbox"; } });
   const pane: Pane = red ? saved : "drafts";
   const pick = (p: Pane) => { setPane(p); try { localStorage.setItem(PANE_KEY, p); } catch { /* private window */ } };
