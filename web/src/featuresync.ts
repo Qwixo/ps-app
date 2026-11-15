@@ -23,12 +23,19 @@ export function accountOf(s: Pick<Snapshot, "status" | "role" | "red">): Account
   return k === null ? null : k === "red" ? "red" : "other";
 }
 
+// V1.61: every page starts it (App.tsx for the website, the Mac and the phone; the Mac's ps.ts and the phone's
+// gos/main.tsx also hand over their shell's post), so feature() knows who is signed in everywhere. Before 1.61 only the
+// Mac started it, so on the website and the phone feature() never knew the account and every friend's feature was off.
+// The phone gets the same {type: "features"} message (ps-gos Features.kt receive), which keeps it for Remind.kt.
 let started = false;
-export function startFeatureSync(post?: (m: object) => void): void {
-  if (started) return;
+let post: ((m: object) => void) | undefined;
+let last = "";
+let run: () => void = () => {};
+export function startFeatureSync(shellPost?: (m: object) => void): void {
+  if (shellPost && !post) { post = shellPost; last = ""; }
+  if (started) { run(); return; }
   started = true;
-  let last = "";
-  const run = () => {
+  run = () => {
     const s = vaultStore.get();
     const account = accountOf(s);
     const mine = cleanSwitches(settingsData(s).squadFeatures);

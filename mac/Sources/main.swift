@@ -551,6 +551,13 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
             let json = String(data: d, encoding: .utf8) else { return }
       self?.sendToMain(json)
     }
+    // PS 1.61: the island's envelope or reply arrow brings the Tab list up (kept up, like the menu's Open) on the email
+    // panel with the newest email open (IslandMailOpen.swift). Esc or Tab closes it as always.
+    Island.shared.onOpenMail = { [weak self] via in
+      guard let self, self.vaultUnlocked, let j = IslandMailOpen.json(via: via) else { return }
+      self.openList()
+      DispatchQueue.main.asyncAfter(deadline: .now() + IslandMailOpen.delay) { [weak self] in self?.sendToOverlay(j) }
+    }
 
     // A newer build installed on disk: PS reloads itself as soon as that is safe (see
     // checkLocalUpdate); until then the refresh button lights up.
@@ -1339,6 +1346,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     if (fromMain || fromOverlay) && TelegramBot.shared.handle(type, msg, fromMain: fromMain, fromOverlay: fromOverlay) { return }   // tg:* Add Telegram Bot (TelegramBot.swift, V1.47)
     if (fromMain || fromOverlay) && TaskApi.shared.handle(type, msg, fromMain: fromMain, fromOverlay: fromOverlay) { return }   // api:* AI task API (TaskApi.swift)
     if (fromMain || fromOverlay) && type.hasPrefix("sb:") && Soundboard.shared.handle(type, msg, from: message.webView) { return }   // V1.47 Soundboard (Soundboard.swift)
+    if fromMain && Features.handle(type, msg) { return }   // V1.61: the page's feature answers (Features.swift), so Features.on follows the page
     switch type {
     case "state" where fromMain && !(selfTest && testHoldState):
       lastState = msg["payload"] as? String

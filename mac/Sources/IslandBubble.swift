@@ -58,27 +58,33 @@ struct BubbleView: View {
   private var key: String {
     switch m.b { case .none: return "none"; case .standSoon: return "stand"; case .meet(let mode, let mt): return "meet-\(mt.id)-\(mode)" }
   }
-  /// The blob's three lines, stacked: the blue camera on top, the meeting's name, the time just below.
+  /// The blob (PS 1.61): the blue camera on the left, the meeting's name over the time, big and bold, on its right.
   @ViewBuilder private func blobContent(_ l: BlobFit.Layout, _ mode: String, _ mt: TMeet) -> some View {
-    VStack(spacing: BlobFit.spacing) {
+    HStack(spacing: BlobFit.iconGap) {
       Image(systemName: "video.fill").font(.system(size: l.sizes.icon, weight: .bold)).foregroundColor(blue)
-      if mode == "join" {
-        Text(TimersCore.wJoin).font(.system(size: l.sizes.title, weight: .heavy)).foregroundColor(blue).lineLimit(1).fixedSize()
-      } else if let w = l.titleW {
-        Text(mt.title).font(.system(size: l.sizes.title, weight: .semibold)).foregroundColor(Color.white.opacity(0.8)).lineLimit(1).truncationMode(.tail).frame(width: w)
-      } else {
-        Text(mt.title).font(.system(size: l.sizes.title, weight: .semibold)).foregroundColor(Color.white.opacity(0.8)).lineLimit(1).fixedSize()
-      }
-      if mode == "now" {
-        HStack(spacing: 2) {
-          IslandCountdown(endsAt: mt.end, short: true, size: l.sizes.time, color: .white)
-          Text(BubbleFit.wLeftWord).font(.system(size: l.sizes.time - 0.5, weight: .semibold)).foregroundColor(Color.white.opacity(0.7)).fixedSize()
+        .frame(width: BlobFit.iconW(l.sizes))
+      VStack(alignment: .leading, spacing: BlobFit.spacing) {
+        if mode == "join" {
+          Text(TimersCore.wJoin).font(.system(size: l.sizes.title, weight: .heavy)).foregroundColor(blue).lineLimit(1).fixedSize()
+        } else if let w = l.titleW {
+          Text(mt.title).font(.system(size: l.sizes.title, weight: .semibold)).foregroundColor(Color.white.opacity(0.85)).lineLimit(1).truncationMode(.tail).frame(width: w, alignment: .leading)
+        } else {
+          Text(mt.title).font(.system(size: l.sizes.title, weight: .semibold)).foregroundColor(Color.white.opacity(0.85)).lineLimit(1).fixedSize()
         }
-      } else {
-        IslandCountdown(endsAt: mt.start, short: true, size: l.sizes.time, color: .white)
+        if mode == "now" {
+          HStack(alignment: .firstTextBaseline, spacing: 3) {
+            IslandCountdown(endsAt: mt.end, short: true, size: l.sizes.time, color: .white)
+            Text(BubbleFit.wLeftWord).font(.system(size: l.sizes.time - 2, weight: .semibold)).foregroundColor(Color.white.opacity(0.7)).fixedSize()
+          }
+        } else {
+          IslandCountdown(endsAt: mt.start, short: true, size: l.sizes.time, color: .white)
+        }
       }
+      .frame(maxWidth: BlobFit.textRoom(l), alignment: .leading)
     }
+    .padding(.horizontal, BlobFit.padX)
     .padding(.vertical, BlobFit.padY)
+    .frame(width: l.width, height: l.height, alignment: .leading)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(Text("\(mt.title) \(mode == "now" ? "on now" : "starting soon")"))
   }

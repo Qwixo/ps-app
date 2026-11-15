@@ -10,8 +10,9 @@ import SwiftUI
 // Over a full screen video it stays, dimmed, and lights up for those 10 seconds the same way.
 // The main window page works everything out (src/island.ts) and posts {type:"island", state}; this
 // file only draws what it was handed: no vault, no network, nothing saved. A tick goes back as
-// {type:"islandAction", action:"tick"|"untick", id}. A click on a count or the popped email only
-// opens Gmail or Instantly (Toast.openable). Never takes the keyboard, never activates PS, gone while
+// {type:"islandAction", action:"tick"|"untick", id}. A click on the popped email only
+// opens Gmail or Instantly (Toast.openable); since 1.61 a click on a count opens the Tab list's email panel instead
+// (IslandMailOpen.swift). Never takes the keyboard, never activates PS, gone while
 // 1Password or Signal is in front. Drawn by SwiftUI on Core Animation, so the morph never waits on
 // the main thread; the panel is one fixed see-through size and lets every click outside the shape
 // through to the app below.
@@ -314,6 +315,8 @@ final class IslandModel: ObservableObject {
   var tick: (IslandTask) -> Void = { _ in }
   var untick: () -> Void = {}
   var open: (String?) -> Void = { _ in }
+  /// PS 1.61: a click on the envelope or the reply arrow (IslandMailOpen.swift).
+  var openMail: (String) -> Void = { _ in }
   /// A click on the private mode label: private mode off, the real task back (the page saves it, src/island.ts).
   var privateOff: () -> Void = {}
   /// Private mode hides the task's name (the page sends "Hidden (private mode)"): the island says so plainly instead,
@@ -763,8 +766,8 @@ struct IslandView: View {
   }
   var slimCount: some View {
     HStack(spacing: 0) {
-      if m.st.mail > 0 { badge("envelope.fill", m.st.mail, mailC, small: true, url: "https://mail.google.com/").opacity(m.opacity) }
-      else if m.st.leads > 0 { badge("arrowshape.turn.up.left.fill", m.st.leads, leadC, small: true, url: "https://app.instantly.ai/app/unibox").opacity(m.opacity) }
+      if m.st.mail > 0 { badge("envelope.fill", m.st.mail, mailC, small: true, via: IslandMailOpen.gmail).opacity(m.opacity) }
+      else if m.st.leads > 0 { badge("arrowshape.turn.up.left.fill", m.st.leads, leadC, small: true, via: IslandMailOpen.instantly).opacity(m.opacity) }
       else if m.st.more > 0 { moreText.opacity(m.opacity) }
     }
     .frame(width: IslandModel.slimWing, alignment: .center)
@@ -870,11 +873,12 @@ struct IslandView: View {
     .buttonStyle(.plain)
   }
   @ViewBuilder func badges(small: Bool) -> some View {
-    if m.st.mail > 0 { badge("envelope.fill", m.st.mail, mailC, small: small, url: "https://mail.google.com/") }
-    if m.st.leads > 0 { badge("arrowshape.turn.up.left.fill", m.st.leads, leadC, small: small, url: "https://app.instantly.ai/app/unibox") }
+    if m.st.mail > 0 { badge("envelope.fill", m.st.mail, mailC, small: small, via: IslandMailOpen.gmail) }
+    if m.st.leads > 0 { badge("arrowshape.turn.up.left.fill", m.st.leads, leadC, small: small, via: IslandMailOpen.instantly) }
   }
-  func badge(_ icon: String, _ n: Int, _ c: Color, small: Bool, url: String) -> some View {
-    Button(action: { m.open(url) }) {
+  /// A count on the island (PS 1.61): a click brings the Tab list up on the email panel with the newest email open.
+  func badge(_ icon: String, _ n: Int, _ c: Color, small: Bool, via: String) -> some View {
+    Button(action: { m.openMail(via) }) {
       HStack(spacing: 3) {
         Image(systemName: icon).font(.system(size: small ? 10 : 12, weight: .bold))
         Text("\(n)").font(.system(size: small ? 10.5 : 12, weight: .heavy)).monospacedDigit()
@@ -894,8 +898,8 @@ struct IslandView: View {
       if !m.pill { Color.clear.frame(height: m.geo.notchH - 8) }
       if m.st.mail > 0 || m.st.leads > 0 {
         HStack(spacing: 8) {
-          if m.st.mail > 0 { badge("envelope.fill", m.st.mail, mailC, small: false, url: "https://mail.google.com/") }
-          if m.st.leads > 0 { badge("arrowshape.turn.up.left.fill", m.st.leads, leadC, small: false, url: "https://app.instantly.ai/app/unibox") }
+          if m.st.mail > 0 { badge("envelope.fill", m.st.mail, mailC, small: false, via: IslandMailOpen.gmail) }
+          if m.st.leads > 0 { badge("arrowshape.turn.up.left.fill", m.st.leads, leadC, small: false, via: IslandMailOpen.instantly) }
         }
       }
       if m.st.priv && !m.rows.isEmpty { privateBanner }
@@ -1024,6 +1028,7 @@ final class Island {
     model.tick = { [weak self] t in self?.tick(t) }
     model.untick = { [weak self] in self?.untick() }
     model.open = { [weak self] u in self?.open(u) }
+    model.openMail = { [weak self] via in self?.openMail(via) }
     model.privateOff = { [weak self] in self?.onAction?("privateOff", "") }
     model.hide = { [weak self] in self?.hideForAWhile() }
     p.dragHook = { [weak self] e in self?.dragEvent(e) ?? false }
@@ -1921,6 +1926,13 @@ final class Island {
     guard let t = model.ticked, model.undoable else { return }
     onAction?("untick", t.id)
     withAnimation(anim) { model.ticked = nil }
+  }
+  /// PS 1.61: set by main.swift; brings the Tab list up and tells its page which email panel row to open.
+  var onOpenMail: ((String) -> Void)?
+  private func openMail(_ via: String) {
+    guard IslandMailOpen.kinds.contains(via) else { return }
+    if test { testOpened.append("ps:mail:" + via) } else { onOpenMail?(via) }
+    if model.popping != nil { popTimer?.invalidate(); withAnimation(anim) { model.popping = nil } }
   }
   private func open(_ u: String?) {
     guard let s = Toast.openable(u), let url = URL(string: s) else { return }

@@ -94,7 +94,11 @@ function psWhatsNew(): { version: string; keyword: string; notes: string[]; code
 // carry one person's profile. Its features are core's shared list only (core-root/features.json here, ../features.json
 // in core), never a layer's private list.
 // `version` is ps-version.json as it is, so the version claim's extra fields ("by", "kind") reach the page as they are.
-type PsBuild = { flavour: string | null; core: string | null; layer: { name: string; owner: string } | null; profile: Record<string, unknown> | null; features: unknown[]; version: Record<string, unknown> | null };
+// `own` (V1.61): in a build made the old way, the "othersShared" and "features" of this tree's own person's profile
+// (ps-layer/profile.json), and nothing else of it. The page uses them ONLY on that person's own account
+// (core/features.ts whoFor), so everyone else keeps core's defaults. An assembled build has its full profile instead,
+// and core (no ps-layer/) has none, so there it is null.
+type PsBuild = { flavour: string | null; core: string | null; layer: { name: string; owner: string } | null; profile: Record<string, unknown> | null; features: unknown[]; version: Record<string, unknown> | null; own: { othersShared: unknown; features: unknown } | null };
 function psBuild(): PsBuild {
   const read = (f: string): Record<string, unknown> | null => { try { return JSON.parse(readFileSync(f, "utf8")); } catch { return null; } };
   const list = (j: unknown): unknown[] => (Array.isArray(j) ? j : j && typeof j === "object" && Array.isArray((j as { features?: unknown }).features) ? (j as { features: unknown[] }).features : []);
@@ -107,7 +111,11 @@ function psBuild(): PsBuild {
     profile: b?.profile && typeof b.profile === "object" ? b.profile as Record<string, unknown> : null,
     features: b ? list(b.features) : list(read(existsSync("core-root/features.json") ? "core-root/features.json" : "../features.json")),
     version: v,
+    own: !b && existsSync("ps-layer/profile.json") ? ownOf(read("ps-layer/profile.json")) : null,
   };
+}
+function ownOf(p: Record<string, unknown> | null): PsBuild["own"] {
+  return p ? { othersShared: p.othersShared ?? null, features: p.features ?? null } : null;
 }
 
 // `vite build --mode gos` builds it for PS GOS into dist-gos (bundled inside the phone app).

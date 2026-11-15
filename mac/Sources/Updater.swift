@@ -179,6 +179,7 @@ final class Updater {
   // MARK: after a restart: "Updated", or "went back"
 
   private func afterLaunch() {
+    DockIcon.shared.start()   // PS 1.61: once this build's update has finished, the Dock shows its icon (DockIconCore.swift)
     guard var j = UpdateJournal.read(), !j.shown else { return }
     let mine = PSVersion.mine
     if (j.phase == "swapped" || j.phase == "healthy" || j.phase == "ok") && j.to == mine {

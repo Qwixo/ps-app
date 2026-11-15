@@ -22,11 +22,12 @@ ok("G Squad: Tab overlay and island over 1Password and Signal are ON", () => {
   assert.equal(gsquadRaw.rules.tabOverProtectedApps, true);
   assert.equal(gsquadRaw.rules.islandOverProtectedApps, true);
 });
-ok("The developer's profile (when the flip's ps-layer/profile.json is here): both rules OFF, others' shared features off", () => {
+ok("The developer's profile (when the flip's ps-layer/profile.json is here): both rules OFF, others' shared features ON (V1.61)", () => {
   if (!has("ps-layer/profile.json")) return;
   const r = JSON.parse(file("ps-layer/profile.json"));
   assert.equal(r.name, "red");
-  assert.equal(r.othersShared, "off");
+  assert.equal(r.othersShared, "on");
+  assert.deepEqual(r.features, { "client-emails": true });
   assert.equal(r.rules.tabOverProtectedApps, false);
   assert.equal(r.rules.islandOverProtectedApps, false);
 });

@@ -4,10 +4,9 @@ import AppKit   // NSFont only, to measure words the way the island draws them (
 
 // PS 1.60 (item 24 and 25). Pure rules and numbers, no window, no sound: tests/island-blob-test.sh checks every size.
 //
-// 1. The meeting countdown as a small blob (the developer: "about half the size, a small blob on the end of the island, exactly the
-//    island's height, the blue meeting camera icon on top, the meeting title in the middle, the time just below, more
-//    blended into the island"). BlobFit sizes it from the island's own height, so on any island (notch or pill) it is
-//    exactly as tall as the island, and its three lines always fit inside it. The old long pill (IslandBubbleCore.swift
+// 1. The meeting countdown as a small blob on the end of the island, blended into it. Since 1.61 the blue camera is on
+//    the left and the name and a big time are on its right (see BlobFit). It is the island's height, or a little taller
+//    when the island is too short for readable words, and its lines always fit inside it. The old long pill (IslandBubbleCore.swift
 //    BubbleFit) stays, chosen in Settings (meetBubble.style).
 //
 // 2. The taller stand-up island (the developer: "the stick man's head and arms run into the 'Stand up 1:53' text"). The man is drawn
@@ -16,30 +15,46 @@ import AppKit   // NSFont only, to measure words the way the island draws them (
 //    into the words again.
 
 enum BlobFit {
+  // PS 1.61 (the developer: "the meeting time is TINY I can't read that"). The 1.60 blob stacked three lines (camera, name, time)
+  // at 7 to 8 points inside the island's height. Now the camera sits on the left and two lines sit on its right: the
+  // meeting's name at 12 points over the time, big and bold at 14 points (the island's own timer size). The type never
+  // shrinks to fit: when the island is too short for the two lines, the blob is a little taller than the island, with
+  // the same top edge, so it still reads as part of it.
+
   /// A blob's width stays between these (a short title is not made wider, a long one is shortened with "...").
-  static let widthMin: CGFloat = 46, widthMax: CGFloat = 96
-  /// An island shorter than this cannot hold three readable lines: the long pill is used instead.
+  static let widthMin: CGFloat = 76, widthMax: CGFloat = 176
+  /// An island shorter than this gets the long pill instead.
   static let minHeight: CGFloat = 30
   /// From the island: nearly touching, so it reads as part of it (the pill's gap is 6).
   static let gap: CGFloat = 2
   /// From the screen's side.
   static let edge: CGFloat = 4
-  static let padX: CGFloat = 7, padY: CGFloat = 2
-  /// Between the three lines.
-  static let spacing: CGFloat = 1
-  /// A line of text is about this many times its size tall.
-  static let lineFactor: CGFloat = 1.2
+  static let padX: CGFloat = 9, padY: CGFloat = 1.5
+  /// Between the camera and the two lines.
+  static let iconGap: CGFloat = 6
+  /// Between the name and the time.
+  static let spacing: CGFloat = 0
+  /// A line of text is at most this many times its size tall (the system font is about 1.19 to 1.21).
+  static let lineFactor: CGFloat = 1.22
   static let slack: CGFloat = 1.5
+  /// The smallest the words may ever be (the developer must read them at a glance).
+  static let titleMin: CGFloat = 12, timeMin: CGFloat = 14
 
   struct Sizes: Equatable { var icon: CGFloat; var title: CGFloat; var time: CGFloat }
-  /// The type sizes for an island this tall: 34 points is the reference (the pill's resting height). Never under 5.5.
+  /// The type sizes for an island this tall: 14, 12 and 14 at least (the time at the island's own timer size); a taller
+  /// island gets bigger type, up to 1.3 times, but only as big as still fits inside the island's height.
   static func sizes(height h: CGFloat) -> Sizes {
-    let k = max(0.5, min(1.6, h / 34))
-    func f(_ v: CGFloat) -> CGFloat { max(5.5, floor(v * k * 2 + 0.001) / 2) }
-    return Sizes(icon: f(7), title: f(7.5), time: f(8))
+    let fits = (h - 2 * padY - spacing) / ((titleMin + timeMin) * lineFactor)
+    let k = max(1, min(1.3, fits))
+    func f(_ v: CGFloat) -> CGFloat { floor(v * k * 2 + 0.001) / 2 }
+    return Sizes(icon: f(14), title: max(titleMin, f(titleMin)), time: max(timeMin, f(timeMin)))
   }
-  /// The three lines' total height: icon, title, time, with the gaps between.
-  static func contentHeight(_ s: Sizes) -> CGFloat { (s.icon + s.title + s.time) * lineFactor + 2 * spacing }
+  /// The camera's box (video.fill is wider than it is tall).
+  static func iconW(_ s: Sizes) -> CGFloat { ceil(s.icon * 1.35) }
+  /// The two lines' total height: the name over the time.
+  static func contentHeight(_ s: Sizes) -> CGFloat { (s.title + s.time) * lineFactor + spacing }
+  /// The blob's height: the island's own, or a little more when the two lines need it (never cut).
+  static func height(island h: CGFloat, sizes s: Sizes) -> CGFloat { max(h, ceil(contentHeight(s) + 2 * padY)) }
 
   /// What the blob says. title: the meeting's name ("Join" in the last 2 minutes, the name while it is on). time: the
   /// widest the count can show (the pill measures the same way, so a count down never cuts).
@@ -69,22 +84,24 @@ enum BlobFit {
     let maxW = min(widthMax, max(widthMin, room))
     let titleW = ceil(measure(w.title, s.title, false, false)) + slack
     let timeW = ceil(measure(w.timeWide, s.time, true, true)) + slack
-    let inner = max(titleW, timeW, ceil(s.icon * 1.4))
-    let width = min(maxW, max(widthMin, inner + 2 * padX))
-    var cut: CGFloat?
-    let avail = width - 2 * padX
-    if titleW > avail { cut = avail }
-    return Layout(width: width, height: height, sizes: s, titleW: cut, radius: min(height / 2.6, width / 2))
+    let fixed = 2 * padX + iconW(s) + iconGap
+    let width = min(maxW, max(widthMin, fixed + max(titleW, timeW)))
+    let avail = width - fixed
+    let h = self.height(island: height, sizes: s)
+    return Layout(width: width, height: h, sizes: s, titleW: titleW > avail ? avail : nil, radius: min(h / 2.6, width / 2))
   }
+  /// Room for the words beside the camera in a blob this wide.
+  static func textRoom(_ l: Layout) -> CGFloat { l.width - 2 * padX - iconW(l.sizes) - iconGap }
 
   struct Spot: Equatable { var frame: CGRect; var side: BubbleFit.Side }
-  /// On the island's end: the same top and bottom as the island (so exactly its height), on the side that has room
-  /// (right first), else just below it on a tiny screen. Cocoa coordinates.
-  static func place(width: CGFloat, island: CGRect, screen: CGRect) -> Spot {
-    let h = island.height
+  /// On the island's end, with the island's top edge (so it hangs from the same line, a little lower when it is taller),
+  /// on the side that has room (right first), else just below it on a tiny screen. Cocoa coordinates.
+  static func place(width: CGFloat, height: CGFloat? = nil, island: CGRect, screen: CGRect) -> Spot {
+    let h = max(island.height, height ?? island.height)
+    let top = island.maxY - h
     let right = screen.maxX - edge - (island.maxX + gap), left = island.minX - gap - (screen.minX + edge)
-    if width <= right { return Spot(frame: CGRect(x: island.maxX + gap, y: island.minY, width: width, height: h), side: .right) }
-    if width <= left { return Spot(frame: CGRect(x: island.minX - gap - width, y: island.minY, width: width, height: h), side: .left) }
+    if width <= right { return Spot(frame: CGRect(x: island.maxX + gap, y: top, width: width, height: h), side: .right) }
+    if width <= left { return Spot(frame: CGRect(x: island.minX - gap - width, y: top, width: width, height: h), side: .left) }
     let x = max(screen.minX + edge, min(island.maxX - width, screen.maxX - edge - width))
     return Spot(frame: CGRect(x: x, y: island.minY - gap - h, width: width, height: h), side: .below)
   }
@@ -100,7 +117,7 @@ enum BlobFit {
   static func fit(_ b: TBubble, now: Double, island: CGRect, screen: CGRect, measure: Measure) -> (Layout, Spot)? {
     guard case .meet(_, let m) = b, m.blob, let w = words(b, now: now), island.height >= minHeight else { return nil }
     let l = layout(height: island.height, words: w, room: max(widthMin, room(island: island, screen: screen)), measure: measure)
-    return (l, place(width: l.width, island: island, screen: screen))
+    return (l, place(width: l.width, height: l.height, island: island, screen: screen))
   }
 }
 

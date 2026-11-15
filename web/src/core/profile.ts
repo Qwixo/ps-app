@@ -22,7 +22,7 @@ export interface Profile {
   /** How the build is named in words ("the G Squad", "Owner"). */
   display: string;
   channel: Channel;
-  /** Shared features made by OTHER people: "on" in gsquad, "off" in every person's own profile. */
+  /** Shared features made by OTHER people: "on" in gsquad; a person picks for their own profile (the developer: "on" since V1.61). */
   othersShared: "on" | "off";
   /** Overrides of the registry default for this build, by feature id. */
   features: Record<string, boolean>;
@@ -63,7 +63,7 @@ function cleanChannel(v: unknown): Channel | null {
 }
 
 // ---------- the build file ----------
-type Build = { profile?: unknown; features?: unknown } | null;
+type Build = { profile?: unknown; features?: unknown; own?: unknown } | null;
 let testBuild: { b: Build } | null = null;
 
 /** The bundled build file (__PS_BUILD__, written by vite.config.ts), or null when this build has none. */
@@ -85,6 +85,26 @@ export function profile(): Profile | null {
   if (memo === undefined) memo = cleanProfile(buildFile()?.profile);
   return memo;
 }
+/** What a build made the old way (no profile) says about its own person's account (V1.61): whether others' shared
+ *  features start on there, and that person's per feature overrides. Read from the bundled `own` (vite.config.ts takes
+ *  it from ps-layer/profile.json), never from the profile, so a wrong or missing file means null: core's defaults. */
+export interface OwnDefaults { othersShared: "on" | "off"; features: Record<string, boolean> }
+export function cleanOwn(v: unknown): OwnDefaults | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  if (o.othersShared !== "on" && o.othersShared !== "off") return null;
+  const features: Record<string, boolean> = {};
+  if (o.features && typeof o.features === "object" && !Array.isArray(o.features)) {
+    for (const [k, b] of Object.entries(o.features as Record<string, unknown>)) if (ID_RE.test(k) && k.length <= 48 && typeof b === "boolean") features[k] = b;
+  }
+  return { othersShared: o.othersShared, features };
+}
+/** This build's own account defaults, or null (an assembled build, core, or no ps-layer/profile.json). */
+export function ownDefaults(): OwnDefaults | null {
+  const b = buildFile();
+  return b && !cleanProfile(b.profile) ? cleanOwn(b.own) : null;
+}
+
 /** "gsquad", "red", "jan"..., or null when the build has no profile. */
 export function profileName(): string | null {
   return profile()?.name ?? null;

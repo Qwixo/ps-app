@@ -48,6 +48,15 @@ class ProfileTest {
         assertFalse(Features.bundled("jan-thing", reg, null))
         assertFalse(Features.bundled("nobody", reg, gsquad))
     }
+    /** V1.61: the page sends {type: "features", on: {...}} (web src/featuresync.ts); the bridge keeps it, so
+     *  Remind.kt's remind-ring check and Features.on follow the person's own switch. Before 1.61 nothing received it. */
+    @Test fun bridgeKeepsThePageAnswers() {
+        val src = java.io.File("src/main/java/com/cincee/ps/gos/WebHost.kt").readText()
+        assertTrue(src.contains(""""features" -> Features.receive(c, m.optJSONObject("on"))"""))
+        val told = Features.clean(JSONObject("""{"remind-ring":false,"island-moments":true}"""))
+        assertFalse(Features.decide("remind-ring", told, emptyList(), null))
+        assertTrue(Features.decide("island-moments", told, emptyList(), null))
+    }
     @Test fun pageAnswerWins() {
         assertTrue(Features.decide("jan-thing", mapOf("jan-thing" to true), reg, red))
         assertFalse(Features.decide("island-menu-strip", mapOf("island-menu-strip" to false), reg, red))

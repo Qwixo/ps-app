@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import AppKit
 // Run: bash tests/island-blob-test.sh
 var n = 0, bad = 0
 func ok(_ name: String, _ c: Bool) { n += 1; if c { print("ok - \(name)") } else { bad += 1; print("FAIL - \(name)") } }
@@ -11,31 +12,38 @@ func meet(_ title: String, in ms: Double, len: Double = 1_800_000, blob: Bool = 
 }
 let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
 
-// ---------- the blob is exactly the island's height ----------
+let wMid0 = BlobFit.words(.meet(mode: "soon", m: meet("Weekly sync", in: 600_000)), now: T)!
+// ---------- readable at a glance (PS 1.61: "the meeting time is TINY") ----------
 for h in [30.0, 31, 32, 34, 37, 40, 48] {
   let w = BlobFit.words(.meet(mode: "soon", m: meet("Weekly sync with the team", in: 600_000)), now: T)!
   let l = BlobFit.layout(height: CGFloat(h), words: w, measure: fake)
-  ok("height \(h): the blob is exactly the island's height", l.height == CGFloat(h))
-  ok("height \(h): the three lines fit inside it with room", BlobFit.contentHeight(l.sizes) + 2 * BlobFit.padY <= CGFloat(h) + 0.01)
+  ok("height \(h): the name is at least 12 points and the time at least 14", l.sizes.title >= 12 && l.sizes.time >= 14 && l.sizes.time > l.sizes.title)
+  ok("height \(h): never shorter than the island", l.height >= CGFloat(h))
+  ok("height \(h): the two lines fit inside it, never cut", BlobFit.contentHeight(l.sizes) + 2 * BlobFit.padY <= l.height + 0.01)
+  ok("height \(h): at most a few points taller than the island, so it still reads as joined", l.height - CGFloat(h) <= 5)
 }
-ok("type never drops under 5.5 points, even on a tiny island", BlobFit.sizes(height: 12).icon >= 5.5 && BlobFit.sizes(height: 12).title >= 5.5 && BlobFit.sizes(height: 12).time >= 5.5)
-ok("a taller island gets bigger type, never smaller", BlobFit.sizes(height: 40).title >= BlobFit.sizes(height: 34).title)
-ok("the reference island (34) uses 7, 7.5 and 8", BlobFit.sizes(height: 34) == BlobFit.Sizes(icon: 7, title: 7.5, time: 8))
+ok("the reference island (34) uses 14, 12 and 14 (the island timer's size for the time)", BlobFit.sizes(height: 34) == BlobFit.Sizes(icon: 14, title: 12, time: 14))
+ok("the 1.60 sizes (7.5 and 8) are gone: never under 12 and 14, even on a tiny island", BlobFit.sizes(height: 12).title == 12 && BlobFit.sizes(height: 12).time == 14)
+ok("a taller island gets bigger type, never smaller", BlobFit.sizes(height: 40).title >= BlobFit.sizes(height: 34).title && BlobFit.sizes(height: 40).time > BlobFit.sizes(height: 34).time)
+ok("type stops growing at 1.3 times", BlobFit.sizes(height: 200) == BlobFit.sizes(height: 300) && BlobFit.sizes(height: 300).time == 18 && BlobFit.sizes(height: 300).title == 15.5)
+for h in [36.0, 37, 40, 44, 48] { ok("island \(h): tall enough for the two lines, the blob is exactly its height", BlobFit.layout(height: CGFloat(h), words: wMid0, measure: fake).height == CGFloat(h)) }
+ok("an island tall enough for the two lines: the blob is exactly its height", BlobFit.layout(height: 37, words: BlobFit.words(.meet(mode: "soon", m: meet("Sync", in: 600_000)), now: T)!, measure: fake).height == 37)
+ok("the resting pill (34): only 1 point taller", BlobFit.layout(height: 34, words: BlobFit.words(.meet(mode: "soon", m: meet("Sync", in: 600_000)), now: T)!, measure: fake).height == 35)
 
-// ---------- about half the old pill ----------
+// ---------- width ----------
 let wMid = BlobFit.words(.meet(mode: "soon", m: meet("Weekly sync", in: 600_000)), now: T)!
 let blobMid = BlobFit.layout(height: 34, words: wMid, measure: fake)
-let pillW = BubbleFit.size(BubbleFit.pieces(.meet(mode: "soon", m: meet("Weekly sync", in: 600_000)), now: T), measure: { _ in 70 })   // the pill's pieces at a fixed 70
-ok("a short meeting: the blob is clearly smaller than the long pill's area", blobMid.width * blobMid.height < pillW.width * BubbleFit.h * 0.9)
 ok("the blob's width stays between its limits", blobMid.width >= BlobFit.widthMin && blobMid.width <= BlobFit.widthMax)
+ok("the camera, the gap and the words fit across", 2 * BlobFit.padX + BlobFit.iconW(blobMid.sizes) + BlobFit.iconGap + max(ceil(fake("Weekly sync", 12, false, false)), ceil(fake(wMid.timeWide, 14, true, true))) <= blobMid.width)
 let wLong = BlobFit.words(.meet(mode: "soon", m: meet("A very long meeting name about the quarterly planning of everything", in: 600_000)), now: T)!
 let blobLong = BlobFit.layout(height: 34, words: wLong, measure: fake)
-ok("a long name is shortened, the blob never grows past its maximum", blobLong.width == BlobFit.widthMax && blobLong.titleW != nil && blobLong.titleW! <= BlobFit.widthMax - 2 * BlobFit.padX)
+ok("a long name is shortened, the blob never grows past its maximum", blobLong.width == BlobFit.widthMax && blobLong.titleW != nil && blobLong.titleW! == BlobFit.textRoom(blobLong))
 ok("a short name is shown whole", blobMid.titleW == nil)
 let wTiny = BlobFit.words(.meet(mode: "soon", m: meet("1:1", in: 60_000)), now: T)!
 ok("a tiny name does not make it thinner than the minimum", BlobFit.layout(height: 34, words: wTiny, measure: fake).width == BlobFit.widthMin)
-ok("little room on the screen's side: never wider than the room (but the minimum holds)", BlobFit.layout(height: 34, words: wLong, room: 60, measure: fake).width == 60 && BlobFit.layout(height: 34, words: wLong, room: 10, measure: fake).width == BlobFit.widthMin)
-ok("the corner is rounded in proportion to the height, never more than half the width", blobMid.radius == 34 / 2.6 && BlobFit.layout(height: 12, words: wTiny, measure: fake).radius <= 12 / 2)
+ok("little room on the screen's side: never wider than the room (but the minimum holds)", BlobFit.layout(height: 34, words: wLong, room: 100, measure: fake).width == 100 && BlobFit.layout(height: 34, words: wLong, room: 10, measure: fake).width == BlobFit.widthMin)
+ok("even at the minimum width the time fits beside the camera", BlobFit.textRoom(BlobFit.layout(height: 34, words: wTiny, measure: BlobFit.measure)) >= BlobFit.measure(wTiny.timeWide, 14, true, true))
+ok("the corner is rounded in proportion to the height, never more than half the width", blobMid.radius == blobMid.height / 2.6 && BlobFit.layout(height: 12, words: wTiny, measure: fake).radius <= BlobFit.layout(height: 12, words: wTiny, measure: fake).width / 2)
 
 // ---------- the words ----------
 ok("soon: the name and the time to start", BlobFit.words(.meet(mode: "soon", m: meet("Sync", in: 600_000)), now: T) == BlobFit.Words(title: "Sync", time: "10m", timeWide: BubbleFit.widestLeft(600_000)))
@@ -58,14 +66,24 @@ ok("a tiny screen: just below the island, on screen, still the island's height",
 ok("room is the bigger side", BlobFit.room(island: island, screen: screen) == screen.maxX - BlobFit.edge - (island.maxX + BlobFit.gap) || BlobFit.room(island: island, screen: screen) == island.minX - BlobFit.gap - (screen.minX + BlobFit.edge))
 let f = BlobFit.fit(.meet(mode: "soon", m: meet("Sync", in: 600_000)), now: T, island: island, screen: screen, measure: fake)
 ok("fit: a blob meeting gets a layout and a spot of the island's height", f != nil && f!.0.height == island.height && f!.1.frame.height == island.height && f!.0.width == f!.1.frame.width)
+let pillIsland = CGRect(x: 656, y: 982 - 6 - 34, width: 200, height: 34)
+let f34 = BlobFit.fit(.meet(mode: "soon", m: meet("Sync", in: 600_000)), now: T, island: pillIsland, screen: screen, measure: fake)!
+ok("fit on the 34 point pill: a little taller, hanging from the island's top edge, beside it, never over it", f34.1.frame.height == f34.0.height && f34.1.frame.maxY == pillIsland.maxY && f34.1.frame.minY < pillIsland.minY && f34.1.frame.minX >= pillIsland.maxX && !f34.1.frame.intersects(pillIsland))
+ok("fit on the 34 point pill: still on screen", screen.contains(f34.1.frame))
+let spotTall = BlobFit.place(width: 70, height: 36, island: CGRect(x: 40, y: 360, width: 150, height: 34), screen: tiny)
+ok("a taller blob below the island on a tiny screen: under it, never over it", spotTall.side == .below && spotTall.frame.maxY <= 360 && spotTall.frame.height == 36)
 ok("fit: the long pill choice is left to the old pill", BlobFit.fit(.meet(mode: "soon", m: meet("Sync", in: 600_000, blob: false)), now: T, island: island, screen: screen, measure: fake) == nil)
 ok("fit: not for a stand-up count down", BlobFit.fit(.standSoon(at: T + 10_000), now: T, island: island, screen: screen, measure: fake) == nil)
 ok("fit: an island too small to read is left to the old pill", BlobFit.fit(.meet(mode: "soon", m: meet("Sync", in: 600_000)), now: T, island: CGRect(x: 0, y: 0, width: 100, height: 20), screen: screen, measure: fake) == nil)
 // the real font measure runs and gives sensible widths
-let real = BlobFit.measure("Weekly sync", 7.5, false, false)
-ok("the real font measure gives a width", real > 20 && real < 90)
+let real = BlobFit.measure("Weekly sync", 12, false, false)
+ok("the real font measure gives a width", real > 40 && real < 120)
+for (size, bold) in [(12.0, false), (14.0, true), (15.5, false), (18.0, true)] {
+  let f = bold ? NSFont.monospacedDigitSystemFont(ofSize: CGFloat(size), weight: .bold) : NSFont.systemFont(ofSize: CGFloat(size), weight: .semibold)
+  ok("the real \(size) point line is no taller than the room given to it", f.ascender - f.descender + f.leading <= CGFloat(size) * BlobFit.lineFactor + 0.01)
+}
 let realFit = BlobFit.layout(height: 34, words: wMid, measure: BlobFit.measure)
-ok("with real fonts the three lines fit the blob's width", realFit.width <= BlobFit.widthMax && BlobFit.measure(wMid.timeWide, realFit.sizes.time, true, true) <= realFit.width - 2 * BlobFit.padX + 2)
+ok("with real fonts the name and the time fit beside the camera", realFit.width <= BlobFit.widthMax && BlobFit.measure(wMid.timeWide, realFit.sizes.time, true, true) <= BlobFit.textRoom(realFit) + 0.01 && realFit.titleW == nil)
 
 // ---------- the page's style reaches the Mac ----------
 let dict: [String: Any] = ["id": "a", "title": "Sync", "start": T + 600_000, "end": T + 2_400_000, "from": T]

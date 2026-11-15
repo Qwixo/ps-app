@@ -5,7 +5,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { saveSettings } from "../core/actions";
 import { settingsData } from "../core/select";
-import { mailCan, mailOn, mailSwitch, MAIL_FEATURE } from "../core/mailswitch";
+import { mailCan, MAIL_FEATURE } from "../core/mailswitch";
+import { mailOnSnap } from "../core/mailsnap";
 import { cleanSwitches } from "../core/features";
 import { mailSteps, newCode, sha256Hex, validRef } from "../core/mailsetup";
 import { activeProject } from "../core/project";
@@ -25,7 +26,7 @@ export function ClientEmailsSettings({ compact = false }: { compact?: boolean })
   const s = useVault();
   const can = mailCan(s);
   const st = settingsData(s);
-  const on = mailOn(s, mailSwitch(st.squadFeatures));
+  const on = mailOnSnap(s);   // V1.61: the same answer the cards use (the developer's own account takes his layer's default too)
   const ref = (() => { const r = activeProject()?.ref ?? null; return validRef(r) ? r : null; })();
   const [code, setCode] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);

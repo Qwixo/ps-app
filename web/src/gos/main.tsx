@@ -6,7 +6,8 @@ import { createRoot } from "react-dom/client";
 import "../styles.css";
 import App from "../App";
 import { GosLayer } from "./GosLayer";
-import { startGos } from "./bridge";
+import { startGos, gosPost } from "./bridge";
+import { startFeatureSync } from "../featuresync";
 import { startBgVault } from "./bgvault";
 import { startKeyboard } from "./keyboard";
 import { startCalm } from "./calm";
@@ -21,6 +22,7 @@ startGos();
 startNoSelect();   // V1.43: no stray highlighting (src/ui/noselect.ts, ui/noselect.css)
 startBgVault();
 startKeyboard();
+startFeatureSync(gosPost);   // V1.61: every feature's answer to the phone shell (src/featuresync.ts, ps-gos Features.kt)
 startCalm();   // no frames for endless animations nobody can see (src/gos/calm.ts, the 1 Nov 2026 freeze)
 // Emulator tests with fictional data only; the release build leaves this out entirely.
 if (import.meta.env.VITE_GOS_FAKE === "1") void import("./fake").then((m) => m.loadFake());

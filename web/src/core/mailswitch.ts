@@ -10,7 +10,7 @@
 // Why the primary owner: the mail functions seal every email to the one app_owner of the project they run on, so only
 // that account can ever open them. Someone else's emails can never reach your vault.
 import type { Snapshot } from "./vault.ts";
-import { cleanSwitches, registry, whoFor } from "./features.ts";
+import { cleanSwitches, registry, whoFor, type Account } from "./features.ts";
 import { profile } from "./profile.ts";
 
 export const MAIL_FEATURE = "client-emails";
@@ -26,10 +26,12 @@ export function mailOn(s: MailWho, switchedOn: unknown): boolean {
 }
 /** The person's own switch, read from their settings against this build's registry. The person's answer wins, then the
  *  profile's own override, else off. It does not matter whose build this is (a person's own build included), so the
- *  Settings switch always works. Not in the registry: off (fails closed). */
-export function mailSwitch(squadFeatures: unknown): boolean {
+ *  Settings switch always works. Not in the registry: off (fails closed).
+ *  `account` (V1.61): the developer's own account in a build from his private tree also takes his layer's override (core/features.ts
+ *  whoFor), so Client emails is on for him until he switches it off. Anyone else: as before. */
+export function mailSwitch(squadFeatures: unknown, account: Account = "other"): boolean {
   if (!registry().some((x) => x.id === MAIL_FEATURE)) return false;
   const mine = cleanSwitches(squadFeatures)[MAIL_FEATURE];
   if (typeof mine === "boolean") return mine;
-  return whoFor(profile(), "other").overrides[MAIL_FEATURE] === true;
+  return whoFor(profile(), account).overrides[MAIL_FEATURE] === true;
 }

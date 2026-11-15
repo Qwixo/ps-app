@@ -98,7 +98,9 @@ ok("the V1.57 picture: on the developer's account and on a friend's, every regis
   for (const account of ["red", "other", null] as const) {
     const who = F.whoFor(null, account);
     for (const f of reg) {
-      const want = f.owner === "core" ? f.default === "on" : account === "red";
+      // The developer's own (private) features on his account; a friend's shared ones (Jan's, V1.60) off with no profile and no
+      // `own` (core and the public build). The developer's build turns them on through `own`: tests/own-features.test.ts.
+      const want = f.owner === "core" ? f.default === "on" : f.owner === "red" && account === "red";
       assert.equal(F.featureOn(f, who, undefined), want, `${f.id} on ${account}`);
     }
   }
@@ -109,10 +111,12 @@ ok("squadList: only other people's shared features, newest first, then by name",
   assert.deepEqual(F.squadList(reg, F.whoFor(red, "red")).map((f) => f.id), ["d", "b", "a", "c"]);
   assert.deepEqual(F.squadList(reg, { name: "jan", othersShared: "off", overrides: {} }).map((f) => f.id), ["f"]);
 });
-ok("squadList is empty today (no friend has shared a feature yet), so the page shows its empty line", () => {
+ok("squadList: since V1.60 it holds Jan's shared features, and none of the developer's own", () => {
   const reg = F.cleanRegistry([core, layer]);
-  assert.deepEqual(F.squadList(reg, F.whoFor(red, "red")), []);
-  assert.deepEqual(F.squadList(reg, F.whoFor(gsquad, "other")), [], "The developer's private ones never show");
+  const jan = reg.filter((f) => f.owner === "jan").map((f) => f.id).sort();
+  assert.ok(jan.length > 0);
+  assert.deepEqual(F.squadList(reg, F.whoFor(red, "red")).map((f) => f.id).sort(), jan);
+  assert.ok(F.squadList(reg, F.whoFor(gsquad, "other")).every((f) => f.owner !== "red"), "The developer's private ones never show");
 });
 ok("cleanSwitches: feature ids and true or false only, at most 200", () => {
   assert.deepEqual(F.cleanSwitches({ "a-b": true, B: true, c: "yes", d: false }), { "a-b": true, d: false });

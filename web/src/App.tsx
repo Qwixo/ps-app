@@ -46,6 +46,7 @@ import { mainCalendar } from "./core/calfeeds";
 import { MailCardsWeb } from "./views/MailCards";
 import { SquadNoteCards } from "./views/SquadNoteCards";
 import { ReplyWindow, startReplyWindow } from "./views/ReplyWindow";
+import { startFeatureSync } from "./featuresync";
 import { useAppearanceEngine } from "./looks/engine";
 import { addProgram, fitnessNow } from "./fitness/store";
 import { programFromPlan, type PlanIn } from "./fitness/lib";
@@ -54,6 +55,9 @@ import { programFromPlan, type PlanIn } from "./fitness/lib";
 // looks at the address (the hash router would take it for a page), keep it, and take the key out of the address bar.
 // The website only: PS's own pages never open such a link.
 if (!PS && import.meta.env.MODE !== "gos") takeFriendLink();
+
+// V1.61: feature() knows who is signed in on every page (the website, the phone, the Mac), src/featuresync.ts.
+startFeatureSync();
 
 // Dev page: every exercise picture in every look (src/dev/expics.tsx). Lazy so it never reaches a release build.
 const ExPicsDev = import.meta.env.DEV ? lazy(() => import("./dev/expics")) : null;

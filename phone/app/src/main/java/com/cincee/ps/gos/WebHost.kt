@@ -285,6 +285,7 @@ object WebHost {
             "schedule" -> Alarms.set(c, m.optJSONArray("meetings") ?: JSONArray())
             "meetCard" -> m.optJSONObject("card")?.let { Notifier.card(c, it) }
             "dnd" -> Dnd.set(c, m.optJSONObject("state"))
+            "features" -> Features.receive(c, m.optJSONObject("on"))   // V1.61: every feature's answer from the page (web src/featuresync.ts), kept for Remind.kt
             "cardHide" -> Notifier.cancelCard(c, m.optString("id"))
             "remindNext" -> Reminds.next(c, m.optLong("at"))
             "gymPlan" -> m.optJSONObject("plan")?.let { Gym.setPlan(c, it) }   // the gym reminder (Gym.kt, web src/gymwatch.ts)

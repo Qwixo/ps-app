@@ -72,6 +72,29 @@ check("clean", Features.clean(json(#"{"a-b":true,"Bad":true,"c":1,"d":false}"#))
 check("clean-not-a-dict", Features.clean(json(#"[1]"#)) == nil)
 check("handle-other-type", !Features.handle("looks", [:]))
 
+// MARK: V1.61 the page's answers reach the app (main.swift routes {type: "features"} to Features.handle)
+// tests/profile-test.sh runs this with PS_SELFTEST set, so handle keeps the answers in memory, never in the real settings.
+check("selftest-env", ProcessInfo.processInfo.environment["PS_SELFTEST"] != nil)
+check("handle-features", Features.handle("features", ["on": ["island-moments": true, "client-emails": true, "whatsapp": false]]))
+check("told-kept", Features.told == ["island-moments": true, "client-emails": true, "whatsapp": false], "\(String(describing: Features.told))")
+check("on-follows-page", Features.on("island-moments") && Features.on("client-emails") && !Features.on("whatsapp"))
+check("handle-bad-answers-ignored", Features.handle("features", ["on": "nonsense"]) && Features.told?["island-moments"] == true)
+check("handle-page-switches-off", Features.handle("features", ["on": ["island-moments": false]]) && !Features.on("island-moments"))
+
+// MARK: V1.61 the bundled registry of a build made the old way (tools/bundle-features.mjs, from core's features.json)
+let bundledJSON = CommandLine.arguments.count > 2 ? try! String(contentsOfFile: CommandLine.arguments[2], encoding: .utf8) : "{}"
+let bundledFile = json(bundledJSON) as? [String: Any] ?? [:]
+let coreReg = Features.registry(from: bundledFile["features"])
+let janIds = ["remind-ring", "remind-push", "gym-scan-better", "fitness-island", "island-moments", "welcome-back", "workout-summary",
+              "client-emails", "whatsapp", "gsquad-newlook", "gsquad-notify", "feature-intros", "screen-recording"]
+check("bundle-no-profile", bundledFile["profile"] is NSNull, "a build made the old way is one app for everyone")
+check("bundle-has-core-list", coreReg.contains { $0.id == "campaigns" } && janIds.allSatisfy { id in coreReg.contains { $0.id == id } }, "\(coreReg.map(\.id))")
+check("bundle-before-page-core-default", !Features.decide("campaigns", told: nil, registry: coreReg, profile: nil))
+check("bundle-before-page-friends-off", janIds.allSatisfy { !Features.decide($0, told: nil, registry: coreReg, profile: nil) })
+let redAnswers = Dictionary(uniqueKeysWithValues: janIds.map { ($0, $0 != "whatsapp") })
+check("bundle-after-page-follows", janIds.allSatisfy { Features.decide($0, told: redAnswers, registry: coreReg, profile: nil) == ($0 != "whatsapp") })
+check("gsquad-bundle-before-page", Features.decide("island-moments", told: nil, registry: coreReg, profile: gsquad) && !Features.decide("client-emails", told: nil, registry: coreReg, profile: gsquad))
+
 // BuildRules.fromProfile (protected-158's place, fed from the profile)
 let pub = BuildRules.rules(red: false), redAcct = BuildRules.rules(red: true)
 check("buildrules-no-profile-public", BuildRules.fromProfile(pub, profile: nil) == pub)

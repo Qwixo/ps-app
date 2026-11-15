@@ -249,5 +249,14 @@
    "Phone fixes: page dots like the iPhone's, a readable update card, and full screen panels that clear the status bar."
   ],
   "ru": []
+ },
+ "1.61": {
+  "en": [
+   "Mac island: the meeting name and time are now big and easy to read.",
+   "Mac island: click the email count to open that email in your Tab list. The count only shows when Client emails is on.",
+   "Fixed: the 'Database loaded' tick and the other new 1.60 features now come on properly on the Mac, the phone and the website.",
+   "After an update, the Dock shows the new PS logo straight away."
+  ],
+  "ru": []
  }
 }

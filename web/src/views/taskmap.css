@@ -823,10 +823,16 @@ html:not(.gos) .tm-overlay:not(.tm-docked) .tm-xrow > *, html:not(.gos) .tm-over
           mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center / contain no-repeat; }
 .tm-mail-undo { border: 1px solid var(--k-acc, #EC4E86); background: transparent; color: var(--k-fg, #FFFFFF); border-radius: calc(99px * var(--k-rd, 1)); padding: 2px 12px; font: inherit; font-weight: 750; cursor: pointer; }
 .tm-mail-undo:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 24%, transparent); }
+/* PS 1.61: the email the island's envelope or reply arrow opened: lit up, its whole opening shown. */
+.tm-mail li.focus { background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent); border-radius: 10px; border-top-color: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); animation: tm-mail-focus .6s cubic-bezier(.22,1,.36,1) both; }
+.tm-mail li.focus .tm-mail-p { -webkit-line-clamp: unset; display: block; }
+.tm-mail li.focus + li { border-top-color: transparent; }
+@keyframes tm-mail-focus { from { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-acc, #EC4E86) 90%, transparent), 0 0 18px color-mix(in srgb, var(--k-acc, #EC4E86) 50%, transparent); } }
 .tm-mail li.replied { opacity: .62; }
 .tm-mail li.replied .tm-mail-s, .tm-mail li.replied .tm-mail-p { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
 @keyframes tm-mail-in { from { opacity: 0; transform: translateY(-6px); } }
-@media (prefers-reduced-motion: reduce) { .tm-mail li, .tm-rb { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .tm-mail li, .tm-mail li.focus, .tm-rb { animation: none; } }
 
 /* ---------- Priority 1: one outline around the whole group (core/prio.ts, Settings picks the look) ----------
    Only transforms and opacity animate; the frame is measured by the page, never per frame. */

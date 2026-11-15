@@ -72,10 +72,14 @@ node "$WEB/scripts/ps-kit.mjs" "$APP/Contents/Resources/project-kit"
 
 # V1.58 layers (core tools/assemble.mjs): an assembled tree has ps-build.json at its top (flavour, commits, the
 # full profile). The app gets it and the profile as Resources/ps-build.json and Resources/profile.json. A build
-# from the private tree as in V1.57 has neither, and the app keeps its per account answers.
+# from the private tree as in V1.57 has no profile, and the app keeps its per account answers.
+# V1.61: such a build still gets Resources/ps-build.json with core's feature list (tools/bundle-features.mjs), so
+# Features.on knows every feature and core's defaults before the page loads. Before, it had no registry at all.
 if [ -f "$HERE/../ps-build.json" ]; then
   cp "$HERE/../ps-build.json" "$APP/Contents/Resources/ps-build.json"
   node -e 'const b=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(!b.profile) process.exit(0); require("fs").writeFileSync(process.argv[2], JSON.stringify(b.profile,null,2)+"\n")' "$HERE/../ps-build.json" "$APP/Contents/Resources/profile.json"
+else
+  node "$HERE/tools/bundle-features.mjs" "$WEB" "$APP/Contents/Resources/ps-build.json"
 fi
 
 # Icon: to swap the logo, replace icon/icon-1024.png (or rerun icon/make-icon.swift on a new logo).

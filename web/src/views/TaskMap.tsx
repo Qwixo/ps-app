@@ -53,7 +53,8 @@ import { PhoneTilesHost } from "../gos/PhonePages";
 import { usePhoneBg } from "../gos/phonepage";
 import { CopySlots, EditButton, EditLayer, EditScope, Inner, Slot, editingNow, setMacAccounts, setOverviewPages, useEditing, useInst, useTabLayout } from "./EditMode";
 import { calendarFor, feedOfAccount, panelCal } from "../core/calfeeds";
-import { cleanLayout, emptyLayout, onPage } from "../core/tablayout";
+import { cleanLayout, emptyLayout, onPage, pageOf } from "../core/tablayout";
+import { mailPanelId, newestOf, onMailOpen, peekMailOpen, takeMailOpen } from "../core/mailopen";
 import { PS, cleanLooks, useBgVideos as usePsBgVideos, useOverlayShown, firstSentences, askMic, askPresence, askTimeline, chooseMic, psIsOpen, psPost, useAppIcons, usePresence, usePsMic, usePsSettings, useTimeline } from "../ps";
 import { primeSfx, setEditSoundCtx, setSfxVolume, setTickSound, sfx } from "../ui/sfx";
 import { editSoundsOn, meetingNow } from "../core/editsounds";
@@ -1108,6 +1109,19 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
   });
   const ovOn = useEditing();
   useEffect(() => { if (ovOn && isPlus(curPage.id)) goToPage(MAIN); }, [ovOn]); // eslint-disable-line react-hooks/exhaustive-deps
+  // PS 1.61: the island's envelope or reply arrow asked for the email panel (core/mailopen.ts): go to the page it sits
+  // on; ClientMail then opens the newest email. A panel taken off the Tab list means the island showed no count.
+  useEffect(() => {
+    const go = () => {
+      if (!peekMailOpen()) return;
+      const id = mailPanelId(layout);
+      if (!id) return;
+      const p = pageOf(layout, id, new Set(pageIds));
+      if (p !== curPage.id) goToPage(p);
+    };
+    go();
+    return onMailOpen(go);
+  }, [layout, pageIds, curPage.id]);
   // Cmd-click picks tasks; Esc, hiding the list or a click on the background lets them go.
   const shownNow = useOverlayShown();
   useEffect(() => { if (!shownNow) clearSel(); }, [shownNow]);
@@ -3552,6 +3566,30 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
   const status = useMemo(() => panelStatus(outs), [outs]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [undo, setUndo] = useState<Map<string, UndoSend>>(() => new Map());
+  // PS 1.61: the island's envelope or reply arrow (core/mailopen.ts): the newest email of that kind opens here, its whole
+  // opening shown and lit up, scrolled into view. The light goes after a while; nothing is sent or marked.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const listEl = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const take = () => {
+      const via = peekMailOpen();
+      if (!via) return;
+      const id = newestOf(list, via) ?? list[0]?.cardId ?? null;
+      if (!id) return;
+      takeMailOpen();
+      setFocusId(id);
+    };
+    take();
+    return onMailOpen(take);
+  }, [list]);
+  useEffect(() => {
+    if (!focusId) return;
+    const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const el = [...(listEl.current?.querySelectorAll<HTMLElement>("li[data-card]") ?? [])].find((x) => x.dataset.card === focusId);
+    el?.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
+    const t = window.setTimeout(() => setFocusId(null), 20_000);
+    return () => clearTimeout(t);
+  }, [focusId]);
   const [, tick] = useState(0);
   useEffect(() => {
     if (!undo.size) return;
@@ -3579,7 +3617,7 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
   return (
     <aside className="tm-meet tm-mail" aria-label={leadsIn ? "Emails" : "Client emails"} onMouseDown={(e) => e.stopPropagation()}>
       <span className="tm-meet-h">{leadsIn ? "Emails" : "Client emails"}<em> · {total} new</em></span>
-      <ul className="tm-mail-list">
+      <ul className="tm-mail-list" ref={listEl}>
         {rows.map((r) => {
           const fresh = Date.now() - Date.parse(r.at) < 3600_000;
           const canInline = inline && !!cleanReplyCardId(r.cardId);
@@ -3587,11 +3625,11 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
           const u = undo.get(r.cardId), st = status.get(r.cardId), boxOpen = canInline && openId === r.cardId;
           const busy = !!u || st?.kind === "sending";
           return (
-            <li key={r.cardId} className={`${fresh ? "fresh" : ""}${st?.kind === "replied" && !u ? " replied" : ""}`}>
+            <li key={r.cardId} data-card={r.cardId} className={`${fresh ? "fresh" : ""}${st?.kind === "replied" && !u ? " replied" : ""}${focusId === r.cardId ? " focus" : ""}`}>
               <span className="tm-mail-who">{r.who}{r.company && <em> · {r.company}</em>}{r.via === "instantly" && <em className="tm-mail-via"> · Instantly</em>}</span>
               <span className="tm-mail-t num" title={new Date(r.at).toLocaleString()}>{ago(r.at)}{r.count > 1 ? ` · ${r.count} emails` : ""}</span>
               <span className="tm-mail-s">{r.subject || "(no subject)"}</span>
-              {r.preview && !boxOpen && <span className="tm-mail-p">{firstSentences(r.preview, 4)}</span>}
+              {r.preview && !boxOpen && <span className="tm-mail-p">{focusId === r.cardId ? r.preview : firstSentences(r.preview, 4)}</span>}
               {u ? (
                 <span className="tm-mail-st" role="status">Sending in {u.left()} s
                   <button type="button" className="tm-mail-undo" onClick={() => { sfx.click(); undoIt(r.cardId); }}>Undo</button></span>

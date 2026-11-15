@@ -45,7 +45,7 @@ export const NOTEBOOK_ON = false;
 // as the G Squad build (fails closed). Before anyone is signed in: nobody else's feature runs.
 // The two switches above (CAMPAIGNS_ON, NOTEBOOK_ON) stay plain constants, so the bundle is exactly V1.57's; they are in
 // core's features.json as "campaigns" and "notebook-looks" with the same default (tests/features.test.ts checks that).
-import { ID_RE, NAME_RE, profile, buildFile, type Profile } from "./profile.ts";
+import { ID_RE, NAME_RE, profile, buildFile, ownDefaults, type OwnDefaults, type Profile } from "./profile.ts";
 
 export type Part = "web" | "mac" | "phone";
 export interface Feature {
@@ -108,11 +108,14 @@ export function registry(): Feature[] {
 export interface Who { name: string; othersShared: "on" | "off"; overrides: Record<string, boolean> }
 /** account: "red" (the developer's own account), "other" (anyone else signed in), null (nobody signed in yet). */
 export type Account = "red" | "other" | null;
-export function whoFor(p: Profile | null, account: Account): Who {
+export function whoFor(p: Profile | null, account: Account, own: OwnDefaults | null = ownDefaults()): Who {
   if (p) return { name: p.name, othersShared: p.othersShared, overrides: p.features };
   // No profile (core's dev server, an open-source.mjs build): never act as the G Squad build. Others' features start off
   // on every account (fails closed, as on the Mac and the phone); the developer's own account still owns his features.
-  if (account === "red") return { name: "red", othersShared: "off", overrides: {} };
+  // V1.61: on the developer's own account only, a build made from his private tree follows his layer's profile.json (`own`:
+  // othersShared and the overrides), so his build has his friends' features without the profile ever applying to anyone
+  // else. No `own` (core, a test): off, as before.
+  if (account === "red") return { name: "red", othersShared: own?.othersShared ?? "off", overrides: { ...(own?.features ?? {}) } };
   return { name: "", othersShared: "off", overrides: {} };
 }
 
