@@ -1,5 +1,5 @@
 {
-  "about": "What a personal PS Supabase project needs (5 Nov 2026, Connect your own Supabase). PS's setup applies these migrations in order and deploys these functions on a project someone links themselves (ps-mac Sources/ProjectSetup.swift), and applies new ones on update. scripts/ps-kit.mjs packs them into the Mac app (Contents/Resources/project-kit). tests/ps-core.test.ts checks every table and function the app calls exists after them. Since 1.60 the client emails feeds (Gmail and Instantly replies, migrations 031 to 037 and four functions) are part of every personal project, each sealed to that project's own owner, and the WhatsApp replies kit (migration 041, whatsapp-webhook and whatsapp-send), sealed the same way and off until linked; the developer only feeds (calendar, Telegram, follow up, Claude's drop keys) never go to anyone else's project. A release that changes this list or one of these files must be a release with the app (npm run release -- --app).",
+  "about": "What a personal PS Supabase project needs (5 Nov 2026, Connect your own Supabase). PS's setup applies these migrations in order and deploys these functions on a project someone links themselves (ps-mac Sources/ProjectSetup.swift), and applies new ones on update. scripts/ps-kit.mjs packs them into the Mac app (Contents/Resources/project-kit). tests/ps-core.test.ts checks every table and function the app calls exists after them. Since 1.60 the client emails feeds (Gmail and Instantly replies, migrations 031 to 037 and four functions) are part of every personal project, each sealed to that project's own owner, and the WhatsApp replies kit (migration 041, whatsapp-webhook and whatsapp-send), sealed the same way and off until linked; the developer only feeds (calendar, Telegram, follow up, Claude's drop keys) never go to anyone else's project. A release that changes this list or one of these files must be a release with the app (npm run release -- --app). Secrets: `secrets` lists what a function cannot run without at all, which PS on the Mac cannot set, so it must stay empty (a name there stops every project update with \"This PS needs settings it cannot make by itself\"). Settings a function only needs once its feature is switched on and linked (an Instantly key, the site address, the iPhone push key) go in `set_later`: the function is deployed anyway and simply idles without them until they are set.",
   "migrations": [
     "001_vault.sql",
     "002_service_helpers.sql",
@@ -44,7 +44,8 @@
         "lib.ts"
       ],
       "verify_jwt": false,
-      "secrets": [
+      "secrets": [],
+      "set_later": [
         "PS_SITE_ORIGINS"
       ]
     },
@@ -55,7 +56,8 @@
         "index.ts"
       ],
       "verify_jwt": false,
-      "secrets": [
+      "secrets": [],
+      "set_later": [
         "INSTANTLY_API_KEY",
         "PS_SITE_ORIGINS"
       ]
@@ -86,7 +88,8 @@
         "logic.ts"
       ],
       "verify_jwt": false,
-      "secrets": [
+      "secrets": [],
+      "set_later": [
         "VAPID_PRIVATE_KEY",
         "VAPID_SUBJECT"
       ]
@@ -109,7 +112,8 @@
         "lib.ts"
       ],
       "verify_jwt": false,
-      "secrets": [
+      "secrets": [],
+      "set_later": [
         "PS_SITE_ORIGINS"
       ]
     }

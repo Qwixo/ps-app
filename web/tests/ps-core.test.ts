@@ -114,6 +114,21 @@ ok("vault-auth needs no secrets of ours and lets PS on the Mac call it", () => {
   assert.deepEqual(env, ["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"], "only the two values Supabase gives every function by itself");
 });
 
+ok("no kit function needs a setting PS cannot make, so a project update never stops on one", () => {
+  // 1.60 to 1.62: gmail-inbox, instantly-inbox, rem-push and whatsapp-send listed settings in `secrets`, and the Mac's
+  // update (mac/Sources/ProjectEngine.swift deploy) refuses any function that does, after uploading it. So every launch
+  // showed "Update your Supabase project" with "This PS needs settings it cannot make by itself". Optional settings
+  // live in `set_later`; `secrets` stays empty on every function.
+  for (const f of m.functions as { slug: string; secrets: string[]; set_later?: string[] }[]) {
+    assert.deepEqual(f.secrets, [], `${f.slug}: settings it can run without go in set_later`);
+    for (const s of f.set_later ?? []) assert.match(s, /^[A-Z][A-Z0-9_]+$/, `${f.slug}: ${s}`);
+  }
+  const k = kit() as { functions: { slug: string; secrets: string[] }[] };
+  assert.ok(k.functions.every((f) => f.secrets.length === 0), "the kit packed into the Mac app has no required settings either");
+  const engine = readFileSync(join(ROOT, "../mac/Sources/ProjectEngine.swift"), "utf8");
+  assert.match(engine, /if !f\.secrets\.isEmpty \{ throw/, "the Mac still refuses a function with required settings, so this test guards the real gate");
+});
+
 ok("the kit lists every file with its hash, versions unique and in order", () => {
   const k = kit() as { kit: string; migrations: { version: string; sha256: string }[]; functions: { files: unknown[] }[] };
   assert.match(k.kit, /^[0-9a-f]{16}$/);
