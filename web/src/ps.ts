@@ -957,9 +957,8 @@ export function startPsBridge() {
   startNotesCard(psPost);   // meeting notes pop-up, top left (src/notescard.ts)
   startMeetAlerts(psPost);   // meeting alert cards (src/meetwatch.ts)
   startGymWatch(psPost);   // the gym reminder card (src/gymwatch.ts, core/gym.ts)
-  // The Annoying 15 min reminders (src/remwatch.ts, core/remind.ts): the plan for the Mac's cards, and the old daily
-  // reminder this Mac kept (psSettings rem.legacy) handed over once. Undefined until this Mac's settings came.
-  startRemWatch(psPost, () => (psSettings ? ((psSettings as { rem?: { legacy?: unknown } }).rem?.legacy ?? null) : undefined));
+  // The Annoying 15 min reminders (src/remwatch.ts, core/remind.ts): the plan for the Mac's cards.
+  startRemWatch(psPost);
   setLocalCalReader((ask) => psPost({ type: "localCal", op: "read", ask }));   // not the developer: this Mac's Calendar (src/calrefresh.ts)
   startCalRefresh();   // asks for the calendar every 2 minutes and on wake; the server reads Google every minute (src/calrefresh.ts)
   startIsland(psPost);   // the Dynamic Island under the notch (src/island.ts)

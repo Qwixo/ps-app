@@ -40,6 +40,8 @@ type NativePort = { postMessage(m: string): void; onmessage: ((e: MessageEvent) 
 const port = () => (window as Window & { gosNative?: NativePort }).gosNative;
 
 export function gosPost(msg: object) {
+  // 1.60: the iPhone web app has no shell, so the reminders' plan goes to its own cards and push schedule (src/remweb.ts).
+  if (MWEB) { const m = msg as { type?: string; plan?: unknown }; if (m.type === "remPlan" && m.plan) void import("../remweb").then((r) => r.webRemPlan(m.plan as { items?: never[] })); return; }
   try { port()?.postMessage(JSON.stringify(msg)); } catch { /* the dev page has no shell */ }
 }
 

@@ -76,6 +76,15 @@ export function gymPrefs(raw: unknown, defOn: boolean = GYM_DEFAULTS.on): GymPre
   };
 }
 
+/** 1.60 (the phone rang for the gym in the morning although the gym is set for the night): may a gym plan be worked out and
+ *  handed to the phone now? Only from the saved settings. Before the vault has loaded them (just unlocked, the first sync
+ *  still running, nothing saved yet on this device) gymPrefs() would fall back to its 08:00 default, and the phone would
+ *  be told to ring for a gym nobody set. A settings record that is here (even a cached one) is the saved setting; with none,
+ *  only a finished sync says that nothing was ever saved. */
+export function gymReady(v: { hasSettings: boolean; syncing: boolean; lastSync: string | null }): boolean {
+  return v.hasSettings || (!v.syncing && !!v.lastSync);
+}
+
 /** "2026-11-03": the day in that zone. */
 export function dayKey(ts: number, tz: string) { const w = wall(ts, tz); return `${w.y}-${pad(w.mo)}-${pad(w.d)}`; }
 export const addDays = (day: string, n: number) => {

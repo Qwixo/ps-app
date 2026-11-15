@@ -34,8 +34,14 @@ import java.util.concurrent.Executors
  *    page is not running it waits in prefs, exactly like the gym's Acknowledge, and a background check carries it.
  *  - A reminder on a task (V1.55) says the task's name and has a third button, Open task (PS opens at the list with that
  *    task glowing). Done ticks the task: the page does that when the answer reaches it.
- *  - ONE exact alarm at the soonest wake of all reminders; armed again on boot, update, a clock or zone change and
- *    every new plan.
+ *  - ONE exact alarm at the soonest wake or ring of all reminders; armed again on boot, update, a clock or zone change
+ *    and every new plan.
+ *  - 1.60: it RINGS like the gym ring (RemRing.kt): a full screen card over the lock screen with a loud sound for a
+ *    minute, when its window opens, when a snooze ends and again every snooze length until it is answered (so "Annoying
+ *    15 min" is 15 minutes unless the reminder says otherwise). Same words and buttons as the Mac card. It stays quiet
+ *    (notification only) under PS Do Not Disturb or the phone's own, as the Mac card does.
+ *  - 1.60: the built in daily reminder "fu" is gone for everyone: an old stored plan never arms it and whatever it left
+ *    up (notification, ring) is cancelled on every settle.
  * Everything here runs on its own thread (one at a time, in order), never on the main thread: the plan, the files,
  * the notifications and the player. Only the reminders' words and times are kept here, and own sounds stay on this
  * phone (never in the vault, never uploaded).
@@ -64,6 +70,8 @@ object Remind {
         val o = runCatching { JSONObject(sp(c).getString("shown", null) ?: "{}") }.getOrDefault(JSONObject())
         return o.keys().asSequence().associateWith { o.optString(it) }.toMutableMap()
     }
+    private fun lastRings(c: Context): Map<String, Long> = RemClock.lastFrom(sp(c).getString("last", null))
+    private fun saveLast(c: Context, m: Map<String, Long>) { sp(c).edit().putString("last", RemClock.lastJson(m).toString()).apply() }
     private fun saveShown(c: Context, m: Map<String, String>) { sp(c).edit().putString("shown", JSONObject(m).toString()).apply() }
     /** The plan with this phone's newer answers on top. */
     private fun items(c: Context): List<RemItem> { val a = answers(c); return plan(c).map { RemClock.merge(it, a[it.id]) } }
@@ -80,12 +88,14 @@ object Remind {
     fun restore(c: Context, done: (() -> Unit)? = null) = work(done) { settle(c, "system", refresh = false) }
     fun alarm(c: Context, done: (() -> Unit)? = null) = work(done) { settle(c, "alarm", refresh = false) }
 
-    /** Up what should be up (with its sound when it first comes up in a window), away what was answered, the next alarm. */
+    /** Up what should be up, away what was answered, the ring for what is due, the next alarm. */
     private fun settle(c: Context, from: String, refresh: Boolean) {
         val now = System.currentTimeMillis()
         val z = device()
         val items = items(c)
         val shown = shown(c)
+        // 1.60: the retired built in reminder: nothing of it stays up, on any device, whatever an old plan said.
+        away(c, RemClock.RETIRED_ID); shown.remove(RemClock.RETIRED_ID)
         // After a reboot (or the clock changing) the shade may have been cleared: what is not really up comes up again.
         if (from == "system") runCatching { nm(c).activeNotifications.map { it.tag }.toSet() }.getOrNull()?.let { up ->
             shown.keys.retainAll { tag(it) in up }
@@ -95,7 +105,7 @@ object Remind {
             when (RemClock.status(r, now, z)) {
                 RemStatus.SHOW -> {
                     val cd = RemClock.cycleDay(r, now, z)
-                    if (day != cd) { if (post(c, r, wrong = false)) { shown[r.id] = cd; play(c, r, test = false); Plog.i("rem: ${r.id} up ($from)") } }
+                    if (day != cd) { if (post(c, r, wrong = false)) { shown[r.id] = cd; Plog.i("rem: ${r.id} up ($from)") } }
                     else if (refresh) post(c, r, wrong = false)
                 }
                 RemStatus.OFF, RemStatus.DONE, RemStatus.SNOOZED -> if (day != null) { away(c, r.id); shown.remove(r.id) }
@@ -108,18 +118,99 @@ object Remind {
         }
         for (id in shown.keys.toList()) if (items.none { it.id == id }) { away(c, id); shown.remove(id) }
         saveShown(c, shown)
-        arm(c, items, now, z)
+        // The ring: the one that rings now goes off after a minute (or when answered), then the next that is due.
+        var last = RemClock.keepLast(items, lastRings(c))
+        val rid = ringId(c)
+        if (rid != null) {
+            val ri = items.firstOrNull { it.id == rid }
+            val still = ri != null && RemClock.status(ri, now, z) == RemStatus.SHOW && now < ringStart(c) + RemClock.RING_FOR
+            if (!still) endRing(c) else if (from == "system") startRingService(c)   // rebooted mid ring: it goes on for what is left
+        }
+        if (ringId(c) == null) {
+            val due = RemClock.ringsDue(items, now, z, last).firstOrNull { shown[it.id] != null }   // only one whose notification is really up
+            if (due != null) {
+                last = last + (due.id to now)   // under Do Not Disturb it stays a notification and tries again a snooze length later
+                if (ringAllowed(c)) ring(c, due, now, from) else Plog.i("rem: ${due.id} stays quiet (Do Not Disturb or no notifications)")
+            }
+        }
+        saveLast(c, last)
+        arm(c, items, now, z, last)
     }
 
     // ---------- the alarm ----------
     private fun alarmIntent(c: Context) = PendingIntent.getBroadcast(c, 5101, Intent(c, RemAlarm::class.java),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-    private fun arm(c: Context, items: List<RemItem>, now: Long, z: ZoneId) {
+    private fun arm(c: Context, items: List<RemItem>, now: Long, z: ZoneId, last: Map<String, Long>) {
         val am = c.getSystemService(AlarmManager::class.java)
         am.cancel(alarmIntent(c))
-        val at = RemClock.soonest(items, now, z).takeIf { it > 0 }?.coerceAtLeast(now + 1000) ?: return
-        if (am.canScheduleExactAlarms()) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, alarmIntent(c))
+        val ringEnds = if (ringId(c) != null) ringStart(c) + RemClock.RING_FOR else 0L
+        val wake = listOf(RemClock.soonest(items, now, z, last), ringEnds).filter { it > 0 }.minOrNull() ?: return
+        val at = wake.coerceAtLeast(now + 1000)
+        // A ring is a real alarm clock (the system keeps it exact through Doze and lets the full screen card start).
+        val isRing = items.any { RemClock.nextRing(it, now, z, last[it.id] ?: 0).let { t -> t > now && t <= wake } }
+        // An alarm clock needs no "Alarms and reminders" permission, so a ring stays on time even if that was switched off.
+        if (isRing) am.setAlarmClock(AlarmManager.AlarmClockInfo(at, Notifier.openIntent(c, "list", 5102)), alarmIntent(c))
+        else if (am.canScheduleExactAlarms()) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, alarmIntent(c))
         else am.setWindow(AlarmManager.RTC_WAKEUP, at, 60_000, alarmIntent(c))
+    }
+
+    // ---------- the ring (RemRing.kt) ----------
+    const val RING_CH = "rem_ring"
+    internal const val RING_ID = 52
+    private fun ringId(c: Context): String? = sp(c).getString("ringId", null)
+    private fun ringStart(c: Context): Long = sp(c).getLong("ringStart", 0)
+    fun ringing(c: Context) = ringId(c) != null
+    /** The reminder that rings now, with this phone's own answer on top. */
+    fun ringItem(c: Context): RemItem? { val id = ringId(c) ?: return null; return items(c).firstOrNull { it.id == id } }
+    /** May it ring? Not under PS Do Not Disturb or the phone's own, and only when a notification can be shown. */
+    private fun ringAllowed(c: Context): Boolean {
+        val phoneDnd = runCatching { nm(c).currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL }.getOrDefault(false)
+        return can(c) && !phoneDnd && !Dnd.mutes(c, "followup") && Features.told(c)?.get("remind-ring") != false   // the switch in Settings, on unless the person turned it off
+    }
+    private fun ring(c: Context, r: RemItem, now: Long, from: String) {
+        sp(c).edit().putString("ringId", r.id).putLong("ringStart", now).apply()
+        Plog.i("rem: ${r.id} rings ($from)")
+        startRingService(c)
+    }
+    private fun startRingService(c: Context) {
+        runCatching { c.startForegroundService(Intent(c, RemRingService::class.java)) }.onFailure {
+            // The exact alarm lets PS start the service; if the system refuses anyway, the full screen notice and one long buzz still come.
+            Plog.i("rem: no ring service (${it.javaClass.simpleName}), notification only")
+            if (can(c)) nm(c).notify(RING_ID, ringNotice(c))
+            Gym.Buzz.once(c)
+        }
+    }
+    /** The ring is over: answered, a minute gone, or the reminder left the plan. The notification stays until answered. */
+    fun endRing(c: Context) {
+        sp(c).edit().remove("ringId").remove("ringStart").apply()
+        c.stopService(Intent(c, RemRingService::class.java))
+        nm(c).cancel(RING_ID)
+        RemRingActivity.closeAll()
+    }
+    /** The ring service's minute is up (or it was asked to look): on the work thread, settle ends it and arms the next. */
+    fun ringCheck(c: Context) = work { settle(c, "ring", refresh = false) }
+    /** The sound for a reminder: its own file, else the built in one. Null for "none" (the ring then only buzzes). */
+    internal fun soundFile(c: Context, r: RemItem): File? {
+        if (r.sound == "none") return null
+        return ownFile(c, r.id).takeIf { r.sound == "own" && it.isFile } ?: builtIn(c, if (r.sound == "alarm") "alarm" else "soft")
+    }
+    /** The full screen notice (over the lock screen), with the reminder's own buttons. */
+    fun ringNotice(c: Context): Notification {
+        val r = ringItem(c)
+        val full = PendingIntent.getActivity(c, 5103, Intent(c, RemRingActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val b = Notification.Builder(c, RING_CH)
+            .setSmallIcon(R.drawable.ic_stat_ps).setColor(r?.let { color(it) } ?: Color.parseColor(RemClock.ACCENT))
+            .setContentTitle(r?.pill ?: "Reminder").setContentText(r?.text ?: "")
+            .setCategory(Notification.CATEGORY_ALARM).setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setOngoing(true).setOnlyAlertOnce(true)
+            .setFullScreenIntent(full, true).setContentIntent(full)
+            .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        if (r != null) {
+            b.addAction(Notification.Action.Builder(null, r.later, action(c, r.id, "snooze")).build())
+            if (r.click) b.addAction(Notification.Action.Builder(null, r.yes, action(c, r.id, "done")).build())
+        }
+        return b.build()
     }
 
     // ---------- the notification ----------
@@ -156,7 +247,10 @@ object Remind {
         Island.reminder(c, r.id, r.pill, r.text, r.task.takeIf { RemClock.okTask(it) })   // V1.59: the island pops it too
         return true
     }
-    private fun away(c: Context, id: String) { nm(c).cancel(tag(id), NID); if (playing == id) stopSound() }
+    private fun away(c: Context, id: String) {
+        nm(c).cancel(tag(id), NID); if (playing == id) stopSound()
+        if (ringId(c) == id) endRing(c)   // answered (here or on another device) or gone from the plan: the ring stops at once
+    }
 
     // ---------- answers ----------
     /** A button, the reply box or a swipe on a reminder (or on the test). */

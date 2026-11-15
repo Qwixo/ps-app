@@ -168,6 +168,24 @@
         <receiver android:name=".RestAction" android:exported="false" />
 
         <!-- The Annoying 15 min reminder (Remind.kt): its one alarm, its buttons, and the clock or zone changing. -->
+        <!-- 1.60 The Annoying 15 min reminders ring like the gym (RemRing.kt): a loud sound for a minute and a full screen card. -->
+        <service
+            android:name=".RemRingService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Reminder ring: plays the sound of a reminder the person set, for up to a minute or until they tap Done or the snooze button." />
+        </service>
+        <activity
+            android:name=".RemRingActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.cincee.ps.gos.remring"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.PS" />
         <receiver android:name=".RemAlarm" android:exported="false" />
         <receiver android:name=".RemAction" android:exported="false" />
         <receiver android:name=".RemTime" android:exported="true">

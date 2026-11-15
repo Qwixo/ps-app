@@ -11,21 +11,23 @@
 //    wait (so Undo brings both back). A once reminder goes a day after its day.
 //  - Alarms (V1.57): the Mac gets them in this plan (their card); the phone does not (it rings them, gymwatch.ts). Their
 //    Acknowledge comes back as an ordinary remAct "done", from either device.
-//  - On a Mac, once: the old daily reminder (V1.38 to V1.45) that Mac kept becomes reminder one (migrateLegacy), then
-//    the Mac is told it can stop reporting it ("rem:legacyDone").
+//  - 1.60: the built in daily reminder ("fu") is gone for everyone: never in the plan, rewritten out of a saved record.
 import { vaultStore } from "./core/vault";
-import { allTodos, remindRec } from "./core/select";
+import { allTodos, remindDoc, remindRec } from "./core/select";
 import { saveRemind, setTodoDone } from "./core/actions";
-import { applyAct, cleanLegacy, migrateLegacy, okTaskId, remPlan, removeReminders, staleTaskReminders, taskInfos, type RemAct } from "./core/remind";
+import { applyAct, okTaskId, remPlan, removeReminders, staleTaskReminders, taskInfos, type Reminder, type RemAct } from "./core/remind";
 import { DEVICE_TZ } from "./core/tz";
+import { sb } from "./core/vault";
+import { feature } from "./core/features";
+import { gymReady } from "./core/gym";
+import { pushClearArgs } from "./core/webpush";
 
 type Post = (m: object) => void;
 const PHONE = import.meta.env.MODE === "gos";
 let post: Post = () => {};
 let lastPlan = "";
 let waiting: RemAct[] = [];
-let legacyFrom: () => unknown = () => null;   // undefined: not known yet (a Mac's settings still to come)
-let migrating = false;
+let retiring = false;                          // the rewrite without the retired reminder is under way
 let staleSince: Record<string, number> = {};   // reminders on tasks: when their task was first seen gone or finished
 let sweeping = false;
 const unlocked = () => { const s = vaultStore.get(); return s.status === "unlocked" && s.role === "owner"; };
@@ -35,17 +37,10 @@ function run() {
   const s = vaultStore.get();
   if (waiting.length) { const w = waiting; waiting = []; w.forEach(remAnswer); }
   const rec = remindRec(s);
-  // The old daily reminder of this Mac becomes reminder one (once; the Mac stops reporting it after "legacyDone").
-  const raw = PHONE ? null : legacyFrom();
-  if (raw === undefined) return;   // a Mac whose settings have not come yet: wait, never send it an empty plan
-  const leg = cleanLegacy(raw);
-  if (leg && !migrating) {
-    migrating = true;
-    const red = !!s.red, now = Date.now();
-    void saveRemind((cur) => migrateLegacy(cur, leg, red, now))
-      .then(() => post({ type: "rem:legacyDone" }))
-      .catch(() => post({ type: "log", text: "reminders: the old daily reminder could not be saved yet" }))
-      .finally(() => { migrating = false; });
+  // 1.60: the built in daily reminder ("fu") is gone. A saved record that still carries it is rewritten without it, once.
+  if (remindDoc(s).stale && !retiring) {
+    retiring = true;
+    void saveRemind((cur) => cur).catch(() => { retiring = false; });
   }
   const all = allTodos(s);
   const tasks = taskInfos(all);
@@ -61,14 +56,15 @@ function run() {
         .catch(() => {}).finally(() => { sweeping = false; });
     }
   }
+  // 1.60: never hand the shells a plan before the saved reminders have loaded: an empty one would cancel every alarm and
+  // ring on the phone and make a reminder that was just answered ring again from scratch. They keep the plan they have.
+  if (!gymReady({ hasSettings: !!rec, syncing: s.syncing, lastSync: s.lastSync })) return;
   const full = remPlan(rec, !!s.red, { tasks, now: Date.now(), deviceTz: DEVICE_TZ });
   // Alarms (V1.57): the Mac shows their card from this plan; the phone RINGS them with the gym ring instead (gymwatch.ts
   // hands them over with the gym plan), so they are left out of the phone's reminder notifications.
   const alarms = new Set((rec?.list ?? []).filter((r) => r.alarm).map((r) => r.id));
   const plan = PHONE && alarms.size ? { ...full, items: full.items.filter((i) => !alarms.has(i.id)) } : full;
   const json = JSON.stringify(plan);
-  // Nothing saved yet and a Mac still holding its old card: leave the Mac's own card alone until the record exists.
-  if (!rec && leg) return;
   if (json !== lastPlan) { lastPlan = json; post(PHONE ? { type: "remPlan", plan } : { type: "rem:plan", plan }); }
 }
 
@@ -78,11 +74,13 @@ export function remAnswer(a: RemAct) {
   // Done on a reminder on a task ticks the task, only when the answer is new (a Mac sending an old one again, after
   // The developer unticked the task, never ticks it back).
   let task: string | undefined;
+  let clearRem: Reminder | null = null;
   void saveRemind((cur) => {
     const next = cur ? applyAct(cur, a) : null;
-    if (next && a.act === "done") task = cur!.list.find((r) => r.id === a.id)?.task;
+    if (next && a.act === "done") { const r0 = cur!.list.find((r) => r.id === a.id); task = r0?.task; clearRem = r0 ?? null; }
     return next;
   }).then(() => {
+    if (a.act === "done" && feature("remind-push")) void sb.rpc("push_clear", pushClearArgs(clearRem, a.at || Date.now(), DEVICE_TZ)).then(() => {}, () => {});   // pushes still waiting for it (iPhone) go too, from any device
     if (okTaskId(task)) return setTodoDone(task, true).catch(() => post({ type: "log", text: "reminders: the task could not be ticked yet" }));
   }).catch(() => { waiting.push(a); });
 }
@@ -97,12 +95,10 @@ export function remShellMessage(m: { type?: unknown }): boolean {
 }
 
 let started = false, timer = 0;
-/** `legacy`: the Mac's psSettings rem.legacy (the old card's settings, until handed over). */
-export function startRemWatch(p: Post, legacy?: () => unknown) {
+export function startRemWatch(p: Post) {
   if (started) return;
   started = true;
   post = p;
-  if (legacy) legacyFrom = legacy;
   vaultStore.subscribe(() => { clearTimeout(timer); timer = window.setTimeout(run, 300); });
   // Once a minute too: a ticked task's "done for now" follows the clock into the next window, and the sweep's wait ends.
   // Only the plan is worked out; it goes to the shell only when it changed.

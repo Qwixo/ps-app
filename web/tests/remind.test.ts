@@ -141,51 +141,39 @@ ok("text colour reads on light and dark backgrounds", () => {
   assert.equal(R.inkFor("#f6f3ee"), "#17121a");
 });
 
-// ---------- the old daily reminder becomes reminder one ----------
-ok("The developer's old card: reminder one keeps his words, his window, Dubai and today's Yes", () => {
-  const leg = R.cleanLegacy({ on: true, at: "02:00", until: "06:00", text: "", doneFor: "2026-11-10" })!;
-  const rec = R.migrateLegacy(null, leg, true, 1000)!;
-  const r = rec.list[0];
-  assert.equal(r.id, "fu"); assert.equal(r.tz, "Asia/Dubai"); assert.equal(r.at, "02:00"); assert.equal(r.until, "06:00");
-  assert.equal(r.snooze, 15); assert.equal(r.sound, "none"); assert.ok(!r.seed);
-  assert.equal(rec.state.fu.done, "2026-11-10");
-  const p = R.remPlan(rec, true).items[0];
-  assert.equal(p.text, "HAVE YOU RAN FOLLOW UP SYSTEM YET?");
-  assert.equal(p.later, "Remind me in 15 mins"); assert.equal(p.yes, "Yes"); assert.equal(p.word, "Yes"); assert.equal(p.pill, "Daily reminder");
-  assert.equal(p.done, "2026-11-10");
-  // Nothing pops up again that night after updating.
-  assert.equal(R.remStatus(r, rec.state.fu, tb("2026-11-10", "04:00"), NY), "done");
+// ---------- 1.60: the built in daily reminder ("fu") is gone for everyone ----------
+const FU = { id: "fu", on: true, label: "", text: "HAVE YOU RAN FOLLOW UP SYSTEM YET?", at: "02:00", until: "06:00", days: [0, 1, 2, 3, 4, 5, 6], tz: "Asia/Dubai", edited: 5 };
+const MINE = { id: "mine0001", on: true, label: "Stretch", text: "STRETCHED?", at: "09:00", until: "21:00", days: [1], edited: 6 };
+ok("a saved record that still has fu loads without it, a reminder you made yourself stays", () => {
+  const rec = R.cleanRemind({ v: 1, list: [FU, MINE], state: { fu: { at: 3, done: "2026-11-10" }, mine0001: { at: 4, done: "2026-11-11" } }, gone: {}, at: 9 });
+  assert.deepEqual(rec.list.map((r) => r.id), ["mine0001"]);
+  assert.deepEqual(Object.keys(rec.state), ["mine0001"]);
+  assert.ok(R.hasRetired({ list: [FU, MINE] }));
+  assert.ok(!R.hasRetired({ list: [MINE] }));
+  assert.ok(!R.hasRetired(null));
+  assert.equal(R.RETIRED_ID, "fu");
 });
-ok("anyone else's old card: their edited question, their own zone, the neutral default otherwise", () => {
-  const edited = R.migrateLegacy(null, R.cleanLegacy({ on: false, at: "07:00", until: "08:30", text: "Did you stretch?" }), false, 5)!;
-  assert.equal(edited.list[0].tz, ""); assert.equal(edited.list[0].on, false); assert.equal(edited.list[0].until, "08:30");
-  assert.equal(R.remPlan(edited, false).items[0].text, "Did you stretch?");
-  const plain = R.migrateLegacy(null, R.cleanLegacy({ on: true, at: "02:00", until: "06:00", text: "" }), false, 5)!;
-  assert.equal(R.remPlan(plain, false).items[0].text, "HAVE YOU DONE YOUR DAILY TASK YET?");
+ok("the plan the Mac and the phone get never holds fu, so their card and alarm for it are cancelled", () => {
+  const rec = R.cleanRemind({ v: 1, list: [FU, MINE], state: {}, gone: {}, at: 9 });
+  assert.deepEqual(R.remPlan(rec, true).items.map((i) => i.id), ["mine0001"]);
+  assert.ok(!R.remPlan(rec, true).items.some((i) => i.text.includes("FOLLOW UP SYSTEM")));
+  assert.equal(R.remPlan(R.cleanRemind({ v: 1, list: [FU], state: {}, gone: {}, at: 1 }), true).items.length, 0);
 });
-ok("a snooze still running is carried over; a finished one is not", () => {
-  const live = R.migrateLegacy(null, R.cleanLegacy({ at: "02:00", until: "06:00", text: "", snoozeUntil: 9000 }), true, 1000)!;
-  assert.equal(live.state.fu.snoozeUntil, 9000);
-  const old = R.migrateLegacy(null, R.cleanLegacy({ at: "02:00", until: "06:00", text: "", snoozeUntil: 500 }), true, 1000)!;
-  assert.deepEqual(old.state, {});
+ok("two devices: an old copy that still has fu can never bring it back through a merge", () => {
+  const oldDev = R.cleanRemind({ v: 1, list: [FU], state: {}, gone: {}, at: 1 });
+  const newDev = R.cleanRemind({ v: 1, list: [MINE], state: {}, gone: {}, at: 50 });
+  assert.deepEqual(R.mergeRemind(oldDev, newDev).list.map((r) => r.id), ["mine0001"]);
+  assert.deepEqual(R.pickRemind([{ id: "d1", data: { v: 1, list: [FU], at: 1 } }, { id: "d2", data: { v: 1, list: [MINE], at: 50 } }]).rec!.list.map((r) => r.id), ["mine0001"]);
 });
-ok("made on the phone first: the Mac's old settings fill in only what was never changed", () => {
-  const seedRec = R.remindOrDefault(null, true);
-  assert.ok(seedRec.list[0].seed);
-  const edited = R.patchReminder(seedRec, "fu", { sound: "soft" }, 50);   // the phone picked a sound: seed gone
-  assert.equal(edited.list[0].seed, undefined);
-  assert.equal(R.migrateLegacy(edited, R.cleanLegacy({ at: "03:00", until: "05:00", text: "X" }), true, 60), null);
-  // Saved untouched (an Add reminder on the phone, say): still the seed, so the Mac fills it in.
-  const added = R.addReminder(seedRec, "zz1", 50);
-  const m = R.migrateLegacy(added, R.cleanLegacy({ on: true, at: "03:00", until: "05:00", text: "My words" }), true, 60)!;
-  assert.equal(m.list[0].at, "03:00"); assert.equal(m.list[0].text, "My words"); assert.equal(m.list[0].seed, undefined);
-  assert.equal(m.list.length, 2);
-  assert.equal(R.migrateLegacy(m, R.cleanLegacy({ at: "04:00", until: "05:00", text: "" }), true, 70), null);   // once only
+ok("pickRemind says when a stored copy is stale, so the next save rewrites it without fu", () => {
+  assert.equal(R.pickRemind([{ id: "d1", data: { v: 1, list: [FU, MINE], at: 1 } }]).stale, true);
+  assert.equal(R.pickRemind([{ id: "d1", data: { v: 1, list: [MINE], at: 1 } }]).stale, false);
+  assert.equal(R.pickRemind([]).stale, false);
 });
-ok("no old settings, or reminder one removed: nothing", () => {
-  assert.equal(R.migrateLegacy(null, null, true, 1), null);
-  const gone = R.removeReminder(R.remindOrDefault(null, true), "fu", 5);
-  assert.equal(R.migrateLegacy(gone, R.cleanLegacy({ at: "03:00", until: "05:00", text: "" }), true, 6), null);
+ok("nothing built in: no record means an empty list, a default question is neutral", () => {
+  assert.deepEqual(R.remindOrDefault(null, true).list, []);
+  assert.deepEqual(R.remindOrDefault(null, false).list, []);
+  assert.equal(R.questionOf({ text: "" }), "HAVE YOU DONE YOUR DAILY TASK YET?");
 });
 ok("no record and no Mac: the plan is empty (a phone never pops up something nobody set)", () => {
   assert.deepEqual(R.remPlan(null, true).items, []);
@@ -193,7 +181,7 @@ ok("no record and no Mac: the plan is empty (a phone never pops up something nob
 
 // ---------- editing ----------
 ok("add, edit, move, remove; a new start time forgets that window's answer", () => {
-  let rec = R.remindOrDefault(null, false);
+  let rec = R.addReminder(R.remindOrDefault(null, false), "fu0", 5);
   rec = R.addReminder(rec, "b2", 10);
   assert.equal(rec.list[1].label, "Reminder 2");
   rec = R.applyAct(rec, { id: "b2", act: "done", day: "2026-11-10", at: 11 })!;
@@ -202,9 +190,9 @@ ok("add, edit, move, remove; a new start time forgets that window's answer", () 
   rec = R.patchReminder(rec, "b2", { at: "10:00" }, 13);
   assert.equal(rec.state.b2, undefined);
   rec = R.moveReminder(rec, "b2", -1, 14);
-  assert.deepEqual(rec.list.map((r) => r.id), ["b2", "fu"]);
+  assert.deepEqual(rec.list.map((r) => r.id), ["b2", "fu0"]);
   rec = R.removeReminder(rec, "b2", 15);
-  assert.deepEqual(rec.list.map((r) => r.id), ["fu"]);
+  assert.deepEqual(rec.list.map((r) => r.id), ["fu0"]);
   assert.equal(rec.gone.b2, 15);
   let full = R.emptyRemind();
   for (let i = 0; i < 25; i++) full = R.addReminder(full, `r${i}`, i);

@@ -3,7 +3,7 @@
 // lives in the vault (web src/core/remind.ts, Settings > Annoying 15 min reminder); the page hands this Mac
 // the plan ("rem:plan", every reminder with its words worked out) and this file shows the cards. The rules are in
 // RemMath.swift. It grew out of the daily reminder card (FollowUp.swift, 24 Oct to 9 Nov 2026), which is reminder one
-// now ("fu"), with its words, its 02:00 to 06:00 window and the developer's Dubai time kept. Every rule of that card holds for
+// gone since 1.60 (its built in "fu" reminder is removed for everyone). Every rule of that card holds for
 // each reminder:
 // - A card only OPENS inside its window, on its days. Away, locked, asleep or in a meeting for the whole window means
 //   that window is skipped, with no catch up; a snooze that ends after the window does not come back; a card already
@@ -49,11 +49,10 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   // ---------- state ----------
   private(set) var items: [RemMath.Item] = []
   private(set) var local: [String: Local] = [:]
-  private(set) var legacy: [String: Any]?      // the old card's settings, until the page has made reminder one from them
   private var meeting = false
   private var store: UserDefaults = .standard
   private var testDir: String?
-  /// Settings changed: PS > Settings redraws (the legacy hand over).
+  /// Settings changed: PS > Settings redraws.
   var onSettings: (() -> Void)?
   /// An answer for the page (main.swift sends it to the main page, retried while that page loads).
   var onAnswer: ((String) -> Void)?
@@ -107,12 +106,10 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   private func load() {
     if let d = store.data(forKey: "rem.items"), let a = try? JSONSerialization.jsonObject(with: d) { items = RemMath.items(["items": a]) } else { items = [] }
     if let d = store.data(forKey: "rem.local"), let l = try? JSONDecoder().decode([String: Local].self, from: d) { local = l } else { local = [:] }
-    // The old daily reminder (FollowUp.swift): reported to the page until it has become reminder one.
-    if store.bool(forKey: "rem.legacyDone") { legacy = nil } else {
-      let l = RemMath.legacy(prefs: store.data(forKey: "fu.prefs"), doneFor: store.string(forKey: "fu.doneFor"), snoozeUntil: store.object(forKey: "fu.snoozeUntil") as? Date)
-      legacy = l
-      if store.data(forKey: "rem.items") == nil { items = [RemMath.legacyItem(l, red: Owner.red)] }   // the old card keeps working until the page's plan comes
-    }
+    // 1.60: the built in daily reminder ("fu") is gone for everyone. A stored answer for it, and the old card's own
+    // settings, are cleaned out (a card for it never comes back; ones people made themselves keep their ids).
+    local[RemMath.retiredId] = nil
+    for k in ["fu.prefs", "fu.doneFor", "fu.snoozeUntil", "rem.legacyDone"] { store.removeObject(forKey: k) }
   }
   private func save() {
     if let d = try? JSONSerialization.data(withJSONObject: items.map { $0.json }) { store.set(d, forKey: "rem.items") }
@@ -163,16 +160,8 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     for (id, c) in cards where id != Reminders.testId { if let i = items.first(where: { $0.id == id }), i != c.item { c.item = i; show(c) } }
     check()
   }
-  /// The page made reminder one from the old card's settings: stop reporting them.
-  func legacyDone() {
-    guard legacy != nil else { return }
-    legacy = nil
-    store.set(true, forKey: "rem.legacyDone")
-    psLog("PS reminders: the old daily reminder is reminder one now")
-    onSettings?()
-  }
   func settingsJSON() -> [String: Any] {
-    ["legacy": legacy ?? NSNull(), "count": items.count, "up": up.count]
+    ["count": items.count, "up": up.count]
   }
 
   // ---------- answers ----------

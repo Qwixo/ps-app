@@ -17,7 +17,8 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | AFK timer | Notices when you step away from the Mac. | On | Settings, Mac, "AFK timer". |
 | Network monitor | Live connection status, per app traffic while its panel is open, and a "Last online" check. Local only. | On | Settings, Mac, "Network monitor". |
 | Phone background checks | Keeps alarms and the vault fresh while the app is closed. | On | Settings, Notifications and Do Not Disturb, "Background checks" (phone). |
-| Daily reminder | "Have you done your daily task yet?" between 02:00 and 06:00. | On | Settings, Annoying 15 min reminder, the reminder's own switch. |
+| Reminders ring on the phone | Each reminder rings like the gym alarm on the Android phone (full screen card, loud sound for a minute, then again every snooze length until Done), also with PS closed and the screen off. Quiet under Do Not Disturb. A reminder set to No sound only buzzes. | On | Settings, From the squad, "Reminders ring on the phone". |
+| Reminders on the iPhone | The same reminders on the iPhone web app: a full screen card while it is open, a push at each reminder time while it is closed (iOS 16.4 and later, added to the Home Screen). The server keeps only the reminder id and the time. | On, but nothing is sent until you tap the button | Settings, Annoying 15 min reminder, "Allow reminders on this iPhone". Switch: From the squad, "Reminders on the iPhone". |
 | Restart helper reminder | Pop up asking you to set up the restart helper. | On | Settings, Privacy and sharing, Security, "Remind me to set up the restart helper". |
 | First use tips | Short tip cards the first few times you use PS. | On | Settings, About and updates, "Show first use tips". |
 | Are you sure (Mac) | Asks before you open sites you chose (YouTube and Netflix to start with). | On | Settings, Privacy and sharing, Security, "Are you sure". |

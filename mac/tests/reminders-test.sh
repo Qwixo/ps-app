@@ -1,6 +1,6 @@
 #!/bin/bash
 # Unit tests for the Annoying 15 min reminders' rules on a Mac (Sources/RemMath.swift): the schedule across days,
-# midnight and time zones, done and snooze, the plan from the page, the old daily reminder. The same numbers as
+# midnight and time zones, done and snooze, the plan from the page, the retired built in reminder. The same numbers as
 # web tests/remind.test.ts. No window, no sound, nothing read or written: safe while someone uses the Mac.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"

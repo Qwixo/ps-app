@@ -78,11 +78,11 @@ let remindLane: Promise<unknown> = Promise.resolve();
 export function saveRemind(change: (rec: RemindRec | null) => RemindRec | null, newId?: string): Promise<void> {
   const run = async () => {
     if (!docs<RemindRec>("remind", null).length && !settings(vaultStore.get())) await firstDownload();
-    const { keep, extra, rec } = pickRemind(docs<RemindRec>("remind", null));
+    const { keep, extra, rec, stale } = pickRemind(docs<RemindRec>("remind", null));
     const next = change(rec);
     if (!next) return;
     const data = cleanRemind(next);
-    if (rec && keep && !extra.length && sameRemind(rec, data)) return;
+    if (rec && keep && !extra.length && !stale && sameRemind(rec, data)) return;
     await put<RemindRec>("remind", data, { id: keep?.id ?? newId, ws: null });
     for (const d of extra) await remove(d.id);   // a second copy from two devices that each made one
   };

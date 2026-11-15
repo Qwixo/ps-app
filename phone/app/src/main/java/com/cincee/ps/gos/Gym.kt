@@ -97,8 +97,11 @@ object Gym {
         // Days the vault knows are acknowledged no longer need this phone's own copy.
         val keep = local(c).filter { it !in p.acked && it >= GymClock.minusDay(today()) }.toSet()
         val keepAlarms = alarmLocal(c).filter { it.takeLast(10) >= GymClock.minusDay(today()) }.toSet()
-        sp(c).edit().putString("plan", GymClock.toJson(p).toString()).putStringSet("acked", keep).putStringSet("alarmAcked", keepAlarms).apply()
-        sp(c).getString("noteDay", null)?.let { d -> if (d in p.acked || !p.on) cancelNote(c) }
+        val forgotten = GymClock.forgetMoved(plan(c), p, fired(c))
+        sp(c).edit().putStringSet("fired", forgotten).putString("plan", GymClock.toJson(p).toString()).putStringSet("acked", keep).putStringSet("alarmAcked", keepAlarms).apply()
+        // 1.60: a reminder or missed notice up for a gym time the saved settings no longer have (moved from morning to
+        // night, a day switched off) goes away; the ring and the next alarm are re-worked by check() below.
+        sp(c).getString("noteDay", null)?.let { d -> if (d in p.acked || !p.on || !GymClock.planHas(p, d, sp(c).getLong("noteAt", 0))) cancelNote(c) }
         check(c, "plan")   // acknowledged on the Mac: the ring (or Later's wait) ends here
     }
 
@@ -180,10 +183,10 @@ object Gym {
             .addAction(Notification.Action.Builder(null, YES, ackIntent(c, s.day)).build())
             .setGroup("gym")
             .build()
-        sp(c).edit().putString("noteDay", s.day).apply()
+        sp(c).edit().putString("noteDay", s.day).putLong("noteAt", s.at).apply()
         nm(c).notify(NOTE_ID, n)
     }
-    private fun cancelNote(c: Context) { nm(c).cancel(NOTE_ID); nm(c).cancel(MISSED_ID); sp(c).edit().remove("noteDay").apply() }
+    private fun cancelNote(c: Context) { nm(c).cancel(NOTE_ID); nm(c).cancel(MISSED_ID); sp(c).edit().remove("noteDay").remove("noteAt").apply() }
     private fun missedId(key: String) = if (key == GymClock.GYM) MISSED_ID else Notifier.nid("alarm-missed-$key")
     private fun hm(at: Long) = java.time.Instant.ofEpochMilli(at).atZone(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
 
@@ -201,7 +204,7 @@ object Gym {
             .addAction(Notification.Action.Builder(null, if (alarm) a?.yes ?: "Acknowledge" else YES, ackIntent(c, r.day, r.key)).build())
             .setGroup("gym")
             .build()
-        if (!alarm) sp(c).edit().putString("noteDay", r.day).apply()
+        if (!alarm) sp(c).edit().putString("noteDay", r.day).putLong("noteAt", r.at).apply()
         nm(c).notify(missedId(r.key), n)
     }
     private fun colour(hex: String?, def: String) = runCatching { Color.parseColor(hex ?: def) }.getOrDefault(Color.parseColor(def))
