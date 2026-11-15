@@ -7,9 +7,14 @@
 // with a light tap of the haptics per step. A click or a plain tap sets the time shown.
 import { useEffect, useRef, useState } from "react";
 import { settingsData } from "../core/select";
+import { mailOnSnap } from "../core/mailsnap";
 import { saveSettings, setReplyRemind, setReplySeen } from "../core/actions";
 import { mailCards, nextRemind, remindText, REMIND, stepRemind } from "../core/mailcards";
 import { useVault } from "../ui/kit";
+import { waOnSnap } from "../core/wasnap";
+import { prefsOf, waCards, nextWaRemind } from "../core/whatsapp";
+import { saveWaPrefs, setWaRemind, setWaSeen } from "../core/waactions";
+import { WaMark } from "./WaMark";
 import { PS } from "../ps";
 import { haptic } from "../gos/bridge";
 import "./mailcards.css";
@@ -24,38 +29,42 @@ export function MailCardsWeb() {
   const [gone, setGone] = useState<Map<string, number>>(new Map());
   const [, setTick] = useState(0);
   const ready = !PS && s.status === "unlocked" && s.role === "owner";
+  const waOn = ready && waOnSnap(s), waPrefs = prefsOf(settingsData(s));
+  useEffect(() => { if (waOn && !waPrefs.since) void saveWaPrefs({ since: new Date().toISOString() }); }, [waOn, waPrefs.since]);
   const since = ready ? settingsData(s).mailCardsSince : "x";
   // First run on any device: start from now, so old mail never floods in.
   useEffect(() => { if (ready && !since) void saveSettings({ mailCardsSince: new Date().toISOString() }); }, [ready, since]);
   // A reminded card comes back on time, with nothing else changing.
-  const next = ready && since ? nextRemind(s.docs.values(), since) : 0;
+  const next = Math.min(...[ready && since ? nextRemind(s.docs.values(), since) : 0, waOn && waPrefs.since ? nextWaRemind(s.docs.values(), waPrefs.since, waPrefs) : 0].filter(Boolean), Infinity);
   useEffect(() => {
-    if (!next) return;
+    if (!next || !isFinite(next)) return;
     const t = window.setTimeout(() => setTick((n) => n + 1), Math.min(Math.max(next - Date.now() + 300, 300), 2 ** 31 - 1));
     return () => clearTimeout(t);
   }, [next]);
   if (PS || s.status !== "unlocked" || s.role !== "owner") return null;
   const st = settingsData(s);
-  if (!st.mailCardsSince) return null;
+  if (!st.mailCardsSince && !(waOn && waPrefs.since)) return null;
   const now = Date.now();
-  const list = mailCards(s.docs.values(), st.mailCardsSince).filter((c) => (gone.get(c.id) || 0) < now - 15_000);
+  const mailList = mailOnSnap(s) && st.mailCardsSince ? mailCards(s.docs.values(), st.mailCardsSince).filter((c) => (gone.get(c.id) || 0) < now - 15_000) : [];
+  const waList = waOn && waPrefs.since ? waCards(s.docs.values(), waPrefs.since, waPrefs).filter((c) => (gone.get(c.id) || 0) < now - 15_000) : [];
+  const list = [...waList.map((c) => ({ ...c, wa: true as const, replyId: c.chatId, url: c.url })), ...mailList.map((c) => ({ ...c, wa: false as const }))].sort((a, b) => b.at.localeCompare(a.at));
   if (!list.length) return null;
   const shown = open ? list : list.slice(0, SHOW);
   const hide = (id: string) => setGone((g) => new Map(g).set(id, Date.now()));
-  const dismiss = (id: string, replyId: string) => { hide(id); void setReplySeen(replyId); };
-  const remind = (id: string, replyId: string, mins: number) => { hide(id); void setReplyRemind(replyId, mins); };
+  const dismiss = (id: string, replyId: string, wa: boolean) => { hide(id); void (wa ? setWaSeen(replyId) : setReplySeen(replyId)); };
+  const remind = (id: string, replyId: string, mins: number, wa: boolean) => { hide(id); void (wa ? setWaRemind(replyId, mins) : setReplyRemind(replyId, mins)); };
   return (
     <aside className="mc" aria-label="New client emails">
       {shown.map((c) => (
-        <article key={c.id} className="mc-card">
-          <header><span className="mc-ic" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M4 7.5l8 5.5 8-5.5" /></svg></span>
+        <article key={c.id} className={`mc-card${c.wa ? " mc-wa" : ""}`}>
+          <header><span className="mc-ic" aria-hidden="true">{c.wa ? <WaMark size={15} /> : null}{c.wa ? null : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M4 7.5l8 5.5 8-5.5" /></svg>}</span>
             <b>{c.title}</b><time>{new Date(c.at).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</time></header>
           {c.sub && <p className="mc-sub">{c.sub}</p>}
           {c.body && <p className="mc-b">{c.body}</p>}
           <div className="mc-acts">
-            <a className="mc-open" href={c.url} target="_blank" rel="noopener noreferrer">Open in Gmail</a>
-            <RemindButton onSet={(mins) => remind(c.id, c.replyId, mins)} />
-            <button type="button" className="mc-dis" onClick={() => dismiss(c.id, c.replyId)}>Dismiss</button>
+            <a className="mc-open" href={c.url} target="_blank" rel="noopener noreferrer">{c.wa ? "Open in WhatsApp" : "Open in Gmail"}</a>
+            <RemindButton onSet={(mins) => remind(c.id, c.replyId, mins, c.wa)} />
+            <button type="button" className="mc-dis" onClick={() => dismiss(c.id, c.replyId, c.wa)}>Dismiss</button>
           </div>
         </article>
       ))}

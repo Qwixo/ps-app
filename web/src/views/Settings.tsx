@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import "./extra.css";
 import { GmailSettings } from "./Replies";
 import { ClientEmailsSettings } from "./ClientEmailsSettings";
+import { WhatsAppSettings } from "./WhatsAppSettings";
 import { mailCan } from "../core/mailswitch";
 import type { ClientRec, Settings } from "../core/model";
 import { settingsData } from "../core/select";
@@ -35,6 +36,7 @@ export function SettingsView() {
         <PassphrasePanel />
       </div>
       {mailCan(s) ? <ClientEmailsSettings /> : red && <GmailSettings />}
+      {mailCan(s) && <WhatsAppSettings />}
       {red && <ClaudeAccess />}
       <InviteOwners />
       <SignInLog />

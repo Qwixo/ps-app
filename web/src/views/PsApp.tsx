@@ -146,6 +146,10 @@ export function PsOverlay() {
     // V1.59 Reply in the email panel: the box's Send after its Undo; the main window builds it and sends it on its way.
     taskMapActions.replyInline = async (cardId, text, id) => psPost({ type: "looks", patch: { replyInline: { cardId, text, id } } });
     taskMapActions.leadDone = async (cardId) => psPost({ type: "looks", patch: { leadDone: cardId } });
+    // WhatsApp in the same panel: the main window holds the vault and the session, and runs it (src/ps.ts).
+    taskMapActions.waSend = async (chatId, text) => psPost({ type: "looks", patch: { waOp: { op: "send", chatId, text } } });
+    taskMapActions.waTemplate = async (chatId, name, language) => psPost({ type: "looks", patch: { waOp: { op: "template", chatId, name, language } } });
+    taskMapActions.waDone = async (chatId) => psPost({ type: "looks", patch: { waOp: { op: "done", chatId } } });
     taskMapActions.workStyle = async (style) => psPost({ type: "workStyle", style });
     taskMapActions.reset = async () => psPost({ type: "reset" });
     taskMapActions.undoReset = async () => psPost({ type: "resetUndo" });

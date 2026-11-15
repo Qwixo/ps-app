@@ -47,6 +47,7 @@ import { TelegramBotSettings } from "./TelegramBot";
 import { TaskApiSettings } from "./TaskApi";
 import { MailPeople } from "./MailPeople";
 import { ClientEmailsSettings } from "./ClientEmailsSettings";
+import { WhatsAppSettings } from "./WhatsAppSettings";
 import { mailOnSnap } from "../core/mailsnap";
 import { mailCan } from "../core/mailswitch";
 import { AutoResetSetting } from "./AutoReset";
@@ -256,6 +257,7 @@ export const CONTROLS: Controls = {
   "reply-from-ps": row(() => <button className="btn quiet sm" onClick={() => psPost({ type: "looks", patch: { replySetup: true } })}
     data-tip="Open the reply panel" data-tip-line="Quick replies, your signature, Send now or at a random time, and the accounts that can send.">Open</button>),
   "client-emails": block(() => <ClientEmailsSettings compact />),
+  "whatsapp": block(() => <WhatsAppSettings />),
   "gmail-replies": block(() => <MailPeople overlay={PS} />, false),
 
   // Time and reset

@@ -3,6 +3,7 @@ import { CLIENT_STATUSES, PIPELINE, PROJECT_TYPES, typeLabel, type ClientRec, ty
 import { projectViews } from "../core/select";
 import { addProject, updateClient } from "../core/actions";
 import { Field, Icon, Modal, TzClock, TzSelect, go, useVault } from "../ui/kit";
+import { WaClientMessages } from "./WaMail";
 import { EditArea, PrivatePill, flags, run } from "./project/bits";
 import { DestroyModal, InviteModal, LoginLinkButton, exportFlow, removeAccessFlow } from "./project/Access";
 import { ProjectEditor } from "./project/Editor";
@@ -59,6 +60,7 @@ export function ClientDetailView({ clientId, projectId }: { clientId: string; pr
             <button className="btn quiet icon" aria-expanded={more} aria-controls="cv-more" aria-label="Access and data" onClick={() => setMore((v) => !v)}><Icon name="dots" /></button>
           </div>
         </div>
+        <WaClientMessages s={s} clientId={client.id} />
         {more && (
           <div id="cv-more" className="panel tight cv-more">
             <span className="label">Access and data</span>
@@ -173,10 +175,10 @@ function NewProjectModal({ ws, onClose, onCreated }: { ws: string; onClose: () =
 
 function DetailsModal({ client, onClose }: { client: Doc<ClientRec>; onClose: () => void }) {
   const c = client.data;
-  const [f, setF] = useState({ name: c.name, contactName: c.contactName || "", greetingName: c.greetingName || "", timezone: c.timezone || "", status: c.status || "" });
+  const [f, setF] = useState({ name: c.name, contactName: c.contactName || "", greetingName: c.greetingName || "", phone: c.phone || "", timezone: c.timezone || "", status: c.status || "" });
   const save = async () => {
     if (!f.name.trim()) return;
-    const ok = await run(() => updateClient(client.id, { name: f.name.trim(), contactName: f.contactName.trim() || null, greetingName: f.greetingName.trim() || null, timezone: f.timezone || null, status: (f.status || null) as ClientRec["status"] }), "Client saved");
+    const ok = await run(() => updateClient(client.id, { name: f.name.trim(), contactName: f.contactName.trim() || null, greetingName: f.greetingName.trim() || null, phone: f.phone.trim() || null, timezone: f.timezone || null, status: (f.status || null) as ClientRec["status"] }), "Client saved");
     if (ok) onClose();
   };
   return (
@@ -190,6 +192,7 @@ function DetailsModal({ client, onClose }: { client: Doc<ClientRec>; onClose: ()
           <Field label="Contact name"><input className="input" value={f.contactName} onChange={(e) => setF({ ...f, contactName: e.target.value })} /></Field>
           <Field label="Greeting name" hint="They see this on their page"><input className="input" value={f.greetingName} onChange={(e) => setF({ ...f, greetingName: e.target.value })} /></Field>
         </div>
+        <Field label="WhatsApp phone number" hint="With its country code. A WhatsApp message from this number shows on this client."><input className="input" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="+1 650 555 1234" /></Field>
         <div className="cv-2">
           <Field label="Time zone"><TzSelect value={f.timezone} onChange={(v) => setF({ ...f, timezone: v })} /></Field>
           <Field label="Shows under">

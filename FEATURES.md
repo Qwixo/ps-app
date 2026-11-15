@@ -39,6 +39,7 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Meeting alerts | A warning before a meeting starts. | Settings, Notifications and Do Not Disturb, "Meetings". |
 | Do Not Disturb | Quiets PS for a while. | Off until you start it. |
 | Client emails | Shows your clients' Gmail emails and your Instantly replies as cards and in the email panel, with Reply (your Mac sends it). Only for the first owner of their own Supabase project, with your own Google and Instantly accounts. Off until switched on. | Settings, Notifications and Do Not Disturb, "Client emails" (also Settings, From the squad). |
+| WhatsApp replies | Shows WhatsApp messages as cards and in the email panel, with Reply (sent by your own Supabase through Meta's WhatsApp Cloud API, inside the 24 hour window, with a 10 second Undo). Matches the sender's number to a client. Only for the first owner of their own Supabase project, with your own Meta app and number. Off until switched on and linked. | Settings, WhatsApp settings (also Settings, From the squad). |
 | AI chat finished cards | A card when a Claude Code chat finishes. Writes a hook into that tool's settings only when switched on. | Off for new installs. Settings, Notifications and Do Not Disturb, "AI chat finished cards". |
 | Volume mixer | Turn each app up, down or off. Only touches apps you change. | Leave the sliders alone, or remove the button in Edit mode. |
 | Headphones auto switch | Moves sound to your headphones when they connect. | Off by default, inside the mixer. |

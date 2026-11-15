@@ -12,6 +12,7 @@ import { MiddleClickSettings } from "./MiddleClickSettings";
 import { RemindSettings } from "./RemindSettings";
 import { MailPeople } from "./MailPeople";
 import { ClientEmailsSettings } from "./ClientEmailsSettings";
+import { WhatsAppSettings } from "./WhatsAppSettings";
 import { mailOnSnap } from "../core/mailsnap";
 import { mailCan } from "../core/mailswitch";
 import { InviteOwners } from "./InviteOwners";
@@ -71,6 +72,7 @@ export function PsSettingsView({ onBack, overlay }: { onBack?: () => void; overl
         <RemindSettings />
       </section>
       {mailCan(s) && <ClientEmailsSettings compact />}
+      {mailCan(s) && <WhatsAppSettings />}
       {mailOnSnap(s) && (
         <section className="panel stack" aria-labelledby="gm-ps-h">
           <h2 className="h2" id="gm-ps-h">Gmail replies</h2>

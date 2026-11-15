@@ -12,7 +12,7 @@ import type { NotchLook, PillLook } from "./islandlook";
 import type { BgCrop } from "./bgcrop";
 
 export type Kind =
-  | "client" | "pprivate" | "todo" | "meeting" | "draft" | "settings" | "reply" | "brief" | "calendar" | "iemail" | "ithread" | "agenda" | "journal" | "quote" | "note" | "daylog" | "screentime" | "stline" | "cstats" | "cpage" | "fup" | "irep" | "msender" | "fprog" | "fwork" | "fit" | "psnote" | "tzperson" | "tzzones" | "tablayout" | "remind" | "fsleep" | "squad" | "squadask" | "squadjoin" | "fact" | "phonelayout" | "phonedev" | "rout"   // owner private (vault key); f*: Fitness (core/fitness.ts, fsleep: core/sleep.ts, fact: core/activity.ts); psnote: the developer's private release notes (core/privatenotes.ts); tzperson: Time zones people (core/tzpeople.ts); tzzones: your list of clocks (core/tzzones.ts); tablayout: the Tab list's Edit mode places (core/tablayout.ts); remind: the Annoying 15 min reminders and their answers (core/remind.ts); squad: your G Squad keys (core/squadrec.ts); squadask: your request to join a listed squad (core/squaddir.ts, older PS); squadjoin: your automatic join into The G Squad (core/squadauto.ts); phonelayout: a phone kind's own layout (core/phonelayout.ts); phonedev: a phone that opened PS (core/phonedevices.ts); rout: a reply typed in the email panel on its way to a Mac that sends it (core/inlinereply.ts, V1.59)
+  | "client" | "pprivate" | "todo" | "meeting" | "draft" | "settings" | "reply" | "brief" | "calendar" | "iemail" | "ithread" | "agenda" | "journal" | "quote" | "note" | "daylog" | "screentime" | "stline" | "cstats" | "cpage" | "fup" | "irep" | "msender" | "fprog" | "fwork" | "fit" | "psnote" | "tzperson" | "tzzones" | "tablayout" | "remind" | "fsleep" | "squad" | "squadask" | "squadjoin" | "fact" | "phonelayout" | "phonedev" | "rout" | "wachat"   // owner private (vault key); f*: Fitness (core/fitness.ts, fsleep: core/sleep.ts, fact: core/activity.ts); psnote: the developer's private release notes (core/privatenotes.ts); tzperson: Time zones people (core/tzpeople.ts); tzzones: your list of clocks (core/tzzones.ts); tablayout: the Tab list's Edit mode places (core/tablayout.ts); remind: the Annoying 15 min reminders and their answers (core/remind.ts); squad: your G Squad keys (core/squadrec.ts); squadask: your request to join a listed squad (core/squaddir.ts, older PS); squadjoin: your automatic join into The G Squad (core/squadauto.ts); phonelayout: a phone kind's own layout (core/phonelayout.ts); phonedev: a phone that opened PS (core/phonedevices.ts); wachat: one WhatsApp conversation per number, owner private (core/whatsapp.ts, PS 1.60); rout: a reply typed in the email panel on its way to a Mac that sends it (core/inlinereply.ts, V1.59)
   | "sdev" | "spair" | "sjob" | "sjobst" | "smsg" | "sfile" | "sack" | "sstat" | "scmd" | "sidx" | "sget" | "sgot" | "sbudget" | "sojob" | "sores"   // Second Computer (core/second.ts), owner private (vault key)
   | "wsmeta" | "project" | "ctask" | "tick" | "update" | "approval"     // shared with one client (workspace key)
   | "doc";                                                               // a file attached to a project (same scope as the project)
@@ -174,6 +174,8 @@ export interface ClientRec {
   ws: string;                    // the client's workspace id (its own encryption key)
   contactName?: string | null;
   email?: string | null;
+  phone?: string | null;         // WhatsApp: a message from this number shows on this client (core/whatsapp.ts matchClient)
+  phones?: string[];             // more numbers of the same client
   greetingName?: string | null;
   timezone?: string | null;      // IANA zone, eg "America/New_York"
   matchAddrs?: string[];         // extra addresses or domains their Gmail replies come from (private)
@@ -430,6 +432,7 @@ export interface Settings {
   tgBot?: import("./tgbot").TgBotPrefs;   // Add Telegram Bot (V1.47, core/tgbot.ts): the start word and the linked chat, never the bot's key
   mailRules?: import("./mailrules").MailRules;   // Gmail: Always notify me and Muted, beside client emails (core/mailrules.ts)
   mailCardsSince?: string | null;  // client email cards that stay until dismissed: only mail newer than this (set once)
+  wa?: import("./whatsapp").WaPrefs;   // WhatsApp settings: on, notify, sound, mark as read, muted and always lists (core/whatsapp.ts, PS 1.60)
   mailReply?: import("./mailreply").MailReplyPrefs;   // Reply from PS: signatures and saved responses (core/mailreply.ts, V1.44)
   leadCards?: LeadCardState;      // Instantly reply cards in PS: when they started, dismissed and reminded (core/leadcards.ts)
   chatFade?: number;               // V1.55: seconds an AI chat card stays before it goes by itself (core/chatdone.ts chatFade: 10 unless set, 0 = it stays)

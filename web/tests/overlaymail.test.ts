@@ -124,7 +124,7 @@ ok("the email panel has the Reply button, gated by replyButtonShows, before Open
   assert.match(panel, /replyButtonShows\(\{ mode: import\.meta\.env\.MODE, mail, cardId: r\.cardId \}\)/);
   assert.match(panel, /taskMapActions\.replyOpen\(r\.cardId\)/);
   assert.ok(panel.indexOf(">Reply<") < panel.indexOf(">Open<") && panel.indexOf(">Open<") < panel.indexOf(">Done<"));
-  assert.match(t, /mailOnSnap\(s\) && <Slot id="mail"><ClientMail s=\{s\} mail \/><\/Slot>/);
+  assert.match(t, /\(mailOnSnap\(s\) \|\| waOnSnap\(s\)\) && <Slot id="mail">\{mailOnSnap\(s\) && <ClientMail s=\{s\} mail \/>\}/);   // WhatsApp (PS 1.60) rides in the same place
 });
 ok("the overlay posts Reply and a lead's Done to the main page as a looks patch (PS relays looks from the overlay)", () => {
   const p = src("src/views/PsApp.tsx");
@@ -148,7 +148,7 @@ ok("the card's Reply and the panel's Reply go the same way, and nothing in it se
 ok("the pop up cards keep their Reply on the Mac (mailcards.ts reply: true in PS mode)", () => {
   const m = src("src/mailcards.ts");
   assert.match(m, /const REPLY = import\.meta\.env\.MODE === "ps" \? \{ reply: true \} : \{\};/);
-  assert.equal((m.match(/\.\.\.REPLY/g) || []).length, 2);
+  assert.equal((m.match(/\.\.\.REPLY/g) || []).length, 3);   // client email, lead and WhatsApp cards;
 });
 ok("the Reply window route is still there after the V1.44 web app merge", () => {
   const a = src("src/App.tsx");

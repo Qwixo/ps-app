@@ -140,8 +140,10 @@ import { mailOnSnap } from "./core/mailsnap";
 import { irepFeed, mailCardMessage, startMailCards } from "./mailcards";
 import { cleanReplyCardId, leadRows, setLeadMirror } from "./core/overlaymail";
 import { leadCards } from "./core/leadcards";
+import { requestWaReply } from "./core/wareplyopen";
 import { cleanReplyPatch, openReplyFor, openReplySetup, replyMessage, runMailReplyOp, sendInlineOrSay, startReplyEngine } from "./replyengine";
 import { cleanInlineSend } from "./core/inlinereply";
+import { cleanWaOp, runWaOp } from "./core/waops";
 import { notesCardMessage, startNotesCard } from "./notescard";
 import { rebootWarnMessage, startRebootWarn } from "./rebootwarn";
 import { ackGymDay, gymCardMessage, gymWake, startGymWatch } from "./gymwatch";
@@ -290,6 +292,7 @@ type ShellMsg = { type: "tick"; id: string; done?: boolean } | { type: "work"; i
   | { type: "add"; title: string; due: string | null; kind: "once" | "daily"; order?: number; repeat?: unknown; p1?: unknown; clientId?: unknown; notes?: unknown; unranked?: unknown; sqOn?: unknown; sqAnon?: unknown; group?: unknown } | { type: "sync" } | { type: "tap"; on: boolean }
   | { type: "psSettings"; data: PsSettings }
   | { type: "tab"; enabled: boolean; trusted: boolean; on: boolean }
+  | { type: "waReply"; id: string }
   | { type: "remember"; username: string; auth: string; kek: string }
   | { type: "rememberStatus"; exists: boolean; locked?: boolean } | { type: "touchid"; ok: boolean }
   | { type: "lock" } | { type: "suggest"; id: string; action: "add" | "dismiss" | "aware" | "dimx"; place?: { type?: string; order?: number; p1?: boolean }; zone?: unknown } | { type: "workStyle"; style: string }
@@ -522,6 +525,7 @@ export function startPsOverlay() {
     apply(m) {
       if (apiOverlayMessage(m as { type?: string })) return;   // Settings, AI task API: the key, shown when asked (src/taskapi.ts)
       if (m.type === "tab") { tabState = { enabled: m.enabled, trusted: m.trusted }; settingsListeners.forEach((l) => l()); }
+      else if (m.type === "waReply") requestWaReply((m as { id?: unknown }).id);   // a WhatsApp card's Reply: the reply box opens on that chat (core/wareplyopen.ts)
       else if (m.type === "rememberStatus") { remembered = m.exists; touchLocked = m.locked === true; settingsListeners.forEach((l) => l()); }
       else if (m.type === "mic") setMic(m);
       else if (m.type === "psSettings") { psSettings = m.data; settingsListeners.forEach((l) => l()); }   // Mac settings in the Tab list (V1.23)
@@ -659,6 +663,7 @@ export function startPsBridge() {
         // and sent on its way here; the Tab list sees how it went through the vault ("Replied" or "Not sent").
         { const r = cleanInlineSend(patch.replyInline); if (r) void sendInlineOrSay(r.cardId, r.text, r.id, "mac").catch(() => psPost({ type: "log", text: "reply: a reply from the email panel was not sent" })); }
         { const id = cleanReplyCardId(patch.leadDone); if (id && id.startsWith("n:")) mailCardMessage({ type: "cardAction", id, action: "dismiss" }); }
+        { const o = cleanWaOp(patch.waOp); if (o) void runWaOp(o).catch(() => psPost({ type: "log", text: "whatsapp: a reply from the panel was not sent" })); }   // WhatsApp (core/waops.ts): Send after its Undo, a template, Done
         { const o = cleanReplyPatch(patch.mailReplyOp); if (o) void runMailReplyOp(o).catch(() => psPost({ type: "log", text: "reply: a signature or response change failed to save" })); }   // Reply from PS (src/replyengine.ts)
         { const o = cleanMailRuleOp(patch.mailRuleOp); if (o) void (o.clientId ? addMatchAddr(o.clientId, o.entry) : setMailRule(o.entry, o.list)).catch(() => {}); }
         // Do Not Disturb (core/dnd.ts): the moon top right of the Tab list.
