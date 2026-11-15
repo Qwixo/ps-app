@@ -37,8 +37,8 @@ ok("The developer's layer profile: others' shared features on, Client emails on,
   assert.equal(layerProfile.rules.islandOverProtectedApps, false);
 });
 
-ok("Jan's 1.60 features are all in core's registry (13 of them)", () => {
-  assert.deepEqual(jans.map((f) => f.id).sort(), ["client-emails", "feature-intros", "fitness-island", "gsquad-newlook", "gsquad-notify", "gym-scan-better",
+ok("Jan's 1.60 features are all in core's registry (14 of them)", () => {
+  assert.deepEqual(jans.map((f) => f.id).sort(), ["client-emails", "feature-intros", "fitness-island", "gsquad-island-reply", "gsquad-newlook", "gsquad-notify", "gym-scan-better",
     "island-moments", "remind-push", "remind-ring", "screen-recording", "welcome-back", "whatsapp", "workout-summary"]);
 });
 

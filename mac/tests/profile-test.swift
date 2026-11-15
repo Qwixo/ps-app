@@ -86,7 +86,7 @@ let bundledJSON = CommandLine.arguments.count > 2 ? try! String(contentsOfFile: 
 let bundledFile = json(bundledJSON) as? [String: Any] ?? [:]
 let coreReg = Features.registry(from: bundledFile["features"])
 let janIds = ["remind-ring", "remind-push", "gym-scan-better", "fitness-island", "island-moments", "welcome-back", "workout-summary",
-              "client-emails", "whatsapp", "gsquad-newlook", "gsquad-notify", "feature-intros", "screen-recording"]
+              "client-emails", "whatsapp", "gsquad-newlook", "gsquad-notify", "gsquad-island-reply", "feature-intros", "screen-recording"]
 check("bundle-no-profile", bundledFile["profile"] is NSNull, "a build made the old way is one app for everyone")
 check("bundle-has-core-list", coreReg.contains { $0.id == "campaigns" } && janIds.allSatisfy { id in coreReg.contains { $0.id == id } }, "\(coreReg.map(\.id))")
 check("bundle-before-page-core-default", !Features.decide("campaigns", told: nil, registry: coreReg, profile: nil))

@@ -1220,7 +1220,7 @@ final class Island {
   }
   /// 1Password or Signal came to the front or went. Where the island shows over them (everyone except the developer) nothing
   /// about it depends on that, so nothing runs at all: no window is looked at and no line is written at that moment.
-  func protectedChanged() { if !BuildRules.now.islandOverProtected { place(); BigIslandWindow.shared.protectedChanged() } }
+  func protectedChanged() { SquadIsland.shared.protectedChanged(); if !BuildRules.now.islandOverProtected { place(); BigIslandWindow.shared.protectedChanged() } }
   /// Who is signed in changed (Owner.onChange): the rule over 1Password and Signal may be another one now.
   func rulesChanged() { place() }
   /// V1.58 island timers (IslandTimers.swift): something to show came or went.
@@ -1286,6 +1286,7 @@ final class Island {
   private func shapeChanged() {
     IslandTimers.shared.syncBubble()   // V1.59: the bubble and the stand-up question follow the island
     BigIslandWindow.shared.follow()    // PS 1.60: so does an open Welcome back or workout panel
+    SquadIsland.shared.follow()        // PS 1.63: and a G Squad message card
     ScreenRecIsland.shared.syncPart()  // PS 1.60 (12b): the recording part follows the island
     guard drag?.moving != true else { return }
     let k = shapeOnScreen().map { "\(Int($0.minX.rounded())),\(Int($0.minY.rounded())),\(Int($0.width.rounded())),\(Int($0.height.rounded()))" } ?? "none"

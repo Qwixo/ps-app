@@ -24,7 +24,7 @@ const SR = await import("../src/core/screenrec.ts");
 
 const core = json("core-root/features.json");
 const layerProfile = json("ps-layer/profile.json");
-const JAN = ["client-emails", "feature-intros", "fitness-island", "gsquad-newlook", "gsquad-notify", "gym-scan-better", "island-moments",
+const JAN = ["client-emails", "feature-intros", "fitness-island", "gsquad-island-reply", "gsquad-newlook", "gsquad-notify", "gym-scan-better", "island-moments",
   "remind-push", "remind-ring", "screen-recording", "welcome-back", "whatsapp", "workout-summary"];
 // The release build as vite.config.ts makes it from the developer's private tree: no profile, core's list, the developer's `own`.
 const releaseBuild = { profile: null, features: core, own: { othersShared: layerProfile.othersShared, features: layerProfile.features } };

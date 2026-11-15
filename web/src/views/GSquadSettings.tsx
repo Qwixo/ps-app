@@ -150,6 +150,14 @@ function NotifyPage() {
                 <i className="gs-tog" aria-hidden="true"><b /></i>
               </button>
             </li>
+            {c.notifyOn && c.islandOk && (
+              <li>
+                <button type="button" role="switch" aria-checked={c.noteIsland} className={`gs-sw${c.noteIsland ? " on" : ""}`} onClick={() => { sfx.click(); chatOp({ op: "noteIsland", on: !c.noteIsland }); }}>
+                  <span className="gs-tt">Show messages on the island<em>{c.noteIsland ? "The message comes out of the Dynamic Island, with Reply. Esc closes it." : "Off: the message shows as a card in the top right."}</em></span>
+                  <i className="gs-tog" aria-hidden="true"><b /></i>
+                </button>
+              </li>
+            )}
             {c.notifyOn && (
               <li>
                 <button type="button" role="switch" aria-checked={c.noteSound} className={`gs-sw${c.noteSound ? " on" : ""}`} onClick={() => { sfx.click(); chatOp({ op: "noteSound", on: !c.noteSound }); }}>

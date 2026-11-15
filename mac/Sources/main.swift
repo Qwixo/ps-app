@@ -1638,6 +1638,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       replyWin.showQueue()
     case "cardShow" where fromMain:             // a card with buttons ("Shall I end my day now?")
       if let c = msg["card"] as? [String: Any] { Toast.shared.showCard(c) }
+    case "sqresult" where fromMain:             // PS 1.63: the page's answer to a G Squad reply sent from the island (src/squad/chatengine.ts noteAction)
+      if let id = msg["id"] as? String { SquadIsland.shared.result(id: String(id.prefix(40)), ok: (msg["ok"] as? Bool) == true, why: (msg["why"] as? String).map { String($0.prefix(60)) }) }
     case "cardHide" where fromMain:
       if let id = msg["id"] as? String { Toast.shared.hideCard(id) }
     case "dnd" where fromMain:                  // Do Not Disturb: what is muted right now (src/dnd.ts, DND.swift)

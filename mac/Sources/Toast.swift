@@ -378,7 +378,9 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
           let tone = c["tone"] as? String, tones.contains(tone) else { return }
     // V1.60 G Squad message card (SquadMessageCard.swift): not while Sentry mode or Sleep mode covers the screen.
     if tone == SquadMessageCard.tone, SquadMessageCore.held(sentry: Sentry.shared.isUp, sleep: SleepScreen.shared.isUp) { return }
-    if hold(c, meet: true) { return }
+    if hold(c, meet: true) { return }   // Do Not Disturb holds it (for the island card too)
+    // PS 1.63 (SquadIsland.swift): with the island on and the person's switch on, the message comes out of the island instead.
+    if tone == SquadMessageCard.tone, SquadIsland.shared.take(c) { return }
     setUp()
     var card: [String: Any] = ["id": id, "kind": "meet", "tone": tone, "title": String(title.prefix(160)),
                                "sticky": ["msg", "cancel", "declined", "soon-warn", "warn", "bad", "mail", "done", "lead", AiMessageCard.tone, SquadMessageCard.tone].contains(tone), "dismiss": ["mail", "done", "lead", AiMessageCard.tone, SquadMessageCard.tone].contains(tone), "discreet": (c["discreet"] as? Bool) == true,
@@ -450,6 +452,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   /// 29 Oct 2026): cards already showing hide or show their details, new ones arrive to match.
   func meetPrivacy(_ on: Bool) {
     privacyNow = on
+    SquadIsland.shared.privacy = on   // PS 1.63: a meeting's privacy: G Squad messages use the corner card, which knows how to be discreet
     if role == .corner { PrivateHold.shared.set(on) }   // V1.57: pop ups with windows of their own wait behind pills
     if ready { web.evaluateJavaScript("window.__note.privacy(\(on))", completionHandler: nil) }
     if role == .corner, islandMade { islandStack.meetPrivacy(on) }
@@ -542,6 +545,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   /// Takes a card away without an answer (eg the developer pressed Reset somewhere else).
   func hideCard(_ id: String) {
     held.removeAll { $0.id == id }
+    if id.hasPrefix(SquadMessageCore.prefix) { SquadIsland.shared.retract(id) }   // PS 1.63: the island's card for it goes too (a reply being sent keeps it)
     if id.hasPrefix("nc:") { NotesCard.shared.hide(id); return }
     if role == .corner { kept[id] = nil; if islandMade { islandStack.hideCard(id) } }
     guard panel != nil else { return }
