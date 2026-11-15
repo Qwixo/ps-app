@@ -71,13 +71,13 @@ export const INTROS: IntroDef[] = [
     settings: "Settings, WhatsApp settings, Link WhatsApp",
   },
   {
-    // PS 1.63 (the developer's friend, 15 Nov 2026): everyone gets this same question once they are in a squad (views/FeatureIntro.tsx
-    // DONE_PROBES, core/squadp1.ts p1Default). Nothing of theirs is shared until they click Yes. No button takes focus when it appears.
+    // PS 1.63 (the developer's friend, 15 Nov 2026): P1 sharing is on by default (opt out). Everyone gets this same notice once they are
+    // in a squad (views/FeatureIntro.tsx DONE_PROBES, core/squadp1.ts p1Default). Turn off saves it off for good. No button takes focus.
     id: "squad-p1",
     headline: "Priority 1 with your squad",
-    ask: "Share your Priority 1 tasks with the squad?",
-    show: "Yes",
-    later: "No",
+    ask: "Your Priority 1 tasks now show to your squad. Hide any task from it, or turn this off.",
+    show: "Keep it on",
+    later: "Turn off",
     mark: "spark",
     choice: true,
   },

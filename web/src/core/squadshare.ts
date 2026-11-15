@@ -32,7 +32,7 @@ export const isPiece = (v: unknown): v is SharePiece => SHARE_PIECES.some((p) =>
 
 export function shareOn(opts: ShareOpts | null | undefined, piece: SharePiece): boolean {
   if (piece === "tasks") return opts?.tasks === true;   // V1.43: off unless switched on (never set = off)
-  if (piece === "p1") return opts?.p1 === true;         // PS 1.63: off until the person said yes (setup for a new person, one question for the rest)
+  if (piece === "p1") return opts?.p1 !== false;        // PS 1.63: on unless the person turned it off (the developer's friend asked for shared by default, opt out). One notice tells them.
   return !opts || opts[piece] !== false;
 }
 /** One task the squad may see (with the Tasks switch on): you marked it Share with G Squad, and not Not shared.

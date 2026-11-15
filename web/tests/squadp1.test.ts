@@ -106,14 +106,13 @@ ok("L2: a P1 that was done and then reopened starts a fresh clock", () => {
 });
 
 // ---------- the question and the default ----------
-ok("default: a saved yes or no is kept; everyone else is asked once in a squad, never given a yes; outside a squad it waits", () => {
+ok("default: a saved keep or turn off is kept; everyone else is told once in a squad; outside a squad it waits", () => {
   assert.equal(P.p1Default(true, { p1: false }), "keep");
   assert.equal(P.p1Default(false, { p1: true }), "keep");
-  assert.equal(P.p1Default(true, {}), "ask");
-  assert.equal(P.p1Default(true, undefined), "ask");
-  assert.equal(P.p1Default(true, { p1: "yes" }), "ask", "a non boolean is not an answer");
+  assert.equal(P.p1Default(true, {}), "tell");
+  assert.equal(P.p1Default(true, undefined), "tell");
+  assert.equal(P.p1Default(true, { p1: "yes" }), "tell", "a non boolean is not an answer");
   assert.equal(P.p1Default(false, {}), "wait");
-  for (const inSquad of [true, false]) for (const o of [undefined, {}, { p1: null }]) assert.notEqual(P.p1Default(inSquad, o) as string, "on", "no default ever says yes");
 });
 ok("H1: no code path saves the yes without the click handler", () => {
   const f = src("views/FeatureIntro.tsx");
@@ -139,19 +138,20 @@ ok("M3: the Yes and No card takes no focus when it appears, so a stray Enter or 
   assert.doesNotMatch(f.replace(/\/\/.*$/gm, ""), /\.focus\(\)/);
   assert.doesNotMatch(f, /e\.key === "Enter"|key === " "/, "no key answers the card");
 });
-ok("until answered nothing of theirs is shared (off unless an explicit yes)", () => {
-  for (const v of [undefined, null, {}, { p1: null }, { p1: "yes" }, { p1: 1 }, { p1: false }]) assert.equal(shareOn(cleanShareOpts(v), "p1"), false, JSON.stringify(v));
-  assert.equal(shareOn({ p1: true }, "p1"), true);
-  assert.equal(shareOn(undefined, "p1"), false);
+ok("shared by default, opt out: on unless the person turned it off", () => {
+  for (const v of [undefined, null, {}, { p1: null }, { p1: "yes" }, { p1: 1 }, { p1: true }]) assert.equal(shareOn(cleanShareOpts(v), "p1"), true, JSON.stringify(v));
+  assert.equal(shareOn(cleanShareOpts({ p1: false }), "p1"), false);
+  assert.equal(shareOn(undefined, "p1"), true);
+  assert.equal(P.p1On({ p1: false }), false); assert.equal(P.p1On({}), true);
   assert.equal(P.p1Answered({}), false); assert.equal(P.p1Answered({ p1: false }), true);
 });
 ok("the Priority 1 piece is its own switch, separate from Tasks, listed in What you share", () => {
   assert.ok(SHARE_PIECES.some((p) => p.id === "p1" && p.label === "Priority 1 tasks"));
-  assert.equal(shareOn({ tasks: true }, "p1"), false); assert.equal(shareOn({ p1: true }, "tasks"), false);
+  assert.equal(shareOn({ tasks: false, p1: false }, "p1"), false); assert.equal(shareOn({ p1: true }, "tasks"), false);
 });
-ok("the question is an intro with Yes and No, once; the new person path and the question are wired", () => {
+ok("the notice is an intro with Keep it on and Turn off, once; it is wired", () => {
   const d = INTROS.find((x) => x.id === "squad-p1")!;
-  assert.ok(d && d.choice === true && d.ask === "Share your Priority 1 tasks with the squad?" && d.show === "Yes" && d.later === "No");
+  assert.ok(d && d.choice === true && /now show to your squad/.test(d.ask) && d.show === "Keep it on" && d.later === "Turn off");
   const f = src("views/FeatureIntro.tsx");
   assert.match(f, /"squad-p1": async/);
   assert.match(f, /CHOICES: Record<string/);
@@ -160,10 +160,10 @@ ok("the question is an intro with Yes and No, once; the new person path and the 
 });
 
 // ---------- what is shared ----------
-ok("copies: nothing unless the P1 switch is an explicit yes", () => {
+ok("copies: shared by default, nothing once the P1 switch is off", () => {
   const t = [todo("a", { p1: true, p1At: ago(H) })];
-  for (const v of [undefined, {}, { p1: false }, { tasks: true }]) assert.deepEqual(P.p1Copies(t, v, CLIENTS, NOW), [], JSON.stringify(v));
-  assert.equal(P.p1Copies(t, { p1: true }, CLIENTS, NOW).length, 1);
+  for (const v of [{ p1: false }, { tasks: true, p1: false }]) assert.deepEqual(P.p1Copies(t, v, CLIENTS, NOW), [], JSON.stringify(v));
+  for (const v of [undefined, {}, { p1: true }, { tasks: true }]) assert.equal(P.p1Copies(t, v, CLIENTS, NOW).length, 1, JSON.stringify(v));
 });
 ok("copies: title, date, done and the start only; never notes, client id or anything else", () => {
   const c = P.p1Copies([todo("a", { title: "Ship the draft", p1: true, p1At: ago(H), due: "2026-11-17T00:00:00Z", notes: "secret notes", clientId: null })], { p1: true }, CLIENTS, NOW)[0].copy;
@@ -198,15 +198,16 @@ ok("copies: done stays a day then goes; a done copy carries the done time", () =
 // ---------- the gate ----------
 ok("gate: sealForSquad refuses an opted out P1 before it touches the key", async () => {
   const bad = { get raw(): string { throw new Error("the key was touched"); }, gen: 1 };
-  for (const v of [{}, { p1: false }, undefined]) assert.equal(await sealForSquad(cleanShareOpts(v), "p1", bad, { t: "x" }, "aad"), null, JSON.stringify(v));
-  assert.equal(await sealForSquad({ tasks: true }, "p1", bad, { t: "x" }, "aad"), null, "the Tasks switch does not open the P1 piece");
+  assert.equal(await sealForSquad(cleanShareOpts({ p1: false }), "p1", bad, { t: "x" }, "aad"), null);
+  assert.equal(await sealForSquad({ tasks: true, p1: false }, "p1", bad, { t: "x" }, "aad"), null, "the Tasks switch does not open the P1 piece");
 });
-ok("gate: a sync seals P1 copies only with the P1 switch on; off or unanswered seals nothing and takes the hub's copy off", async () => {
+ok("gate: a sync seals P1 copies by default and with the switch on; off seals nothing and takes the hub's copy off", async () => {
   const todos = [todo("a", { title: "One", p1: true, p1At: ago(H) }), todo("b", { title: "Two", p1: true, p1At: ago(H) })];
+  for (const v of [undefined, {}]) assert.equal((await plan(todos, v)).put.length, 2, "on by default " + JSON.stringify(v));
   const on = await plan(todos, { p1: true });
   assert.equal(on.put.length, 2); assert.deepEqual(on.del, []);
   const have = new Map(on.put.map((r) => [r.id, r.fp]));
-  for (const v of [undefined, {}, { p1: false }]) {
+  for (const v of [{ p1: false }, { tasks: true, p1: false }]) {
     const off = await plan(todos, v, have);
     assert.deepEqual(off.put, [], JSON.stringify(v));
     assert.deepEqual(off.del.sort(), [...have.keys()].sort(), "what the hub held is deleted");
@@ -233,7 +234,7 @@ ok("gate: a task shared as an ordinary task and P1 is one row, as a task, with t
   const p1only = await plan(t, { p1: true });
   assert.equal(p1only.put.length, 1);
   assert.equal(taskCopies(t, { squadShare: { p1: true } }, CLIENTS, NOW).length, 0, "the Tasks piece itself is unchanged");
-  const tasksOnly = await plan(t, { tasks: true });
+  const tasksOnly = await plan(t, { tasks: true, p1: false });
   assert.equal((await S.open<{ s?: string }>(KEY!.raw, tasksOnly.put[0].ct, S.sqAad.task(SQ, "m1", tasksOnly.put[0].id, 1))).s, undefined, "no clock without the P1 switch");
 });
 ok("gate: the engine forces the P1 piece off while the squad-p1 feature is off", () => {

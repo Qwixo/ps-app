@@ -41,17 +41,19 @@ export function cleanStart(iso: unknown, now: number): string | null {
 export const p1Deadline = (startIso: string): number => ms(startIso) + P1_WINDOW_MS;
 
 // ---------- the person's own settings ----------
-/** Has the person answered "Priority 1 tasks" (yes or no)? Until then nothing of theirs is shared. */
+/** Has the person answered the Priority 1 notice (keep or turn off)? Until then their P1s are shared (the default) and the notice shows once. */
 export const p1Answered = (opts: { p1?: unknown } | null | undefined): boolean => typeof opts?.p1 === "boolean";
 /** Does the person see the squad's P1 tasks in the side panel? (missing = on) */
 export const p1PanelOn = (featureOn: boolean, st: { squadP1Show?: boolean } | null | undefined): boolean => featureOn && st?.squadP1Show !== false;
 
-/** What to do about the P1 question for this person. Everyone (new or existing) gets the same one question, once they are in a squad.
- *  keep: they already answered. ask: ask now (the Yes/No card). wait: not in a squad yet, nothing shown.
- *  No path decides a yes for anyone: the only code that saves p1 = true is the card's click (views/FeatureIntro.tsx CHOICES). */
-export function p1Default(inSquad: boolean, opts: { p1?: unknown } | null | undefined): "keep" | "ask" | "wait" {
+/** Is Priority 1 sharing on for this person? On unless they turned it off (shared by default, opt out, PS 1.63). */
+export const p1On = (opts: { p1?: unknown } | null | undefined): boolean => opts?.p1 !== false;
+/** What to do about the P1 notice for this person. Everyone (new or existing) gets the same one notice, once they are in a squad.
+ *  keep: they already answered. tell: show the notice now (Keep it on / Turn off). wait: not in a squad yet, nothing shown.
+ *  Sharing is on by default either way; Turn off (the card, or the switch in G Squad settings) saves p1 = false for good. */
+export function p1Default(inSquad: boolean, opts: { p1?: unknown } | null | undefined): "keep" | "tell" | "wait" {
   if (p1Answered(opts)) return "keep";
-  return inSquad ? "ask" : "wait";
+  return inSquad ? "tell" : "wait";
 }
 
 // ---------- the 24 hour clock on your own tasks ----------
@@ -91,10 +93,10 @@ export function p1Stamps(todos: Doc<Todo>[], o: { active: boolean; now: number; 
 }
 
 // ---------- what you share ----------
-/** The squad copies of your P1 tasks (before sealing). Nothing unless the P1 switch is on. A task needs its start time and
+/** The squad copies of your P1 tasks (before sealing). Nothing once the P1 switch is off. A task needs its start time and
  *  must be older than the grace time; hidden (Not shared), daily, example and cleared tasks never appear. Done stays a day. */
 export function p1Copies(todos: Doc<Todo>[], opts: { p1?: unknown } | null | undefined, clients: Parameters<typeof clientTerms>[0], now: number): { todoId: string; copy: TaskCopy }[] {
-  if (opts?.p1 !== true) return [];
+  if (!p1On(opts)) return [];
   const terms: ClientTerm[] = clientTerms(clients);
   const out: { todoId: string; copy: TaskCopy; at: number }[] = [];
   for (const d of todos) {
