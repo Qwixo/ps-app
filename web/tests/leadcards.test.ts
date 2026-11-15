@@ -9,7 +9,7 @@ const now = Date.parse("2026-10-30T12:00:00.000Z");
 const iso = (agoMin: number) => new Date(now - agoMin * 60_000).toISOString();
 const since = iso(24 * 60);
 const rep = (id: string, agoMin: number, x: Record<string, unknown> = {}) => ({ id, threadId: "t-" + id, from: "jane@northwindsilk.example", fromName: "Jane Doe",
-  at: iso(agoMin), subject: "Re: Jane, I rebuilt your homepage", opening: "Hi Sam, this looks great. Can we talk on Tuesday?", campaignId: "camp1", url: "https://app.instantly.ai/app/unibox", ...x });
+  at: iso(agoMin), subject: "Re: Jane, I rebuilt your homepage", opening: "Hi the developer, this looks great. Can we talk on Tuesday?", campaignId: "camp1", url: "https://app.instantly.ai/app/unibox", ...x });
 const st = { since };
 const human = (opening: string, subject = "Re: Jane, I rebuilt your homepage") => !L.isAutoReply({ opening, subject, from: "jane@northwindsilk.example" });
 const auto = (opening: string, subject = "Re: Jane, I rebuilt your homepage", from = "jane@northwindsilk.example") => L.isAutoReply({ opening, subject, from });
@@ -19,7 +19,7 @@ ok("a reply to a campaign shows a card: name, domain and subject, the opening, O
   assert.equal(c.id, "n:r1");   // the email id, the same from the webhook and the feed
   assert.equal(c.title, "Jane replied in Instantly");
   assert.equal(c.sub, "northwindsilk.example · Re: Jane, I rebuilt your homepage");
-  assert.equal(c.body, "Hi Sam, this looks great. Can we talk on Tuesday?");
+  assert.equal(c.body, "Hi the developer, this looks great. Can we talk on Tuesday?");
   assert.match(c.url, /^https:\/\/app\.instantly\.ai\//);
   assert.equal(c.fresh, true);
 });
@@ -52,7 +52,7 @@ ok("auto replies are filtered: automated acknowledgements, out of office, bounce
   assert.equal(L.isAutoReply({ type: "auto_reply_received", opening: "Hi" }), true);
 });
 ok("people are kept: interested, not interested, questions, short replies", () => {
-  assert.equal(human("Hi Sam, this looks great. Can we talk on Tuesday?"), true);
+  assert.equal(human("Hi the developer, this looks great. Can we talk on Tuesday?"), true);
   assert.equal(human("Not interested, thanks."), true);
   assert.equal(human("Thanks for reaching out! How much would this cost?"), true);
   assert.equal(human("I'm away this week but love it, can we chat next Monday?"), true);

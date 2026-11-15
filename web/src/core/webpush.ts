@@ -82,7 +82,7 @@ export function cleanSub(j: unknown): { endpoint: string; p256dh: string; auth: 
   const o = (j && typeof j === "object" ? j : {}) as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
   const k = o.keys || {};
   if (typeof o.endpoint !== "string" || !o.endpoint.startsWith("https://") || o.endpoint.length > 1000) return null;
-  if (typeof k.p256dh !== "string" || typeof k.auth !== "string" || !k.p256dh || !k.auth || k.p256dh.length > 200 || k.auth.length > 100) return null;
+  if (typeof k.p256dh !== "string" || typeof k.auth !== "string" || !k.p256dh || !k.auth || k.p256dh.length > 200 || k.auth.length > 100) return null;   // gitleaks:allow (length checks, not a key)
   return { endpoint: o.endpoint, p256dh: k.p256dh, auth: k.auth };
 }
 /** The public key as the bytes subscribe() wants. */

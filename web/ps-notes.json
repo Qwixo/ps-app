@@ -232,5 +232,22 @@
    "The next meeting bubble on the island now always shows its full time.",
    "Completed tasks open on the last 24 hours, with More at the bottom for the rest."
   ]
+ },
+ "1.60": {
+  "en": [
+   "Screen recording: record sales and client calls from the new button under your email panel, or say Yes when the island asks at a meeting. Your mic and the call are saved on two tracks, can upload to your own cloud, and play back in the Soundboard. Off until you switch it on.",
+   "WhatsApp replies: link your own WhatsApp number in Settings and client messages show as cards and in the email panel, with Reply and quick replies. It needs your own Meta app and a second number.",
+   "Client emails for everyone: switch it on in Settings and your clients' Gmail emails and Instantly replies show as cards and in the email panel, with Reply. Each email notifies only once.",
+   "Did you know: the island now shows you big new features a little while after you start using PS, with a short guide.",
+   "G Squad messages pop up as a card you can reply to right from the card, with a few seconds to undo.",
+   "G Squad has a new, calmer messenger look. Switch back any time in Squad settings, Appearance.",
+   "Mac island: one card at a time, cards drop out with a squeeze and a bounce, and the island says 'Updated to V1.60' after an update.",
+   "Mac island: your meeting countdown is a small blob, the island says Welcome back with your tasks after you were away, and shows a summary after a workout.",
+   "Phone reminders now ring like an alarm, even with PS closed, and show full screen in the iPhone web app.",
+   "The phone island follows your workout: it shows the exercise it found, counts down your rest and tells you when you lifted more than last time.",
+   "Gym scan reads real machine labels, even sideways, and there is a Scan button in every exercise search. New sets start at the weight and reps you used last.",
+   "Phone fixes: page dots like the iPhone's, a readable update card, and full screen panels that clear the status bar."
+  ],
+  "ru": []
  }
 }

@@ -4,7 +4,7 @@
 // replaces one still waiting). Plaintext exists only in this function's memory; the server keeps a keyed hash
 // to spot changes, never email text. Instantly key from Supabase Vault (instantly_api_key; emails:read is enough).
 // Never replies, never changes anything in Instantly. Once the webhook (instantly-webhook) delivers, this is the
-// backup and runs every 5 minutes. Package: {kind, v:1, at, replies:[...], sent:[...]}.
+// backup and runs every 5 minutes. Package: {kind, v:1, at, replies:[...], sent:[...]} (see the radar notes).
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
 const admin = createClient(

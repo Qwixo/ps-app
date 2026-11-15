@@ -7,13 +7,13 @@ const inert: any = new Proxy(function () {}, {
   construct: () => ({}),
 });
 const _v0: any = Promise.resolve(undefined);
-const _v1: any = { busy: false, at: "", data: { v: 0, today: "", camps: [], days: [] }, error: "", connected: false, checked: 0 };
+const _v1: any = { busy: false, data: { v: 0, today: "", camps: [], days: [] }, at: "", error: "", connected: false, checked: 0 };
 const _v2: any = { data: undefined, h: "", at: "", busy: undefined, error: "", connected: undefined, checked: 0 };
 const _v3: any = { v: 0, today: "", camps: [], days: [] };
 const _v4: any = { rows: [], today: { sent: 0, replied: 0, newLeads: 0 }, week: { replied: 0, prev: 0, sent: 0 }, rate: 0, left: 0, daysLeft: 0, days: [] };
 export function setLiveAsker(_p0?: (...a: any[]) => any, ..._more: any[]): void { return undefined; }
 export function refreshCampaignsLive(_p0?: any, ..._more: any[]): Promise<any> { return _v0; }
-export function liveForMirror(..._more: any[]): { [k: string]: any; busy: any; at: any; data: { [k: string]: any; v: any; today: any; camps: any[]; days: any[] }; error: any; connected: any; checked: any } { return _v1; }
+export function liveForMirror(..._more: any[]): { [k: string]: any; busy: any; data: { [k: string]: any; v: any; today: any; camps: any[]; days: any[] }; at: any; error: any; connected: any; checked: any } { return _v1; }
 export function setLiveMirror(_p0?: any, ..._more: any[]): void { return undefined; }
 export function __devLive(_p0?: (...a: any[]) => any, ..._more: any[]): void { return undefined; }
 export function __resetLive(..._more: any[]): void { return undefined; }

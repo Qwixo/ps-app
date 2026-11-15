@@ -1,7 +1,7 @@
 import AppKit
 import WebKit
 
-// Reply from PS (V1.44): the compose window around the page /reply-window (web/src/views/ReplyWindow.tsx).
+// Reply from PS (V1.44): the compose window around the page /reply-window (web src/views/ReplyWindow.tsx).
 // One see through panel with three looks the page picks: the compose screen in the middle of the screen (takes the
 // keyboard, PS comes to the front so Tab moves between the fields), the pill at the bottom while a reply waits, and
 // the queue it opens (neither takes the keyboard). Like the Tab list it holds no keys and no vault: the main page

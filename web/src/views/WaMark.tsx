@@ -2,7 +2,7 @@
 // their brand site, never modify it, never combine it with other marks, never use an image confusingly similar to their logo.
 // They do not say a third party may put their logo in an app. So PS does not use the logo: it writes the word "WhatsApp" (capital W
 // and A, as they ask) and draws a plain green speech bubble of its own, with no telephone in it. To use the real logo later
-// (Red's call), replace this one file with Meta's own unmodified file.
+// (the developer's call), replace this one file with Meta's own unmodified file.
 export function WaMark({ size = 16 }: { size?: number }) {
   return (
     <svg className="wa-mark" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">

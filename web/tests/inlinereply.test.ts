@@ -61,8 +61,8 @@ await ok("no words, or no thread to answer in: nothing is made, a plain sentence
   assert.throws(() => I.inlineJob(gctx(), "   ", undefined, "j", NOW), /Type a reply first/);
   assert.throws(() => I.inlineJob({ ...gctx(), threadId: null }, "Hi", undefined, "j", NOW), /Gmail thread/);
   assert.throws(() => I.inlineJob({ ...lctx(), emailId: null }, "Hi", undefined, "j", NOW), /Instantly email/);
-  assert.throws(() => I.routeOf({ via: "gmail", account: "a@b.example", threadId: null, emailId: "x" }), /no Gmail thread/);
-  assert.throws(() => I.routeOf({ via: "instantly", account: "a@b.example", threadId: "x", emailId: null }), /no Instantly email/);
+  assert.throws(() => I.routeOf({ via: "gmail", account: "person1@b.co", threadId: null, emailId: "x" }), /no Gmail thread/);
+  assert.throws(() => I.routeOf({ via: "instantly", account: "person1@b.co", threadId: "x", emailId: null }), /no Instantly email/);
 });
 await ok("which accounts this Mac can send from: a connected Gmail account (any case), an Instantly key, never with a problem", () => {
   const st = { gmail: [{ account: "Studio@example.com", connected: true }, { account: "old@example.com", connected: true, problem: "signed out" }], instantly: { saved: false } };
@@ -70,7 +70,7 @@ await ok("which accounts this Mac can send from: a connected Gmail account (any 
   assert.equal(I.canSendFrom(st, "gmail", "old@example.com"), false);
   assert.equal(I.canSendFrom(st, "gmail", "other@example.com"), false);
   assert.equal(I.canSendFrom(st, "instantly", "hello@outreach.example"), false);
-  assert.equal(I.canSendFrom({ ...st, instantly: { saved: true } }, "instantly", "x@y.example"), true);
+  assert.equal(I.canSendFrom({ ...st, instantly: { saved: true } }, "instantly", "x@client6.example"), true);
   assert.equal(I.canSendFrom(null, "gmail", "studio@example.com"), false);
 });
 

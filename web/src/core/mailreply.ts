@@ -116,7 +116,7 @@ export function reSubject(subject: string): string {
   return /^(re|aw|sv|antw)\s*:/i.test(s) ? s : `Re: ${s}`;
 }
 
-/** "On Sun, 8 Nov 2026 at 03:12, Alex <p@x.example> wrote:" (the email's own time, this Mac's clock). */
+/** "On Sun, 8 Nov 2026 at 03:12, Alex <person13@x.com> wrote:" (the email's own time, this Mac's clock). */
 export function quoteHeader(at: string, who: string): string {
   const d = new Date(at);
   const when = Number.isNaN(d.getTime()) ? "" : `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} at ${hhmm(d.getTime())}`;

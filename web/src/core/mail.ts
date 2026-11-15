@@ -33,10 +33,10 @@ export interface GmailSent { kind: "gmail-sent"; account: string; id: string; th
 export const FREE_DOMAINS = new Set([
   "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "ymail.com", "outlook.com", "hotmail.com", "hotmail.co.uk",
   "live.com", "msn.com", "icloud.com", "me.com", "mac.com", "aol.com", "proton.me", "protonmail.com", "pm.me",
-  "gmx.com", "gmx.net", "zoho.com", "mail.com", "yandex.com", "yandex.ru", "fastmail.com", "hey.com", "aliasmail.example",
+  "gmx.com", "gmx.net", "zoho.com", "mail.com", "yandex.com", "yandex.ru", "fastmail.com", "hey.com", "aliasmail.com",
 ]);
 
-/** First address in a header like `"Morgan, Alex" <pmorgan@client1b.example>` or `a@b.example`. */
+/** First address in a header like `"Morgan, Alex" <pmorgan@client4.example>` or `person1@b.co`. */
 export function parseAddress(header: string | null | undefined): { name: string | null; email: string | null } {
   if (!header) return { name: null, email: null };
   const angle = header.match(/^\s*(?:"?([^"<]*?)"?\s*)?<\s*([^<>\s]+@[^<>\s]+)\s*>/);
@@ -47,7 +47,7 @@ export function parseAddress(header: string | null | undefined): { name: string 
 
 export const domainOf = (email: string) => email.slice(email.lastIndexOf("@") + 1).toLowerCase();
 
-/** One entry from a client's match list: a full address, or a domain ("acme.com", "@acme.example"). */
+/** One entry from a client's match list: a full address, or a domain ("acme.com", "@acme.com"). */
 export function parseMatchEntry(raw: string): { type: "addr" | "domain"; v: string } | null {
   const s = raw.trim().toLowerCase().replace(/^mailto:/, "");
   if (!s) return null;
@@ -190,7 +190,7 @@ export function replierName(c: Pick<ClientRec, "greetingName" | "contactName" | 
   return sender || (r.from ? r.from.split("@")[0] : null) || c?.greetingName || c?.name || "Someone";
 }
 
-/** The first few sentences of a preview ("Hi Sam. Loved it! Can we..." -> up to n of them). */
+/** The first few sentences of a preview ("Hi the developer. Loved it! Can we..." -> up to n of them). */
 export function firstSentences(text: string, n: number) {
   const t = (text || "").replace(/\s+/g, " ").trim();
   const parts = t.match(/[^.!?]+(?:[.!?]+["')\]]*|$)/g) || [t];

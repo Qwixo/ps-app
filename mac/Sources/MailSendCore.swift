@@ -3,13 +3,13 @@
 //
 // The developer's permission (8 Nov 2026): "I give PS permission to send emails for me", ONLY for replies he types and sends or
 // schedules himself in PS. So nothing here can start a send: a job exists only because the compose window handed one
-// over after his click on Send or Schedule (web/src/views/ReplyWindow.tsx). There are no auto replies.
+// over after his click on Send or Schedule (web src/views/ReplyWindow.tsx). There are no auto replies.
 // A send that may or may not have gone out (PS stopped half way) is never sent again by itself: it waits for the developer.
 import Foundation
 
 // MARK: - the job
 
-/// One reply waiting to go (or gone). The same fields as web/src/core/mailreply.ts ReplyJob, plus its state.
+/// One reply waiting to go (or gone). The same fields as web src/core/mailreply.ts ReplyJob, plus its state.
 struct OutJob: Codable, Equatable {
   enum State: String, Codable { case queued, sending, sent, failed, cancelled }
   var id: String
@@ -194,7 +194,7 @@ enum MailMime {
     if t.unicodeScalars.allSatisfy({ $0.value >= 32 && $0.value < 127 }) { return t }
     return "=?UTF-8?B?\(Data(t.utf8).base64EncodedString())?="
   }
-  /// "Jane Doe <jane@x.example>", the name quoted (or encoded) as needed.
+  /// "Jane Doe <person6@x.com>", the name quoted (or encoded) as needed.
   static func address(_ email: String, name: String?) -> String {
     let e = oneLine(email)
     guard let n = name.map(oneLine), !n.isEmpty, !n.contains("@") else { return e }

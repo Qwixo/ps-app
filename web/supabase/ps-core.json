@@ -116,11 +116,17 @@
   ],
   "redOnly": {
     "migrations": [
+      "008_gmail_inbox.sql",
+      "009_gmail_readonly_flag.sql",
       "011_drop_keys.sql",
       "013_calendar_inbox.sql",
+      "014_instantly_inbox.sql",
       "017_telegram_inbox.sql",
       "018_followup_feed.sql",
+      "019_instantly_webhook.sql",
       "020_followup_drop_key_vault.sql",
+      "022_instantly_threads_content_hash.sql",
+      "024_pg_net_to_extensions.sql",
       "027_calendar_live.sql",
       "028_calendar_feeds.sql"
     ],

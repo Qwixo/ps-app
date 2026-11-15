@@ -17,7 +17,7 @@ ok("an email after the start date shows a card with name, company, subject and 4
   assert.equal(c.id, "m:r1");
   assert.equal(c.title, "Jane just sent an email");
   assert.equal(c.sub, "Northwind Silk · Homepage draft");
-  assert.equal(c.body, "Hi Sam. Loved the draft! Can we move the banner up? Also the font.");
+  assert.equal(c.body, "Hi the developer. Loved the draft! Can we move the banner up? Also the font.");
   assert.match(c.url, /^https:\/\/mail\.google\.com\//);
 });
 ok("old mail (before the start date) never floods in", () => {

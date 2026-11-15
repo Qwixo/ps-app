@@ -122,7 +122,7 @@ export function MatchField({ client }: { client: Doc<ClientRec> }) {
     <Field label="Gmail replies come from" hint={
       (client.data.email ? `Their main email ${client.data.email} always counts. ` : "") +
       "Add more addresses, or a company domain like acme.com for everyone there. One per line. Private to you."}>
-      <textarea className="input" rows={3} value={text} placeholder={"jane@acme.example\nacme.com"} spellCheck={false}
+      <textarea className="input" rows={3} value={text} placeholder={"person5@acme.com\nacme.com"} spellCheck={false}
         onChange={(e) => setText(e.target.value)} onBlur={save} />
       {bad.length > 0 && <span className="xs err">Not an address or domain: {bad.join(", ")}</span>}
     </Field>

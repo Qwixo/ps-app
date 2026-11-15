@@ -23,7 +23,7 @@ const MAX_IDS = 60;
 const OFF_KEEP_DAYS = 90;
 const MAX_ENTRIES = 300;
 
-/** An entry as the developer typed it ("Jane@company.example", "@company.example", "company.example"), or an error. */
+/** An entry as the developer typed it ("jan@client2.example", "@client2.example", "client2.example"), or an error. */
 export function cleanRuleEntry(raw: string): { v: string; domain: boolean } | { error: string } {
   const e = parseMatchEntry(raw);
   if (!e) return { error: "That is not an email address or a domain." };

@@ -2650,7 +2650,7 @@ enum SelfTest {
              "createdAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-1800))]]]],
           ["id": "cl1", "ws": NSNull(), "kind": "client", "author": NSNull(), "updatedAt": NSNull(), "data": ["name": "Northwind Silk", "contactName": "Jane Doe", "email": "jane@northwindsilk.example"]],
           ["id": "r1", "ws": NSNull(), "kind": "reply", "author": NSNull(), "updatedAt": NSNull(), "data": [
-            "clientId": "cl1", "account": "person19@gmail.com", "threadId": "abc", "msgIds": ["m1"], "from": "jane@northwindsilk.example", "fromName": "Jane Doe",
+            "clientId": "cl1", "account": "person18@gmail.com", "threadId": "abc", "msgIds": ["m1"], "from": "jane@northwindsilk.example", "fromName": "Jane Doe",
             "subject": "Homepage draft", "snippet": "Hi Sam. Loved the draft! Can we move the banner up a little? Also the font feels small on phones.",
             "date": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-600)), "count": 2, "handled": false]],
           ["id": "c1", "ws": NSNull(), "kind": "calendar", "author": NSNull(), "updatedAt": NSNull(), "data": [

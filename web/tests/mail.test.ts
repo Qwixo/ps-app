@@ -11,22 +11,22 @@ const ok = (name: string, fn: () => void | Promise<void>) => Promise.resolve(fn(
 
 // ---------- sender parsing ----------
 await ok("parseAddress", () => {
-  assert.deepEqual(M.parseAddress('"Morgan, Alex" <PMorgan@client1.example>'), { name: "Morgan, Alex", email: "pmorgan@client1.example" });
-  assert.deepEqual(M.parseAddress("Alex morgan <pmorgan@client1.example>"), { name: "Alex morgan", email: "pmorgan@client1.example" });
-  assert.deepEqual(M.parseAddress("<a@b.example>"), { name: null, email: "a@b.example" });
-  assert.deepEqual(M.parseAddress("a@b.example"), { name: null, email: "a@b.example" });
+  assert.deepEqual(M.parseAddress('"Morgan, Alex" <pmorgan@client5.example>'), { name: "Morgan, Alex", email: "pmorgan@client5.example" });
+  assert.deepEqual(M.parseAddress("Alex morgan <pmorgan@client5.example>"), { name: "Alex morgan", email: "pmorgan@client5.example" });
+  assert.deepEqual(M.parseAddress("<person1@b.co>"), { name: null, email: "person1@b.co" });
+  assert.deepEqual(M.parseAddress("person1@b.co"), { name: null, email: "person1@b.co" });
   assert.deepEqual(M.parseAddress(null), { name: null, email: null });
   assert.equal(M.firstName("Morgan, Alex"), "Alex");
   assert.equal(M.firstName('"Alex morgan"'), "Alex");
-  assert.equal(M.firstName("pmorgan@x.example"), null);
+  assert.equal(M.firstName("person14@x.com"), null);
 });
 
 await ok("match entries", () => {
-  assert.deepEqual(M.parseMatchEntry(" Mailto:Sam@client2b.example "), { type: "addr", v: "sam@client2b.example" });
-  assert.deepEqual(M.parseMatchEntry("@acme.example"), { type: "domain", v: "acme.example" });
+  assert.deepEqual(M.parseMatchEntry(" Mailto:sam@client1.example "), { type: "addr", v: "sam@client1.example" });
+  assert.deepEqual(M.parseMatchEntry("@acme.com"), { type: "domain", v: "acme.com" });
   assert.deepEqual(M.parseMatchEntry("https://www.acme.co.uk/about"), { type: "domain", v: "acme.co.uk" });
   assert.equal(M.parseMatchEntry("not an address"), null);
-  assert.deepEqual(M.cleanMatchList("a@x.example, acme.example\n\nacme.example ;nope"), { ok: ["a@x.example", "acme.example"], bad: ["nope"] });
+  assert.deepEqual(M.cleanMatchList("person2@x.com, acme.com\n\nacme.com ;nope"), { ok: ["person2@x.com", "acme.com"], bad: ["nope"] });
 });
 
 // ---------- matching ----------
@@ -39,8 +39,8 @@ const clients = [
   { id: "free", data: { name: "Free Domain Try", matchAddrs: ["gmail.com"] } },
 ];
 const match = M.buildMatcher(clients as never);
-await ok("exact main email", () => assert.equal(match("PMorgan@client1.example"), "tp"));
-await ok("company domain of main email", () => assert.equal(match("assistant@client1.example"), "tp"));
+await ok("exact main email", () => assert.equal(match("pmorgan@client5.example"), "tp"));
+await ok("company domain of main email", () => assert.equal(match("assistant@client5.example"), "tp"));
 await ok("free provider main email matches exactly only", () => {
   assert.equal(match("person3@aliasmail.example"), "dom");
   assert.equal(match("person6@aliasmail.example"), null, "a free mail domain must never match a whole client");
@@ -53,8 +53,8 @@ await ok("explicit address and domain", () => {
   assert.equal(match("ops@notclient2.example"), null, "suffix must be a real subdomain");
 });
 await ok("exact address beats domain, active beats archived", () => {
-  assert.equal(match("x@sharedco.example"), "old", "exact main email still wins");
-  assert.equal(match("y@sharedco.example"), "new", "explicit domain beats an archived client's implicit domain");
+  assert.equal(match("person19@sharedco.com"), "old", "exact main email still wins");
+  assert.equal(match("person20@sharedco.com"), "new", "explicit domain beats an archived client's implicit domain");
 });
 await ok("strangers", () => { assert.equal(match("stranger@example.org"), null); assert.equal(match(null), null); });
 
@@ -66,7 +66,7 @@ const msg = (id: string, date: string, extra: Partial<M.GmailInbound> = {}): M.G
 await ok("new reply", () => {
   const r = M.applyInbound(undefined, msg("m1", "2026-10-14T22:27:00.000Z"), "tp")!;
   assert.equal(r.clientId, "tp");
-  assert.equal(r.from, "pmorgan@client1.example");
+  assert.equal(r.from, "pmorgan@client5.example");
   assert.equal(r.fromName, "Alex morgan");
   assert.equal(r.count, 1);
   assert.equal(r.handled, false);
@@ -155,14 +155,14 @@ await ok("payloads carry headers, snippet and the opening only", () => {
   const gm: L.GmailMessage = {
     id: "m1", threadId: "t1", internalDate: String(Date.parse("2026-10-14T22:27:00Z")), snippet: "Great response &#39;n&#39; &amp; more",
     labelIds: ["INBOX"],
-    payload: { headers: [{ name: "From", value: "Alex <p@t.example>" }, { name: "Subject", value: "Re: x" }, { name: "Message-Id", value: "<abc@t.example>" }] },
+    payload: { headers: [{ name: "From", value: "Alex <person12@t.com>" }, { name: "Subject", value: "Re: x" }, { name: "Message-Id", value: "<person3@t.com>" }] },
   };
   const p = L.inboundPayload("owner1@aliasmail.example", gm);
   assert.deepEqual(Object.keys(p).sort(), ["account", "cc", "date", "from", "id", "kind", "msgId", "opening", "snippet", "subject", "threadId", "to"]);
   assert.equal(p.opening, null, "no body part: no opening");
   assert.equal(p.snippet, "Great response 'n' & more");
   assert.equal(p.date, "2026-10-14T22:27:00.000Z");
-  assert.equal(p.msgId, "<abc@t.example>");
+  assert.equal(p.msgId, "<person3@t.com>");
   assert.equal(p.to, null);
   const s = L.sentPayload("person1@aliasmail.example", gm);
   assert.deepEqual(Object.keys(s).sort(), ["account", "date", "id", "kind", "threadId"], "sent markers carry no content at all");
@@ -172,11 +172,11 @@ await ok("payloads carry headers, snippet and the opening only", () => {
 await ok("the opening: new words only, never the quoted thread or signature", () => {
   const b64 = (t: string) => Buffer.from(t, "utf8").toString("base64url");
   const msg = (parts: L.GmailPart[]): L.GmailMessage => ({ id: "m", threadId: "t", payload: { mimeType: "multipart/alternative", parts } });
-  const plain = "Hi Sam,\r\n\r\nLoved the draft! Can we move the banner up? Café fonts look small.\r\n\r\nThanks,\r\nAlex\r\n\r\nOn Fri, Oct 17, 2026 at 3:00 PM the developer <r@x.example>\r\nwrote:\r\n> old words";
+  const plain = "Hi the developer,\r\n\r\nLoved the draft! Can we move the banner up? Café fonts look small.\r\n\r\nThanks,\r\nAlex\r\n\r\nOn Fri, Oct 17, 2026 at 3:00 PM the developer <person15@x.com>\r\nwrote:\r\n> old words";
   assert.equal(L.bodyOpening(msg([{ mimeType: "text/plain", body: { data: b64(plain) } }])),
-    "Hi Sam, Loved the draft! Can we move the banner up? Café fonts look small. Thanks, Alex");
-  const html = "<div>Hello <b>Sam</b>,<br>Paid today &amp; thanks.</div><div class=\"gmail_quote\">On Mon ... wrote: <blockquote>secret old</blockquote></div>";
-  assert.equal(L.bodyOpening(msg([{ mimeType: "text/html", body: { data: b64(html) } }])), "Hello Sam, Paid today & thanks.");
+    "Hi the developer, Loved the draft! Can we move the banner up? Café fonts look small. Thanks, Alex");
+  const html = "<div>Hello <b>the developer</b>,<br>Paid today &amp; thanks.</div><div class=\"gmail_quote\">On Mon ... wrote: <blockquote>secret old</blockquote></div>";
+  assert.equal(L.bodyOpening(msg([{ mimeType: "text/html", body: { data: b64(html) } }])), "Hello the developer, Paid today & thanks.");
   assert.equal(L.bodyOpening(msg([{ mimeType: "text/plain", body: { data: b64("Short.\n-- \nAlex morgan\nCEO") } }])), "Short.");
   assert.equal(L.bodyOpening(msg([{ mimeType: "text/plain", body: { data: b64("x".repeat(2000)) } }])).length, 800);
 });
@@ -200,7 +200,7 @@ await ok("seal from the function, open in the vault", async () => {
   const priv = await C.importInboxPrivate(kp.privatePkcs8);
   const payload = L.inboundPayload("owner1@aliasmail.example", {
     id: "m1", threadId: "t1", internalDate: "1792016820000", snippet: "Hello",
-    payload: { headers: [{ name: "From", value: "Alex morgan <pmorgan@client1.example>" }, { name: "Subject", value: "Re: draft" }] },
+    payload: { headers: [{ name: "From", value: "Alex morgan <pmorgan@client5.example>" }, { name: "Subject", value: "Re: draft" }] },
   });
   const sealed = await L.seal(kp.publicKey, payload);
   assert.ok(!sealed.includes("Alex") && !sealed.includes("sampleorganics"), "no plaintext in the sealed blob");

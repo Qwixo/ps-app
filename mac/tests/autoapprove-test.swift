@@ -212,8 +212,8 @@ do {
   ok("bearer tokens and query strings are taken out", !r.contains("sk-abc123") && !r.contains("token=abc") && r.contains("curl"), r)
   let e = ApproveCore.redact("OPENAI_API_KEY=sk-proj-aaaaaaaaaaaaaaaaaaaa npm run deploy --password hunter22")
   ok("env values and password flags are taken out", !e.contains("sk-proj") && !e.contains("hunter22") && e.contains("npm run deploy"), e)
-  let u = ApproveCore.redact("git clone https://someone:person16@github.com/x/y.git")
-  ok("user:password in a URL is taken out", !u.contains("person16"), u)
+  let u = ApproveCore.redact("git clone https://someone:person17@github.com/x/y.git")
+  ok("user:password in a URL is taken out", !u.contains("person17"), u)
   let long = ApproveCore.redact(String(repeating: "echo hi && ", count: 30))
   ok("the log line is at most 90 characters on one line", long.count <= 90 && !long.contains("\n"))
   let d = ApproveCore.parseDrop("tool=claude\nname=Bash\nwhat=export GITHUB_TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaa && gh pr list\ncwd=/Users/someone/projects/shop\nat=1800000000\n")!

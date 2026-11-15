@@ -13,7 +13,7 @@ const now = Date.parse("2026-11-03T12:00:00.000Z");
 const iso = (agoMin: number) => new Date(now - agoMin * 60_000).toISOString();
 const since = iso(4 * 24 * 60);
 const rep = (id: string, agoMin: number, x: Record<string, unknown> = {}) => ({ id, threadId: "t-" + id, from: "jane@northwindsilk.example", fromName: "Jane Doe",
-  at: iso(agoMin), subject: "Re: Jane, I rebuilt your homepage", opening: "Hi Sam, this looks great. Can we talk on Tuesday?", campaignId: "camp1", ...x });
+  at: iso(agoMin), subject: "Re: Jane, I rebuilt your homepage", opening: "Hi the developer, this looks great. Can we talk on Tuesday?", campaignId: "camp1", ...x });
 // The page's Dismiss (src/mailcards.ts apply): every reply, dismissed or not, so the card is always found.
 const dismissLead = (st: any, feed: any, id: string, at = now) =>
   L.leadAnswer(st, L.leadCards(feed, { ...st, seen: {}, remind: {} }, at, Infinity), id, "dismiss", at);

@@ -68,13 +68,13 @@ check("mime-no-header-injection", !inj.components(separatedBy: "\r\n\r\n")[0].co
 // MARK: threading
 let thread: [[String: String]] = [
   ["message-id": "<m1@northwind.example>", "from": "Jane Doe <jane@northwind.example>"],
-  ["message-id": "<m2@mail.example>", "from": "Sam <studio@example.com>", "references": "<m1@northwind.example>"],
-  ["message-id": "<m3@northwind.example>", "from": "Jane Doe <jane@northwind.example>", "references": "<m1@northwind.example> <m2@mail.example>", "reply-to": "Jane <jane.d@northwind.example>"],
-  ["message-id": "<m4@mail.example>", "from": "studio@example.com", "references": "<m1@northwind.example> <m2@mail.example> <m3@northwind.example>"],
+  ["message-id": "<person8@mail.gmail.com>", "from": "Sam <studio@example.com>", "references": "<m1@northwind.example>"],
+  ["message-id": "<m3@northwind.example>", "from": "Jane Doe <jane@northwind.example>", "references": "<m1@northwind.example> <person8@mail.gmail.com>", "reply-to": "Jane <jane.d@northwind.example>"],
+  ["message-id": "<person9@mail.gmail.com>", "from": "studio@example.com", "references": "<m1@northwind.example> <person8@mail.gmail.com> <m3@northwind.example>"],
 ]
 let t = MailThreading.pick(thread, own: "Studio@example.com")
 check("thread-answers-their-newest", t.inReplyTo == "<m3@northwind.example>", "\(t)")
-check("thread-references", t.references == "<m1@northwind.example> <m2@mail.example> <m3@northwind.example>", "\(String(describing: t.references))")
+check("thread-references", t.references == "<m1@northwind.example> <person8@mail.gmail.com> <m3@northwind.example>", "\(String(describing: t.references))")
 check("thread-reply-to", t.replyTo == "jane.d@northwind.example")
 check("thread-none", MailThreading.pick([], own: "a@b.example").inReplyTo == nil)
 check("thread-bad-id", MailThreading.pick([["message-id": "junk", "from": "x@y.example"]], own: "a@b.example").inReplyTo == nil)

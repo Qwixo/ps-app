@@ -58,7 +58,7 @@ ok("cleanReplyCardId: only m: and n: ids up to 40 characters", () => {
 const now = Date.parse("2026-11-10T12:00:00.000Z");
 const iso = (agoMin: number) => new Date(now - agoMin * 60_000).toISOString();
 const rep = (id: string, agoMin: number, x: Record<string, unknown> = {}) => ({ id, threadId: "t-" + id, from: "jane@northwindsilk.example", fromName: "Jane Doe",
-  at: iso(agoMin), subject: "Re: Jane, I rebuilt your homepage", opening: "Hi Sam, this looks great. Can we talk on Tuesday?", campaignId: "camp1", url: "https://app.instantly.ai/app/unibox", ...x });
+  at: iso(agoMin), subject: "Re: Jane, I rebuilt your homepage", opening: "Hi the developer, this looks great. Can we talk on Tuesday?", campaignId: "camp1", url: "https://app.instantly.ai/app/unibox", ...x });
 const st = { since: iso(24 * 60) };
 
 ok("an open lead reply becomes a row: first name, company domain, subject, opening, Open in Instantly, card id", () => {

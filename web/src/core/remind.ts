@@ -6,7 +6,7 @@
 //
 // A list of reminders. Each one pops up (a card on the Mac, a notification on the phone) from its start time until it
 // is confirmed, on the days picked; "Remind me in N mins" puts it away for its snooze length. The daily reminder card
-// of V1.38 to V1.45 was reminder number one, id "fu". It is gone since 1.60 (Red's answer 24a): nobody gets a built in
+// of V1.38 to V1.45 was reminder number one, id "fu". It is gone since 1.60 (the developer's answer 24a): nobody gets a built in
 // reminder any more, a stored "fu" is dropped on every load (RETIRED_ID) and the devices cancel its alarm.
 //
 // Storage: ONE small encrypted vault record per account (kind "remind", owner private), never inside the big settings

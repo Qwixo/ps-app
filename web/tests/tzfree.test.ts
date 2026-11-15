@@ -58,7 +58,7 @@ ok("a meeting with no end, or an end before its start, takes 30 minutes", () => 
 });
 
 ok("declined meetings, meetings taken off the panel and the same event twice", () => {
-  const me = { email: "person9@x.com", self: true, rsvp: "declined" };
+  const me = { email: "person10@x.com", self: true, rsvp: "declined" };
   const list = eventBlocks([
     ev("a", "Said no", "2026-11-14T11:00:00Z", "2026-11-14T12:00:00Z", { attendees: [me] }),
     ev("b", "Hidden", "2026-11-14T11:00:00Z", "2026-11-14T12:00:00Z"),
