@@ -18,7 +18,7 @@ import { joinerLine, voteCardDue, voteWords } from "../core/squadchat";
 import { homeTz } from "../core/tz";
 import { dndMutes } from "../core/dnd";
 import { feature } from "../core/features";
-import { ISLAND_FEATURE, NOTIFY_FEATURE, cleanNoteLedger, isNoteCard, laterSeen, noteCard, noteIsland, noteMuted, noteOn, noteSound, planNotes, replyOutcome, staleNotes, type NoteCard, type NoteMsg } from "../core/squadnotify";
+import { ISLAND_FEATURE, NOT_CONNECTED, NOTIFY_FEATURE, cleanNoteLedger, isNoteCard, laterSeen, noteCard, noteIsland, noteMuted, noteOn, noteSound, planNotes, replyOutcome, staleNotes, type NoteCard, type NoteMsg } from "../core/squadnotify";
 import { buildSend } from "./chatsend";
 import { ChatSession, type ChatMsg } from "./chatflows";
 import { HubError } from "./hub";
@@ -198,14 +198,33 @@ export function noteAction(id: string, action: string, text?: string): void {
     return;
   }
   if (action === "reply" && typeof text === "string") {
-    const op = buildSend(text);
-    if (op) void runChatOp(op).then(() => tellIsland(id));
-    else tellIsland(id, "Nothing to send");
     finishNote(id);
+    sendIslandReply(id, text);
     return;
   }
   // PS 1.63: Retry on the island's "Not sent": the chat still holds the failed reply, so it is sent again, never typed twice.
-  if (action === "retry") void runChatOp({ op: "retry" }).then(() => tellIsland(id));
+  // A reply that never reached the chat (it was locked or gone during the Undo) is kept in `held` and goes now.
+  if (action === "retry") {
+    const h = held.get(id);
+    if (h !== undefined) { held.delete(id); sendIslandReply(id, h); return; }
+    if (!chatReady()) { tellIsland(id, NOT_CONNECTED); return; }
+    void runChatOp({ op: "retry" }).then(() => tellIsland(id));
+  }
+}
+/** Replies the island handed over while the chat was not there (vault locked, squad record changed): kept for its Retry. */
+const held = new Map<string, string>();
+const chatReady = () => { const st = vaultStore.get(); return !!s && st.status === "unlocked" && st.role === "owner"; };
+function sendIslandReply(id: string, text: string) {
+  const op = buildSend(text);
+  if (!op) { tellIsland(id, "Nothing to send"); return; }
+  if (!chatReady()) {
+    // The island must never show Sent for a reply that went nowhere (PS 1.63 review M7): say so, and keep the words for Retry.
+    held.set(id, text);
+    if (held.size > 20) held.delete(held.keys().next().value as string);
+    tellIsland(id, NOT_CONNECTED);
+    return;
+  }
+  void runChatOp(op).then(() => tellIsland(id));
 }
 /** The Mac's island waits for the answer to a reply (ps-mac SquadIsland.swift): it went, or the chat still holds it as not sent. */
 function tellIsland(id: string, why?: string) {

@@ -140,6 +140,8 @@ export function withHeld<T extends { id: string }>(live: T[], held: T[]): T[] {
 
 /** What the island is told after a reply it handed over (cardAction "reply" or "retry"): did it go? `failed` counts the replies
  *  the chat still holds as not sent (squad/chatengine.ts pending), `error` is the chat's own plain sentence. */
+/** What the island is told when a reply could not reach the chat at all (the vault locked or the squad changed during the Undo). */
+export const NOT_CONNECTED = "Not connected";
 export function replyOutcome(failed: number, error: string | null): { ok: boolean; why?: string } {
   if (failed <= 0) return { ok: true };
   return { ok: false, why: (error ?? "Could not send").replace(/\s+/g, " ").trim().slice(0, 60) || "Could not send" };

@@ -90,6 +90,29 @@ ok("the last one read elsewhere: the card closes", r.retract("g:c", keepActive: 
 var r2 = SquadIslandQueue(); _ = r2.receive(msg("a"), reading: false); _ = r2.promote()
 ok("a reply in progress keeps its card even if the message was read elsewhere", r2.retract("g:a", keepActive: true) == false && r2.active != nil)
 
+// M4: the island turn is dropped while messages wait: they come out (corner cards), and later messages are new again
+var dq = SquadIslandQueue()
+_ = dq.receive(msg("1"), reading: false)
+ok("a second message joins the waiting one (the stuck case)", dq.receive(msg("2"), reading: false) == .joinedWaiting)
+let out = dq.dropWaiting()
+ok("a dropped turn hands every waiting message back, in order", out.count == 1 && out[0].msgs.map { $0.id } == ["g:1", "g:2"] && dq.waiting.isEmpty && !dq.hasWaiting)
+ok("after the drop a later message is new again, so it asks for the island and shows", dq.receive(msg("3"), reading: false) == .new && dq.hasWaiting)
+ok("dropping again with nothing waiting is harmless", { var e = SquadIslandQueue(); return e.dropWaiting().isEmpty }())
+var dq2 = SquadIslandQueue(); _ = dq2.receive(msg("a"), reading: false); _ = dq2.promote(); _ = dq2.receive(msg("b"), reading: false)
+ok("a drop leaves the card on the island alone", dq2.dropWaiting().count == 1 && dq2.active?.newest.id == "g:a")
+
+// M5: a parked reply (closed while sending)
+let park = SquadParked(id: "g:9", name: "Ada Sample", group: nil, text: "on my way", at: "2026-11-15T10:00:00Z", since: at(100))
+ok("a parked reply that went is quiet", SquadParkedRules.onAnswer(ok: true, why: nil) == .quiet)
+ok("a parked reply that failed says why", SquadParkedRules.onAnswer(ok: false, why: "No connection") == .failureCard("No connection"))
+ok("a parked failure with no reason still says something", SquadParkedRules.onAnswer(ok: false, why: "  ") == .failureCard("Could not send"))
+ok("no answer in time is a failure too", SquadParkedRules.timeoutAfter(park, now: at(100)) == SquadIslandCore.answerWithin && SquadParkedRules.timeoutAfter(park, now: at(200)) == 0 && SquadParkedRules.timedOut == .failureCard("Could not confirm it was sent"))
+let pc = SquadParkedRules.failureCard(park, why: "No connection")
+ok("the failure card is a corner card for the same message, never the island, with the words kept", (pc["island"] as? Bool) == false && (pc["id"] as? String) == "g:9" && (pc["tone"] as? String) == "squad" && ((pc["body"] as? String) ?? "").contains("on my way") && ((pc["body"] as? String) ?? "").contains("Ada") && SquadIslandCore.wantsIsland(pc) == false)
+
+// M9: the global key watcher is off over 1Password and Signal
+ok("the global Esc watcher is allowed normally and never while 1Password or Signal is in front", SquadIslandCore.globalEscAllowed(protectedFront: false) && !SquadIslandCore.globalEscAllowed(protectedFront: true))
+
 // ---------- how long it stays ----------
 var c = SquadShowClock()
 ok("it stays 8 seconds", !c.tick(7.75, hovered: false, focused: false) && c.tick(0.5, hovered: false, focused: false))
@@ -119,7 +142,8 @@ var d = go(s.state, .tick, 15)
 ok("when the Undo runs out the words are delivered once", d.state == .sending(text: "on it", since: at(15)) && d.effect == .deliver("on it"))
 ok("a second tick delivers nothing more", go(d.state, .tick, 16).effect == nil)
 ok("Undo is too late after it went", go(d.state, .undo, 16).state == d.state)
-ok("Esc cannot pretend to cancel a reply that went", go(d.state, .esc, 16).state == d.state)
+ok("Esc closes the card even while the reply is sending (rule 4)", go(d.state, .esc, 16).state == .closed && go(d.state, .esc, 16).effect == .close)
+ok("Esc closing while sending delivers nothing more (no duplicate)", go(d.state, .esc, 16).effect != .deliver("on it") && go(go(d.state, .esc, 16).state, .tick, 17).effect == nil)
 ok("the page says it went: Sent, with the tick", go(d.state, .answer(ok: true, why: nil), 16).state == .sent && go(d.state, .answer(ok: true, why: nil), 16).effect == .sentTick)
 ok("Sent shrinks back on the next tick", go(.sent, .tick).effect == .close && go(.sent, .tick).state == .closed)
 var fl = go(d.state, .answer(ok: false, why: "No connection"), 16)

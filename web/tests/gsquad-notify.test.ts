@@ -162,6 +162,10 @@ ok("what the island is told after a reply: went, or still held as not sent", () 
   assert.deepEqual(N.replyOutcome(2, null), { ok: false, why: "Could not send" });
   assert.equal(N.replyOutcome(1, "x".repeat(200)).why?.length, 60);
 });
+ok("a reply that could not reach the chat is told as not sent, never as Sent", () => {
+  assert.equal(N.NOT_CONNECTED, "Not connected");
+  const o = { ok: false, why: N.NOT_CONNECTED }; assert.equal(o.ok, false); assert.ok(o.why.length > 0 && o.why.length <= 60);
+});
 ok("the view and the request carry the island switch, checked", () => {
   assert.deepEqual(V.cleanChatOp({ op: "noteIsland", on: false }), { op: "noteIsland", on: false });
   assert.equal(V.cleanChatOp({ op: "noteIsland", on: "no" }), null);

@@ -95,6 +95,9 @@ enum SquadIslandCore {
     if g.protectedFront && !g.islandOverProtected { return .old }   // the island is not shown over 1Password or Signal here
     return .island
   }
+  /// The global key watcher (Esc) is off while 1Password or Signal is in front (rule 7: PS never reads keys in those apps). The
+  /// card still closes with the local Esc, the auto shrink and its own buttons.
+  static func globalEscAllowed(protectedFront: Bool) -> Bool { !protectedFront }
   /// Typing needs the keyboard: never while 1Password or Signal is in front (rule 7), the Reply pill opens the chat then.
   static func canCompose(protectedFront: Bool) -> Bool { !protectedFront }
 
@@ -209,6 +212,14 @@ struct SquadIslandQueue: Equatable {
     active = waiting.removeFirst()
     return active
   }
+  /// The island turn was dropped (IslandQueue ttl, another card held the island too long): the waiting items come back out so the
+  /// caller can show them as corner cards. The queue is then empty and the next message is `.new` again (PS 1.63 review M4: before
+  /// this, every later message joined the stuck waiting item and nothing showed until a restart).
+  mutating func dropWaiting() -> [SquadItem] {
+    let w = waiting
+    waiting = []
+    return w
+  }
   /// The active card is finished (shrunk back, answered).
   mutating func finishActive() { active = nil }
   var hasWaiting: Bool { !waiting.isEmpty }
@@ -321,7 +332,9 @@ enum SquadReply {
     case (.sending(let t, let since), .tick):
       if now.timeIntervalSince(since) > SquadIslandCore.answerWithin { return stay(.failed(text: t, why: "Could not confirm it was sent")) }
       return stay(s)
-    case (.sending, .esc): return stay(s)           // it already went: Esc must not pretend to cancel it
+    // Esc always closes (rule 4, PS 1.63 review M5). The reply already went to the page, so closing cancels nothing: the controller
+    // parks it (SquadParked) and its late answer is handled in the background, a failure comes back as a card in the corner.
+    case (.sending, .esc): return stay(.closed, .close)
 
     case (.sent, .tick), (.sent, .esc), (.sent, .timeout): return stay(.closed, .close)
 
@@ -348,5 +361,41 @@ enum SquadReply {
   static func undoLeft(_ s: SquadReplyState, now: Date) -> Int {
     if case .undo(_, let until) = s { return max(0, Int(until.timeIntervalSince(now).rounded(.up))) }
     return 0
+  }
+}
+
+// ---------- a reply that is still sending when the card closes ----------
+/// A reply handed to the page whose card closed before the page answered (Esc while sending, or the island went away). It is never
+/// lost and never sent twice: the page keeps sending with its normal Undo and failure handling; only the answer is watched here.
+struct SquadParked: Equatable {
+  var id: String          // the card id the reply answers
+  var name: String
+  var group: String?
+  var text: String        // what the person wrote
+  var at: String          // the message's time
+  var since: Date
+}
+
+enum SquadParkedOutcome: Equatable {
+  case quiet                    // it went: nothing to show, the person already moved on
+  case failureCard(String)      // it did not: a card in the top right says so (the chat also holds it as not sent)
+}
+
+enum SquadParkedRules {
+  static func onAnswer(ok: Bool, why: String?) -> SquadParkedOutcome {
+    if ok { return .quiet }
+    let w = (why ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    return .failureCard(w.isEmpty ? "Could not send" : String(w.prefix(60)))
+  }
+  /// The page never answered: called failed after the same time as on the card.
+  static func timeoutAfter(_ p: SquadParked, now: Date) -> TimeInterval { max(0, SquadIslandCore.answerWithin - now.timeIntervalSince(p.since)) }
+  static let timedOut = SquadParkedOutcome.failureCard("Could not confirm it was sent")
+  /// The corner card for a failed background reply: the same id as the message (so Open and Dismiss reach the page as before),
+  /// plain words, and Reply so the person can try again from there. Never the island (island false).
+  static func failureCard(_ p: SquadParked, why: String) -> [String: Any] {
+    let said = String(p.text.prefix(80))
+    return ["id": p.id, "rev": String(p.id.dropFirst(SquadIslandCore.prefix.count)), "tone": "squad", "icon": "chat",
+            "title": "Not sent", "sub": p.group ?? "G Squad", "body": "Your reply to \(SquadIslandCore.firstName(p.name)) did not go. \(why). \(said)",
+            "at": p.at, "reply": true, "island": false]
   }
 }

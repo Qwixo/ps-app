@@ -277,6 +277,7 @@ final class SquadIsland {
   private var win: SquadIslandPanel?
   private var timer: Timer?
   private var monitors: [Any] = []
+  private var globalMonitor: Any?
   private var work: [DispatchWorkItem] = []
   private var requested = false
   private var closing = false
@@ -322,7 +323,7 @@ final class SquadIsland {
       m.item = q.active
       clock.restart(for: SquadShowClock.total(for: SquadIslandCore.body(q.active!)))
       Island.shared.moment(.faceID)   // a small pop: one more message
-    case .joinedWaiting: break
+    case .joinedWaiting: if !presenting { request() }   // belt and braces: a waiting item always has a turn asked for
     case .new: request()
     }
     return true
@@ -336,8 +337,33 @@ final class SquadIsland {
     if closeNow { close() }
   }
 
+  /// Replies handed to the page whose card closed before the answer (Esc while sending): only their answer is watched here.
+  private var parked: [String: SquadParked] = [:]
+  private var parkedTimers: [String: DispatchWorkItem] = [:]
+
+  /// A reply is still sending as the card goes: keep watching for its answer so a failure is never lost (the page keeps sending it).
+  private func parkSending() {
+    guard case .sending(let text, let since) = m.state, let it = m.item else { return }
+    let id = it.newest.id
+    let p = SquadParked(id: id, name: it.newest.name, group: it.newest.group, text: text, at: it.newest.at, since: since)
+    parked[id] = p
+    parkedTimers[id]?.cancel()
+    let w = DispatchWorkItem { [weak self] in self?.parkedAnswer(id: id, outcome: SquadParkedRules.timedOut) }
+    parkedTimers[id] = w
+    DispatchQueue.main.asyncAfter(deadline: .now() + SquadParkedRules.timeoutAfter(p, now: Date()), execute: w)
+  }
+  private func parkedAnswer(id: String, outcome: SquadParkedOutcome) {
+    parkedTimers[id]?.cancel(); parkedTimers[id] = nil
+    guard let p = parked.removeValue(forKey: id) else { return }
+    if case .failureCard(let why) = outcome {
+      psLog("PS squad island: a reply sent after the card closed did not go")
+      Toast.shared.showMeet(SquadParkedRules.failureCard(p, why: why))
+    }
+  }
+
   /// The page's answer to a reply: it went, or it did not.
   func result(id: String, ok: Bool, why: String?) {
+    if parked[id] != nil { parkedAnswer(id: id, outcome: SquadParkedRules.onAnswer(ok: ok, why: why)); return }
     guard isOpen, let it = m.item, it.msgs.contains(where: { $0.id == id }) else { return }
     apply(.answer(ok: ok, why: why))
   }
@@ -351,6 +377,7 @@ final class SquadIsland {
     guard isOpen else { return }
     if Protected.front && !BuildRules.now.islandOverProtected { drop(); return }
     if Protected.front, SquadReply.wantsKeyboard(m.state) { apply(.esc) }   // never type while 1Password or Signal is in front
+    syncGlobalEsc()
   }
 
   // ---------- the queue ----------
@@ -360,8 +387,17 @@ final class SquadIsland {
     let o = IslandQueue.shared.enqueue(id: SquadIsland.queueId, kind: "squad", priority: .normal, ttl: 120,
                                        show: { [weak self] in self?.present() },
                                        visible: { [weak self] in self?.presenting == true || self?.win?.isVisible == true },
-                                       dropped: { [weak self] in self?.requested = false })
+                                       dropped: { [weak self] in self?.turnDropped() })
     if o == .showNow { present() }
+  }
+
+  /// The island's turn was dropped (another card held the island over 2 minutes). The waiting messages go to the old card in the
+  /// top right so none is lost, and the queue is empty again: the next message asks for a new turn (PS 1.63 review M4).
+  private func turnDropped() {
+    requested = false
+    let items = q.dropWaiting()
+    psLog("PS squad island: turn dropped, \(items.count) chat(s) to the corner card")
+    for it in items { fallBack(it) }
   }
 
   private func finishShared() {
@@ -445,6 +481,7 @@ final class SquadIsland {
     guard !closing, m.state != .closed, let it = m.item else { return }
     let before = m.state
     let r = SquadReply.step(before, ev, now: Date())
+    if r.effect == .close, case .sending = before { parkSending() }   // Esc while sending: the reply keeps going, its answer is watched
     if r.state != before {
       if kind(r.state) != kind(before) {
         stateSince = Date()
@@ -528,17 +565,29 @@ final class SquadIsland {
       if case .card = s { return e }   // the same Esc still backs out of the Tab list (EscAlways.swift)
       return nil                        // the box, the Undo and the rest: this Esc was this card's step back
     }) { monitors.append(l) }
-    if let g = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown], handler: { [weak self] e in
-      if e.keyCode == 53 { DispatchQueue.main.async { if self?.isOpen == true { self?.apply(.esc) } } }
-    }) { monitors.append(g) }
+    syncGlobalEsc()
   }
-  private func stopEsc() { monitors.forEach { NSEvent.removeMonitor($0) }; monitors = [] }
+  /// The global key watcher (Esc from other apps) exists only while 1Password and Signal are not in front (rule 7: PS never reads
+  /// a key typed in them, like the keyboard tap and BigIsland). The local monitor, the auto close and the buttons still close it.
+  private func syncGlobalEsc() {
+    let want = !monitors.isEmpty && SquadIslandCore.globalEscAllowed(protectedFront: Protected.front)
+    if want, globalMonitor == nil {
+      globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown], handler: { [weak self] e in
+        if e.keyCode == 53 { DispatchQueue.main.async { if self?.isOpen == true { self?.apply(.esc) } } }
+      })
+    } else if !want, let g = globalMonitor { NSEvent.removeMonitor(g); globalMonitor = nil }
+  }
+  private func stopEsc() {
+    monitors.forEach { NSEvent.removeMonitor($0) }; monitors = []
+    if let g = globalMonitor { NSEvent.removeMonitor(g); globalMonitor = nil }
+  }
 
   // ---------- going away ----------
   /// Back up into the island: the words go, the shape shrinks to the island's size, the window goes, then the next card.
   private func close() {
     guard !closing else { return }
     guard win?.isVisible == true else { drop(); return }
+    parkSending()
     closing = true
     cancelAll(); timer?.invalidate(); timer = nil; stopEsc()
     giveKeyboard()
@@ -553,6 +602,7 @@ final class SquadIsland {
   }
   /// Quietly gone at once (the island went, 1Password or Signal came forward).
   private func drop() {
+    parkSending()
     cancelAll(); timer?.invalidate(); timer = nil; stopEsc(); giveKeyboard()
     win?.orderOut(nil)
     gone()
