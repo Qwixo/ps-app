@@ -141,7 +141,7 @@ func pageCSP(_ connect: String) -> String {
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: https://*.giphy.com",   // G Squad GIFs (PS 1.63): pictures only, from GIPHY's media servers
     "connect-src \(connect)",
     "worker-src 'self'",
     "manifest-src 'self'",

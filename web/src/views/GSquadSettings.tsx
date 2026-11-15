@@ -14,6 +14,8 @@ import type { SquadView } from "../squad/view";
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { Avatar } from "./SquadAvatar";
+import { loadGifsStore, useLoadGifs } from "./GSquadPickers";
+import { signalOn } from "../squad/signal";
 import { newAiCode } from "../squad/devlink";
 
 export function useShare(): ShareOpts {
@@ -190,6 +192,7 @@ function Choice<T extends string>({ label, list, value, onPick, swatch }: { labe
 /** Appearance: every choice shows at once on the screen behind it (and in the small preview here). */
 function LooksPage() {
   const l = useLooks();
+  const gifs = useLoadGifs();
   return (
     <div className="gss-looks">
       <div className="gss-preview" aria-hidden="true">
@@ -203,6 +206,16 @@ function LooksPage() {
       <Choice label="Chat bubbles" list={BUBBLES} value={l.bubbles} onPick={(bubbles) => setLooks({ bubbles })} swatch={(id) => <i className={`gss-bb ${id}`} />} />
       <Choice label="Text size" list={TEXTS} value={l.text} onPick={(text) => setLooks({ text })} swatch={(id) => <i className={`gss-aa ${id}`}>Aa</i>} />
       <Choice label="Background" list={BGS} value={l.bg} onPick={(bg) => setLooks({ bg })} swatch={(id) => <i className={`gss-bgs ${id}`} />} />
+      {signalOn() && (
+        <ul className="gs-list">
+          <li>
+            <button type="button" role="switch" aria-checked={gifs} className={`gs-sw${gifs ? " on" : ""}`} onClick={() => { sfx.click(); loadGifsStore.set(!gifs); }}>
+              <span className="gs-tt">Load GIFs<em>{gifs ? "GIFs in chat load from GIPHY's servers." : "Off: a GIF shows a box, and loads only when you tap it."}</em></span>
+              <i className="gs-tog" aria-hidden="true"><b /></i>
+            </button>
+          </li>
+        </ul>
+      )}
       <p className="gs-note">Only this device, only G Squad. Your squad never sees it.</p>
     </div>
   );

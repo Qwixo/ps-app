@@ -25,12 +25,14 @@ import {
 import { listTime, unreadText } from "../squad/chatgroups";
 import { THE_SQUAD, type SettingsPage } from "../squad/single";
 import { looksClass, looksVars } from "../squad/looks";
+import { signalOn } from "../squad/signal";
 import { todayISO } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { Avatar } from "./SquadAvatar";
 import { SettingsIcon, SquadSettings, useLooks } from "./GSquadSettings";
 import "./gswin.css";
 import "./gswnew.css";
+import "./gssignal.css";
 
 // ---------- small parts ----------
 function Svg({ children, size = 24, w = 1.9 }: { children: ReactNode; size?: number; w?: number }) {
@@ -185,7 +187,7 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const style = { ...looksVars(looks, psFs()) } as CSSProperties;
-  const cls = `gsw${narrow ? " narrow" : ""}${PHONE ? " phone" : ""} ${looksClass(looks)}`;
+  const cls = `gsw${narrow ? " narrow" : ""}${PHONE ? " phone" : ""} ${looksClass(looks)}${looks.look === "new" && signalOn() ? " sg" : ""}`;
   const closeBtn = (
     <button type="button" className="gsw-x" onClick={() => { sfx.click(); leave(); }} aria-label="Close" data-tip="Close" data-tip-line="Closes G Squad. Or press Esc">
       <CloseIcon /></button>

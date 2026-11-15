@@ -13,11 +13,17 @@ import { badgeText, type ChatLine, type ChatVoteView } from "../squad/chatview";
 import { clockTime, groupChat, GROUP_GAP_MS } from "../squad/chatgroups";
 import { looksStore } from "../squad/looks";
 import { startChat } from "../squad/chatengine";
+import { signalOn } from "../squad/signal";
+import { emojiOnly, emojiSize, placeIn, whoLine } from "../squad/chatreact";
+import { parseGifMessage } from "../squad/chatgif";
+import { useBack } from "../squad/back";
 import { sfx } from "../ui/sfx";
 import { toneOf } from "../squad/window";
 import { Avatar } from "./SquadAvatar";
-import { About, ChatComposer, useComposer } from "./GSquadComposer";
+import { About, ChatComposer, sendChat, useComposer } from "./GSquadComposer";
+import { EmojiPicker, GifImage, GifPicker, ReactBar } from "./GSquadPickers";
 import "./gschat.css";
+import "./gssignal.css";
 
 const PS = import.meta.env.MODE === "ps";
 
@@ -42,18 +48,47 @@ export function VoteBox({ v }: { v: ChatVoteView }) {
 // ---------- one message ----------
 // V1.43, the messenger look: messages from one person in a row are one group; others' groups carry their picture at
 // the bottom and their name (in their colour) at the top; the last bubble of a group has a small tail.
-function Line({ l, first, last, onEdit }: { l: ChatLine; first: boolean; last: boolean; onEdit: (l: ChatLine) => void }) {
+interface Extras { onReact: (id: string, e: string) => void; onMore: (id: string, el: HTMLElement) => void; onMedia: () => void }
+function Line({ l, first, last, onEdit, x }: { l: ChatLine; first: boolean; last: boolean; onEdit: (l: ChatLine) => void; x?: Extras }) {
   const [sure, setSure] = useState(false);
+  const [bar, setBar] = useState(false);          // touch: a long press opens the reaction bar
+  const press = useRef<number | undefined>(undefined);
+  const gif = x ? parseGifMessage(l.t) : null;
+  const big = x && !gif ? emojiSize(emojiOnly(l.t)) : "";
+  const live = !!x && !l.sending && !l.failed;   // a message not on the hub yet cannot be reacted to
+  useEffect(() => {
+    if (!bar) return;
+    const down = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest?.(`[data-id="${l.id}"] .gc-rbar`)) setBar(false); };
+    document.addEventListener("pointerdown", down, true);
+    return () => document.removeEventListener("pointerdown", down, true);
+  }, [bar, l.id]);
+  useBack(bar, () => setBar(false));
+  const stop = () => { if (press.current !== undefined) { window.clearTimeout(press.current); press.current = undefined; } };
   return (
-    <li className={`gc-line${l.mine ? " mine" : ""}${first ? " first" : ""}${last ? " last" : ""}${l.edited ? " edited" : ""}${l.sending ? " sending" : ""}${l.failed ? " failed" : ""}`} data-id={l.id}>
+    <li className={`gc-line${l.mine ? " mine" : ""}${first ? " first" : ""}${last ? " last" : ""}${l.edited ? " edited" : ""}${l.sending ? " sending" : ""}${l.failed ? " failed" : ""}${bar ? " bar-open" : ""}${l.r?.length ? " has-r" : ""}`} data-id={l.id}>
       {!l.mine && <span className="gc-av">{last && <Avatar id={l.from} name={l.name} size={30} />}</span>}
       <div className="gc-col">
-        <div className="gc-bubble">
+        <div className={`gc-bubble${gif ? " gif" : ""}${big ? ` emo emo-${big}` : ""}`}
+          onPointerDown={(e) => { if (live && e.pointerType === "touch") { stop(); press.current = window.setTimeout(() => { press.current = undefined; setBar(true); }, 420); } }}
+          onPointerUp={stop} onPointerCancel={stop} onPointerMove={stop} onContextMenu={(e) => { if (live && (e.nativeEvent as PointerEvent).pointerType === "touch") e.preventDefault(); }}>
+          {live && x && <ReactBar mine={l.mine} onPick={(e) => { setBar(false); x.onReact(l.id, e); }} onMore={(el) => { setBar(false); x.onMore(l.id, el); }} />}
           {first && !l.mine && <span className={`gc-who t${toneOf(l.from || l.name)}`}>{l.name}{l.left && <em> (left)</em>}</span>}
           {l.a && <About a={l.a} />}
-          <span className="gc-text selectable">{l.t}<span className="gc-pad" aria-hidden="true" /></span>
+          {gif
+            ? <GifImage url={gif} onLoad={x?.onMedia} />
+            : <span className="gc-text selectable">{l.t}<span className="gc-pad" aria-hidden="true" /></span>}
           <span className="gc-meta">{l.failed ? "Not sent" : l.sending ? "Sending" : `${l.edited ? "edited " : ""}${when(l.at)}`}</span>
         </div>
+        {x && !!l.r?.length && (
+          <span className="gc-pills" role="group" aria-label="Reactions">
+            {l.r.map((p) => (
+              <button key={p.e} type="button" className={`gc-pill${p.mine ? " mine" : ""}`} aria-pressed={p.mine} title={whoLine(p.who)}
+                aria-label={`${p.e} ${p.n}, ${whoLine(p.who)}${p.mine ? ". Tap to take yours back" : ""}`} onClick={() => { sfx.click(); x.onReact(l.id, p.e); }}>
+                <span className="gc-pill-e">{p.e}</span>{p.n > 1 && <span className="gc-pill-n num">{p.n}</span>}
+              </button>
+            ))}
+          </span>
+        )}
         {l.mine && !l.sending && (
           <span className="gc-acts">
             {l.failed
@@ -61,7 +96,7 @@ function Line({ l, first, last, onEdit }: { l: ChatLine; first: boolean; last: b
               : sure
                 ? <><button type="button" className="gc-act bad" onClick={() => { sfx.click(); chatOp({ op: "del", id: l.id }); setSure(false); }}>Delete for everyone</button>
                   <button type="button" className="gc-act" onClick={() => setSure(false)}>Keep</button></>
-                : <><button type="button" className="gc-act" onClick={() => onEdit(l)}>Edit</button>
+                : <>{!gif && <button type="button" className="gc-act" onClick={() => onEdit(l)}>Edit</button>}
                   <button type="button" className="gc-act" onClick={() => setSure(true)}>Delete</button></>}
           </span>
         )}
@@ -77,6 +112,18 @@ export function ChatPanel() {
   const looks = useSyncExternalStore(looksStore.subscribe, looksStore.get);
   const c = useComposer({ onSent: () => { atBottom.current = true; } });
   const { about, editing } = c;
+  const sig = signalOn();
+  const root = useRef<HTMLDivElement>(null);
+  const [pick, setPick] = useState<{ k: "box" } | { k: "gif" } | { k: "react"; to: string; at: { left: number; top: number } } | null>(null);
+  const rel = (el: HTMLElement) => {
+    const b = root.current!.getBoundingClientRect(), a = el.getBoundingClientRect();
+    return placeIn({ left: b.left, top: b.top, width: b.width, height: b.height }, { left: a.left, top: a.top, width: a.width, height: a.height }, { width: 300, height: 300 });
+  };
+  const x: Extras | undefined = sig ? {
+    onReact: (id, e) => chatOp({ op: "react", to: id, e }),
+    onMore: (id, el) => { if (root.current) setPick({ k: "react", to: id, at: rel(el) }); },
+    onMedia: () => { const el = list.current; if (el && atBottom.current) el.scrollTop = el.scrollHeight; },
+  } : undefined;
 
   // Open while on screen: the page that holds the keys pulls every 5 s and marks what you see as read.
   useEffect(() => { chatOp({ op: "open", on: true }); return () => chatOp({ op: "open", on: false }); }, []);
@@ -93,7 +140,7 @@ export function ChatPanel() {
   // The new look also starts a new group after a pause; the classic look groups by sender and day only.
   const items = useMemo(() => groupChat(v.lines, { gapMs: looks.look === "new" ? GROUP_GAP_MS : Infinity }), [v.lines, looks.look]);
   return (
-    <div className="gc">
+    <div className={`gc${sig ? " sig" : ""}`} ref={root}>
       <div ref={list} className="gc-list" onScroll={(e) => { const el = e.currentTarget; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
         {votes.map((x) => <VoteBox key={x.id} v={x} />)}
         {v.note && <p className="gc-note">{v.note}</p>}
@@ -103,11 +150,15 @@ export function ChatPanel() {
         <ul className="gc-lines">
           {items.map((it) => it.kind === "day"
             ? <li key={it.key} className="gc-day" aria-label={it.label}><span>{it.label}</span></li>
-            : <Line key={it.key} l={it.line} first={it.first} last={it.last} onEdit={c.startEdit} />)}
+            : <Line key={it.key} l={it.line} first={it.first} last={it.last} onEdit={c.startEdit} x={x} />)}
         </ul>
       </div>
       {v.error && <p className="gs-err" role="alert">{v.error}</p>}
-      <ChatComposer c={c} ready={v.ready} loaded={v.loaded} />
+      {pick?.k === "react" && <EmojiPicker className="over" style={{ left: pick.at.left, top: pick.at.top }} onClose={() => setPick(null)} onPick={(e) => { chatOp({ op: "react", to: pick.to, e }); setPick(null); }} />}
+      {pick?.k === "box" && <EmojiPicker className="dock" onClose={() => setPick(null)} onPick={(e) => { c.insert(e); }} />}
+      {pick?.k === "gif" && <GifPicker className="dock" onClose={() => setPick(null)} onPick={(url) => { sendChat(url); atBottom.current = true; setPick(null); }} />}
+      <ChatComposer c={c} ready={v.ready} loaded={v.loaded}
+        extras={sig ? { emoji: pick?.k === "box", gif: v.gif.on === true ? pick?.k === "gif" : null, onEmoji: () => setPick(pick?.k === "box" ? null : { k: "box" }), onGif: () => setPick(pick?.k === "gif" ? null : { k: "gif" }) } : undefined} />
       {PS && (
         <button type="button" role="switch" aria-checked={v.sound} className={`gc-sound${v.sound ? " on" : ""}`} onClick={() => { sfx.click(); chatOp({ op: "sound", on: !v.sound }); }}>
           <i className="gs-tog" aria-hidden="true"><b /></i>Sound for new messages

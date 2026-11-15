@@ -12,7 +12,7 @@ if (!dist || !/^http:\/\/127\.0\.0\.1:\d+$/.test(url || "") || !key) { console.e
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2", ".webp": "image/webp", ".mp3": "audio/mpeg", ".wav": "audio/wav" };
 const project = `Object.defineProperty(window,'__psProject',{value:Object.freeze(${JSON.stringify({ url, key, ...(setupCode && setupCode !== "-" ? { setupCode } : {}), ...(schema === "ps" ? { schema } : {}) })}),writable:false,configurable:false});`;
 // The same policy as the Mac app's page (pageCSP in ps-mac Sources/Project.swift), for this one project.
-const csp = `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' ${url} ${url.replace("http", "ws")}; worker-src 'self'; manifest-src 'self'; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'`;
+const csp = `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://*.giphy.com; connect-src 'self' ${url} ${url.replace("http", "ws")}; worker-src 'self'; manifest-src 'self'; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'`;
 
 createServer((req, res) => {
   const p = decodeURIComponent(new URL(req.url, "http://x").pathname);

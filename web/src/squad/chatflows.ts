@@ -6,6 +6,7 @@ import { cleanName, openCard, type SquadRec } from "../core/squadrec.ts";
 import { newUuid } from "../core/squadcrypto.ts";
 import { cleanBody, cleanVotes, hubMicros, openChatDrops, openMessage, planChatRotate, planGive, sealMessage, type ChatAbout, type ChatBody, type VoteInfo } from "../core/squadchat.ts";
 import { HubError, type HubMemberRow } from "./hub.ts";
+import { reactPlan, type ReactEvent } from "./chatreact.ts";
 import { chatApi, type ChatApi, type ChatMsgRow, type ChatStatus } from "./chathub.ts";
 
 type Fetcher = Parameters<typeof chatApi>[1];
@@ -20,6 +21,7 @@ export class ChatSession {
   rows = new Map<string, HubMemberRow>();
   people = new Map<string, ChatPerson>();
   msgs = new Map<string, ChatMsg>();
+  reacts = new Map<string, ReactEvent>();   // reaction rows (PS 1.63), by row id: they are chat rows with no words
   locked = 0;                         // rows the hub sent that we could not open (should stay 0)
   status: ChatStatus | null = null;
   votes: VoteInfo[] = [];
@@ -75,11 +77,12 @@ export class ChatSession {
   }
   private async take(rows: ChatMsgRow[]) {
     for (const r of rows) {
-      if (r.deleted) { this.msgs.delete(r.id); continue; }
+      if (r.deleted) { this.msgs.delete(r.id); this.reacts.delete(r.id); continue; }
       const raw = this.keys.get(r.epoch);
       if (!raw) { this.locked++; continue; }
       const b = await openMessage(raw, this.rec.squadId, r.epoch, r.member_id, r.id, r.ct);
       if (!b) { this.locked++; continue; }
+      if (b.r) { this.reacts.set(r.id, { id: r.id, from: r.member_id, to: b.r.to, e: b.r.e, at: r.created_at }); continue; }
       this.msgs.set(r.id, { id: r.id, from: r.member_id, epoch: r.epoch, t: b.t, ...(b.a ? { a: b.a } : {}), at: r.created_at, edited: r.edited });
     }
   }
@@ -119,7 +122,7 @@ export class ChatSession {
 
   /** Sends one message into the period now. A period that changed under us (a join or a leave) is made or fetched,
    *  then the message is sealed again under it, once. */
-  async send(body: ChatBody, id = newUuid()): Promise<ChatMsg> {
+  async send(body: ChatBody, id = newUuid()): Promise<ChatMsg | null> {
     const b = cleanBody(body);
     if (!b) throw new Error("Empty message.");
     for (let attempt = 0; ; attempt++) {
@@ -133,6 +136,7 @@ export class ChatSession {
       const ct = await sealMessage(raw, this.rec.squadId, epoch, this.rec.memberId, id, b);
       try {
         const r = await this.api.post(id, epoch, ct);
+        if (b.r) { this.reacts.set(id, { id, from: this.rec.memberId, to: b.r.to, e: b.r.e, at: r.at }); return null; }
         const m: ChatMsg = { id, from: this.rec.memberId, epoch, t: b.t, ...(b.a ? { a: b.a } : {}), at: r.at, edited: false };
         this.msgs.set(id, m);
         return m;
@@ -159,13 +163,34 @@ export class ChatSession {
     await this.api.del(id);
     this.msgs.delete(id);
   }
+  /** Your reaction on a message (PS 1.63): the emoji if you have not put it there yet, taken back if you have. The screen
+   *  hears at once through `onLocal` (before the hub answers); a refusal puts everything back and throws. */
+  async react(to: string, e: string, onLocal: () => void = () => {}): Promise<void> {
+    if (!this.msgs.has(to)) return;
+    const me = this.rec.memberId;
+    const plan = reactPlan([...this.reacts.values()], me, to, e);
+    if ("remove" in plan) {
+      const gone = plan.remove.map((id) => this.reacts.get(id)!).filter(Boolean);
+      for (const id of plan.remove) this.reacts.delete(id);
+      onLocal();
+      try { for (const id of plan.remove) await this.api.del(id); }
+      catch (err) { for (const g of gone) this.reacts.set(g.id, g); throw err; }
+      return;
+    }
+    const id = newUuid();
+    this.reacts.set(id, { id, from: me, to, e, at: new Date().toISOString() });
+    onLocal();
+    try { await this.send({ t: "", r: { to, e } }, id); }
+    catch (err) { this.reacts.delete(id); throw err; }
+  }
   async vote(voteId: string, yes: boolean): Promise<void> {
     const r = await this.api.ballot(voteId, yes);
     this.votes = this.votes.map((v) => (v.id === voteId ? { ...v, mine: yes, res: r.res ?? v.res } : v));
   }
   /** Read up to the newest message here. */
   async markRead(): Promise<void> {
-    const newest = [...this.msgs.values()].reduce<string | null>((o, m) => (!o || hubMicros(m.at) > hubMicros(o) ? m.at : o), null);
+    // A reaction is a row too, so it counts for "read" (else the hub would keep counting it as unread).
+    const newest = [...this.msgs.values(), ...this.reacts.values()].reduce<string | null>((o, m) => (!o || hubMicros(m.at) > hubMicros(o) ? m.at : o), null);
     if (!newest || (this.status?.read && hubMicros(this.status.read) >= hubMicros(newest))) return;
     await this.api.read(newest);
     if (this.status) this.status = { ...this.status, read: newest, u: 0 };
