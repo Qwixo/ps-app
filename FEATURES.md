@@ -85,6 +85,7 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 - Gym scan reads real labels: it turns the picture 90 degrees both ways and tilts it a little (a name written up the side of a label), picks the big title line, and ignores addresses, websites, phone numbers and maker names. Switch: Settings, Fitness, "Show Scan in a workout".
 - A clear Scan button with a camera inside every exercise search box (Add an exercise in a workout, plan editing, setting up your training, the Exercises list). On the phone only. Same switch.
 - New sets start at your last weight and reps for that exercise: this workout first, else the last time. Switch: Settings, Fitness, "New sets start at your last weight" (on by default).
+- G Squad new look: G Squad now looks like a calm messenger. A list with round pictures, the last line, the time and an unread count, and a chat with flat bubbles, small names, day lines and one rounded box with a round send button. Messages from one person a few minutes apart sit in one group. Off switch: Squad settings, Appearance, "G Squad look": Classic.
 
 ## New in V1.59
 

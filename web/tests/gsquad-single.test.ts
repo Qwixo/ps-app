@@ -27,20 +27,20 @@ ok("Squad settings: five simple pages in a fixed order", () => {
 // ---------- Appearance ----------
 const mem = () => { const m = new Map<string, string>(); return { m, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); } }; };
 ok("appearance: defaults follow PS, Large text (bigger than before), Round bubbles, Glow", () => {
-  assert.deepEqual(L.DEFAULT_LOOKS, { theme: "ps", accent: "ps", bubbles: "round", text: "l", bg: "glow" });
+  assert.deepEqual(L.DEFAULT_LOOKS, { look: "new", theme: "ps", accent: "ps", bubbles: "round", text: "l", bg: "glow" });
   assert.ok(L.textScale("l") > 1.15, "much bigger by default");
   assert.ok(L.textScale("m") < L.textScale("l") && L.textScale("l") < L.textScale("xl") && L.textScale("xl") < L.textScale("xxl"));
 });
 ok("appearance: anything unknown falls back field by field", () => {
-  assert.deepEqual(L.cleanLooks({ theme: "neon", accent: "teal", bubbles: "x", text: "xl", bg: 3 }), { theme: "ps", accent: "teal", bubbles: "round", text: "xl", bg: "glow" });
+  assert.deepEqual(L.cleanLooks({ theme: "neon", accent: "teal", bubbles: "x", text: "xl", bg: 3 }), { look: "new", theme: "ps", accent: "teal", bubbles: "round", text: "xl", bg: "glow" });
   assert.deepEqual(L.cleanLooks(null), L.DEFAULT_LOOKS);
   assert.deepEqual(L.cleanLooks("light"), L.DEFAULT_LOOKS);
 });
 ok("appearance: kept on this device; broken storage never breaks it", () => {
   const s = mem();
   assert.deepEqual(L.readLooks(s), L.DEFAULT_LOOKS);
-  L.saveLooks({ theme: "light", accent: "blue", bubbles: "square", text: "xxl", bg: "dots" }, s);
-  assert.deepEqual(L.readLooks(s), { theme: "light", accent: "blue", bubbles: "square", text: "xxl", bg: "dots" });
+  L.saveLooks({ look: "classic", theme: "light", accent: "blue", bubbles: "square", text: "xxl", bg: "dots" }, s);
+  assert.deepEqual(L.readLooks(s), { look: "classic", theme: "light", accent: "blue", bubbles: "square", text: "xxl", bg: "dots" });
   s.setItem(L.LOOKS_KEY, "{not json");
   assert.deepEqual(L.readLooks(s), L.DEFAULT_LOOKS);
   const bad = { getItem: () => { throw new Error("off"); }, setItem: () => { throw new Error("off"); } };
@@ -49,8 +49,8 @@ ok("appearance: kept on this device; broken storage never breaks it", () => {
   assert.deepEqual(L.readLooks(null), L.DEFAULT_LOOKS);
 });
 ok("appearance: classes and variables (text size times PS's own; the accent only when chosen)", () => {
-  assert.equal(L.looksClass(L.DEFAULT_LOOKS), "th-ps bb-round bg-glow");
-  assert.equal(L.looksClass({ ...L.DEFAULT_LOOKS, theme: "dark", accent: "green", bubbles: "soft", bg: "plain" }), "th-dark bb-soft bg-plain acc-own");
+  assert.equal(L.looksClass(L.DEFAULT_LOOKS), "lk-new th-ps bb-round bg-glow");
+  assert.equal(L.looksClass({ ...L.DEFAULT_LOOKS, theme: "dark", accent: "green", bubbles: "soft", bg: "plain" }), "lk-new th-dark bb-soft bg-plain acc-own");
   assert.deepEqual(L.looksVars(L.DEFAULT_LOOKS, 1), { "--k-fs": "1.22" });
   assert.equal(L.looksVars({ ...L.DEFAULT_LOOKS, text: "m" }, 1.5)["--k-fs"], "1.62");
   assert.equal(L.looksVars(L.DEFAULT_LOOKS, Number.NaN)["--k-fs"], "1.22", "no PS size: 1");

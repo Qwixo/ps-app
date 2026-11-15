@@ -4,27 +4,24 @@
 // Text only, smooth and simple. Your own messages: Edit and Delete (for everyone). New messages: a small badge on the
 // G Squad icon; no sound unless switched on here (Mac). History votes: a pop-up with Yes and No (a PS card on the
 // Mac, a pop-up on the website) and the same question at the top of this tab until answered.
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { registerSquadTab, TAB_ORDER, type SquadTabProps } from "../squad/tabs";
 import { chatNow, chatOp, useChat } from "../squad/chatmirror";
 import { composeStore } from "../squad/chatopen";
 import { badgeText, type ChatLine, type ChatVoteView } from "../squad/chatview";
-import { MAX_TEXT, type ChatAbout } from "../core/squadchat";
+import { clockTime, groupChat, GROUP_GAP_MS } from "../squad/chatgroups";
+import { looksStore } from "../squad/looks";
 import { startChat } from "../squad/chatengine";
 import { sfx } from "../ui/sfx";
-import { useBack } from "../squad/back";
-import { dayLabel, sameDay, toneOf } from "../squad/window";
+import { toneOf } from "../squad/window";
 import { Avatar } from "./SquadAvatar";
+import { About, ChatComposer, useComposer } from "./GSquadComposer";
 import "./gschat.css";
 
 const PS = import.meta.env.MODE === "ps";
 
-/** The time in a bubble (V1.43): the day is on the day line above the messages. */
-function when(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-}
+const when = clockTime;   // the time in a bubble: the day is on the day line above the messages
 
 // ---------- a history vote, in the tab and in the website's pop-up ----------
 export function VoteBox({ v }: { v: ChatVoteView }) {
@@ -72,34 +69,17 @@ function Line({ l, first, last, onEdit }: { l: ChatLine; first: boolean; last: b
     </li>
   );
 }
-function About({ a, onClear }: { a: ChatAbout; onClear?: () => void }) {
-  return (
-    <span className="gc-about">
-      <b>{a.k === "gym" ? "Gym log" : "About"}</b>{a.l}
-      {onClear && <button type="button" className="gc-about-x" onClick={onClear} aria-label="Remove">×</button>}
-    </span>
-  );
-}
-
 // ---------- the panel ----------
 export function ChatPanel() {
   const v = useChat();
   const list = useRef<HTMLDivElement>(null);
-  const box = useRef<HTMLTextAreaElement>(null);
   const atBottom = useRef(true);
-  const [text, setText] = useState("");
-  const [about, setAbout] = useState<ChatAbout | null>(null);
-  const [editing, setEditing] = useState<ChatLine | null>(null);
-  const ask = useSyncExternalStore(composeStore.subscribe, composeStore.get);
+  const looks = useSyncExternalStore(looksStore.subscribe, looksStore.get);
+  const c = useComposer({ onSent: () => { atBottom.current = true; } });
+  const { about, editing } = c;
 
   // Open while on screen: the page that holds the keys pulls every 5 s and marks what you see as read.
   useEffect(() => { chatOp({ op: "open", on: true }); return () => chatOp({ op: "open", on: false }); }, []);
-  // Another part of PS asked to open the chat about something (squad/chatopen.ts): its draft and chip, never sent by itself.
-  useEffect(() => {
-    if (!ask.n) return;
-    setEditing(null); setAbout(ask.about); setText(ask.draft);
-    window.setTimeout(() => { box.current?.focus(); const n = box.current?.value.length ?? 0; box.current?.setSelectionRange(n, n); }, 30);
-  }, [ask.n]); // eslint-disable-line react-hooks/exhaustive-deps
   // Stay at the newest message when it comes in, unless you scrolled up to read.
   const placed = useRef(false);
   useLayoutEffect(() => {
@@ -108,29 +88,10 @@ export function ChatPanel() {
     el.scrollTo({ top: el.scrollHeight, behavior: placed.current ? "smooth" : "instant" });   // the first time straight to the newest, then gliding
     if (v.lines.length) placed.current = true;
   }, [v.lines.length, v.lines.at(-1)?.id, v.votes.length, v.note, about, editing]);
-  // The box grows with the text (up to 6 lines).
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
-    el.style.overflowY = el.scrollHeight > 132 ? "auto" : "hidden";
-  }, [text]);
-
-  const send = () => {
-    const t = text.trim();
-    if (!t) return;
-    sfx.drop();
-    if (editing) chatOp({ op: "edit", id: editing.id, text: t });
-    else chatOp(about ? { op: "send", text: t, a: about } : { op: "send", text: t });
-    setText(""); setAbout(null); setEditing(null);
-    atBottom.current = true;
-  };
-  // Esc (V1.43): in the G Squad window an edit stops first, then the window closes.
-  useBack(!!editing, () => { setEditing(null); setText(""); });
-  const startEdit = (l: ChatLine) => { setEditing(l); setAbout(null); setText(l.t); window.setTimeout(() => box.current?.focus(), 20); };
 
   const votes = v.votes;
+  // The new look also starts a new group after a pause; the classic look groups by sender and day only.
+  const items = useMemo(() => groupChat(v.lines, { gapMs: looks.look === "new" ? GROUP_GAP_MS : Infinity }), [v.lines, looks.look]);
   return (
     <div className="gc">
       <div ref={list} className="gc-list" onScroll={(e) => { const el = e.currentTarget; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
@@ -140,35 +101,13 @@ export function ChatPanel() {
         {!v.loaded && v.lines.length === 0 && <p className="gc-empty">Opening the chat...</p>}
         {v.loaded && v.lines.length === 0 && <p className="gc-empty">No messages yet. Say hi to the squad.</p>}
         <ul className="gc-lines">
-          {v.lines.map((l, i) => {
-            const prev = v.lines[i - 1], next = v.lines[i + 1];
-            const newDay = !prev || !sameDay(prev.at, l.at);
-            return (
-              <Fragment key={l.id}>
-                {newDay && <li className="gc-day" aria-label={dayLabel(l.at)}><span>{dayLabel(l.at)}</span></li>}
-                <Line l={l} first={newDay || prev.from !== l.from} last={!next || next.from !== l.from || !sameDay(next.at, l.at)} onEdit={startEdit} />
-              </Fragment>
-            );
-          })}
+          {items.map((it) => it.kind === "day"
+            ? <li key={it.key} className="gc-day" aria-label={it.label}><span>{it.label}</span></li>
+            : <Line key={it.key} l={it.line} first={it.first} last={it.last} onEdit={c.startEdit} />)}
         </ul>
       </div>
       {v.error && <p className="gs-err" role="alert">{v.error}</p>}
-      <form className="gc-compose" onSubmit={(e) => { e.preventDefault(); send(); }}>
-        {editing && <span className="gc-editing">Editing your message<button type="button" className="gc-about-x" onClick={() => { setEditing(null); setText(""); }} aria-label="Stop editing">×</button></span>}
-        {about && !editing && <About a={about} onClear={() => setAbout(null)} />}
-        <div className="gc-row">
-          <textarea ref={box} className="gc-box" rows={1} value={text} maxLength={MAX_TEXT} placeholder={v.ready || !v.loaded ? "Message the squad" : "Getting the chat's key..."}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              e.stopPropagation();   // the Tab list's own shortcuts never fire while typing here
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); }
-              if (e.key === "Escape" && editing) { e.preventDefault(); setEditing(null); setText(""); }
-            }} />
-          <button type="submit" className="gc-send" disabled={!text.trim()} aria-label={editing ? "Save" : "Send"}>
-            {editing ? "Save" : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5.5M5.8 11.5L12 5.3l6.2 6.2" /></svg>}
-          </button>
-        </div>
-      </form>
+      <ChatComposer c={c} ready={v.ready} loaded={v.loaded} />
       {PS && (
         <button type="button" role="switch" aria-checked={v.sound} className={`gc-sound${v.sound ? " on" : ""}`} onClick={() => { sfx.click(); chatOp({ op: "sound", on: !v.sound }); }}>
           <i className="gs-tog" aria-hidden="true"><b /></i>Sound for new messages
