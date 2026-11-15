@@ -96,7 +96,7 @@ ok("once per person: Ok is saved with the settings, and the saved list is cleane
 ok("Ok, Esc and Back all close it for good; there is no Later button and no guide", () => {
   const v = file("src/views/FeatureIntro.tsx");
   assert.match(v, /if \(def\.ack\) a = "show";/);
-  assert.match(v, /if \(a === "show" && !def\.ack\) \{ setGuide\(true\); setPhase\("guide"\); return; \}/);
+  assert.match(v, /if \(a === "show" && !def\.ack && !def\.choice\) \{ setGuide\(true\); setPhase\("guide"\); return; \}/);
   assert.match(v, /\{!def\.ack && def\.later && <button/);
   assert.match(v, /\{def\.ask && <p className="fi-ask">\{def\.ask\}<\/p>\}/);
   assert.match(v, /logo: \(n\) => <img src=\{logoPng\}/);

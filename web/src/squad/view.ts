@@ -6,6 +6,7 @@ import { cleanName } from "../core/squadrec.ts";
 import type { TaskCopy } from "../core/squadshare.ts";
 import type { BoardView } from "../core/squadboard.ts";
 import type { AutoStage } from "../core/squadauto.ts";
+import type { P1Row } from "../core/squadp1.ts";
 
 export interface SquadMember { id: string; name: string; me: boolean; creator: boolean; working: boolean }
 export interface SquadTask extends TaskCopy { id: string; member: string }
@@ -32,6 +33,7 @@ export interface SquadView {
   auto?: { stage: AutoStage; error?: string | null; /** V1.57 asked: the check code the admin sees too */ code?: string | null } | null;
   friend?: FriendView | null;    // V1.44 Add friend: the QR code's link (made fresh each time the page opens)
   ai?: AiView | null;            // V1.62 Link my AI (squad/devlink.ts): your linked AIs and the code just made
+  p1?: P1Row[];                  // PS 1.63 the squad's Priority 1 tasks for the side panel (core/squadp1.ts p1Rows), others only, never a key
 }
 /** V1.62 Link my AI. code: the one the Tab list just copied (it made it); state of registering it with the hub. */
 export interface AiView {
@@ -89,6 +91,7 @@ export type SquadOp =
   | { op: "create"; name: string; me: string } | { op: "join"; link: string; me: string }
   | { op: "invite" } | { op: "clearLink" } | { op: "leave" } | { op: "remove"; member: string }
   | { op: "share"; piece: SharePiece; on: boolean }
+  | { op: "p1show"; on: boolean }   // PS 1.63 "Show the squad's Priority 1 tasks"
   | { op: "task"; id: string; sqOff?: boolean; sqOn?: boolean; sqAnon?: boolean | null }
   | { op: "hand"; id: string; to: string } | { op: "answer"; id: string; accept: boolean } | { op: "cancel"; id: string }
   // V1.42 squad directory
@@ -117,6 +120,7 @@ export function cleanSquadOp(v: unknown): SquadOp | null {
     case "create": return { op: "create", name: text(o.name, 40), me: text(o.me, 40) };
     case "join": { const link = text(o.link, 600); return link ? { op: "join", link, me: text(o.me, 40) } : null; }
     case "remove": return typeof o.member === "string" && UUID.test(o.member) ? { op: "remove", member: o.member.toLowerCase() } : null;
+    case "p1show": return typeof o.on === "boolean" ? { op: "p1show", on: o.on } : null;
     case "share": return isPiece(o.piece) && typeof o.on === "boolean" ? { op: "share", piece: o.piece, on: o.on } : null;
     case "task": {
       if (!okId(o.id)) return null;

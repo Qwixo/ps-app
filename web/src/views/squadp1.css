@@ -1,0 +1,17 @@
+/* The squad's Priority 1 panel (PS 1.63, views/SquadP1Panel.tsx): thin and calm, in the right column under the client emails. */
+.sqp1 { width: 100%; flex: none; display: grid; gap: calc(4px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); }
+.tm-right .sqp1 { margin-top: calc(8px * var(--k-dn, 1)); }
+.sqp1-h { font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(58% * var(--k-ia, 1))), transparent); }
+.sqp1 ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; max-height: min(30vh, 240px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.sqp1-empty { margin: 0; font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
+.sqp1-row { width: 100%; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: calc(7px * var(--k-dn, 1)); text-align: left; border: 0; background: transparent; color: inherit; font: inherit;
+  padding: calc(5px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); margin: 0 -4px; border-radius: calc(9px * var(--k-rd, 1)); cursor: pointer; }
+.sqp1-row:hover, .sqp1-row:focus-visible { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); outline: none; }
+.sqp1-who { font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; white-space: nowrap; }
+.sqp1-t { font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(78% * var(--k-ia, 1))), transparent); }
+.sqp1-s { font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 750; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent); display: inline-flex; align-items: center; }
+.sqp1-row.missed .sqp1-s { color: var(--k-bad-t, #FF8F8A); }
+.sqp1-row.missed .sqp1-t { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--k-bad-t, #FF8F8A) 60%, transparent); }
+.sqp1-row.done .sqp1-s { color: var(--k-ok, #4CC38A); }
+.sqp1-row.done .sqp1-t { opacity: .6; }

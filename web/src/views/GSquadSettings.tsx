@@ -15,6 +15,7 @@ import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { Avatar } from "./SquadAvatar";
 import { newAiCode } from "../squad/devlink";
+import { SquadP1Switch } from "./SquadP1Switch";
 
 export function useShare(): ShareOpts {
   return cleanShareOpts(settingsData(useVault()).squadShare);
@@ -116,7 +117,7 @@ export function SquadSettings({ view, page, onPage }: { view: SquadView; page: S
         Squad settings
       </button>
       <h3 className="gss-h">{title}</h3>
-      {page === "share" && <SharingList />}
+      {page === "share" && <><SharingList /><SquadP1Switch /></>}
       {page === "name" && <NamePage view={view} />}
       {page === "notify" && <NotifyPage />}
       {page === "looks" && <LooksPage />}

@@ -23,6 +23,7 @@ import { chatCardMessage, setNotePost } from "../squad/chatengine";
 import { startMeetAlerts } from "../meetwatch";
 import { startDnd } from "../dnd";
 import { startSquad } from "../squad/engine";
+import { setP1Post } from "../squad/p1engine";
 import { startGymSquad } from "../squad/gym";
 import { gymShellMessage, gymWake, startGymWatch } from "../gymwatch";
 import { remShellMessage, remWake, startRemWatch } from "../remwatch";
@@ -277,6 +278,7 @@ export function startGos() {
         cardsOn = true;
         // When the next reminded email card is due (ms, 0 = none): the shell wakes this page then, even in the background.
         startMailCards(card, (at) => gosPost({ type: "remindNext", at }));
+        setP1Post(card);   // G Squad Priority 1 cards: a missed task, your own reminder (core/squadp1.ts)
         setNotePost(card);   // G Squad message notifications (core/squadnotify.ts): the shell shows them, Open and Dismiss come back as cardAction
         startMeetAlerts(card);
         startDnd(gosPost, "phone");   // Do Not Disturb: the shell's own call alarms follow it too (Notifier.kt)

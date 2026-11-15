@@ -447,7 +447,7 @@ export function cardKind(id: string, tone?: string): DndKind | null {
   if (id.startsWith("m:") || id.startsWith("w:")) return "mail";   // a WhatsApp message is held with client emails
   if (id.startsWith("c:")) return "chats";
   if (id.startsWith("n:")) return "leads";
-  if (id.startsWith("g:")) return "gsquad";   // a G Squad message card (core/squadnotify.ts)
+  if (id.startsWith("g:") || id.startsWith("sp:")) return "gsquad";   // a G Squad message card (core/squadnotify.ts), or a Priority 1 card (core/squadp1.ts)
   if (id === "private-ask" || tone === "notes" || id === "net-vpn" || id.startsWith("nl:")) return null;
   if (id.startsWith("eod") || id.startsWith("ar:") || id.startsWith("net-")) return "system";
   // Meeting alerts (core/meetalerts.ts): booked, accepted, declined, a lead's message, 10 minutes before.

@@ -38,6 +38,7 @@ import { isPhoneBuild } from "../squad/phonehost";
 import "./GSquadBoard";   // G Squad Leaderboard and Screen time (V1.40); last month's amount is added there (V1.43)
 import { GSquadChatWeb } from "./GSquadChat";
 import { SquadAddRow, type SquadAdd } from "./GSquadTask";
+import { SquadP1Panel } from "./SquadP1Panel";
 import { vaultStore } from "../core/vault";
 import { calLinkNow, calRefreshNow } from "../calrefresh";
 import { agoText, calLine, calStatus, type CalStatus } from "../core/calstatus";
@@ -1394,6 +1395,8 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
         {/* The screen record button (PS 1.60, views/ScreenRec.tsx): right below the email panel, PS on the Mac only, and only once the person switched screen recording on. */}
         {PS && !docked && <Slot id="screenrec"><ScreenRecButton /></Slot>}
         {PS && !docked && <ScreenRecHost />}
+        {/* G Squad Priority 1 (PS 1.63, views/SquadP1Panel.tsx): the squad's P1 tasks with their 24 hour clocks, under the email panel, above Sleep. */}
+        <Slot id="squadp1"><SquadP1Panel /></Slot>
         <Slot id="meetnotes"><LiveMeetingNotes meet={meet} notes={st.meetingNotes || []} standing={st.standingNotes || []} /></Slot>
         <Slot id="leftovers"><NotesLeftovers /></Slot>
         <Slot id="undo"><UndoButton docked={docked} /></Slot>

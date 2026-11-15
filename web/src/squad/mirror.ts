@@ -36,6 +36,12 @@ function cleanFriendView(v: unknown): FriendView | null {
   if (o.kind === "error") return { kind: "error", message: str(o.message, 200) };
   return null;
 }
+/** The squad's Priority 1 rows, shape and length checked (squad/view.ts P1Row). */
+function cleanP1Rows(v: unknown): SquadView["p1"] {
+  return arr(v, 8).map((r) => { const x = r as Record<string, unknown>;
+    return { id: str(x.id, 60), member: str(x.member, 40), t: str(x.t, 300), s: str(x.s, 40), x: x.x === true, ...(typeof x.xa === "string" ? { xa: x.xa.slice(0, 40) } : {}) }; })
+    .filter((r) => r.id && r.member && r.t && Number.isFinite(Date.parse(r.s)));
+}
 /** From the state PS hands the Tab list (null while locked). Checked lightly: shapes and lengths only. */
 export function setSquadMirror(v: unknown) {
   const o = (v && typeof v === "object" ? v : null) as Record<string, unknown> | null;
@@ -51,6 +57,7 @@ export function setSquadMirror(v: unknown) {
     auto: cleanAutoView(o.auto),
     friend: cleanFriendView(o.friend),
     ai: cleanAiView(o.ai),
+    p1: cleanP1Rows(o.p1),
   };
   if (o) mirrorSet = true;
   if (JSON.stringify(next) === JSON.stringify(mirror)) return;
