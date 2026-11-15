@@ -1,13 +1,18 @@
 // G Squad chat (V1.40): what the Tab list is told about the chat (plain, no keys, like the core's SquadView) and what
 // it may ask for. The main page opens everything (squad/chatengine.ts); the Tab list sends its buttons back as one
 // `sqChatOp`, checked here.
-import { cleanAbout, cleanText, type ChatAbout } from "../core/squadchat.ts";
+import { cleanAbout, cleanEmoji, cleanText, type ChatAbout } from "../core/squadchat.ts";
+import { cleanGifItems, cleanGifQuery, type GifItem } from "./chatgif.ts";
+import type { ReactionPill } from "./chatreact.ts";
 
-export interface ChatLine { id: string; from: string; name: string; mine: boolean; t: string; a?: ChatAbout; at: string; edited: boolean; left: boolean; sending?: boolean; failed?: boolean }
+export interface ChatLine { id: string; from: string; name: string; mine: boolean; t: string; a?: ChatAbout; at: string; edited: boolean; left: boolean; sending?: boolean; failed?: boolean; r?: ReactionPill[] }
 export interface ChatVoteView {
   id: string; joiner: string; name: string; stage: "ask" | "again" | null; mine: boolean | null; n: number; k: number;
   title: string; sub: string; body: string;
 }
+/** The GIF picker (PS 1.63): on = the hub has the GIF function and a key (null = not asked yet, so the button stays hidden). */
+export interface GifView { on: boolean | null; q: string; items: GifItem[]; next: number | null; busy: boolean; failed: boolean }
+export const EMPTY_GIF: GifView = { on: null, q: "", items: [], next: null, busy: false, failed: false };
 export interface ChatView {
   in: boolean;                    // you are in a squad
   ready: boolean;                 // the chat's key for now is here (you can write)
@@ -26,13 +31,16 @@ export interface ChatView {
   sending: number;                // messages on their way
   error: string | null;
   loaded: boolean;
+  gif: GifView;
 }
-export const EMPTY_CHAT: ChatView = { in: false, ready: false, open: false, unread: 0, lines: [], more: false, votes: [], note: null, sound: false, notify: false, notifyOn: true, noteSound: true, islandOk: false, noteIsland: true, sending: 0, error: null, loaded: false };
+export const EMPTY_CHAT: ChatView = { in: false, ready: false, open: false, unread: 0, lines: [], more: false, votes: [], note: null, sound: false, notify: false, notifyOn: true, noteSound: true, islandOk: false, noteIsland: true, sending: 0, error: null, loaded: false, gif: EMPTY_GIF };
 
 export type ChatOp =
   | { op: "open"; on: boolean } | { op: "send"; text: string; a?: ChatAbout } | { op: "edit"; id: string; text: string } | { op: "del"; id: string }
   | { op: "vote"; id: string; yes: boolean } | { op: "older" } | { op: "sound"; on: boolean } | { op: "retry" }
-  | { op: "notify"; on: boolean } | { op: "noteSound"; on: boolean } | { op: "noteIsland"; on: boolean };
+  | { op: "notify"; on: boolean } | { op: "noteSound"; on: boolean } | { op: "noteIsland"; on: boolean }
+  | { op: "react"; to: string; e: string }                    // PS 1.63: an emoji on a message (again = take it back)
+  | { op: "gifs"; q: string; more?: boolean } | { op: "gifclear" };   // the GIF picker's search, and closing it
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const id = (v: unknown) => (typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null);
@@ -48,9 +56,29 @@ export function cleanChatOp(v: unknown): ChatOp | null {
     case "send": { const t = cleanText(o.text); if (!t) return null; const a = cleanAbout(o.a); return a ? { op: "send", text: t, a } : { op: "send", text: t }; }
     case "edit": { const i = id(o.id), t = cleanText(o.text); return i && t ? { op: "edit", id: i, text: t } : null; }
     case "del": { const i = id(o.id); return i ? { op: "del", id: i } : null; }
+    case "react": { const i = id(o.to), e = cleanEmoji(o.e); return i && e ? { op: "react", to: i, e } : null; }
+    case "gifs": return { op: "gifs", q: cleanGifQuery(o.q), ...(o.more === true ? { more: true } : {}) };
+    case "gifclear": return { op: "gifclear" };
     case "vote": { const i = id(o.id); return i && typeof o.yes === "boolean" ? { op: "vote", id: i, yes: o.yes } : null; }
   }
   return null;
+}
+
+function cleanPills(v: unknown): ReactionPill[] {
+  if (!Array.isArray(v)) return [];
+  const out: ReactionPill[] = [];
+  for (const p of v.slice(0, 24)) {
+    const o = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
+    const e = cleanEmoji(o.e);
+    if (!e || !Number.isInteger(o.n) || (o.n as number) < 1) continue;
+    out.push({ e, n: Math.min(o.n as number, 999), mine: o.mine === true, who: (Array.isArray(o.who) ? o.who : []).slice(0, 12).filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 40)) });
+  }
+  return out;
+}
+function cleanGif(v: unknown): GifView {
+  const o = (v && typeof v === "object" ? v : null) as Record<string, unknown> | null;
+  if (!o) return EMPTY_GIF;
+  return { on: typeof o.on === "boolean" ? o.on : null, q: cleanGifQuery(o.q), items: cleanGifItems(o.items), next: Number.isInteger(o.next) && (o.next as number) >= 0 ? (o.next as number) : null, busy: o.busy === true, failed: o.failed === true };
 }
 
 /** The Tab list's copy, checked lightly (shapes and lengths). */
@@ -63,6 +91,7 @@ export function cleanChatView(v: unknown): ChatView {
     id: s(l.id, 40), from: s(l.from, 40), name: s(l.name, 40) || "Someone", mine: l.mine === true, t: s(l.t, 2000), at: s(l.at, 40), edited: l.edited === true, left: l.left === true,
     ...(l.sending === true ? { sending: true } : {}), ...(l.failed === true ? { failed: true } : {}),
     ...(cleanAbout(l.a) ? { a: cleanAbout(l.a) } : {}),
+    ...(cleanPills(l.r).length ? { r: cleanPills(l.r) } : {}),
   }));
   const votes = (Array.isArray(o.votes) ? o.votes.slice(0, 10) : []).filter((x) => x && typeof x === "object" && typeof x.id === "string").map((x): ChatVoteView => ({
     id: s(x.id, 40), joiner: s(x.joiner, 40), name: s(x.name, 40), stage: x.stage === "ask" || x.stage === "again" ? x.stage : null, mine: typeof x.mine === "boolean" ? x.mine : null,
@@ -72,7 +101,7 @@ export function cleanChatView(v: unknown): ChatView {
     in: o.in === true, ready: o.ready === true, open: o.open === true, unread: n(o.unread), lines, more: o.more === true, votes,
     note: typeof o.note === "string" ? o.note.slice(0, 300) : null, sound: o.sound === true,
     notify: o.notify === true, notifyOn: o.notifyOn !== false, noteSound: o.noteSound !== false, islandOk: o.islandOk === true, noteIsland: o.noteIsland !== false, sending: n(o.sending),
-    error: typeof o.error === "string" ? o.error.slice(0, 200) : null, loaded: o.loaded === true,
+    error: typeof o.error === "string" ? o.error.slice(0, 200) : null, loaded: o.loaded === true, gif: cleanGif(o.gif),
   };
 }
 

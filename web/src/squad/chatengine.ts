@@ -18,11 +18,15 @@ import { joinerLine, voteCardDue, voteWords } from "../core/squadchat";
 import { homeTz } from "../core/tz";
 import { dndMutes } from "../core/dnd";
 import { feature } from "../core/features";
+import { GIF_FEATURE } from "./signal";
 import { ISLAND_FEATURE, NOT_CONNECTED, NOTIFY_FEATURE, cleanNoteLedger, isNoteCard, laterSeen, noteCard, noteIsland, noteMuted, noteOn, noteSound, planNotes, replyOutcome, staleNotes, type NoteCard, type NoteMsg } from "../core/squadnotify";
 import { buildSend } from "./chatsend";
 import { ChatSession, type ChatMsg } from "./chatflows";
 import { HubError } from "./hub";
-import { EMPTY_CHAT, type ChatLine, type ChatOp, type ChatView, type ChatVoteView } from "./chatview";
+import { gifApi, type GifApi } from "./gifhub";
+import { foldReactions } from "./chatreact";
+import { gifMemory } from "./chatgif";
+import { EMPTY_CHAT, EMPTY_GIF, type GifView, type ChatLine, type ChatOp, type ChatView, type ChatVoteView } from "./chatview";
 
 const TICK_MS = 2 * 60_000, OPEN_PULL_MS = 5_000, PAGE = 150;
 const PS_PAGE = import.meta.env.MODE === "ps";
@@ -57,14 +61,56 @@ const say = (e: unknown) => (e instanceof HubError
   : "G Squad could not be reached. Try again in a moment."
   : "Something went wrong. Try again.");
 
+// ---------- GIFs (PS 1.63, squad/gifhub.ts) ----------
+// Whether the hub's `gif` function is deployed and has its key is asked ONCE per session and remembered on this device
+// (a yes for a week, a no for 6 hours); until it says yes the GIF button stays hidden, and any trouble is a quiet no.
+const GIF_MEM = "ps.sqGifOn";
+let gifOn: boolean | null = null, gifApiNow: GifApi | null = null, gifState: GifView = EMPTY_GIF, gifAsk = 0;
+const gifView = (): GifView => ({ ...gifState, on: gifOn });
+function gifSetup(cur: ChatSession) {
+  gifApiNow = gifApi({ member: cur.rec.memberId, priv: cur.rec.sign.priv });
+  let mem: string | null = null;
+  try { mem = localStorage.getItem(GIF_MEM); } catch { /* storage off: ask */ }
+  gifOn = feature(GIF_FEATURE) ? gifMemory(mem, Date.now()) : false;   // the feature off means no GIF calls at all
+  if (gifOn !== null || !feature(GIF_FEATURE)) return;
+  const api = gifApiNow;
+  void api.status().then((on) => {
+    if (gifApiNow !== api) return;
+    gifOn = on;
+    try { localStorage.setItem(GIF_MEM, JSON.stringify({ on, at: Date.now() })); } catch { /* storage off: asked again next time */ }
+    rebuild();
+  });
+}
+async function gifSearch(q: string, more: boolean) {
+  const api = gifApiNow;
+  if (!api || gifOn !== true) return;
+  const ask = ++gifAsk;
+  gifState = { ...gifState, q, busy: true, failed: false, ...(more ? {} : { items: [], next: null }) };
+  rebuild();
+  try {
+    const r = await api.search(q, more ? gifState.next ?? 0 : 0);
+    if (ask !== gifAsk) return;
+    const seen = new Set(more ? gifState.items.map((g) => g.id) : []);
+    gifState = { ...gifState, busy: false, items: [...(more ? gifState.items : []), ...r.items.filter((g) => !seen.has(g.id))].slice(0, 120), next: r.next };
+  } catch (e) {
+    if (ask !== gifAsk) return;
+    gifState = { ...gifState, busy: false, failed: true };
+    if (e instanceof HubError && e.status === 404) { gifOn = false; try { localStorage.setItem(GIF_MEM, JSON.stringify({ on: false, at: Date.now() })); } catch { /* ignore */ } }
+  }
+  rebuild();
+}
+
 // ---------- the view ----------
 function lines(): ChatLine[] {
   if (!s) return [];
   const me = s.rec.memberId;
-  const out: ChatLine[] = s.list(limit).map((m) => {
+  const msgs = s.list(limit);
+  const shown = new Set(msgs.map((m) => m.id));
+  const pills = foldReactions([...s.reacts.values()], (id) => shown.has(id), me, (id) => s!.people.get(id)?.name ?? "Someone");
+  const out: ChatLine[] = msgs.map((m) => {
     const p = s!.people.get(m.from);
     return { id: m.id, from: m.from, name: m.from === me ? "You" : p?.name ?? "Someone", mine: m.from === me, t: m.t,
-      ...(m.a ? { a: m.a } : {}), at: m.at, edited: m.edited, left: !!p?.left };
+      ...(m.a ? { a: m.a } : {}), at: m.at, edited: m.edited, left: !!p?.left, ...(pills.get(m.id) ? { r: pills.get(m.id) } : {}) };
   });
   for (const [id, p] of pending) if (!s.msgs.has(id)) out.push({ id, from: me, name: "You", mine: true, t: p.t, ...(p.a ? { a: p.a } : {}), at: p.at, edited: false, left: false, ...(p.failed ? { failed: true } : { sending: true }) });
   return out;
@@ -85,7 +131,7 @@ function rebuild() {
   view = {
     in: !!s, ready: !!s && !!st && !st.rot && s.keys.has(st.epoch), open, unread: open ? 0 : st?.u ?? 0,
     lines: open ? lines() : [], more: !!s?.more, votes: votes(), note: s ? joinerLine(mine, s.hasHistory()) : null,
-    sound: settings().squadChatSound === true, notify: feature(NOTIFY_FEATURE), notifyOn: settings().squadNotify !== false, noteSound: settings().squadNotifySound !== false, islandOk: PS_PAGE && feature(ISLAND_FEATURE), noteIsland: settings().squadNoteIsland !== false, sending: [...pending.values()].filter((p) => !p.failed).length, error, loaded: !!s?.loaded,
+    sound: settings().squadChatSound === true, notify: feature(NOTIFY_FEATURE), notifyOn: settings().squadNotify !== false, noteSound: settings().squadNotifySound !== false, islandOk: PS_PAGE && feature(ISLAND_FEATURE), noteIsland: settings().squadNoteIsland !== false, sending: [...pending.values()].filter((p) => !p.failed).length, error, loaded: !!s?.loaded, gif: gifView(),
   };
   emit();
   showCards();
@@ -299,6 +345,8 @@ export async function runChatOp(o: ChatOp): Promise<void> {
   if (o.op === "noteSound") { await saveSettings({ squadNotifySound: o.on }); rebuild(); return; }
   if (o.op === "noteIsland") { await saveSettings({ squadNoteIsland: o.on }); rebuild(); return; }
   if (o.op === "open") { setOpen(o.on); return; }
+  if (o.op === "gifclear") { gifAsk++; gifState = EMPTY_GIF; rebuild(); return; }
+  if (o.op === "gifs") { await gifSearch(o.q, o.more === true); return; }
   const cur = s;
   if (!cur) return;
   try {
@@ -313,6 +361,7 @@ export async function runChatOp(o: ChatOp): Promise<void> {
       case "retry":
         for (const id of [...pending.keys()]) { const p = pending.get(id)!; if (p.failed) { pending.set(id, { ...p, failed: false }); rebuild(); await send(cur, id); } }
         return;
+      case "react": await cur.react(o.to, o.e, rebuild); break;
       case "edit": await cur.edit(o.id, o.text); break;
       case "del": await cur.del(o.id); break;
       case "older": limit += PAGE; if (cur.list(limit).length < limit && cur.more) await cur.older(); break;
@@ -350,6 +399,7 @@ function readRec(): SquadRec | null {
 }
 function stop() {
   s = null; who = ""; pending.clear(); error = null;
+  gifOn = null; gifApiNow = null; gifState = EMPTY_GIF; gifAsk++;
   if (tickTimer !== undefined) window.clearInterval(tickTimer);
   if (pullTimer !== undefined) window.clearInterval(pullTimer);
   tickTimer = pullTimer = undefined; open = false;
@@ -368,6 +418,7 @@ function sync() {
   if (s) stop();
   if (!rec) return;
   s = new ChatSession(rec); who = next;
+  gifSetup(s);
   rebuild();
   tickTimer = window.setInterval(() => void tick(), TICK_MS);
   void tick();

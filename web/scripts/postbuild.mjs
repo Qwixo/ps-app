@@ -14,7 +14,8 @@ const csp = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  "img-src 'self' data: blob:",
+  // G Squad GIFs (PS 1.63): pictures only, from GIPHY's media servers (media*.giphy.com, i.giphy.com); no script, no frame, no connection.
+  "img-src 'self' data: blob: https://*.giphy.com",
   `connect-src 'self' ${SB} ${SB.replace("https", "wss")} ${SQUAD_HUB} ${GH_RAW}`,
   "worker-src 'self'",
   "manifest-src 'self'",

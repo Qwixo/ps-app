@@ -51,7 +51,7 @@ function gosEntry(): Plugin {
     name: "cv-gos",
     transformIndexHtml: { order: "pre", handler(html, ctx) {
       const SB = (loadEnv("gos", process.cwd()).VITE_SUPABASE_URL || "https://mxusokxekkecebwqgeru.supabase.co").replace(/\/+$/, "");
-      const csp = `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ${SB} ${SB.replace("https", "wss")} ${SQUAD_HUB}; worker-src 'self'; frame-src blob: https://www.youtube-nocookie.com; object-src 'none'; base-uri 'none'; form-action 'self'`;
+      const csp = `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://*.giphy.com; media-src 'self' blob:; connect-src 'self' ${SB} ${SB.replace("https", "wss")} ${SQUAD_HUB}; worker-src 'self'; frame-src blob: https://www.youtube-nocookie.com; object-src 'none'; base-uri 'none'; form-action 'self'`;
       const out = html.replace("/src/main.tsx", "/src/gos/main.tsx").replace(/\s*<link rel="manifest"[^>]*>/, "");
       // Not on the dev server: its hot reload needs inline scripts.
       return ctx.server ? out : out.replace("<head>", `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}" />`);

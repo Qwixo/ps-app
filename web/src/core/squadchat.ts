@@ -81,9 +81,12 @@ export function hubMicros(iso: string | null | undefined): number {
 
 // ---------- messages ----------
 export const MAX_TEXT = 2000;
-/** What travels inside a sealed message: the words, and optionally what it is about (eg someone's gym log). */
+/** What travels inside a sealed message: the words, and optionally what it is about (eg someone's gym log). A reaction
+ *  (PS 1.63) is a message row too, with no words: `r` names the message it is on and the emoji. Clients before 1.63 find
+ *  no words in it and skip the row, so it never shows as a message there. */
 export interface ChatAbout { k: string; l: string; w?: string }   // kind, label, whose (member id)
-export interface ChatBody { t: string; a?: ChatAbout }
+export interface ChatReact { to: string; e: string }               // the message id it is on, the emoji
+export interface ChatBody { t: string; a?: ChatAbout; r?: ChatReact }
 
 export function cleanText(v: unknown): string {
   if (typeof v !== "string") return "";
@@ -98,9 +101,22 @@ export function cleanAbout(v: unknown): ChatAbout | undefined {
   if (!k || !l) return undefined;
   return { k, l, ...(typeof a.w === "string" && UUID.test(a.w) ? { w: a.w.toLowerCase() } : {}) };
 }
+/** One emoji (a picture, maybe with a skin tone, a joined family or a flag), nothing else: no letters, no spaces. */
+const ONE_EMOJI = /^(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})(?:[\p{Emoji_Modifier}\uFE0F\u{E0020}-\u{E007F}]|\u200D(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}))*)$/u;
+export function cleanEmoji(v: unknown): string {
+  return typeof v === "string" && v.length <= 24 && ONE_EMOJI.test(v) ? v : "";
+}
+export function cleanReact(v: unknown): ChatReact | undefined {
+  const r = v as Record<string, unknown> | null;
+  if (!r || typeof r !== "object") return undefined;
+  const e = cleanEmoji(r.e);
+  return typeof r.to === "string" && UUID.test(r.to) && e ? { to: r.to.toLowerCase(), e } : undefined;
+}
 export function cleanBody(v: unknown): ChatBody | null {
   const b = v as Record<string, unknown> | null;
   if (!b || typeof b !== "object") return null;
+  const r = cleanReact(b.r);
+  if (r) return { t: "", r };
   const t = cleanText(b.t);
   if (!t) return null;
   const a = cleanAbout(b.a);
