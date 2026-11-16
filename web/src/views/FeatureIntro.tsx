@@ -20,6 +20,7 @@ import { settingsData } from "../core/select";
 import { dndActive } from "../core/dnd";
 import { feature } from "../core/features";
 import { RCPT_FEATURE, receiptsOn } from "../core/receipts";
+import { posturePrefs } from "../core/posture";
 import { mailCan } from "../core/mailswitch";
 import { attachedLayout, ISLAND_ASK_MS, ISLAND_QUEUED_MS, type IslandAnchor } from "../core/whatsnew";
 import { addActive, answer, CARD_W, cleanDone, LOGO_MOMENT, logoChime, cleanState, INTROS, introReply, markShown, nextIntro, recheckMs, retire, updaterAnswer, type IntroDef, type IntroState } from "../core/featureintro";
@@ -106,6 +107,8 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   "gsquad-reply-164": async () => (squadStore.get().in ? "open" : "unknown"),
   // PS 1.65 Receipts: only while the feature is on for an owner; Ok ends it for good.
   receipts: async (_can, s) => (s.status === "unlocked" && s.role === "owner" && receiptsOn(feature(RCPT_FEATURE), settingsData(s).receipts) ? "open" : "unknown"),
+  // PS 1.65 Posture reminder: only while the feature is on and the person has not switched it off; Ok ends it for good.
+  "posture-165": async (_can, s) => (feature("posture-reminder") && posturePrefs(settingsData(s).posture).on ? "open" : "unknown"),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault

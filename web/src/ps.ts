@@ -194,6 +194,7 @@ import { cleanLayoutOp } from "./core/tablayout";
 import { cleanPhoneLayoutOp } from "./core/phonelayout";
 import { cleanRemindOp, mergeRemind } from "./core/remind";
 import { remShellMessage, remWake, startRemWatch } from "./remwatch";
+import { postureShellMessage, startPostureWatch } from "./posturewatch";
 import { cleanSleepMode } from "./core/sleepmode";
 import { dirCardMessage, runSquadOp, squadStore, squadView, startSquad } from "./squad/engine";
 import { boardWake, runBoardOp, startSquadBoard } from "./squad/board";
@@ -635,6 +636,7 @@ export function startPsBridge() {
       if (privateAskMessage(m as { type?: string })) return;   // "Start private mode?" (src/meetwatch.ts)
       if (gymCardMessage(m as { type?: string })) return;   // the gym reminder card (src/gymwatch.ts)
       if (remShellMessage(m as { type?: string })) return;   // an Annoying 15 min reminder card answered (src/remwatch.ts)
+      if (postureShellMessage(m as { type?: string })) return;   // the Posture reminder card: idle time, answered (src/posturewatch.ts)
       if (dirCardMessage(m as { type?: string })) return;  // G Squad: "X asked to join" card, Approve and Decline (src/squad/direngine.ts)
       if (chatCardMessage(m as { type?: string; id?: string; action?: string; text?: string })) return;  // G Squad chat: the history vote card's Yes and No (src/squad/chatengine.ts)
       if (islandMessage(m as { type?: string })) return;   // a tick on the Dynamic Island (src/island.ts)
@@ -994,6 +996,7 @@ export function startPsBridge() {
   startGymWatch(psPost);   // the gym reminder card (src/gymwatch.ts, core/gym.ts)
   // The Annoying 15 min reminders (src/remwatch.ts, core/remind.ts): the plan for the Mac's cards.
   startRemWatch(psPost);
+  startPostureWatch(psPost);   // the Posture reminder (src/posturewatch.ts, core/posture.ts, PS 1.65)
   setLocalCalReader((ask) => psPost({ type: "localCal", op: "read", ask }));   // not the developer: this Mac's Calendar (src/calrefresh.ts)
   startCalRefresh();   // asks for the calendar every 2 minutes and on wake; the server reads Google every minute (src/calrefresh.ts)
   startIsland(psPost);   // the Dynamic Island under the notch (src/island.ts)

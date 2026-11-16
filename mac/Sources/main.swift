@@ -336,7 +336,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     DND.shared.onChange.append { Toast.shared.dndChanged(); Reminders.shared.dndChanged(); Updater.shared.conditionsChanged() }   // Do Not Disturb: held cards come up when it ends
     // V1.58: who is signed in decides the 1Password and Signal rules (BuildRules.swift), so a change re-applies them.
     Owner.onChange = { [weak self] in TabWatch.shared.protectedChanged(); SafePeek.shared.refresh(); Island.shared.rulesChanged(); self?.sendSettings() }
-    Protected.onChange = { [weak self] in self?.replyWin.protectedChanged(); TabWatch.shared.protectedChanged(); SafePeek.shared.refresh(); Reminders.shared.check(); Toast.shared.protectedChanged(); Island.shared.protectedChanged(); Popup.shared.protectedChanged(); Updater.shared.conditionsChanged(); Soundboard.shared.protectedChanged(); HelperAlert.shared.protectedChanged() }
+    Protected.onChange = { [weak self] in Posture.shared.place(); self?.replyWin.protectedChanged(); TabWatch.shared.protectedChanged(); SafePeek.shared.refresh(); Reminders.shared.check(); Toast.shared.protectedChanged(); Island.shared.protectedChanged(); Popup.shared.protectedChanged(); Updater.shared.conditionsChanged(); Soundboard.shared.protectedChanged(); HelperAlert.shared.protectedChanged() }
     TabWatch.shared.start()
     KeyLayout.watch()
     KeyLayout.onChange = { [weak self] in self?.sendSettings(); self?.sendTabState(force: true) }   // V1.47: key labels follow the layout
@@ -434,6 +434,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // The Annoying 15 min reminders (Sources/Reminders.swift, V1.46): the cards of every reminder in Settings >
     // Annoying 15 min reminder (web views/RemindSettings.tsx). Everyone's. The built in daily reminder
     // is gone since 1.60.
+    Posture.shared.onMessage = { [weak self] json in self?.sendCardAction(json) }   // PS 1.65: the Posture reminder's idle time and answers go to the page (Sources/Posture.swift)
     Reminders.shared.onSettings = { [weak self] in self?.sendSettings() }
     Reminders.shared.onAnswer = { [weak self] json in self?.sendCardAction(json) }
     // V1.55 Open task on a reminder card: the Tab list opens (pinned, like a tap of Tab) and the task glows. The id was
@@ -1216,6 +1217,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     case .own: return false                         // the window answers Esc itself (Torch, Second Computer questions)
     case .ays: AreYouSure.shared.escape()
     case .reminder: Reminders.shared.escape(w)
+    case .posture: Posture.shared.escape()
     case .card: Toast.shared.escape()
     case .signIn: hideEngineWindow()
     case .close: w.performClose(nil)
@@ -1342,6 +1344,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     if (fromMain || fromOverlay) && SleepSound.shared.handle(type, msg) { return }
     if (fromMain || fromOverlay) && AlarmListStore.shared.handle(type, msg) { return }   // V1.47 alarm playlists
     if (fromMain || fromOverlay) && type.hasPrefix("rem:") && Reminders.shared.handle(type, msg) { return }    // reminders: own sounds, Test (Reminders.swift)    // V1.44 alarm sound: own sound, Test (SleepSound.swift)
+    if fromMain && type.hasPrefix("posture:") && Posture.shared.handle(type, msg) { return }    // the Posture reminder: sensor on or off, show, hide (Sources/Posture.swift, PS 1.65)
     if (fromMain || fromOverlay) && SleepScreen.shared.handle(type, msg) { return }   // sleep:* Sleep mode (SleepScreen.swift, V1.40)
     if (fromMain || fromOverlay) && Sentry.shared.handle(type, msg) { return }   // sentry:* Sentry mode (Sentry.swift, V1.48)
     if (fromMain || fromOverlay) && TelegramBot.shared.handle(type, msg, fromMain: fromMain, fromOverlay: fromOverlay) { return }   // tg:* Add Telegram Bot (TelegramBot.swift, V1.47)

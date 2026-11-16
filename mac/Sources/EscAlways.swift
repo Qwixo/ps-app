@@ -24,6 +24,7 @@ enum EscRules {
     case list        // the Tab list: App.escKey (step back, then hide)
     case own         // the window answers Esc itself (Torch: leaves; Second Computer question: No)
     case ays         // Are you sure card: the keyboard goes back to the browser, the pause carries on
+    case posture     // the Posture reminder card (after a click gave it the keyboard): Esc closes it
     case reminder    // a reminder card's confirm box: the keyboard goes back (the Test card: it closes)
     case card        // a meeting or notification card's remind time box: typing ends, the keyboard goes back
     case signIn      // the small Sign in window: it goes (PS keeps running)
@@ -36,6 +37,7 @@ enum EscRules {
     if w is TorchLightWindow || w is SecondConfirmPanel || w is ReplyPanel || w is GuideCardPanel { return .own }   // GuideCardPanel: the token guide card closes the guide (SetupGuide.swift)   // ReplyPanel: the page asks before throwing away a reply
     if w is AysPanel { return .ays }
     if w is FuPanel { return .reminder }
+    if w is PosturePanel { return .posture }
     if w is NotePanel { return .card }
     if w.styleMask.contains(.titled) && w.styleMask.contains(.closable) { return .close }
     return .letGo

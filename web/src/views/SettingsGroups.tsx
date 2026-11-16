@@ -75,6 +75,7 @@ import { SharingList, openGSquad } from "./GSquad";
 import { FromTheSquad } from "./FromTheSquad";
 import { AddFriendPanel } from "./AddFriend";
 import { PomoSetting } from "./Pomodoro";
+import { PostureSetting } from "./PostureSettings";
 import { MeetBubbleSetting, StandSetting, WelcomeBackSetting, WorkoutMacSetting } from "./IslandTimersSettings";
 import { LinkIphoneRow } from "./LinkIphone";
 import { MacUpdateRow } from "./MacUpdate";
@@ -205,6 +206,11 @@ export const CONTROLS: Controls = {
   "pomo-sound": row(() => <PomoSetting k="sound" />),
   "pomo-clock": row(() => <PomoSetting k="clock" />),
   // Stand-up reminders and the next meeting bubble (V1.58, views/IslandTimersSettings.tsx)
+  // Posture Reminder (PS 1.65, views/PostureSettings.tsx)
+  "posture-on": row(() => <PostureSetting k="on" />),
+  "posture-every": row(() => <PostureSetting k="every" />),
+  "posture-hours": row(() => <PostureSetting k="hours" />),
+  "posture-test": row(() => <PostureSetting k="test" />),
   "stand-on": row(() => <StandSetting k="on" />),
   "stand-every": row(() => <StandSetting k="every" />),
   "stand-len": row(() => <StandSetting k="len" />),
