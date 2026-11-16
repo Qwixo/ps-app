@@ -96,6 +96,12 @@ enum OutSecrets {
   ]
   private static let regexes: [NSRegularExpression] = patterns.compactMap { try? NSRegularExpression(pattern: $0) }
 
+  /// Only the unmistakable ones (keys, tokens, private key blocks): used on a whole diff, where a test's "password: x" is normal.
+  private static let strong: [NSRegularExpression] = Array(regexes.prefix(9))
+  static func looksStrongSecret(_ s: String) -> Bool {
+    let r = NSRange(s.startIndex..., in: s)
+    return strong.contains { $0.firstMatch(in: s, range: r) != nil }
+  }
   static func looksSecret(_ s: String) -> Bool {
     let r = NSRange(s.startIndex..., in: s)
     return regexes.contains { $0.firstMatch(in: s, range: r) != nil }

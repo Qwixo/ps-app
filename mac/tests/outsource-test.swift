@@ -313,6 +313,13 @@ runner.tools = OutTools(claude: secretFake, codex: fakeCodex, git: "/usr/bin/git
 let (rs, _) = runJob(["id": "job-secret1", "base": baseSha, "prompt": "x"])
 check(rs?.bundlePath == nil && rs?.state == "failed" && rs?.report.note.contains("secrets") == true, "a result with a secret looking file stays here: \(rs?.report.note ?? "")")
 runner.tools = tools
+let keyFake = tmp + "/bin/claude-key"
+try! "#!/bin/sh\necho 'const k = \"ghp_abcdefghijklmnopqrstuvwxyz0123\"' > leak.ts\ngit add leak.ts && git commit -q -m leak\necho done\n".write(toFile: keyFake, atomically: true, encoding: .utf8); chmod(keyFake, 0o755)
+runner.tools = OutTools(claude: keyFake, codex: fakeCodex, git: "/usr/bin/git")
+let (rk, _) = runJob(["id": "job-keyleak", "base": baseSha, "prompt": "x"])
+check(rk?.bundlePath == nil && rk?.state == "failed", "a token written into any file keeps the bundle here: \(rk?.report.note ?? "")")
+runner.tools = tools
+check(!OutSecrets.looksStrongSecret("password: hunter2hunter2 in a test fixture") && OutSecrets.looksStrongSecret("AKIAABCDEFGHIJKLMNOP"), "the diff check only stops unmistakable keys")
 check(OutSecretPaths.isSecret(".env") && OutSecretPaths.isSecret("a/b/id_ed25519") && OutSecretPaths.isSecret("k.pem") && !OutSecretPaths.isSecret("src/environment.ts"), "secret paths")
 
 // 12. The pairing kept: the private half never in the file, back after a restart, handed over at an update, forgotten on unpair

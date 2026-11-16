@@ -234,7 +234,10 @@ final class OutRunner {
     let commits = Int(git(["rev-list", "--count", "\(sha)..HEAD"], cwd: work).1) ?? 0
     let stat = git(["diff", "--stat=100", "\(sha)..HEAD"], cwd: work).1.split(separator: "\n").prefix(30).map { String($0.prefix(120)) }
     let changed = git(["diff", "--name-only", "\(sha)..HEAD"], cwd: work).1.split(separator: "\n").map(String.init)
-    let secretFiles = changed.filter(OutSecretPaths.isSecret)
+    var secretFiles = changed.filter(OutSecretPaths.isSecret)
+    // The new lines themselves: a key or token written into any file keeps the bundle here too (an AI could be talked into it).
+    let added = git(["diff", "--no-color", "-U0", "--no-ext-diff", "\(sha)..HEAD"], cwd: work, timeout: 60).1
+    if secretFiles.isEmpty, OutSecrets.looksStrongSecret(String(added.prefix(8_000_000))) { secretFiles = ["a changed line"] }
 
     var state = res.cancelled ? "cancelled" : res.timedOut ? "timeout" : res.exit == 0 ? "done" : "failed"
     var note = ""
@@ -256,11 +259,11 @@ final class OutRunner {
     var shots: [String] = []
     if job.screenshots {
       let sd = work + "/.ps-outsource/shots"
-      let names = ((try? fm.contentsOfDirectory(atPath: sd)) ?? []).filter { $0.lowercased().hasSuffix(".png") }.sorted().prefix(4)
+      let names = ((try? fm.contentsOfDirectory(atPath: sd)) ?? []).filter { $0.lowercased().hasSuffix(".png") }.sorted().prefix(3)   // they travel in the result record: kept small
       try? fm.createDirectory(atPath: dir + "/shots", withIntermediateDirectories: true)
       for n in names {
         let src = sd + "/" + n
-        if let s = (try? fm.attributesOfItem(atPath: src))?[.size] as? Int, s <= 600_000, !n.contains("/") {
+        if let s = (try? fm.attributesOfItem(atPath: src))?[.size] as? Int, s <= 400_000, !n.contains("/") {
           let dst = dir + "/shots/" + OutRunner.cleanName(n)
           if (try? fm.copyItem(atPath: src, toPath: dst)) != nil { shots.append(dst) }
         }

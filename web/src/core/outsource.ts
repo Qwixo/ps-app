@@ -378,7 +378,7 @@ export function createEngine(deps: Deps) {
       const sec = looksSecret(m.report);
       const report = sec ? JSON.stringify({ state: m.state, note: "The report was left out: it looked like it held a secret." }) : tail(m.report, 40_000);
       const bu = m.state === "done" && m.bundle && m.bundle.size > 0 && m.bundle.size <= BUNDLE_MAX && !fileRefusal(m.bundle.name, m.bundle.size) ? m.bundle : undefined;
-      pendingBundle.set(m.id, { n: bu?.n ?? 0, sha: bu?.sha256 ?? "", size: bu?.size ?? 0, name: bu?.name ?? "", got: new Map(), report, state: m.state, exit: m.exit, shots: m.shots?.slice(0, 4) });
+      pendingBundle.set(m.id, { n: bu?.n ?? 0, sha: bu?.sha256 ?? "", size: bu?.size ?? 0, name: bu?.name ?? "", got: new Map(), report, state: m.state, exit: m.exit, shots: m.shots?.filter((x) => typeof x === "string" && x.length < 600_000).slice(0, 3) });
       if (!bu) await finishResult(m.id);
       emit(); await heartbeat(false);
     } else if (m.op === "chunk") {
