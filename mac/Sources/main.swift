@@ -1183,6 +1183,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     if SleepScreen.shared.isUp { SleepScreen.shared.escape(); return }
     if HelperAlert.shared.escape() { return }   // V1.49: the restart helper pop up closes (until the next check)
     if Soundboard.shared.escape() { return }   // V1.47: a timed Soundboard play ringing stops first
+    if Toast.shared.escapeStack() { return }   // PS 1.65: a notification list a click is keeping open closes
     guard shown else { escapeOut(); return }
     let now = CACurrentMediaTime()
     escTimes = escTimes.filter { now - $0 < EscRules.burst } + [now]
@@ -1218,6 +1219,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     if SleepScreen.shared.isUp { SleepScreen.shared.escape(); return true }
     if HelperAlert.shared.escape() { return true }   // V1.49: the restart helper pop up
     if Soundboard.shared.escape() { return true }   // V1.47: a timed Soundboard play ringing
+    if Toast.shared.escapeStack() { return true }   // PS 1.65: a notification list a click is keeping open closes
     guard let w = e.window ?? NSApp.keyWindow else { return false }
     switch EscRules.native(for: w, panel: panel, signIn: window) {
     case .list: escKey()

@@ -118,7 +118,30 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   /// The tallest the stack may be where it is now.
   private func capNow() -> Int {
     if case .island(let sp) = home { return Int(sp.room) }
+    if stackOn { return Int(NoteStackCore.cap(visibleHeight: NSScreen.main?.visibleFrame.height ?? 800, on: true)) }
     return Toast.cap()
+  }
+  // ---------- stacked notifications (PS 1.65, NoteStackCore.swift) ----------
+  // Switch on (Settings, From the squad, "Stacked notifications", on by default): with more than one card waiting the page shows
+  // only the newest with a "+N" badge, the list opens on hover and may use the whole screen height. Switch off: today's list.
+  private var stackOn: Bool { Features.on(NoteStackCore.feature) }
+  /// A click is keeping the opened list open (the page says; Esc then closes it).
+  private var stackPinned = false
+  private static var stackWatching = false
+  /// The switch changed (Settings): both stacks hear it, and the island stack's room follows the new cap.
+  fileprivate func stackSwitched() {
+    guard role == .corner else { return }
+    if islandMade { islandStack.refreshHome(); islandStack.pageMode() }
+    pageMode()
+  }
+  /// Esc: a list that a click is keeping open closes. True when it did (the Esc is used up).
+  func escapeStack() -> Bool {
+    var used = false
+    if role == .corner, islandMade, islandStack.escapeStack() { used = true }
+    guard panel != nil, ready, stackPinned else { return used }
+    stackPinned = false
+    web.evaluateJavaScript("window.__note&&window.__note.esc()", completionHandler: nil)
+    return true
   }
   private func frame(_ h: CGFloat) -> NSRect? {
     switch home {
@@ -202,7 +225,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   fileprivate func refreshHome() {
     guard role == .island else { return }
     let a = Island.shared.noteAnchor()
-    var want = NoteDrop.home(a, cap: ((a?.visible.height ?? 800) * 0.45).rounded())
+    var want = NoteDrop.home(a, cap: NoteStackCore.cap(visibleHeight: a?.visible.height ?? 800, on: stackOn))
     // Pop ups with windows of their own may already hang under the island (IslandColumn.swift): the stack starts past them.
     if case .island(let sp) = want { want = .island(NoteDrop.shifted(sp, by: IslandColumn.shared.height)) }
     guard case .island = want, want != home else { return }
@@ -259,7 +282,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     if case .island(let sp) = home {
       js = String(format: "window.__note.mode({on:true,up:%@,ix:%.1f,iw:%.1f})", sp.side == .above ? "true" : "false", sp.islandX, sp.islandW)
     }
-    web.evaluateJavaScript("\(js);window.__note.max(\(capNow()))", completionHandler: nil)
+    web.evaluateJavaScript("\(js);window.__note.stack(\(stackOn));window.__note.max(\(capNow()))", completionHandler: nil)
   }
   /// Self test: where the cards are, as words.
   var homeText: String {
@@ -268,6 +291,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
 
   private func setUp() {
     guard panel == nil else { return }
+    if !Toast.stackWatching { Toast.stackWatching = true; Features.observers.append { Toast.shared.stackSwitched() } }
     let c = WKWebViewConfiguration()
     c.websiteDataStore = .nonPersistent()
     c.userContentController.add(self, name: "note")
@@ -594,6 +618,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       }
     case "gone":   // V1.55: a card left for good (timedOut: an AI chat card's line ran out)
       if let id = msg["id"] as? String { gone(String(id.prefix(40)), timedOut: (msg["timedOut"] as? Bool) == true) }
+    case "stack":   // PS 1.65: a click is keeping the opened list open, or it is not any more
+      stackPinned = NoteStackCore.pinned(from: msg)
     case "born":   // V1.55: a card just dropped out of the island, or went back into it: the island swells
       Island.shared.swell(true)
     case "gulp":
@@ -918,23 +944,34 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   body.up .x{top:auto;bottom:6px}
   body.up .card{box-shadow:0 -12px 30px rgba(0,0,0,.34),0 -2px 8px rgba(0,0,0,.22)}
   body.up #bar b,body.up #bar button{box-shadow:0 -4px 14px rgba(0,0,0,.3)}
+  /* PS 1.65 stacked notifications: with more than one card waiting only the newest shows, and a small "+N" pill sits under
+     it, the island's own black. The cards behind it wait right under the newest one (still, unseen, unclickable) and spring
+     out from there when the pointer comes to the pill or the card. */
+  #badge{position:absolute;z-index:3002;left:50%;top:0;height:26px;min-width:44px;padding:0 13px;box-sizing:border-box;border:1px solid rgba(255,255,255,.16);border-radius:99px;
+    background:#000;color:#fff;font:700 12.5px/24px -apple-system,sans-serif;letter-spacing:.02em;font-variant-numeric:tabular-nums;text-align:center;cursor:default;
+    opacity:0;pointer-events:none;transform:translate3d(-50%,-8px,0) scale(.8);transition:opacity .25s var(--ease),transform .55s var(--spring)}
+  #badge.on{opacity:1;pointer-events:auto;transform:translate3d(-50%,0,0)}
+  #badge:active{background:#1c1c1e}
+  body.up #badge{scale:1 -1}
+  .card.stk{pointer-events:none}
   @media (prefers-reduced-motion:reduce){
     .t-cancel,.t-declined,.t-bad{animation:none}
     .card{transition:opacity .2s ease}.card::after{display:none}
     .card.sheen .ic,.card.sheen .dot,.rv.up,.rv.down,.row.new .ri,.row.out .ri{animation:none}
     .row,.bul{transition:none}
     #newer,#bar{transition:none}
+    #badge{transition:none}.card{transition:opacity .01s}
   }
   \#(AiMessageCard.css)
   \#(SquadMessageCard.css)
-  </style></head><body><div id="wrap"><div id="bar"><b id="count"></b><button id="newer"></button><button id="clear">Clear all</button></div><div id="view"><div id="list"><div id="fill"></div></div><div id="thumb"></div></div></div>
+  </style></head><body><div id="wrap"><div id="bar"><b id="count"></b><button id="newer"></button><button id="clear">Clear all</button></div><div id="view"><div id="list"><div id="fill"></div></div><div id="thumb"></div><button id="badge" type="button"></button></div></div>
   <script>
   (function(){
     var post=function(m){try{webkit.messageHandlers.note.postMessage(JSON.stringify(m))}catch(e){}};
     var wrap=document.getElementById('wrap'),list=document.getElementById('list'),fill=document.getElementById('fill'),count=document.getElementById('count');
-    var view=document.getElementById('view'),thumb=document.getElementById('thumb'),newer=document.getElementById('newer');
+    var view=document.getElementById('view'),thumb=document.getElementById('thumb'),newer=document.getElementById('newer'),badge=document.getElementById('badge');
     var cards=[],maxH=700,posted=-1,shrink=0,listT=0,editing=null,fresh=0,thumbT=0,hot=null,ptrAt=null,relight=0;
-    var GAP=10,TOP=8,BOT=20,BAR=38,PAD=4,STAY=14000;
+    var GAP=10,TOP=8,BOT=20,BAR=38,PAD=4,STAY=14000,BGAP=6,BH=26,BEND=12;
     var revealAll=false,privacyOn=false;
     // V1.55: where the cards hang from (Toast.pageMode): off is the corner; on, the island's centre and width over this
     // window, and up when the stack is above the island (mirrored).
@@ -1105,6 +1142,87 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       post({type:'typing',on:false});
     }
 
+    // ---------- stacked notifications (PS 1.65) ----------
+    // >>> stack model: pure, no page. tests/notestack-test.mjs runs this block on its own, with the same cases as
+    // tests/notestack-test.swift runs on NoteStackCore. Time is always passed in (ms), so a test never waits.
+    // With the switch on and 2 or more cards: shut (the newest card and a "+N" badge, N = the others) or open (every card).
+    // Open while the pointer is on the stack, for a short grace after it leaves, and while a click keeps it open. A click
+    // keeps it open until Esc (or 10 s with the pointer away). Esc that closes it holds it shut until the pointer leaves.
+    var Stack=(function(){
+      var GRACE=450,AWAY=10000;
+      function make(){return {on:false,n:0,hover:false,pinned:false,quiet:false,leaveAt:0,awayAt:0}}
+      function reset(s){s.hover=false;s.pinned=false;s.quiet=false;s.leaveAt=0;s.awayAt=0}
+      function count(s,n){s.n=n>0?Math.floor(n):0;if(s.n<2)reset(s)}
+      function setOn(s,on){s.on=!!on;if(!s.on)reset(s)}
+      function more(n){return n>1?n-1:0}
+      function text(n){var m=more(n);return m>0?'+'+m:''}
+      function grouped(s){return s.on&&s.n>1}
+      function open(s,now){
+        if(!grouped(s))return false;
+        if(s.hover)return true;
+        if(s.pinned&&(!s.awayAt||now<s.awayAt))return true;
+        return s.leaveAt>0&&now<s.leaveAt;
+      }
+      function shut(s,now){return grouped(s)&&!open(s,now)}
+      function enter(s){if(!grouped(s)||s.quiet)return;s.hover=true;s.leaveAt=0;s.awayAt=0}
+      function leave(s,now){
+        s.quiet=false;
+        if(!s.hover)return;
+        s.hover=false;s.leaveAt=now+GRACE;
+        if(s.pinned)s.awayAt=now+AWAY;
+      }
+      function pin(s){if(!grouped(s))return;s.pinned=true;s.awayAt=0}
+      function esc(s,now){
+        tick(s,now);
+        if(!grouped(s)||!s.pinned)return false;
+        s.pinned=false;s.hover=false;s.leaveAt=0;s.awayAt=0;s.quiet=true;
+        return true;
+      }
+      function tick(s,now){
+        if(s.leaveAt&&now>=s.leaveAt)s.leaveAt=0;
+        if(s.awayAt&&now>=s.awayAt){s.awayAt=0;s.pinned=false}
+      }
+      // The next moment the answer changes by itself (0: never), so the page sets one timer and no polling.
+      function due(s,now){
+        var d=0;
+        if(s.leaveAt>now)d=s.leaveAt;
+        if(s.awayAt>now&&(!d||s.awayAt<d))d=s.awayAt;
+        return d;
+      }
+      return {GRACE:GRACE,AWAY:AWAY,make:make,count:count,setOn:setOn,more:more,text:text,grouped:grouped,open:open,shut:shut,
+        enter:enter,leave:leave,pin:pin,esc:esc,tick:tick,due:due};
+    })();
+    // <<< stack model
+    var stk=Stack.make(),stkT=0,stkCol=false,stkPin=false;
+    function stkNow(){return performance.now()}
+    // Where the pointer counts as "on the stack": shut, the newest card and the badge; open, the whole list.
+    function stkInside(x,y){
+      if(x<0||!Stack.grouped(stk))return false;
+      var rs=[];
+      if(stkCol){if(cards[0])rs.push(cards[0].el.getBoundingClientRect());rs.push(badge.getBoundingClientRect())}
+      else rs.push(list.getBoundingClientRect(),document.getElementById('bar').getBoundingClientRect());
+      return rs.some(function(r){return r.width>0&&x>=r.left-2&&x<=r.right+2&&y>=r.top-2&&y<=r.bottom+2});
+    }
+    // Something about the open state moved: lay out again if it flipped, and set the one timer for the next change.
+    function stkSync(){
+      var now=stkNow();Stack.tick(stk,now);
+      if(Stack.shut(stk,now)!==stkCol)layout();
+      if(stk.pinned!==stkPin){stkPin=stk.pinned;post({type:'stack',pinned:stkPin})}
+      clearTimeout(stkT);
+      var d=Stack.due(stk,now);
+      if(d)stkT=setTimeout(stkSync,Math.max(0,d-now)+8);
+    }
+    function stkPtr(x,y){
+      if(!stk.on)return;
+      var now=stkNow();
+      if(x>=0&&stkInside(x,y))Stack.enter(stk);else Stack.leave(stk,now);
+      stkSync();
+    }
+    // A click on the stack keeps it open (Esc then closes it); it never blocks the click's own job.
+    wrap.addEventListener('click',function(){if(!Stack.grouped(stk))return;Stack.pin(stk);setTimeout(stkSync,0)},true);
+    wrap.addEventListener('mousemove',function(e){stkPtr(e.clientX,e.clientY)});
+    document.documentElement.addEventListener('mouseleave',function(){stkPtr(-1,-1)});
+
     // ---------- the list ----------
     function size(h,wait){
       // Grow the window at once (the new space is see-through), shrink only once the move is over. Nothing
@@ -1146,15 +1264,26 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     }
     function moving(c){return c.el.classList.contains('drag')}
     function layout(wait){
-      var off=cards.length>1?BAR:0,y=TOP+off,from=list.scrollTop;   // room for the bar at the top
+      Stack.count(stk,cards.length);
+      var col=Stack.shut(stk,stkNow());stkCol=col;
+      var off=cards.length>1&&!col?BAR:0,y=TOP+off,from=list.scrollTop;   // room for the bar at the top
       view.style.setProperty('--bs',off+'px');
       cards.forEach(function(c,i){
-        var s=c.el.style;s.zIndex=String(1000-i);
-        c.y=y;
-        if(!moving(c)){s.transform='translate3d(0,'+y+'px,0)';s.opacity='1';s.filter='none'}
-        y+=(c.group?groupH(c):c.el.offsetHeight)+GAP;
+        var s=c.el.style,hide=col&&i>0;s.zIndex=String(1000-i);
+        c.el.classList.toggle('stk',hide);
+        c.y=hide?TOP:y;
+        // Shut: the cards behind the newest wait right under it, unseen; opening springs them out from there.
+        if(!moving(c)){s.transform='translate3d(0,'+c.y+'px,0)'+(hide?' scale(.94)':'');s.opacity=hide?'0':'1';s.filter='none'}
+        if(!hide)y+=(c.group?groupH(c):c.el.offsetHeight)+GAP;
       });
       var many=cards.length>1,content=cards.length?y-GAP+BOT:0;
+      if(col){
+        content=y-GAP+BGAP+BH+BEND;
+        badge.style.top=(y-GAP+BGAP)+'px';
+        badge.textContent=Stack.text(cards.length);
+        badge.setAttribute('aria-label',Stack.more(cards.length)+' more notifications');
+      }
+      badge.classList.toggle('on',col);
       var listH=Math.min(content,Math.max(160,maxH-PAD));
       var nowH=list.offsetHeight;
       fill.style.height=content+'px';
@@ -1167,8 +1296,9 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       if(top<from-0.5)rebase(from,top);
       edges();
       count.textContent=cards.length+(cards.length===1?' notification':' notifications');
-      wrap.classList.toggle('open',many);
+      wrap.classList.toggle('open',many&&!col);
       size(cards.length?listH+PAD:0,(wait||420)+200);
+      if(stk.pinned!==stkPin){stkPin=stk.pinned;post({type:'stack',pinned:stkPin})}
     }
     // Plain cards go after a while (each on its own, paused while the pointer is on it); sticky ones stay.
     function arm(c){
@@ -1366,6 +1496,11 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       privacy:function(on){privacyOn=!!on;if(on)SquadMsg.esc();cards.forEach(function(c){if(c.data.kind==='meet'||c.group)c.data.discreet=!!on;if(on){c.shown=false;if(c.editing)endEdit(c,false)}paint(c)});layout()},
       reveal:function(on){revealAll=!!on;cards.forEach(paint);layout()},
       max:function(h){if((h||700)!==maxH){maxH=h||700;layout()}},
+      // PS 1.65: the switch (Toast.pageMode), and Esc closing a list a click is keeping open. Checks: what the stack shows.
+      stack:function(on){if(!!on===stk.on)return;Stack.setOn(stk,on);stkSync();layout()},
+      esc:function(){var r=Stack.esc(stk,stkNow());stkSync();return r},
+      stk:function(){return {on:stk.on,n:cards.length,shut:stkCol,badge:badge.classList.contains('on')?badge.textContent:'',pinned:stk.pinned,hover:stk.hover,
+        visible:cards.filter(function(c){return !c.el.classList.contains('stk')}).length,badgeTop:Math.round(badge.getBoundingClientRect().top),badgeBottom:Math.round(badge.getBoundingClientRect().bottom)}},
       mode:function(m){
         var on=!!(m&&m.on),up=on&&!!m.up;
         isl={on:on,up:up,ix:on&&isFinite(+m.ix)?+m.ix:196,iw:on&&+m.iw>0?+m.iw:330};
@@ -1373,7 +1508,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         if(cards.length)layout();
       },
       ptr:function(x,y){
-        ptrAt=x<0?null:[x,y];light(x,y);
+        ptrAt=x<0?null:[x,y];light(x,y);stkPtr(x,y);
         // V1.55: the card under the pointer holds its line (Swift sends the pointer even while PS is in the back).
         var on=x<0?null:cardOf(document.elementFromPoint(x,y));
         cards.forEach(function(c){c.el.classList.toggle('held',c===on)});
@@ -1458,6 +1593,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       }
     };
     // A new card onto the stack: its clicks, hover and swipe, then it springs (or pours out of the island) into the top place.
+    // Where a new card starts from: under the bar once a list shows, at the very top while only the newest shows.
+    function startY(){var n=cards.length+1;return TOP+(n>1&&!(Stack.grouped(stk)&&Stack.shut(stk,stkNow()))?BAR:0)}
     function enter(c){
         var d=c.data;
         c.el.addEventListener('click',function(e){click(c,e)});
@@ -1475,10 +1612,10 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
           c.el.style.transform='translate3d('+Math.round(isl.ix-(14+cw/2))+'px,'+Math.round(from-2)+'px,0) scale('+k.toFixed(3)+',.14)';c.el.style.opacity='0';c.el.style.filter='blur(3px)';
         }else if(isl.on){
           // Reduced motion (or scrolled away): it fades in where it belongs.
-          c.el.style.transform='translate3d(0,'+(TOP+(cards.length?BAR:0))+'px,0)';c.el.style.opacity='0';
+          c.el.style.transform='translate3d(0,'+startY()+'px,0)';c.el.style.opacity='0';
         }else{
           // Starts off to the right, a little small and soft, then springs into the top place while the rest glide down.
-          c.el.style.transform='translate3d(60px,'+(TOP+(cards.length?BAR:0))+'px,0) scale(.94)';c.el.style.opacity='0';c.el.style.filter='blur(6px)';
+          c.el.style.transform='translate3d(60px,'+startY()+'px,0) scale(.94)';c.el.style.opacity='0';c.el.style.filter='blur(6px)';
         }
         list.appendChild(c.el);
         cards.unshift(c);

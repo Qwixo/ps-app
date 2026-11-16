@@ -112,6 +112,8 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   "posture-165": async (_can, s) => (feature("posture-reminder") && posturePrefs(settingsData(s).posture).on ? "open" : "unknown"),
   // PS 1.65 Checklist reminder: shown only while the feature is on; Ok ends it for good.
   "checklist-165": async () => (feature(CHK_FEATURE) ? "open" : "unknown"),
+  // PS 1.65 stacked notifications: only on the Mac, and only while its switch is on.
+  "notif-stack-165": async () => (PS && feature("notif-stack") ? "open" : "unknown"),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault
