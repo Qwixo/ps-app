@@ -11,8 +11,11 @@
 // What you made last month (V1.43, the developer: "Make it so it doesn't pop up"): nothing opens by itself. From the 1st in
 // your G Squad time zone the Leaderboard shows "Add what you made in October" for the whole month, with a quiet dot
 // on its tab (core/squadboard.ts moneyDue). No pop-up, no sound, no notification. Money switched off: nothing.
-import { docs, vaultStore } from "../core/vault";
+import { docs, put, remove, vaultStore } from "../core/vault";
+import { foldMonths, monthRecId, planMonths, type MonthRec } from "../core/monthhist";
 import { saveSettings } from "../core/actions";
+import { feature } from "../core/features";
+import { historyOn } from "../core/taskhist";
 import { settingsData } from "../core/select";
 import { currentKey, type SquadRec } from "../core/squadrec";
 import { cleanShareOpts } from "../core/squadshare";
@@ -160,6 +163,24 @@ async function pushPast() {
 }
 
 // ---------- the view (the month to add comes ready made in it: board.due) ----------
+// Month history (PS 1.65, core/monthhist.ts): a private copy of your earnings and the boards you saw, in your own vault only.
+let monthBusy = false;
+async function saveMonths(members: { id: string; me: boolean }[]) {
+  const s = vaultStore.get();
+  if (monthBusy || !feature("fuller-history") || !historyOn(settingsData(s)) || s.status !== "unlocked" || s.role !== "owner") return;
+  monthBusy = true;
+  try {
+    const stored = docs<unknown>("mhist", null);
+    const folded = foldMonths(stored), have = new Map<string, MonthRec>();
+    for (const [month, f] of folded) have.set(month, f.rec);
+    const st = settingsData(s);
+    for (const r of planMonths({ have, money: cleanMoney(st.squadMoney), members, cards, now: Date.now(), loaded })) {
+      const id = monthRecId(s.userId || "", r.month);   // one record per month, however many devices
+      await put<MonthRec>("mhist", r, { id, ws: null });
+      for (const old of folded.get(r.month)?.ids || []) if (old !== id) await remove(old);   // copies made before the fixed id
+    }
+  } catch { /* a bonus copy, tried again on the next change */ } finally { monthBusy = false; }
+}
 function rebuild() {
   if (!rec) { patchSquadView({ board: null }); return; }
   const st = settingsData(vaultStore.get());
@@ -167,6 +188,7 @@ function rebuild() {
   const members = ids.length ? ids : [{ id: rec.memberId, me: true }];
   for (const id of [...cards.keys()]) if (!members.some((m) => m.id === id)) cards.delete(id);   // left the squad
   const board = buildBoard({ members, cards, myMoney: cleanMoney(st.squadMoney), myShare: cleanShareOpts(st.squadShare), now: Date.now(), deviceTz: DEVICE_TZ, loaded });
+  void saveMonths(members);
   patchSquadView({ board: { ...board, past: [...past.values()].sort((a, b) => b.month.localeCompare(a.month)) } });
 }
 

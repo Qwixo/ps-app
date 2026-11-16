@@ -86,6 +86,7 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Local first | Keep everything on this Mac only, no server. | Chosen at setup. |
 | Export my data | An encrypted backup file, and bringing one back in. | Settings, Sync and account. Only when you click it. |
 | What's new | Shows the changes once per version. | Shown once. |
+| Fuller task history | The day log also keeps what you missed, added, deleted and moved to Dimension X, and your monthly earnings and leaderboard places. Stored encrypted in your own account only, never sent to your squad. | Settings, Privacy and sharing, Fuller task history. |
 
 ## New in V1.65
 

@@ -14,3 +14,6 @@ signing/*.keychain-db
 signing/.keychain-pass
 .build/
 ps-build.json
+
+# dev server traces (playwright-cli)
+.playwright-cli/

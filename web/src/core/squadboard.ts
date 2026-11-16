@@ -231,7 +231,7 @@ import type { PastMonth } from "./squadpast.ts";
 export interface HeldCard { kind: BoardKind; card: BoardCard; at: string }
 
 /** Standard ranks: equal values share a place (1, 1, 3). */
-function ranked(list: { member: string; v: number }[]): Map<string, number> {
+export function ranked(list: { member: string; v: number }[]): Map<string, number> {
   const s = [...list].sort((a, b) => b.v - a.v);
   const out = new Map<string, number>();
   s.forEach((x, i) => out.set(x.member, i > 0 && s[i - 1].v === x.v ? out.get(s[i - 1].member)! : i + 1));

@@ -439,7 +439,7 @@ function Board({ prio, aware, dimx, inbox, ready, escRef, view, onClose }: {
       const item: DimxItem = { id: uid(), text: text.slice(0, 500), zone: to, createdAt: nowIso() };
       patch.dimx = insertDimx(cur.dimx, item, index);
       key = `d:${item.id}`;
-      into = () => taskMapActions.dimx(patch.dimx!);
+      into = async () => { await taskMapActions.dimx(patch.dimx!); void taskMapActions.dimxMoved(item.id, item.text); };   // one move, noted once
     } else {
       const pid = `pending-${uid()}`;
       const order = orderAt(index);
@@ -451,7 +451,7 @@ function Board({ prio, aware, dimx, inbox, ready, escRef, view, onClose }: {
     }
     let out: () => Promise<unknown>;
     if (isBand(from)) { patch.dimx = (patch.dimx ?? cur.dimx).filter((x) => x.id !== card.id); const list = patch.dimx; out = () => taskMapActions.dimx(list); }
-    else { patch.prio = (patch.prio ?? cur.prio).filter((p) => p.id !== card.id); out = () => taskMapActions.remove(card.id); }
+    else { patch.prio = (patch.prio ?? cur.prio).filter((p) => p.id !== card.id); out = () => isBand(to) ? taskMapActions.moveOut(card.id) : taskMapActions.remove(card.id); }
     keep(patch);
     // A band to a band is handled above, so `into` and `out` never write the same list twice.
     void into();
@@ -483,8 +483,8 @@ function Board({ prio, aware, dimx, inbox, ready, escRef, view, onClose }: {
     const item: DimxItem = { id: uid(), text: card.text.trim().slice(0, 500), zone: to, createdAt: nowIso() };
     const next = insertDimx(cur.dimx, item, index);
     keep({ dimx: next, ai: rest });
-    void taskMapActions.dimx(next);
-    void taskMapActions.remove(card.id);
+    void taskMapActions.dimx(next).then(() => taskMapActions.dimxMoved(item.id, item.text));
+    void taskMapActions.moveOut(card.id);   // a move, not a delete
     return `d:${item.id}`;
   };
   /** An inbox task deleted, with Undo (it comes back with everything it had). */

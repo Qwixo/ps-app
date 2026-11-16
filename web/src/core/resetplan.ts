@@ -11,13 +11,18 @@ import type { Doc, Todo } from "./model.ts";
 import { isRepeating, resetPatch } from "./repeat.ts";
 import { resetSubs } from "./subtasks.ts";
 import { DAY_ENDS_DEFAULT, workDayOf, type DayLogItem } from "./daylog.ts";
-import { byResetDay, dayStartAt, resetDayOf } from "./resetday.ts";
+import { addDays, byResetDay, dayStartAt, resetDayOf } from "./resetday.ts";
+import { planMissed, type MissedItem } from "./taskhist.ts";
 
 export interface ResetPlan {
   /** The day this Reset belongs to (settings.lastResetDay), also "today" for repeating tasks. */
   today: string;
   /** Ticks to add to the day logs, by day. */
   logs: Map<string, DayLogItem[]>;
+  /** PS 1.65: the day this Reset closes and what was still open for it (core/taskhist.ts). The automatic Reset closes the day
+   *  before `today`; one you press closes the work day set by "Your work day ends at", like its ticks. */
+  missedDay: string;
+  missed: MissedItem[];
   /** The tasks that change, with their new data. */
   puts: { id: string; data: Todo }[];
 }
@@ -28,7 +33,7 @@ export function planReset(list: Doc<Todo>[], o: { at: string; tz: string; atMin:
   const keepFrom = o.auto ? dayStartAt(today, o.tz, o.atMin) : Infinity;
   const fresh = (at?: string | null) => !!at && Date.parse(at) >= keepFrom;   // ticked since today started (auto only)
   const items: DayLogItem[] = list.filter((d) => d.data.done && d.data.doneAt && !fresh(d.data.doneAt))
-    .map((d) => ({ todoId: d.id, title: d.data.title, at: d.data.doneAt!, repeat: d.data.type === "daily", clientId: d.data.clientId ?? null }));
+    .map((d) => ({ todoId: d.id, title: d.data.title, at: d.data.doneAt!, repeat: d.data.type === "daily", clientId: d.data.clientId ?? null, ...(d.data.p1 ? { p1: true } : {}) }));
   // Mini tasks done go in too, under their parent (done or not).
   for (const d of list) for (const sub of d.data.subtasks || []) if (sub.done && sub.doneAt && !d.data.clearedAt && !fresh(sub.doneAt) && !fresh(d.data.doneAt))
     items.push({ todoId: `${d.id}/${sub.id}`, title: sub.title, at: sub.doneAt, repeat: d.data.type === "daily", clientId: d.data.clientId ?? null, parentId: d.id, parentTitle: d.data.title });
@@ -44,7 +49,11 @@ export function planReset(list: Doc<Todo>[], o: { at: string; tz: string; atMin:
     if (rp || subPatch) puts.push({ id: d.id, data: { ...d.data, ...rp, ...subPatch } as Todo });
     else if (d.data.type === "once" && d.data.done) puts.push({ id: d.id, data: { ...d.data, clearedAt: o.at } as Todo });
   }
-  return { today, logs, puts };
+  const missedDay = o.auto ? addDays(today, -1) : workDayOf(o.at, o.dayEndsHour ?? DAY_ENDS_DEFAULT);
+  // Judged before anything is unticked: a task ticked since today started (auto) is not open, and a repeating task is read as it stands.
+  const missed = planMissed(list.filter((d) => !fresh(d.data.doneAt) || !d.data.done), { day: missedDay, nowMs: ms,
+    dayOf: (x) => o.auto ? resetDayOf(x, o.tz, o.atMin) : workDayOf(new Date(x).toISOString(), o.dayEndsHour ?? DAY_ENDS_DEFAULT) });
+  return { today, logs, puts, missedDay, missed };
 }
 
 /** Mini tasks ticked since today started stay ticked, where they were. */
