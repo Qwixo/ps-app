@@ -10,7 +10,7 @@ import { CAMPAIGNS_ON } from "../core/features.ts";
 
 export type MenuId =
   | "screentime" | "clocks" | "timelines" | "goals" | "series" | "numerology" | "brief"
-  | "dimx" | "campaigns" | "gsquad" | "rules" | "endday" | "clipboard" | "edit" | "settings";
+  | "dimx" | "receipts" | "campaigns" | "gsquad" | "rules" | "endday" | "clipboard" | "edit" | "settings";
 
 export interface MenuItem {
   id: MenuId;
@@ -48,6 +48,8 @@ export const MENU: MenuItem[] = [
     icon: "M5 4h11a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0 3 0V9h-3M5 4a2 2 0 0 0-2 2v12a2.5 2.5 0 0 0 2.5 2.5H19.5M7 8.5h7M7 12h7M7 15.5h4" },
   { id: "dimx", section: "Tools", label: "Dimension X", line: "What you are aware of, outside the list.", sel: ".tm-xrow .dx-dock button", was: "Plan",
     icon: "M6 6l12 12M18 6L6 18" },
+  { id: "receipts", section: "Tools", label: "Purchases", line: "Scan a receipt and see what you spend.", sel: ".tm-right .rc-btn", was: "new in V1.65 (the Tab list's Purchases button)",
+    icon: "M6 3h12v18l-2.5-1.6L13 21l-2-1.6L9 21l-2.5-1.6L6 21zM9 8h6M9 12h6M9 16h3" },
   { id: "campaigns", section: "Tools", label: "Campaigns", line: "Cold email stats from Instantly.", sel: ".tm-xrow .cs-btn", red: true, was: "Plan",
     icon: "M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM4 7.5l8 5.5 8-5.5" },
   { id: "gsquad", section: "Tools", label: "G Squad", line: "Your squad, the board and the chat.", was: "Settings, G Squad",

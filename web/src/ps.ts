@@ -5,6 +5,8 @@
 // Bridge, all in memory inside the app (nothing is stored or sent anywhere):
 //   page  -> shell: window.webkit.messageHandlers.ps.postMessage(json)
 //   shell -> page:  window.__ps.apply(msg)  (main window)  /  window.__psOverlay.load(state)  (overlay)
+import { cleanCurrency } from "./core/receiptparse";
+import { RCPT_KIND, cleanReceipt } from "./core/receipts";
 import { useSyncExternalStore } from "react";
 import { localKeyMessage } from "./core/localholders";
 import { localMirrorOut, localOp, localSubscribe, setLocalMirror } from "./localfirst";
@@ -115,6 +117,8 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (typeof p.squadAutoJoin === "boolean") o.squadAutoJoin = p.squadAutoJoin;
   if (typeof p.psPresence === "boolean") o.psPresence = p.psPresence;
   if (typeof p.tipsShow === "boolean") o.tipsShow = p.tipsShow;
+  if (typeof p.receipts === "boolean") o.receipts = p.receipts;   // Settings, Receipts and Purchases (PS 1.65)
+  if (typeof p.receiptCur === "string") o.receiptCur = cleanCurrency(p.receiptCur);   // the currency a new receipt starts with
   if (typeof p.replyInPanel === "boolean") o.replyInPanel = p.replyInPanel;   // Settings, Reply in the email panel (V1.59)
   if (typeof p.swipeInvert === "boolean") o.swipeInvert = p.swipeInvert;   // Settings, Controls, Invert swipe (V1.57)
   if (p.squadFeatures && typeof p.squadFeatures === "object") o.squadFeatures = cleanSwitches(p.squadFeatures);   // Settings, From the squad (V1.58, core/features.ts)
@@ -207,15 +211,18 @@ const SECOND_KINDS = new Set<string>(["sdev", "spair", "sjob", "sjobst", "smsg",
 // Fitness (programs, workouts, its settings): a screen inside the Tab list since 2 Nov 2026 (the pop-out window is
 // gone), so the list gets a copy and its writes come back here (vault.ts setMirrorWriter). Nothing else is written from there.
 const FIT_KINDS = new Set<string>(["fprog", "fwork", "fit", "fsleep", "fact"]);
+// The Tab list also writes receipts (PS 1.65, Purchases: Add by typing, a fixed receipt, a deleted one); they go the same way and are cleaned again here.
+const TAB_KINDS = new Set<string>([...FIT_KINDS, RCPT_KIND]);
 const okId = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9-]{8,64}$/.test(v);
 /** One Fitness write from the Tab list, checked: only Fitness kinds, only Fitness records removed. */
 async function runFitOp(o: unknown) {
   const w = (o && typeof o === "object" ? o : {}) as { op?: unknown; kind?: unknown; id?: unknown; data?: unknown };
   if (!okId(w.id)) return;
   const have = vaultStore.get().docs.get(w.id);
-  if (w.op === "put" && typeof w.kind === "string" && FIT_KINDS.has(w.kind) && w.data && typeof w.data === "object" && (!have || have.kind === w.kind)) {
-    await put(w.kind as Doc["kind"], w.data, { id: w.id, ws: null });
-  } else if (w.op === "remove" && have && FIT_KINDS.has(have.kind)) await remove(w.id);
+  if (w.op === "put" && typeof w.kind === "string" && TAB_KINDS.has(w.kind) && w.data && typeof w.data === "object" && (!have || have.kind === w.kind)) {
+    const data = w.kind === RCPT_KIND ? cleanReceipt(w.data) : w.data;
+    if (data) await put(w.kind as Doc["kind"], data, { id: w.id, ws: null });
+  } else if (w.op === "remove" && have && TAB_KINDS.has(have.kind)) await remove(w.id);
 }
 /** People on the Time zones screen (core/tzpeople.ts), added, renamed, moved or taken off in the Tab list: checked
  *  again here, and only ever a tzperson record is written or removed. */
@@ -486,8 +493,8 @@ export function startPsOverlay() {
     if (w.op === "put" && w.kind === "phonelayout") { psPost({ type: "looks", patch: { phoneLayoutOp: w } }); return true; }
     // The Annoying 15 min reminders (core/remind.ts): run by runRemindOp on the main page.
     if (w.op === "put" && w.kind === "remind") { psPost({ type: "looks", patch: { remindOp: w } }); return true; }
-    if (w.op === "put" && !FIT_KINDS.has(w.kind)) return false;
-    if (w.op === "remove" && !FIT_KINDS.has(vaultStore.get().docs.get(w.id)?.kind ?? "")) return false;
+    if (w.op === "put" && !TAB_KINDS.has(w.kind)) return false;
+    if (w.op === "remove" && !TAB_KINDS.has(vaultStore.get().docs.get(w.id)?.kind ?? "")) return false;
     psPost({ type: "looks", patch: { fitOp: w } });
     return true;
   });
@@ -907,6 +914,7 @@ export function startPsBridge() {
       || d.kind === "msender"   // Mac settings > Gmail replies, "Who emails me" (sender, account, time, subject; never a body)
       || d.kind === "tzperson"  // the Time zones screen's people (a name and a zone each)
       || d.kind === "tzzones"   // the Time zones screen's list of clocks (zone ids and names)
+      || d.kind === "rcpt"      // Purchases (PS 1.65): the receipts, with the id of a photo but never the photo (a separate sealed file the Tab list cannot open)
       || d.kind === "tablayout" // Edit mode: where the Tab list's panels sit and which are removed
       || d.kind === "phonelayout" || d.kind === "phonedev" || d.kind === "bgdev"   // V1.56 the phone layout editor: each phone's layout, and which phones you have
       || d.kind === "remind"    // Settings > Annoying 15 min reminder: the reminders and their answers (a few KB)

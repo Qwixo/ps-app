@@ -114,6 +114,8 @@ export const SETTINGS: SetEntry[] = [
   // ---------- Controls (V1.57) ----------
   { id: "invert-swipe", group: "controls", name: "Invert swipe", line: "Swipe the other way to reach the page on the left or right.", words: ["swipe", "invert", "inverted", "reverse", "direction", "flip", "pages", "left", "right", "natural", "gesture", "controls", "two fingers"] },
   { id: "tick-mode", group: "list", name: "When I tick a task", line: "Slide it into Completed, or let it leave the list.", words: ["done", "complete", "finish", "check", "tick", "disappear"] },
+  // PS 1.65 Receipts: on unless switched off, on every device (views/Purchases.tsx, views/ReceiptScan.tsx, core/receipts.ts).
+  { id: "receipts", group: "list", name: "Receipts and Purchases", line: "Scan paper receipts on your phone and see what you spend. Nothing leaves your devices.", words: ["receipt", "receipts", "purchases", "spending", "money", "finance", "scan", "shop", "shopping", "expenses", "budget", "currency", "lari", "gel"] },
   { id: "completed-show", group: "list", name: "Completed section", line: "The grey Completed area at the bottom, with Resurrect.", words: ["done", "finished", "resurrect", "history", "ticked"] },
   { id: "completed-keep", group: "list", name: "Completed keeps ticks for", line: "Today, the last 7 days or the last 30 days.", words: ["done", "keep", "days", "history"] },
   { id: "task-size", group: "list", name: "Task size", line: "How big the tasks are on this list.", words: ["size", "big", "small", "zoom", "scale", "bigger", "smaller"] },

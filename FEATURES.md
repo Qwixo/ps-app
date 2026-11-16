@@ -85,6 +85,10 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Export my data | An encrypted backup file, and bringing one back in. | Settings, Sync and account. Only when you click it. |
 | What's new | Shows the changes once per version. | Shown once. |
 
+## New in V1.65
+
+Receipts and Purchases. On your phone, Scan receipt takes a photo of a paper receipt and reads the shop, the date, the total and the items with their prices, in Georgian, English and most other languages. It reads on the phone with the same offline reader as the gym scan, using Georgian and English models that ship inside the app. Nothing is sent to anyone and there is no cloud reading. You check what was read next to the photo, fix anything, then Save. Each receipt is one private record sealed with your own vault key, and its photo is a small compressed copy (about 90 KB or less) that is only loaded when you open that receipt. On your Mac, a Purchases button in the Tab list (and the website) opens a screen with your latest purchases, the items you buy most, what you spent this month against last month, spending by shop and by month, and a table you can sort, filter and search. Lari is the default currency and you can change it. Switch it off in Settings, Receipts and Purchases (it is also in Settings, From the squad). Off means the Purchases button is hidden and nothing is scanned. Nothing runs in the background: a receipt is written when you save it.
+
 ## New in V1.64
 
 Rewind (yearly recap). PS keeps a private history of your year, such as the tasks you finished, your gym days and your screen time, so it can show you a recap on 1 January. It is encrypted on your device with your own vault key before it is saved, so the server only ever holds scrambled data. Nobody else can read it: not the server, not your squad, not any AI helper and not the developer of PS. It is never part of an export, and PS itself does not open it before 1 January. You can switch it off or delete it at any time in Settings, Privacy and sharing.

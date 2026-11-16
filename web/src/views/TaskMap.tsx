@@ -129,6 +129,7 @@ import { NotesLeftovers } from "./NotesLeftovers";
 import { NewBadge } from "./NewBadge";
 import { MixerButton } from "./Mixer";
 import { ScreenRecButton, ScreenRecHost } from "./ScreenRec";
+import { ReceiptButton } from "./Purchases";
 import { AfkBadge, setAfkOn } from "./AfkBadge";
 import { DndButton } from "./Dnd";
 import { SecondButton } from "./Second";
@@ -1401,6 +1402,8 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
         {/* The screen record button (PS 1.60, views/ScreenRec.tsx): right below the email panel, PS on the Mac only, and only once the person switched screen recording on. */}
         {PS && !docked && <Slot id="screenrec"><ScreenRecButton /></Slot>}
         {PS && !docked && <ScreenRecHost />}
+        {/* Purchases (PS 1.65, views/Purchases.tsx): the receipts screen, below Record screen. The Tab list, the website and (from its menu) the phone; only while Receipts is on. */}
+        {(!docked || !!web || GOS) && <Slot id="receipts"><ReceiptButton /></Slot>}
         {/* G Squad Priority 1 (PS 1.63, views/SquadP1Panel.tsx): the squad's P1 tasks with their 24 hour clocks, under the email panel, above Sleep. */}
         <Slot id="squadp1"><SquadP1Panel /></Slot>
         <Slot id="meetnotes"><LiveMeetingNotes meet={meet} notes={st.meetingNotes || []} standing={st.standingNotes || []} /></Slot>

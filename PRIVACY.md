@@ -37,6 +37,11 @@ background is sealed with AES-256-GCM before it leaves your device (`web/src/cor
 `web/src/core/vault.ts`). Even the kind of item (task, note, setting) is inside the sealed part. Files and
 backgrounds are sealed the same way (`blobs`).
 
+**Your receipts.** A receipt you scan (the shop, the date, the total and the items with their prices) is one record sealed
+like everything else, and its photo is a small separate sealed file (`blobs`, about 90 KB or less), loaded only when you open
+that receipt. The text is read on the phone by Tesseract inside the app, with the Georgian and English models that ship in
+the app. There is no cloud reading and no third party, and the phone's reader has no network code (`phone/docs/receipt-scan.md`).
+
 **Your passphrase and your key.** Your passphrase goes through PBKDF2 (SHA-256, 600,000 rounds), then is split
 into two different values (`web/src/core/crypto.ts`, `deriveFromPassphrase`):
 
