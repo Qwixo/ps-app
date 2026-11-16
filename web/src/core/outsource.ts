@@ -9,15 +9,15 @@
 //    before, no secret). Anything else becomes a refusal the main computer can read.
 //  - The main computer accepts a result only from the paired other computer and only for a job it sent.
 //  - Nothing here is tied to an app version: the pairing is a pair of public keys plus a device id.
-import type { Doc, Kind } from "./model";
-import type { KeepRecord, MacToPage, OtherStatus, PageToMac, PlainJob, BridgeRole, CliRequest } from "./secondbridge";
-import { BRIDGE_CHUNK, BRIDGE_VERSION } from "./secondbridge";
-import { b64, unb64, b64url, randomBytes, sha256hex } from "./crypto";
+import type { Doc, Kind } from "./model.ts";
+import type { KeepRecord, MacToPage, OtherStatus, PageToMac, PlainJob, BridgeRole, CliRequest } from "./secondbridge.ts";
+import { BRIDGE_CHUNK, BRIDGE_VERSION } from "./secondbridge.ts";
+import { b64, unb64, b64url, randomBytes, sha256hex } from "./crypto.ts";
 import {
   acceptCmd, acceptJob, acceptResult, cleanCode, codeOk, fileRefusal, FILE_MAX, isOnline, jobRunning, JOB_KEEP_MS, makeCmd, makeCode, makeJob, makeKeys, makeStatus,
   openEnv, PAIR_CODE_MS, pairCode, prune, remember, signBody, TAIL_FINAL, tail, looksSecret, outsourceTitle, OJOB_MAX_RUNNING, OJOB_MINUTES,
   type CmdBody, type Env, type JobArgs, type JobBody, type JobState, type JobStatusBody, type Keys, type Peer, type Seen, type StatBody,
-} from "./second";
+} from "./second.ts";
 
 export const FEATURE_ID = "second-computer";
 export type Store = {
@@ -214,7 +214,7 @@ export function createEngine(deps: Deps) {
   async function restartOther(kind: "restart" | "shutdown" = "restart"): Promise<{ ok: boolean; why: string }> {
     const k = keys(), p = peer();
     if (!k || !p) return { ok: false, why: "Pair your other computer first." };
-    const made = await makeCmd(k, p, kind);
+    const made = await makeCmd(k, p, kind, { now: deps.now() });
     await store.put("scmd", { id: made.body.id, to: p.device, from: k.device, at: made.body.at, exp: made.body.exp, env: made.env } satisfies CmdDoc, `scmd-${made.body.id}`);
     store.poke("cmd");
     setNote(kind === "restart" ? "Restart sent. It comes back only after you log in at it." : "Shut down sent.");
@@ -229,7 +229,7 @@ export function createEngine(deps: Deps) {
     for (const d of store.docs<ResDoc>("sores")) {
       const r = d.data;
       if (!r || r.to !== k.device) continue;
-      const key = `${d.id}:${r.at}:${r.chunks}:${store.docs<ChunkDoc>("sfile").filter((c) => c.data?.job === r.job).length}`;
+      const key = `${d.id}:${r.env?.sig}:${r.chunks}:${store.docs<ChunkDoc>("sfile").filter((c) => c.data?.job === r.job).length}`;
       if (processed.has(key)) continue;
       const acc = await acceptResult(r.env, { keys: k, peer: p, seen: {}, now: deps.now() }, (id) => mine.has(id));
       if (!acc.ok) { processed.add(key); continue; }
@@ -395,7 +395,7 @@ export function createEngine(deps: Deps) {
   /** Called on every vault change (the vault only fires when a record changed). */
   async function onVault() {
     if (!keep) return;
-    try { await checkAnswers(); await readJobs(); await readCmds(); await readResults(); await readStat(); } catch { /* a bad record never stops the next one */ }
+    try { await checkAnswers(); await readJobs(); await readCmds(); await decodeAll(); await readResults(); await readStat(); } catch { /* a bad record never stops the next one */ }
     emit();
   }
   /** Every 2 minutes while the page is open on the other computer. */
@@ -428,7 +428,7 @@ export function createEngine(deps: Deps) {
       }
       for (const kind of ["sjobst", "sores"] as const) for (const d of store.docs<ResDoc>(kind)) {
         const r = d.data; if (!r || !rows.has(r.job)) continue;
-        const cached = decoded.get(`${d.id}:${r.at}`); if (!cached) { void decodeOne(`${d.id}:${r.at}`, r); continue; }
+        const cached = decoded.get(`${d.id}:${r.env?.sig}`); if (!cached) { void decodeOne(`${d.id}:${r.env?.sig}`, r); continue; }
         const row = rows.get(r.job)!;
         rows.set(r.job, { ...row, state: cached.state, step: cached.step, tail: cached.tail, reason: cached.reason, report: cached.summary, bundle: cached.result?.bundle ? { name: cached.result.bundle.name, size: cached.result.bundle.size } : row.bundle, path: landed.get(r.job)?.path ?? row.path });
       }
@@ -445,6 +445,13 @@ export function createEngine(deps: Deps) {
     };
   }
   const decoded = new Map<string, JobStatusBody>();
+  async function decodeAll() {
+    if (keep?.role !== "main") return;
+    for (const kind of ["sjobst", "sores"] as const) for (const d of store.docs<ResDoc>(kind)) {
+      const r = d.data, key = `${d.id}:${r?.env?.sig}`;
+      if (r && !decoded.has(key)) await decodeOne(key, r);
+    }
+  }
   async function decodeOne(key: string, r: ResDoc) {
     const k = keys(), p = peer(); if (!k || !p) return;
     const acc = await acceptResult(r.env, { keys: k, peer: p, seen: {}, now: deps.now() }, (id) => sentIds().has(id));

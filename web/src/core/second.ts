@@ -14,7 +14,7 @@
 //  - The other computer never pushes, merges, releases, deploys or sends anything: a job only hands back a git bundle and a report.
 // Vault kinds used (all owner only, core/vault.ts OWNER_KINDS): sdev (a computer's public keys), spair (pairing), sojob (a sealed job),
 // sores (a sealed result), sstat (a sealed status), scmd (a sealed command), sjobst (a sealed job progress).
-import { b64url, unb64url, randomBytes } from "./crypto";
+import { b64url, unb64url, randomBytes } from "./crypto.ts";
 
 const subtle = globalThis.crypto.subtle;
 const te = new TextEncoder(), td = new TextDecoder();
@@ -30,7 +30,7 @@ export const MONTH_MAX = 2048 * MB;        // what one month of results may add 
 export const CHUNK = 192 * 1024;           // matches BRIDGE_CHUNK in core/secondbridge.ts
 export const MSG_MAX = 4000;
 export const PROMPT_MAX = 20_000;
-export const ONLINE_MS = 3 * 60 * 1000;    // heard from within 3 minutes means awake and ready
+export const ONLINE_MS = 5 * 60 * 1000;    // heard from within 5 minutes (it reports every 2 minutes while PS is open) means awake and ready
 export const JOB_MAX_AGE = 24 * 3600_000;  // a job nobody picks up in a day expires
 export const FILE_MAX_AGE = 7 * 24 * 3600_000;
 export const FUTURE_SKEW = 5 * 60_000;     // clocks may differ by this much
