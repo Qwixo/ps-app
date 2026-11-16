@@ -22,6 +22,7 @@ import "./GSquadChat";   // registers the Chat tab (G Squad chat, V1.40) before 
 import "./GSquadFit";    // registers the Fitness section (V1.43): the squad's gym boards from Fitness, the same code
 import { GSquadWindow } from "./GSquadWindow";
 import { Avatar } from "./SquadAvatar";
+import { v3On } from "./GSquadV3";
 import { NameEdit, setShare, SharingList, useShare } from "./GSquadSettings";
 import { startPhoneSquad } from "../squad/phonehost";
 import "./gsquad.css";
@@ -210,6 +211,8 @@ function TasksTab({ view, op, share }: SquadTabProps) {
     for (const l of m.values()) l.sort((a, b) => Number(a.x) - Number(b.x) || (a.p ?? 99) - (b.p ?? 99));
     return view.members.filter((x) => m.has(x.id)).map((x) => ({ who: x, list: m.get(x.id)! }));
   }, [view.tasks, view.members]);
+  const [show, setShow] = useState<"done" | "open" | "all">("done");   // PS 1.65 (gsquad-v3)
+  const v3 = v3On();
   const toMe = view.hands.filter((h) => h.to === view.me && h.state === "open");
   const fromMe = view.hands.filter((h) => h.from === view.me);
   return (
@@ -221,7 +224,42 @@ function TasksTab({ view, op, share }: SquadTabProps) {
       </>}
       {!view.loaded && byMember.length === 0 && <p className="gs-note">Loading...</p>}
       {view.loaded && byMember.length === 0 && <p className="gs-note">No shared tasks yet.</p>}
-      {byMember.map(({ who, list }) => (
+      {v3 && byMember.length > 0 && (
+        <div className="gst-bar">
+          <div className="gsb-chips" role="radiogroup" aria-label="Show">
+            {([["done", "Done"], ["open", "Open"], ["all", "All"]] as const).map(([id, label]) => (
+              <button key={id} type="button" role="radio" aria-checked={show === id} className={`gsb-chip${show === id ? " on" : ""}`}
+                onClick={() => { if (show !== id) { sfx.hover(); setShow(id); } }}>{label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+      {v3 && byMember.map(({ who, list }, i) => {
+        const done = list.filter((t) => t.x), open = list.filter((t) => !t.x);
+        const rows = show === "done" ? done : show === "open" ? open : [...done, ...open];
+        return (
+          <section key={who.id} className="gst-card" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }} aria-label={who.me ? "You" : who.name}>
+            <header className="gst-head">
+              <Avatar id={who.id} name={who.name} size={36} working={who.working} />
+              <span className="gst-who">{who.me ? "You" : who.name}<em>{done.length} done, {open.length} open</em></span>
+              <span className="gst-n num" aria-hidden="true">{done.length}</span>
+            </header>
+            {rows.length === 0
+              ? <p className="gst-none">{show === "done" ? "Nothing done yet." : "Nothing open."}</p>
+              : <ul className="gst-list">
+                {rows.map((t) => (
+                  <li key={t.id} className={`gst-row${t.x ? " done" : ""}${t.a ? " anon" : ""}`}>
+                    <i className="gst-tick" aria-hidden="true">{t.x && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}</i>
+                    <span className="gst-t">{t.t}<span className="gs-sr"> {t.x ? "done" : "open"}</span></span>
+                    {(t.e || t.p) && <span className={`gs-p${t.p === 1 ? " p1" : ""}`}>{t.e ? "Daily" : `P${t.p}`}</span>}
+                    {t.d && !t.x && <span className="gs-due">{fmtDate(t.d)}</span>}
+                  </li>
+                ))}
+              </ul>}
+          </section>
+        );
+      })}
+      {!v3 && byMember.map(({ who, list }) => (
         <section key={who.id} className="gs-mem">
           <span className="gs-h">{who.me ? "You" : who.name}{who.working && <i className="gs-dot" title="Working" />}</span>
           <ul className="gs-list">

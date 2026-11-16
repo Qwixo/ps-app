@@ -52,9 +52,14 @@ export function fitnessRow(g: GymSquadView, seen: string | null): RowInfo {
   const fresh = !seen || best.d > seen;
   return { line: `${best.name} set a new best: ${best.x}`, strong: fresh, time: "", count: 0, dot: fresh };
 }
-export function boardRow(v: SquadView): RowInfo {
+export function boardRow(v: SquadView, moneyOnly = false): RowInfo {
   // V1.43: last month's amount not added yet: a quiet line and a dot (no sound, no pop-up).
   if (v.board?.due && v.board.mine.on) return { line: `Add what you made in ${v.board.due.label}`, strong: true, time: "", count: 0, dot: true };
+  if (moneyOnly) {   // PS 1.65 (gsquad-v3): the board is money only
+    const top = v.board?.money?.["1"]?.find((e) => e.state === "ok" && e.rank === 1);
+    const w = top ? (top.member === v.me ? "You" : v.members.find((m) => m.id === top.member)?.name) : null;
+    return { line: w ? `${w} ${w === "You" ? "lead" : "leads"} last month` : "Money made", strong: false, time: "", count: 0, dot: false };
+  }
   const lead = v.board?.tasks?.month?.find((e) => e.state === "ok" && e.rank === 1);
   const who = lead ? (lead.member === v.me ? "You" : v.members.find((m) => m.id === lead.member)?.name) : null;
   return { line: who ? `${who} ${who === "You" ? "lead" : "leads"} tasks done this month` : "Money made and tasks done", strong: false, time: "", count: 0, dot: false };

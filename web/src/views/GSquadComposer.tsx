@@ -95,7 +95,7 @@ export function About({ a, onClear }: { a: ChatAbout; onClear?: () => void }) {
 
 /** PS 1.63: the emoji button, and the GIF button (gif is null while the hub has not said it is set up: then no button). */
 export interface ComposerExtras { emoji: boolean; gif: boolean | null; onEmoji: () => void; onGif: () => void }
-export function ChatComposer({ c, ready, loaded, extras }: { c: ComposerState; ready: boolean; loaded: boolean; extras?: ComposerExtras }) {
+export function ChatComposer({ c, ready, loaded, extras, box: boxWord = "Message the squad" }: { c: ComposerState; ready: boolean; loaded: boolean; extras?: ComposerExtras; box?: string }) {
   const { box, text, editing, about } = c;
   // The box grows with the text (up to 6 lines).
   useLayoutEffect(() => {
@@ -117,7 +117,7 @@ export function ChatComposer({ c, ready, loaded, extras }: { c: ComposerState; r
       {about && !editing && <About a={about} onClear={() => c.setAbout(null)} />}
       <div className="gc-row">
         {extras && !editing && <button type="button" className={`gc-tool${extras.emoji ? " on" : ""}`} aria-label="Emoji" aria-pressed={extras.emoji} title="Emoji" onClick={() => { sfx.click(); extras.onEmoji(); }}><EmojiIcon /></button>}
-        <textarea ref={box} className="gc-box" rows={1} value={text} maxLength={MAX_TEXT} placeholder={ready || !loaded ? "Message the squad" : "Getting the chat's key..."}
+        <textarea ref={box} className="gc-box" rows={1} value={text} maxLength={MAX_TEXT} placeholder={ready || !loaded ? boxWord : "Getting the chat's key..."}
           onChange={(e) => c.setText(e.target.value)}
           onKeyDown={(e) => {
             e.stopPropagation();   // the Tab list's own shortcuts never fire while typing here

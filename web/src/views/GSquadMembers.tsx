@@ -11,6 +11,7 @@ import { memberStatus, statusOrder } from "../core/squadpresence";
 import { useBack } from "../squad/back";
 import { sfx } from "../ui/sfx";
 import { Avatar } from "./SquadAvatar";
+import { canMessage } from "../core/gsconv";
 import "./gsmembers.css";
 
 const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -31,7 +32,7 @@ export function MembersButton({ v, size, max, open, onToggle }: { v: SquadView; 
 }
 
 /** The list itself: a card that drops from the button (or rises from the bottom on a narrow screen). */
-export function MembersList({ v, onClose, narrow }: { v: SquadView; onClose: () => void; narrow: boolean }) {
+export function MembersList({ v, onClose, narrow, onMessage }: { v: SquadView; onClose: () => void; narrow: boolean; onMessage?: (m: SquadMember) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => Date.now());
   const closing = useRef(false);
@@ -82,6 +83,7 @@ export function MembersList({ v, onClose, narrow }: { v: SquadView; onClose: () 
               <b>{m.me ? `${m.name} (you)` : m.name}{m.creator && <small>Admin</small>}</b>
               {st.label && <em className={st.kind}>{st.kind === "gym" && <Dumbbell />}{st.label}</em>}
             </span>
+            {onMessage && canMessage(m.id, v.me) && <button type="button" className="gsm-msg" onClick={() => { sfx.click(); onMessage(m); }} aria-label={`Message ${m.name}`}>Message</button>}
           </li>
         ))}
       </ul>

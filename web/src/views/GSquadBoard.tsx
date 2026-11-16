@@ -12,6 +12,9 @@ import type { SquadView } from "../squad/view";
 import { sfx } from "../ui/sfx";
 import { SharingList } from "./GSquad";
 import { fmtUsd, monthLabel, monthShort, type PastEntry, type PastMonth } from "../core/squadpast";
+import { moneyRows, barShare } from "../core/gsboard";
+import { v3On } from "./GSquadV3";
+import { Avatar } from "./SquadAvatar";
 import "./gsquadboard.css";
 
 /** 3h 12m, 45m, under 1m. */
@@ -51,7 +54,54 @@ function Row({ v, e, right, bar, sub }: { v: SquadView; e: BoardEntry; right?: R
 }
 
 // ---------- Leaderboard ----------
-function Leaderboard({ view }: SquadTabProps) {
+function Leaderboard(p: SquadTabProps) { return v3On() ? <MoneyBoard {...p} /> : <OldLeaderboard {...p} />; }
+
+// PS 1.65 (feature gsquad-v3): money only, as simple as it can be. What you made last month is asked at the top (when it is
+// due), then one list, best first, with Last month, 3 months or 6 months. No tasks done, no past boards, no sharing list
+// (the money switch is in Squad settings, What you share). Your own amounts stay one tap away, folded.
+function MoneyBoard({ view }: SquadTabProps) {
+  const b = view.board;
+  const [mp, setMp] = useState<MoneyPeriod>("1");
+  if (!b) return <p className="gs-note">Loading...</p>;
+  const rows = moneyRows(b.money[mp] ?? []);
+  const exact = b.rules.show === "exact";
+  const max = Math.max(0, ...rows.map((r) => r.amount ?? 0));
+  const months = Number(mp);
+  const names = new Map(view.members.map((m) => [m.id, m]));
+  return (
+    <div className="gsb gsb-money">
+      {b.due && b.mine.on && <AddMonth b={b} month={b.due.month} label={b.due.label} />}
+      <div className="gsb-top">
+        <span className="gs-h">{b.rules.money === "profit" ? "Profit" : "Money made"}</span>
+        <Chips list={MONEY_PERIODS} value={mp} set={setMp} label="Money over" />
+      </div>
+      <ol className="gsb-list gsb-rank">
+        {rows.map((r, i) => {
+          const m = names.get(r.member);
+          const e = (b.money[mp] ?? []).find((x) => x.member === r.member);
+          const share = exact ? barShare(r.amount, max) : null;
+          return (
+            <li key={r.member} className={`gsb-row ${r.state}${isMe(view, r.member) ? " me" : ""}`} style={{ animationDelay: `${Math.min(i, 12) * 28}ms` }}>
+              <span className="gsb-place-n num" aria-label={r.rank ? `${placeLabel(r.rank)} place` : undefined}>{r.rank ?? ""}</span>
+              <Avatar id={r.member} name={m?.name ?? "Someone"} size={40} />
+              <span className="gsb-who">{isMe(view, r.member) ? "You" : m?.name ?? "Someone"}
+                {r.state === "ok" && e && (e.months ?? months) < months && <em>{e.months} of {months} months added</em>}
+                {typeof share === "number" && <i className="gsb-bar" aria-hidden="true"><b style={{ transform: `scaleX(${share})` }} /></i>}
+              </span>
+              <span className="gsb-val num">{r.state === "off" ? <span className="gsb-off">Not shared</span> : r.state === "none" ? <span className="gsb-off">Not added yet</span>
+                : r.amount !== null ? fmtMoney(r.amount, b.rules.currency) : <span className="gsb-off">{r.rank ? placeLabel(r.rank) : ""}</span>}</span>
+            </li>
+          );
+        })}
+      </ol>
+      {!b.loaded && <p className="gs-note">Loading...</p>}
+      <p className="gs-note">{exact ? "Everyone in the squad sees these amounts." : "The squad sees only the order. Your own amount is only shown to you."}</p>
+      <YourMoney b={b} />
+    </div>
+  );
+}
+
+function OldLeaderboard({ view }: SquadTabProps) {
   const b = view.board;
   const [mp, setMp] = useState<MoneyPeriod>("1");
   const [tp, setTp] = useState<TasksPeriod>("month");

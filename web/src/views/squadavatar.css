@@ -11,3 +11,6 @@
 .gsa.t5 { --c: var(--k-bad, #FF5A5A); --on: var(--k-on-bad, #FFFFFF); }
 .gsa.on::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 28%; height: 28%; min-width: 8px; min-height: 8px; border-radius: 50%;
   background: var(--k-ok, #34D399); box-shadow: 0 0 0 2px var(--k-surface, #17121A); }
+/* PS 1.65: a photo fills the circle; the neutral letter colours show only in the Signal style window (gssignal3.css). */
+.gsa.pic { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); overflow: hidden; }
+.gsa.pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }

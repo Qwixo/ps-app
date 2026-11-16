@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import { createPortal } from "react-dom";
 import { registerSquadTab, TAB_ORDER, type SquadTabProps } from "../squad/tabs";
 import { chatNow, chatOp, useChat } from "../squad/chatmirror";
+import { convWords } from "../core/gsconv";
 import { composeStore } from "../squad/chatopen";
 import { badgeText, type ChatLine, type ChatVoteView } from "../squad/chatview";
 import { clockTime, groupChat, GROUP_GAP_MS } from "../squad/chatgroups";
@@ -23,6 +24,8 @@ import { Avatar } from "./SquadAvatar";
 import { About, ChatComposer, sendChat, useComposer, type ReplyDraft } from "./GSquadComposer";
 import { replySnippet } from "../core/squadchat";
 import { EmojiPicker, GifImage, GifPicker, ReactBar } from "./GSquadPickers";
+import { MsgText, v3On } from "./GSquadV3";
+import { bubbleShape } from "../core/gsmsg";
 import "./gschat.css";
 import "./gssignal.css";
 
@@ -62,6 +65,7 @@ function Line({ l, first, last, onEdit, x, rp }: { l: ChatLine; first: boolean; 
   const gif = x ? parseGifMessage(l.t) : null;
   const big = x && !gif ? emojiSize(emojiOnly(l.t)) : "";
   const live = !!x && !l.sending && !l.failed;   // a message not on the hub yet cannot be reacted to
+  const v3 = v3On();                             // PS 1.65: Read more, and the hover buttons never move the message
   const canReply = !l.sending && !l.failed;      // the same for a reply: it needs the original's hub id
   useEffect(() => {
     if (!bar) return;
@@ -72,7 +76,7 @@ function Line({ l, first, last, onEdit, x, rp }: { l: ChatLine; first: boolean; 
   useBack(bar, () => setBar(false));
   const stop = () => { if (press.current !== undefined) { window.clearTimeout(press.current); press.current = undefined; } };
   return (
-    <li className={`gc-line${l.mine ? " mine" : ""}${first ? " first" : ""}${last ? " last" : ""}${l.edited ? " edited" : ""}${l.sending ? " sending" : ""}${l.failed ? " failed" : ""}${bar ? " bar-open" : ""}${l.r?.length ? " has-r" : ""}`} data-id={l.id}>
+    <li data-shape={bubbleShape(first, last)} className={`gc-line${l.mine ? " mine" : ""}${first ? " first" : ""}${last ? " last" : ""}${l.edited ? " edited" : ""}${l.sending ? " sending" : ""}${l.failed ? " failed" : ""}${bar ? " bar-open" : ""}${l.r?.length ? " has-r" : ""}`} data-id={l.id}>
       {!l.mine && <span className="gc-av">{last && <Avatar id={l.from} name={l.name} size={30} />}</span>}
       <div className="gc-col">
         <div className={`gc-bubble${gif ? " gif" : ""}${big ? ` emo emo-${big}` : ""}`}
@@ -99,6 +103,7 @@ function Line({ l, first, last, onEdit, x, rp }: { l: ChatLine; first: boolean; 
           {l.a && <About a={l.a} />}
           {gif
             ? <GifImage url={gif} onLoad={x?.onMedia} />
+            : v3 ? <MsgText t={l.t}><span className="gc-pad" aria-hidden="true" /></MsgText>
             : <span className="gc-text selectable">{l.t}<span className="gc-pad" aria-hidden="true" /></span>}
           <span className="gc-meta">{l.failed ? "Not sent" : l.sending ? "Sending" : `${l.edited ? "edited " : ""}${when(l.at)}`}</span>
         </div>
@@ -215,17 +220,19 @@ export function ChatPanel() {
     if (v.lines.length) placed.current = true;
   }, [v.lines.length, v.lines.at(-1)?.id, v.votes.length, v.note, about, editing, c.reply]);
 
+  const convKind = v.convs?.find((x) => x.id === v.activeConv)?.kind;
+  const words = convWords(convKind);
   const votes = v.votes;
   // The new look also starts a new group after a pause; the classic look groups by sender and day only.
   const items = useMemo(() => groupChat(v.lines, { gapMs: looks.look === "new" ? GROUP_GAP_MS : Infinity }), [v.lines, looks.look]);
   return (
-    <div className={`gc${sig ? " sig" : ""}`} ref={root}>
+    <div className={`gc${sig ? " sig" : ""}${convKind === "dm" ? " dm" : ""}`} ref={root}>
       <div ref={list} className="gc-list" onScroll={(e) => { const el = e.currentTarget; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
         {votes.map((x) => <VoteBox key={x.id} v={x} />)}
         {v.note && <p className="gc-note">{v.note}</p>}
         {v.more && <button type="button" className="gc-older" onClick={() => { atBottom.current = false; chatOp({ op: "older" }); }}>Show older messages</button>}
         {!v.loaded && v.lines.length === 0 && <p className="gc-empty">Opening the chat...</p>}
-        {v.loaded && v.lines.length === 0 && <p className="gc-empty">No messages yet. Say hi to the squad.</p>}
+        {v.loaded && v.lines.length === 0 && <p className="gc-empty">{words.empty}</p>}
         <ul className="gc-lines">
           {items.map((it) => it.kind === "day"
             ? <li key={it.key} className="gc-day" aria-label={it.label}><span>{it.label}</span></li>
@@ -246,14 +253,14 @@ export function ChatPanel() {
       {pick?.k === "react" && <EmojiPicker className="over" style={{ left: pick.at.left, top: pick.at.top }} onClose={() => setPick(null)} onPick={(e) => { chatOp({ op: "react", to: pick.to, e }); setPick(null); }} />}
       {pick?.k === "box" && <EmojiPicker className="dock" onClose={() => setPick(null)} onPick={(e) => { c.insert(e); }} />}
       {pick?.k === "gif" && <GifPicker className="dock" onClose={() => setPick(null)} onPick={(url) => { sendChat(url); atBottom.current = true; setPick(null); }} />}
-      <ChatComposer c={c} ready={v.ready} loaded={v.loaded}
+      <ChatComposer c={c} ready={v.ready} loaded={v.loaded} box={words.box}
         extras={sig ? { emoji: pick?.k === "box", gif: v.gif.on === true ? pick?.k === "gif" : null, onEmoji: () => setPick(pick?.k === "box" ? null : { k: "box" }), onGif: () => setPick(pick?.k === "gif" ? null : { k: "gif" }) } : undefined} />
       {PS && (
         <button type="button" role="switch" aria-checked={v.sound} className={`gc-sound${v.sound ? " on" : ""}`} onClick={() => { sfx.click(); chatOp({ op: "sound", on: !v.sound }); }}>
           <i className="gs-tog" aria-hidden="true"><b /></i>Sound for new messages
         </button>
       )}
-      <p className="gc-foot">End to end encrypted. Only the squad can read these messages.</p>
+      <p className="gc-foot">{words.foot}</p>
     </div>
   );
 }

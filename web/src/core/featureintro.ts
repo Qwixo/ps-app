@@ -93,6 +93,16 @@ export const INTROS: IntroDef[] = [
     choice: true,
   },
   {
+    // PS 1.65 G Squad v3 (words for the owner to approve): one Ok ends it for good (a `choice` with one button: nothing opens). Only for
+    // people in a squad (views/FeatureIntro.tsx DONE_PROBES).
+    id: "gsquad-v3-165",
+    headline: "G Squad has a new look, a bigger window and profile pictures.",
+    ask: "Pull a corner to resize it. Add your picture in Squad settings.",
+    show: "Ok",
+    mark: "spark",
+    choice: true,
+  },
+  {
     // PS 1.65 Receipts (words for the owner to approve): one Ok ends it for good (a `choice` with one button: nothing opens). Only while
     // Receipts is on and the person owns the vault (views/FeatureIntro.tsx DONE_PROBES).
     id: "receipts",
