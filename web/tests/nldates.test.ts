@@ -3,8 +3,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  nlBackspace, nlDismiss, nlOnAdd, nlPicked, nlStart, nlTyped, parseTaskText, reminderOf, settled, SETTLE_MS, stripHits, type NlOpts,
+  cleanTimeRemind, nlAddOpts, nlBackspace, nlDismiss, nlOnAdd, nlPicked, nlRule, nlStart, nlTyped, parseTaskText, reminderOf, settled, SETTLE_MS, stripHits, timeReminder, type NlOpts,
 } from "../src/core/nldates.ts";
+import { quickDefaults } from "../src/core/quickadd.ts";
+import { cleanReminder } from "../src/core/remind.ts";
 import { cleanRepeat, daysLabel, nextAfter, repeatLabel, resetPatch, isDueNow, type Repeat } from "../src/core/repeat.ts";
 
 let n = 0;
@@ -297,6 +299,30 @@ ok("reminderOf: once on its day, repeats on their days", () => {
   assert.deepEqual(reminderOf(parseTaskText("every Monday 9am standup", NOW, TZ)!), { at: "09:00", days: [1] });
   // Every other week: a reminder cannot skip weeks, so it is once, on the first round.
   assert.deepEqual(reminderOf(parseTaskText("gym every other Friday 3pm", NOW, TZ)!), { at: "15:00", date: "2026-11-20" });
+});
+
+ok("cleanTimeRemind: only a real time and a day or days get through (it comes in a message from the floating list)", () => {
+  assert.deepEqual(cleanTimeRemind({ at: "10:00", date: "2026-11-18" }), { at: "10:00", date: "2026-11-18", tz: "" });
+  assert.deepEqual(cleanTimeRemind({ at: "07:00", days: [5, 1, 1, 9, "x"], tz: "Asia/Dubai" }), { at: "07:00", days: [1, 5], tz: "Asia/Dubai" });
+  assert.deepEqual(cleanTimeRemind({ at: "07:00", days: [1], tz: "Not/AZone" }), { at: "07:00", days: [1], tz: "" });
+  for (const bad of [null, "10:00", { at: "25:00", date: "2026-11-18" }, { at: "9:00", date: "2026-11-18" }, { at: "10:00" }, { at: "10:00", days: [] }, { at: "10:00", date: "18/11" }]) assert.equal(cleanTimeRemind(bad), null);
+});
+ok("timeReminder: a reminder on the task at the typed time, three hours of nudges, past midnight too", () => {
+  const r = timeReminder("r1", "task1", { at: "22:30", date: "2026-11-18", tz: "" }, NOW, TZ);
+  assert.equal(r.task, "task1"); assert.equal(r.at, "22:30"); assert.equal(r.until, "01:30"); assert.equal(r.date, "2026-11-18");
+  assert.ok(cleanReminder(r, NOW), "the reminder rules accept it");
+  const w = timeReminder("r2", "task2", { at: "07:00", days: [1, 2, 3, 4, 5], tz: "Asia/Dubai" }, NOW, TZ);
+  assert.equal(w.date, undefined); assert.deepEqual(w.days, [1, 2, 3, 4, 5]); assert.equal(w.tz, "Asia/Dubai");
+  assert.deepEqual(cleanReminder(w, NOW)?.days, [1, 2, 3, 4, 5]);
+});
+ok("the Add task window: the typed words fill in How often, When and Repeats", () => {
+  const o = quickDefaults("2026-11-17");
+  assert.deepEqual(nlAddOpts(o, parseTaskText("Friday deck", NOW, TZ)!), { ...o, when: "date", date: "2026-11-20" });
+  assert.equal(nlAddOpts(o, parseTaskText("gym every day", NOW, TZ)!).kind, "daily");
+  const g = parseTaskText("gym every other Friday", NOW, TZ)!;
+  assert.equal(nlAddOpts(o, g).kind, "repeat");
+  assert.deepEqual(nlRule(g), { kind: "repeat", every: 2, unit: "week", from: "2026-11-20" });
+  assert.equal(nlRule(parseTaskText("Friday deck", NOW, TZ)!), null);
 });
 
 // ---------- the chip's state ----------

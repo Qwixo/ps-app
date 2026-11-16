@@ -1,7 +1,7 @@
 // Dates in plain words in the add boxes (PS 1.65, rules in core/nldates.ts). useNlDates follows one box's text: the words it
 // recognises are painted and shown as a small chip ("Tomorrow, 10:00", "Every other Fri, 15:00") by PrioInput
 // (views/TypedPrio.tsx), Add takes the date, the repeat and the cleaned title, and a click on the chip keeps the words as text.
-// A typed time also puts a reminder on the new task at that time (core/remind.ts reminders on tasks), unless Settings, Your
+// A typed time also puts a reminder on the new task at that time (core/nlremind.ts, sent with the add), unless Settings, Your
 // list, "A typed time adds a reminder" is off. Switch for it all: Settings, Your list, "Dates in plain words" (feature
 // "nl-dates", on by default).
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,10 +11,8 @@ import { nlBackspace, nlDismiss, nlOnAdd, nlPicked, nlStart, nlTyped, parseTaskT
 import { overdueZone } from "../core/overdue";
 import { DAY_ENDS_DEFAULT } from "../core/daylog";
 import { DEVICE_TZ } from "../core/tz";
-import { addTaskReminder, freshId, newTaskReminder, remindOrDefault } from "../core/remind";
-import { remindRec, settingsData } from "../core/select";
-import { saveRemind } from "../core/actions";
-import { isRedAccount } from "../core/account";
+import { settingsData } from "../core/select";
+import type { TimeRemind } from "../core/nlremind";
 import { useVault } from "../ui/kit";
 
 /** The feature switch (Settings, Your list, and From the squad). */
@@ -39,8 +37,8 @@ export type NlCtl = {
   /** After Add: start fresh. */
   reset: () => void;
   backspace: (caret: number | null, selEnd: number | null) => boolean;
-  /** Put the typed time on the new task as a reminder (when the setting allows). */
-  remind: (taskId: string, p: ParsedTask) => void;
+  /** The reminder a typed time asks for, to pass to taskMapActions.add as `remind` (core/nlremind.ts). */
+  reminderFor: (p: ParsedTask) => TimeRemind | null;
   on: boolean;
 };
 
@@ -74,26 +72,16 @@ export function useNlDates(text: string, opts: { once?: boolean } = {}): NlCtl {
     const t = window.setTimeout(() => redraw((n) => n + 1), Math.max(30, SETTLE_MS - idle + 10));
     return () => window.clearTimeout(t);
   });
-  const red = isRedAccount(vault);
   const remindOk = nlRemindOn(st);
   const take = useCallback((t: string) => { const p = parse(t, ref.current); return nlOnAdd(nlTyped(ref.current, t, p), p); }, [on, tz, parseOpts.dayEndsHour]); // eslint-disable-line react-hooks/exhaustive-deps
   const picked = useCallback(() => { ref.current = nlPicked(ref.current); redraw((n) => n + 1); }, []);
   const dismiss = useCallback(() => { ref.current = nlDismiss(ref.current, now); redraw((n) => n + 1); }, [now?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   const reset = useCallback(() => { ref.current = nlStart(); redraw((n) => n + 1); }, []);
   const backspace = useCallback((caret: number | null, selEnd: number | null) => nlBackspace(usable, caret, selEnd), [usable?.key]); // eslint-disable-line react-hooks/exhaustive-deps
-  const remind = useCallback((taskId: string, p: ParsedTask) => {
-    const when = remindOk ? reminderOf(p) : null;
-    if (!when) return;
-    const at = Date.now();
-    const [h, m] = when.at.split(":").map(Number);
-    const end = (h * 60 + m + 180) % 1440;
-    void saveRemind((cur) => {
-      const base = remindOrDefault(cur, red);
-      const r = { ...newTaskReminder(freshId(base), taskId, at, DEVICE_TZ), at: when.at, until: `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`,
-        tz: tz === DEVICE_TZ ? "" : tz, date: when.date, ...(when.days ? { days: when.days } : {}) };
-      const next = addTaskReminder(base, r, at);
-      return next === base ? null : next;
-    }).catch(() => {});
-  }, [remindOk, red, tz]);
-  return { offer: calm ? usable : null, take, picked, dismiss, reset, backspace, remind, on };
+  /** The reminder a typed time asks for, ready for taskMapActions.add (null: no time, or the setting is off). */
+  const reminderFor = useCallback((p: ParsedTask): TimeRemind | null => {
+    const w = remindOk ? reminderOf(p) : null;
+    return w ? { ...w, tz: tz === DEVICE_TZ ? "" : tz } : null;
+  }, [remindOk, tz]);
+  return { offer: calm ? usable : null, take, picked, dismiss, reset, backspace, reminderFor, on };
 }

@@ -63,7 +63,8 @@
 //   Monday" or another date sets when a repeat starts.
 // - Not taken, left as text: "every first Monday of the month", "every last Friday", "every hour", "last Friday",
 //   "every now and then", a bare number, a bare month name, "may", "1/2".
-import { wall } from "./tz.ts";
+import { DEVICE_TZ, validTz, wall } from "./tz.ts";
+import { newTaskReminder, type Reminder } from "./remind.ts";
 import { daysLabel, nextAfter, plusDays, plusMonths, type Repeat, type RepeatDraft, type RepeatUnit } from "./repeat.ts";
 import type { AddOpts } from "./quickadd.ts";
 
@@ -610,6 +611,32 @@ export function reminderOf(p: Pick<ParsedTask, "kind" | "time" | "due" | "repeat
   if (p.kind === "repeat" && r && r.unit === "week" && r.every === 1) return { at: p.time, days: r.days?.length ? [...r.days] : [weekdayOf(r.from)] };
   if (p.kind === "repeat" && r && r.unit === "day" && r.every === 1) return { at: p.time, days: [0, 1, 2, 3, 4, 5, 6] };
   return p.due ? { at: p.time, date: p.due } : null;
+}
+
+// ---------- a typed time as a reminder on the task (core/nlremind.ts adds it) ----------
+/** When it pops up: once on `date`, or on these days of the week (0 Sunday), at `at` ("HH:MM") in `tz` ("" = this device's). */
+export type TimeRemind = { at: string; date?: string; days?: number[]; tz?: string };
+const HM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Clean one from a message. Null when it is not a usable time. */
+export function cleanTimeRemind(v: unknown): TimeRemind | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.at !== "string" || !HM_RE.test(o.at)) return null;
+  const tz = typeof o.tz === "string" && o.tz && validTz(o.tz) ? o.tz : "";
+  if (typeof o.date === "string" && DAY_RE.test(o.date)) return { at: o.at, date: o.date, tz };
+  const days = Array.isArray(o.days) ? [...new Set(o.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) as number[])].sort() : [];
+  return days.length ? { at: o.at, days, tz } : null;
+}
+
+/** The reminder to add: the usual one on a task (Done in one click, three hours of nudges), at the typed time. */
+export function timeReminder(id: string, taskId: string, w: TimeRemind, now: number, deviceTz = DEVICE_TZ): Reminder {
+  const [h, m] = w.at.split(":").map(Number);
+  const end = (h * 60 + m + 180) % 1440;
+  const until = `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+  const base = newTaskReminder(id, taskId, now, deviceTz);
+  return w.date ? { ...base, at: w.at, until, tz: w.tz ?? "", date: w.date } : { ...base, at: w.at, until, tz: w.tz ?? "", date: undefined, days: w.days ?? base.days };
 }
 
 // ---------- the Add task window (core/quickadd.ts) ----------

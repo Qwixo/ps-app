@@ -32,6 +32,7 @@ import { p1AfterMove, prioNumbers } from "../core/prio";
 import { PrioInput, typedPrioOn, useTypedPrio } from "./TypedPrio";
 import { useNlDates } from "./NlDates";
 import type { ParsedTask } from "../core/nldates";
+import type { TimeRemind } from "../core/nlremind";
 import { settingsData } from "../core/select";
 import { renamedPrio, typedEdit, typedOrder, type PrioNum } from "../core/typedprio";
 import { DimxLists, MoveMenu, listsEscape } from "./DimxLists";
@@ -663,8 +664,9 @@ function Board({ prio, aware, dimx, inbox, ready, escRef, view, onClose }: {
   };
 
   // ---------- typing new things in, editing, removing ----------
-  const addTo = (zone: Zone, text: string, prio?: PrioNum, when?: ParsedTask | null): Promise<unknown> | void => {
+  const addTo = (zone: Zone, text: string, prio?: PrioNum, when?: ParsedTask | null, remind?: TimeRemind | null) => {
     const due = when?.kind === "once" ? when.due : null;   // PS 1.65: a date typed in plain words (core/nldates.ts)
+    const r = remind ? { remind } : {};
     const t = text.trim();
     if (!t) return;
     const cur = vRef.current;
@@ -682,11 +684,12 @@ function Board({ prio, aware, dimx, inbox, ready, escRef, view, onClose }: {
         const numbered = cur.prio.filter((p) => !p.p1 && !p.unranked).length;
         const index = at.p1 ? group : group + Math.min(prio - 2, numbered);
         keep({ prio: insertAt(cur.prio, { id: `pending-${uid()}`, title: t, pending: true, p1: at.p1 }, index) });
-        return taskMapActions.add({ title: t.slice(0, 500), due, type: "once", order: at.order, p1: at.p1 });
+        void taskMapActions.add({ title: t.slice(0, 500), due, type: "once", order: at.order, p1: at.p1, ...r });
+        return;
       }
       const order = orderAt(cur.prio.length);
       keep({ prio: [...cur.prio, { id: `pending-${uid()}`, title: t, pending: true }] });
-      return taskMapActions.add({ title: t.slice(0, 500), due, type: "once", order });
+      void taskMapActions.add({ title: t.slice(0, 500), due, type: "once", order, ...r });
     }
   };
   const rename = (card: Card, text: string) => {
@@ -919,7 +922,7 @@ function Board({ prio, aware, dimx, inbox, ready, escRef, view, onClose }: {
             ))}
             {!cards.prio.length && !(drag?.to === "prio") && <p className="dx-empty">Nothing on your list. Drag a card here.</p>}
           </div>
-          <PrioAddBox placeholder="Add a task" onAdd={(t, p, w) => addTo("prio", t, p, w)} />
+          <PrioAddBox placeholder="Add a task" onAdd={(t, p, w, r) => addTo("prio", t, p, w, r)} />
         </section>
       </aside>
       {menu && menuCard && (
@@ -1045,7 +1048,7 @@ function AddBox({ placeholder, onAdd }: { placeholder: string; onAdd: (t: string
 }
 
 /** The Add a task box under the list: P1, P2 or P3 typed in it sets the priority (core/typedprio.ts, V1.40). */
-function PrioAddBox({ placeholder, onAdd }: { placeholder: string; onAdd: (t: string, prio?: PrioNum, when?: ParsedTask | null) => Promise<unknown> | void }) {
+function PrioAddBox({ placeholder, onAdd }: { placeholder: string; onAdd: (t: string, prio?: PrioNum, when?: ParsedTask | null, remind?: TimeRemind | null) => void }) {
   const [text, setText] = useState("");
   const tp = useTypedPrio(text);
   // PS 1.65: a one-off date typed in plain words sets the due (this list holds no repeats).
@@ -1060,9 +1063,8 @@ function PrioAddBox({ placeholder, onAdd }: { placeholder: string; onAdd: (t: st
         const t = typed ? typed.title : base;
         if (!t.trim()) return;
         e.preventDefault();
-        const id = onAdd(t, typed?.prio, when);
+        onAdd(t, typed?.prio, when, when?.time ? nl.reminderFor(when) : null);
         setText(""); tp.reset(); nl.reset();
-        if (when?.time) void Promise.resolve(id).then((x) => { if (typeof x === "string") nl.remind(x, when); }).catch(() => {});
       }} />
   );
 }

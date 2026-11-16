@@ -32,6 +32,7 @@ import { typedEdit, typedOrder } from "../core/typedprio";
 import { PrioInput, useTypedPrio } from "./TypedPrio";
 import { useNlDates } from "./NlDates";
 import { nlAddOpts, nlRule } from "../core/nldates";
+import { addTimeReminder, type TimeRemind } from "../core/nlremind";
 import { addTodo, approveSuggestion, awareDone, awareToList, awareUndone, suggestionToAware, suggestionToDimx, resetTodos, deleteTodo, noteDimxMove, dismissSuggestion, saveSettings, setReplyHandled, setTodoOrder, setWorkingOn, subtaskOp, toggleTodo, setTodoDone, setTodosDone, clearTodos, reviveTodos, buryTodos, restoreTodo, updateTodo, moveTasks, ungroupTasks, setDnd, setJournal } from "../core/actions";
 import { accepts, cleanGroups, dropAbovePrioIsP1, groupKey, hitSection, mergeOrder, newGroupId, sectionOrder, tabLists, type TabLists, type TaskMove } from "../core/groups";
 import { fmtDate, todayISO, useVault } from "../ui/kit";
@@ -230,7 +231,8 @@ export const taskMapActions: {
   dimx: (list: DimxItem[]) => Promise<unknown>;
   editing: (on: boolean) => void; clearClipboard: () => Promise<unknown>;
   headline: (text: string) => Promise<unknown>;
-  add: (t: { title: string; due: string | null; type: Todo["type"]; order?: number; repeat?: Repeat | null; p1?: boolean; clientId?: string | null; notes?: string | null; unranked?: boolean; sqOn?: boolean; sqAnon?: boolean; group?: string | null }) => Promise<unknown>;
+  add: (t: { title: string; due: string | null; type: Todo["type"]; order?: number; repeat?: Repeat | null; p1?: boolean; clientId?: string | null; notes?: string | null; unranked?: boolean; sqOn?: boolean; sqAnon?: boolean; group?: string | null;
+    remind?: TimeRemind | null }) => Promise<unknown>;   // remind: PS 1.65, a typed time (core/nlremind.ts), added once the task has its id
   sound: (patch: { tmSound?: number; tmMuted?: boolean }) => Promise<unknown>;
   homeTz: (id: string | null) => Promise<unknown>;
   timelines: (list: TimelineItem[]) => Promise<unknown>;
@@ -311,7 +313,11 @@ export const taskMapActions: {
   timelines: (list) => saveSettings({ timelines: list }),
   homeTz: (id) => saveSettings({ tmHomeTz: id }),
   headline: (text) => saveSettings({ tmHeadline: text }),
-  add: (t) => addTodo({ ...t, order: t.order ?? undefined }),
+  add: async ({ remind, ...t }) => {
+    const id = await addTodo({ ...t, order: t.order ?? undefined });
+    if (remind && typeof id === "string") void addTimeReminder(id, remind);
+    return id;
+  },
   sound: (patch) => saveSettings(patch),
   tick: (id, done) => (typeof done === "boolean" ? setTodoDone(id, done) : toggleTodo(id)),
   tickMany: (ids, done) => setTodosDone(ids, done),
@@ -1968,6 +1974,7 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
       ...(sq.sqOn ? { sqOn: true } : {}), ...(typeof sq.sqAnon === "boolean" ? { sqAnon: sq.sqAnon } : {}),
       // V1.55: typed while one of the developer's own lists shows: it joins that list's group, at its end (views/ListPager.tsx).
       ...(addGroupHere(sh.type) ? { group: addGroupHere(sh.type), order: undefined } : {}),
+      ...(typedN?.time ? { remind: nl.reminderFor(typedN) } : {}),
     });
     sfx.drop();
     // Clear at once and keep the keyboard: the next one can be typed straight away. Advanced was for this task only.
@@ -1975,7 +1982,7 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
     if (el) { el.value = ""; if (document.activeElement !== el) el.focus({ preventScroll: true }); el.setSelectionRange(0, 0); }
     setO(quickDefaults(todayISO())); setRule(freshRule()); setAdv(false); tp.reset(); nl.reset(); setSq({ sqOn: false });
     setAdded((a) => ({ n: (a?.n ?? 0) + 1, last: v }));
-    void Promise.resolve(id).then((x) => { if (typeof x === "string") { showRow(x); if (typedN?.time) nl.remind(x, typedN); } }).catch(() => {});
+    void Promise.resolve(id).then((x) => { if (typeof x === "string") showRow(x); }).catch(() => {});
   };
   const keys = (e: React.KeyboardEvent) => {
     const t = e.target as HTMLElement;

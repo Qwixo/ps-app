@@ -17,7 +17,7 @@
 @keyframes tp-mark-in { from { opacity: 0; } }
 
 /* The chips sit together at the right end (PS 1.65: the date chip, then the priority one). */
-.tp-chips { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 64px); pointer-events: none; }
+.tp-chips { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 6px; max-width: min(60%, calc(100% - 64px)); pointer-events: none; }
 .tp-chips > * { pointer-events: auto; }
 .tp-chip {
   position: relative; flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: calc(5px * var(--k-dn, 1)); white-space: nowrap;
