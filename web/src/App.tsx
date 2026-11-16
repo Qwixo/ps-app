@@ -112,6 +112,10 @@ function route(): "demo" | "join" | "join-owner" | "app" | "overlay" | "campaign
     });
     return "app";
   }
+  if (import.meta.env.DEV && p === "/dev-purchases") {   // the Purchases screen with made up receipts (src/dev/receipts-fake.ts)
+    void Promise.all([import("./dev/fake"), import("./dev/receipts-fake"), import("./core/vault"), import("./core/features")]).then(([f, r, v, ft]) => { v.__devLoad([...f.fakeDocs(), ...r.fakeReceipts()]); (window as unknown as { __dbg: unknown }).__dbg = () => ({ on: ft.feature("receipts"), reg: ft.registry().length, st: v.vaultStore.get().status }); setTimeout(() => void import("./views/Purchases").then((pu) => pu.openPurchases()), 1500); });
+    return "app";
+  }
   if (import.meta.env.DEV && p === "/dev-expics") return "expics";
   if (p === "/demo") return "demo";
   if (p === "/join") return "join";

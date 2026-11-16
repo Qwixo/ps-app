@@ -107,6 +107,25 @@ val checkTesseractAar = tasks.register("checkTesseractAar") {
 }
 tasks.named("preBuild") { dependsOn(checkTesseractAar) }
 
+// Receipt scan (PS 1.65): the reading models bundled in assets/tessdata must be exactly the files from tesseract-ocr/tessdata_fast at
+// commit 87416418657359cb625c412a48b6e1d6d41c29bd (docs/receipt-scan.md). Nothing is downloaded at build or run time.
+val tessdataSha256 = mapOf(
+    "kat.traineddata" to "557abb6f1c68bc1b286f1bdd00bb6b82f85a427a91899807dab6c2f6c7986731",
+    "eng.traineddata" to "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2",
+    "deu.traineddata" to "19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d",
+)
+val checkTessdata = tasks.register("checkTessdata") {
+    val dir = file("src/main/assets/tessdata")
+    inputs.dir(dir)
+    doLast {
+        for ((name, want) in tessdataSha256) {
+            val got = MessageDigest.getInstance("SHA-256").digest(File(dir, name).readBytes()).joinToString("") { "%02x".format(it) }
+            check(got == want) { "assets/tessdata/$name is not the pinned file (sha256 $got)" }
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(checkTessdata) }
+
 // Gym scan: the developer's phone is arm64, so the release leaves the emulator's x86_64 copy of the text reader out (about 8 MB).
 androidComponents {
     onVariants(selector().withBuildType("release")) { it.packaging.jniLibs.excludes.add("lib/x86_64/**") }

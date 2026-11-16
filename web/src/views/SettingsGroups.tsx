@@ -24,6 +24,8 @@ import { onUnlessOff } from "../core/offswitches";
 import { rewindOn } from "../core/rewind";
 import { setRewindOn } from "../rewind";
 import { RewindBody } from "./RewindSettings";
+import { CURRENCIES } from "../core/receiptparse";
+import { defaultCurrency } from "../core/receipts";
 import { hasExamples } from "../core/examples";
 import type { Settings } from "../core/model";
 import type { Go, SetEntry, Where } from "../core/settingsindex";
@@ -323,6 +325,19 @@ export const CONTROLS: Controls = {
 
   // Privacy and sharing (open source build): the "PS app is open" presence channel (src/ps.ts startPsPresence)
   "ps-presence": function PsPresence({ e }) { return <SyncedOnOff e={e} field="psPresence" />; },
+  // Receipts and Purchases (PS 1.65): the switch, and the currency a new receipt starts with (views/Purchases.tsx)
+  "receipts": function ReceiptsRow({ e }) {
+    const v = useVault();
+    const st = settingsData(v);
+    const on = onUnlessOff(st.receipts);
+    return <SetRow e={e} right={<OnOff label={e.name} on={on} ready={v.status === "unlocked"} set={(x) => save({ receipts: x })} />} body={on ? (
+      <div className="gs-rewind stack" style={{ gap: 8 }}>
+        <p className="gs-set-note">On. Scan a receipt on your phone, then open Purchases in the Tab list. Nothing leaves your devices.</p>
+        <label className="gs-set-note" style={{ display: "flex", gap: 8, alignItems: "center" }}>New receipts start in
+          <select value={defaultCurrency(st.receiptCur)} onChange={(ev) => save({ receiptCur: ev.target.value })}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+        </label>
+      </div>) : <p className="gs-set-note">Off. The Purchases button is hidden. Your saved receipts stay where they are.</p>} open />;
+  },
   // Rewind (PS 1.64): public, on unless switched off; the line says what it keeps, Delete my Rewind data under it (views/RewindSettings.tsx)
   "rewind": function Rewind({ e }) {
     const v = useVault();

@@ -260,6 +260,7 @@ object WebHost {
         if (type.startsWith("sleep:")) Plog.i("sleep: got $type (running=${Sleep.running(c)})")   // V1.41: each Sleep mode message in the log
         if (TgBot.handle(c, type, m, ::post)) return   // tg:* Add Telegram Bot (TgBot.kt, V1.47): the key in the Keystore, the relay on its own threads
         if (GymScan.handle(c, type, m, ::post)) return   // gymscan:* Gym scan (GymScan.kt, V1.59): reads a label on its own thread
+        if (ReceiptScan.handle(c, type, m, ::post)) return   // receiptscan:* Receipt scan (ReceiptScan.kt, PS 1.65): reads a receipt on its own thread
         when (type) {
             "ready" -> hello()
             "log" -> Plog.i("web: " + m.optString("text"))

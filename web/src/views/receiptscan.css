@@ -1,0 +1,54 @@
+/* Receipts (PS 1.65, views/ReceiptScan.tsx): the check screen and the phone camera. Thin and calm, like Purchases. */
+.rs-layer { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; color: var(--k-fg, #FFFFFF); font-size: calc(13px * var(--k-fs, 1)); animation: rs-in .16s ease-out; }
+.rs-dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); }
+.rs-sheet { position: relative; width: min(860px, calc(100vw - 24px)); max-height: calc(100vh - 24px); display: flex; flex-direction: column; border-radius: calc(18px * var(--k-rd, 1)); background: var(--k-surface, #17121A); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, transparent); overflow: hidden; }
+.rs-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); font-size: calc(14px * var(--k-fs, 1)); }
+.rs-x { border: 0; background: transparent; color: inherit; font-size: 22px; line-height: 1; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; opacity: .7; }
+.rs-x:hover { opacity: 1; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); }
+.rs-x.sm { font-size: 18px; width: 24px; height: 24px; }
+.rs-body { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; padding: 14px 16px; overflow: auto; min-height: 0; }
+.rs-pic { margin: 0; border-radius: calc(12px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 4%, transparent); display: flex; align-items: flex-start; justify-content: center; min-height: 160px; max-height: 70vh; overflow: auto; }
+.rs-pic img { width: 100%; height: auto; display: block; }
+.rs-pic figcaption { align-self: center; opacity: .55; padding: 20px; text-align: center; font-size: calc(12px * var(--k-fs, 1)); }
+.rs-form { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.rs-note { margin: 0; opacity: .6; font-size: calc(12px * var(--k-fs, 1)); }
+.rs-warn { margin: 0; color: #FFC36B; font-size: calc(12px * var(--k-fs, 1)); }
+.rs-row { display: grid; grid-template-columns: 1.3fr 1fr .8fr; gap: 8px; }
+.rs-f { display: grid; gap: 3px; min-width: 0; }
+.rs-f > span { font-size: calc(10.5px * var(--k-fs, 1)); text-transform: uppercase; letter-spacing: .08em; opacity: .6; }
+.rs-form input, .rs-form select { font: inherit; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 18%, transparent); border-radius: calc(9px * var(--k-rd, 1)); padding: 6px 9px; min-width: 0; width: 100%; box-sizing: border-box; }
+.rs-form select option { color: #111; }
+.rs-form input:focus, .rs-form select:focus { outline: none; border-color: var(--k-acc, #EC4E86); }
+.rs-f.bad input, .rs-ir input.bad { border-color: #FF8A8F; }
+.rs-items { display: grid; gap: 5px; }
+.rs-ih, .rs-ir { display: grid; grid-template-columns: minmax(0, 1fr) 54px 84px 24px; gap: 6px; align-items: center; }
+.rs-ih span { font-size: calc(10.5px * var(--k-fs, 1)); text-transform: uppercase; letter-spacing: .08em; opacity: .6; }
+.rs-link { justify-self: start; border: 0; background: transparent; color: var(--k-info-t, #A5D8FF); font: inherit; font-size: calc(12px * var(--k-fs, 1)); cursor: pointer; text-decoration: underline; padding: 2px 0; }
+.rs-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); flex-wrap: wrap; }
+.rs-gap { flex: 1; }
+.rs-sure { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: calc(12px * var(--k-fs, 1)); }
+.rs-b { border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 20%, transparent); background: transparent; color: inherit; font: inherit; font-size: calc(12.5px * var(--k-fs, 1)); padding: 6px 13px; border-radius: calc(10px * var(--k-rd, 1)); cursor: pointer; }
+.rs-b:hover:not(:disabled) { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); }
+.rs-b.on { background: var(--k-acc, #EC4E86); border-color: transparent; color: #fff; }
+.rs-b.danger { background: #B4232C; border-color: transparent; color: #fff; }
+.rs-b.quiet { border-color: transparent; opacity: .7; }
+.rs-b:disabled { opacity: .45; cursor: default; }
+/* the phone camera */
+.rs-cam { background: #000; flex-direction: column; justify-content: flex-end; }
+.rs-cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rs-say { position: relative; margin: 0 0 12px; padding: 8px 14px; border-radius: 12px; background: rgba(0, 0, 0, .55); color: #fff; max-width: calc(100% - 32px); text-align: center; font-size: 13px; }
+.rs-say.bad { color: #FFC36B; }
+.rs-camfoot { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; box-sizing: border-box; padding: 12px 20px calc(18px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, rgba(0, 0, 0, .7)); }
+.rs-cam .rs-b { background: rgba(0, 0, 0, .45); color: #fff; border-color: rgba(255, 255, 255, .35); }
+.rs-shoot { width: 76px; height: 76px; border-radius: 50%; border: 3px solid #fff; background: rgba(255, 255, 255, .18); color: #fff; font: inherit; font-weight: 650; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.rs-shoot:disabled { opacity: .5; }
+.rs-spin { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: rs-spin .8s linear infinite; }
+@keyframes rs-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rs-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .rs-layer { animation: none; } .rs-spin { animation-duration: 2.4s; } }
+@media (max-width: 720px) {
+  .rs-sheet { width: 100vw; max-height: 100vh; border-radius: 0; height: 100vh; }
+  .rs-body { grid-template-columns: 1fr; }
+  .rs-pic { max-height: 32vh; }
+  .rs-row { grid-template-columns: 1fr 1fr; }
+}

@@ -92,6 +92,16 @@ export const INTROS: IntroDef[] = [
     choice: true,
   },
   {
+    // PS 1.65 Receipts (words for the owner to approve): one Ok ends it for good (a `choice` with one button: nothing opens). Only while
+    // Receipts is on and the person owns the vault (views/FeatureIntro.tsx DONE_PROBES).
+    id: "receipts",
+    headline: "New: scan receipts and see what you spend.",
+    ask: "Scan a receipt with your phone. Then open Purchases in the Tab list.",
+    show: "Ok",
+    mark: "spark",
+    choice: true,
+  },
+  {
     // PS 1.60 (pull request 12b). Only for people who said No or have not answered (views/FeatureIntro.tsx DONE_PROBES, core/screenrecmeet.ts introAudience).
     id: "screenrec",
     headline: SR_INTRO.headline,
