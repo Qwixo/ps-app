@@ -31,6 +31,7 @@ import { relayoutNow } from "./ui/relayout";
 import { bgDesign, p1Color, p1Design } from "./core/prio";
 import { bgBright } from "./core/bgbright";
 import { cleanPicks, cleanName as cleanDevName } from "./core/devicebg";
+import { setDeviceNameHint } from "./devicebeat";
 import { cleanCrops } from "./core/bgcrop";
 import { rainAmount, rainKind } from "./core/rain";
 import { nbDesign } from "./core/notebook";
@@ -874,7 +875,7 @@ export function startPsBridge() {
       else if (m.type === "wake") { reconnect(); gymWake(); remWake(); boardWake(); calRefreshIfStale(); }   // the Mac woke: a fresh Realtime socket and a sync; the gym card looks again; the calendar when over a minute old
       else if (m.type === "replyHandled" && typeof m.id === "string") void setReplyHandled(m.id, true);
       else if (m.type === "tap") { tapOn = !!m.on; retrack(); }
-      else if (m.type === "psSettings") { const hadRem = !!psSettings; psSettings = m.data; settingsListeners.forEach((l) => l()); remWake(!hadRem); rewindAys((m.data as { ays?: { today?: unknown } })?.ays?.today); }   // Rewind: today's Are you sure count (src/rewind.ts)
+      else if (m.type === "psSettings") { const hadRem = !!psSettings; psSettings = m.data; { const hn = cleanDevName((m.data as { hostName?: unknown })?.hostName); if (hn) setDeviceNameHint(hn); } settingsListeners.forEach((l) => l()); remWake(!hadRem); rewindAys((m.data as { ays?: { today?: unknown } })?.ays?.today); }   // Rewind: today's Are you sure count (src/rewind.ts)
       else if (m.type === "tab") { tabState = { enabled: m.enabled, trusted: m.trusted }; tapOn = !!m.on; retrack(); settingsListeners.forEach((l) => l()); }
       else if (m.type === "rememberStatus") { remembered = m.exists; touchLocked = m.locked === true; setPsKeepOpen(m.exists); settingsListeners.forEach((l) => l()); }
       else if (m.type === "touchid") { touchMissed = Date.now(); settingsListeners.forEach((l) => l()); }
@@ -1102,6 +1103,8 @@ export interface PsSettings {
   triggerKey?: "tab" | "rightOption"; screenTime?: boolean;
   /** Security, "Remind me to set up the restart helper" (ps-mac HelperAlert.swift, UserDefaults helperAlert.remind): on unless switched off. */
   helperRemind?: boolean;
+  /** This Mac's own computer name (PS 1.65, for the device list in Settings, Looks). */
+  hostName?: string;
   /** V1.47 Tab overlay shortcuts (core/openkeys.ts, ps-mac OpenKeysCore.swift): the list in use (custom false: the old
    *  settings as a list, never changed), what each key code types on this Mac's layout, and which combos (their place
    *  among the combos) another app already holds. */

@@ -1040,6 +1040,8 @@ export async function beatDevice(id: { dev: string; kind: Dev.DevKind; name: str
   if (!Dev.shouldBeat(prev, id)) return;
   await put<Dev.Device>("bgdev", Dev.beatRecord(prev, id), { id: mine[0]?.id, ws: null });
   for (const d of mine.slice(1)) await remove(d.id);   // a second copy from two writes at once
+  // Records of devices not seen for 90 days are deleted now, so private windows and cleared storage do not pile them up.
+  for (const sid of Dev.staleIds(docs<unknown>("bgdev", null).map((d) => ({ id: d.id, data: d.data })))) await remove(sid).catch(() => {});
 }
 /** The person renames a device (empty goes back to the default name). */
 export async function renameDevice(dev: string, name: string): Promise<void> {

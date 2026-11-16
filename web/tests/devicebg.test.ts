@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import {
   BEAT_HOURS, DEVICES_MAX, ID_KEY, MARK_DAYS, PICKS_MAX, STALE_DAYS, applyTick, beatRecord, cleanDevice, cleanPicks, deviceId, deviceKind, devicesOf,
-  effective, forgetMemoryId, hasPicks, mergePicks, pickOf, renamed, rows, shouldBeat, ticks, uaName, withPick, withoutPicks, type Device,
+  effective, forgetMemoryId, hasPicks, mergePicks, pickOf, renamed, rows, shouldBeat, ticks, uaName, withPick, withoutPicks, followPicks, resetPatch, staleIds, tilePicks, type Device,
 } from "../src/core/devicebg.ts";
 import { mergeSettings } from "../src/core/cardsync.ts";
 import type { Settings } from "../src/core/model.ts";
@@ -171,4 +171,41 @@ ok("the device id: random, 16 letters or digits, kept in storage, survives a sto
   assert.match(deviceId(null), /^[a-z0-9]{16}$/);
 });
 
+
+ok("a tile click never makes a pick for a device that has none (the shared background is written as before)", () => {
+  assert.equal(tilePicks(undefined, mac.dev, "color:x", valid, NOW), null);
+  assert.equal(tilePicks({ [phone.dev]: { b: "none", t: NOW } }, mac.dev, "color:x", valid, NOW), null);
+  assert.equal(tilePicks({ [mac.dev]: { b: null, t: NOW } }, mac.dev, "color:x", valid, NOW), null);
+  assert.equal(tilePicks({ [mac.dev]: { b: "video:gone", t: NOW } }, mac.dev, "color:x", valid, NOW), null);
+});
+ok("a tile click moves the pick a device already has and keeps the others", () => {
+  const cur = { [mac.dev]: { b: "none", t: NOW - 5 }, [phone.dev]: { b: "color:y", t: NOW - 5 } };
+  const next = tilePicks(cur, mac.dev, "color:x", valid, NOW)!;
+  assert.equal(next[mac.dev].b, "color:x");
+  assert.equal(next[phone.dev].b, "color:y");
+});
+ok("a replaced video: picks of the old copy move to the new one, others stay, nothing to do returns null", () => {
+  const cur = { [mac.dev]: { b: "video:old", t: NOW - 5 }, [phone.dev]: { b: "color:y", t: NOW - 5 } };
+  const next = followPicks(cur, "video:old", "video:new", NOW)!;
+  assert.equal(next[mac.dev].b, "video:new");
+  assert.equal(next[phone.dev].b, "color:y");
+  assert.equal(followPicks(cur, "video:zzz", "video:new", NOW), null);
+  assert.equal(followPicks(undefined, "video:old", "video:new", NOW), null);
+});
+ok("same background everywhere: the shared background becomes the one on screen, every pick is removed", () => {
+  const cur = { [mac.dev]: { b: "none", t: NOW - 5 }, [phone.dev]: { b: "color:y", t: NOW - 5 } };
+  const r = resetPatch(cur, "color:y", NOW);
+  assert.equal(r.tmBg, "color:y");
+  assert.equal(r.tmBgDev[mac.dev].b, null);
+  assert.equal(r.tmBgDev[phone.dev].b, null);
+  assert.equal(resetPatch(cur, undefined, NOW).tmBg, "none");
+});
+ok("device records not seen for 90 days are listed for deletion, current and broken ones are not", () => {
+  const recs = [
+    { id: "a", data: { ...mac, seen: ago(24 * 100) } },
+    { id: "b", data: { ...phone, seen: ago(24 * 10) } },
+    { id: "c", data: { junk: true } },
+  ];
+  assert.deepEqual(staleIds(recs, NOW), ["a"]);
+});
 console.log(`${n} passed`);

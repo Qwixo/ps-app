@@ -8,9 +8,9 @@ import type { Settings } from "../core/model";
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { bgDevices } from "../core/select";
-import { applyTick, cleanName, hasPicks, pickOf, rows, ticks, withoutPicks, NAME_MAX } from "../core/devicebg";
+import { applyTick, cleanName, hasPicks, pickOf, rows, ticks, resetPatch, NAME_MAX } from "../core/devicebg";
 import { deviceBgOn, thisDevId, tickMode } from "../devicebgnow";
-import { isBg, shownBg } from "./BgFit";
+import { isBg, shownBg, PHONE_BG } from "./BgFit";
 import { PS, psInOverlay, psPost } from "../ps";
 import { renameDevice } from "../core/actions";
 import { taskMapActions } from "./TaskMap";
@@ -77,7 +77,7 @@ export function DeviceBg({ st }: { st: Settings }) {
         ))}
       </ul>
       {hasPicks(st.tmBgDev, isBg) && (
-        <div className="ms-fit-btns"><button type="button" className="btn quiet sm" onClick={() => { sfx.click(); save(withoutPicks(st.tmBgDev)); }}>{DEVICE_WORDS.reset}</button></div>
+        <div className="ms-fit-btns"><button type="button" className="btn quiet sm" onClick={() => { sfx.click(); void taskMapActions.looks({ ...resetPatch(st.tmBgDev, bg), ...(PHONE_BG ? { tmBgPhone: null } : {}) }); }}>{DEVICE_WORDS.reset}</button></div>
       )}
     </section>
   );

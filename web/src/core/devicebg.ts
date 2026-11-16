@@ -185,6 +185,31 @@ export function applyTick(picks: unknown, dev: string, bg: string, on: boolean, 
   return withPick(picks, dev, on ? bg : null, now);
 }
 
+/** A background tile clicked on this device: only a device that already has a pick of its own moves it (the shared background is always written by the caller). */
+export function tilePicks(picks: unknown, dev: string, bg: string, valid: (bg: string) => boolean, now = Date.now()): Picks | null {
+  return pickOf(picks, dev, valid) === null ? null : withPick(picks, dev, bg, now);
+}
+
+/** A video was replaced by a new copy: every pick of the old one moves to the new one (null: none did). */
+export function followPicks(picks: unknown, from: string, to: string, now = Date.now()): Picks | null {
+  const cur = cleanPicks(picks, now);
+  const hit = Object.keys(cur).filter((k) => cur[k].b === from);
+  if (!hit.length) return null;
+  const out: Record<string, Pick> = { ...cur };
+  for (const k of hit) out[k] = { b: to, t: now };
+  return cleanPicks(out, now);
+}
+
+/** "Same background on every device": every pick removed and the shared background becomes the one on screen. */
+export function resetPatch(picks: unknown, shown: string | null | undefined, now = Date.now()): { tmBgDev: Picks; tmBg: string } {
+  return { tmBgDev: withoutPicks(picks, now), tmBg: typeof shown === "string" && shown ? shown : "none" };
+}
+
+/** Which device records are old enough to delete (not seen for STALE_DAYS, or not a record at all is left alone). */
+export function staleIds(recs: { id: string; data: unknown }[], now = Date.now()): string[] {
+  return recs.filter((r) => { const d = cleanDevice(r.data); return !!d && now - Date.parse(d.seen) > STALE_DAYS * DAY; }).map((r) => r.id);
+}
+
 /** A device id: random, kept in that device's own storage, never anything that identifies the hardware. */
 export interface Store { getItem(k: string): string | null; setItem(k: string, v: string): void }
 export const ID_KEY = "ps.device.id";

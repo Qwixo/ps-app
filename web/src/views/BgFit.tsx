@@ -14,10 +14,8 @@ import { look, newWatch, type Watch } from "../core/bgwatch";
 import { useVaultVideos } from "../core/bgvault";
 import { gosPost } from "../gos/bridge";
 import { sfx } from "../ui/sfx";
-import { deviceShown, thisDevId, tickMode } from "../devicebgnow";
-import { withPick } from "../core/devicebg";
-import { bgDevices } from "../core/select";
-import { vaultStore } from "../core/vault";
+import { deviceBgOn, deviceShown, thisDevId } from "../devicebgnow";
+import { tilePicks } from "../core/devicebg";
 import { useBgVideos } from "../ps";
 
 /** A phone: PS GOS, or the iPhone web app (src/mobile/boot.ts sets the flag before any of this loads). */
@@ -28,13 +26,14 @@ export const isBg = (v: string) => bgDesign(v) === v;
 export function shownBg(st: Settings): string | null | undefined {   // PS 1.65: this device's own pick first (core/devicebg.ts), else what it always showed
   return deviceShown(st.tmBgDev, isBg, PHONE_BG ? phoneBg(st, isBg) : st.tmBg);
 }
-/** A background picked on this device: saved where this device reads it. PS 1.65 (core/devicebg.ts): once the account has a
- *  second device (or a device pick already), a pick is this device's own pick, so the others keep theirs; Settings, Looks
- *  then lets the person tick more devices. Before that, or with the feature off, exactly as before. */
+/** A background picked on this device: saved exactly as before (the shared background, or the phone's own), so phones and
+ *  older PS copies that follow it keep following. PS 1.65 (core/devicebg.ts): a device that already has a pick of its own
+ *  (ticked in Settings, Looks) also moves that pick. Per device picks otherwise come only from the tick list. */
 export function bgPatch(st: Settings, id: string): Partial<Settings> {
-  const picks = st.tmBgDev;
-  if (tickMode(bgDevices(vaultStore.get()).length, picks, isBg)) return { tmBgDev: withPick(picks, thisDevId(), id) };
-  return { [bgKey(st, PHONE_BG, isBg)]: id };
+  const out: Partial<Settings> = { [bgKey(st, PHONE_BG, isBg)]: id };
+  const own = deviceBgOn() ? tilePicks(st.tmBgDev, thisDevId(), id, isBg) : null;
+  if (own) out.tmBgDev = own;
+  return out;
 }
 
 /** One line in the phone's log (PS GOS writes it to its own log file; the iPhone web app has none). */

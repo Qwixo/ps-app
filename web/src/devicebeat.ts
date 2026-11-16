@@ -8,7 +8,8 @@ import { deviceBgOn, thisDevId, thisKind } from "./devicebgnow";
 
 let hint = "";
 /** The phone app gives its model name ("Pixel 8") for a better default name than "Android phone". */
-export function setDeviceNameHint(name: string) { hint = name; }
+let recheck: (() => void) | null = null;
+export function setDeviceNameHint(name: string) { if (name === hint) return; hint = name; recheck?.(); }   // a name that arrives later (the Mac) is written too
 
 let started = false, timer: number | undefined, done = "", doneAt = 0;
 export function startDeviceBeat(): void {
@@ -26,6 +27,7 @@ export function startDeviceBeat(): void {
       void beatDevice({ dev: thisDevId(), kind, name }).then(() => { done = key; doneAt = Date.now(); }).catch(() => {});
     }, 4000);
   };
+  recheck = check;
   vaultStore.subscribe(check);
   document.addEventListener("visibilitychange", check);
   check();

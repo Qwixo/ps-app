@@ -852,6 +852,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { $0.deletingPathExtension().lastPathComponent } ?? id
     }
     d["triggerKey"] = w.triggerKey
+    if let h = Host.current().localizedName, !h.isEmpty { d["hostName"] = String(h.prefix(60)) }   // PS 1.65: this Mac's own name for the device list (Settings, Looks)
     d["shortcuts"] = shortcutsJSON()
     let k = KeyLayout.slashKeys()
     d["slashChord"] = w.slashOn

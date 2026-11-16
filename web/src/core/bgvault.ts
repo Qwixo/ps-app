@@ -32,6 +32,7 @@ import { saveSettings } from "./actions";
 import { settingsData } from "./select";
 import { isRedAccount } from "./account";
 import { bgKey, followReplaced } from "./bgcrop";
+import { followPicks } from "./devicebg";
 import { bgDesign } from "./prio";
 import type { Settings } from "./model";
 
@@ -232,6 +233,8 @@ async function store(buf: Uint8Array, name: string, type: string, from?: string,
     if (replaced && (settingsData(vaultStore.get()) as { tmBg?: string }).tmBg === `video:${replaced.id}`) patch.tmBg = `video:${id}`;
     // V1.47: the phone's own pick and its crop (core/bgcrop.ts) follow the new copy too.
     if (replaced) Object.assign(patch, followReplaced(settingsData(vaultStore.get()) as Settings, replaced.id, id));
+    // PS 1.65: a device whose own pick was the old copy follows it too (core/devicebg.ts).
+    if (replaced) { const fp = followPicks((settingsData(vaultStore.get()) as Settings).tmBgDev, `video:${replaced.id}`, `video:${id}`); if (fp) patch.tmBgDev = fp; }
     // A video the developer just added on the phone becomes the background (it plays there as soon as the shell has it): the
     // phone's own background when it has one, else the shared one as before.
     if (pick) patch[bgKey(settingsData(vaultStore.get()) as Settings, true, (b) => bgDesign(b) === b)] = `video:${id}`;
