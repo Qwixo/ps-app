@@ -29,7 +29,7 @@ export interface MailRow {
 export type LeadRow = Omit<MailRow, "via" | "replyId" | "count">;
 
 /** The ids a card can have; anything else from the overlay is ignored. */
-const CARD_ID = /^[mn]:[\w-]{1,38}$/;
+const CARD_ID = /^[mnp]:[\w-]{1,38}$/;
 export function cleanReplyCardId(v: unknown): string | null {
   return typeof v === "string" && CARD_ID.test(v) ? v : null;
 }
@@ -40,6 +40,23 @@ export const gmailCardId = (replyId: string) => `m:${replyId}`.slice(0, 40);
  *  (core/mailswitch.ts), and only for an email PS can answer. The website and the phone keep Open. */
 export function replyButtonShows(o: { mode: string; mail: boolean; cardId: string | null | undefined }): boolean {
   return o.mode === "ps" && o.mail && !!cleanReplyCardId(o.cardId);
+}
+
+/**
+ * What a Reply click on a panel row does (PS 1.65, the developer, 17 Nov 2026: "I want that same interface to pop up when you
+ * click Reply on a client email in the client emails panel"). On the Mac, Reply opens the SAME reply window the email pop up
+ * cards open (a Gmail, Instantly or Proton row, from the main page or the Tab list). Nothing is sent by the click: the window
+ * sends only on Send, with Undo. On the website and the phone there is no reply window, so the small box inside the row stays.
+ *  "window": ask the main page to open the reply window with this email.
+ *  "box": the small reply box in the row.  "none": no Reply button.
+ */
+export function replyRoute(o: { mode: string; mail: boolean; cardId: string | null | undefined; boxOn: boolean; protonOn: boolean }): "window" | "box" | "none" {
+  const id = cleanReplyCardId(o.cardId);
+  if (!id) return "none";
+  const proton = id.startsWith("p:");
+  if (proton && !o.protonOn) return "none";
+  if (o.mode === "ps" && (o.mail || proton)) return "window";
+  return o.boxOn && !proton ? "box" : "none";
 }
 
 /** Lead reply cards (core/leadcards.ts) as rows: the first name, the company domain, the subject, the opening. */

@@ -31,7 +31,7 @@ export interface MailReplyPrefs {
 }
 
 /** Where a reply goes out: the Gmail account the email came to, or the Instantly inbox the lead wrote to. */
-export type Via = "gmail" | "instantly";
+export type Via = "gmail" | "instantly" | "proton";
 
 /** Everything the compose screen needs about the email being answered (made by the main page from the card). */
 export interface ReplyCtx {
@@ -170,6 +170,21 @@ export function ctxFromLead(cardId: string, r: { id?: string; threadId?: string 
     cardId, via: "instantly", account: r.account.toLowerCase(), to, toName: n || null, first, name: n || first, company: domainCompany(to),
     subject: r.subject || "", threadId: r.threadId || null, emailId: r.id, clientIds: [],
     quote: { at: r.at || "", who: n ? `${n} <${to}>` : to, text: r.opening || "" },
+  };
+}
+
+/** A Proton email (PS 1.65, core/protonmail.ts): the same reply panel as Gmail and Instantly. The Mac finds who it goes to, the
+ *  subject and the thread from its own copy of the email, so nothing here decides that; the panel only shows them.
+ *  Null when the address of the linked Proton account is not known. */
+export function ctxFromProton(cardId: string, r: { from: string; fromName: string | null; subject: string; snippet: string; date: string }, account: string, c?: ClientRec): ReplyCtx | null {
+  if (!validEmail(account) || !validEmail(r.from || "")) return null;
+  const first = replierName(c, { fromName: r.fromName, from: r.from });
+  const full = oneLine(r.fromName || "", 120).replace(/^["']|["']$/g, "") || c?.contactName || first;
+  const company = c && c.name && c.name.toLowerCase() !== first.toLowerCase() ? c.name : domainCompany(r.from);
+  return {
+    cardId, via: "proton", account: account.toLowerCase(), to: r.from.trim(), toName: r.fromName ? oneLine(r.fromName, 120) : null,
+    first: firstName(first) || first, name: full, company, subject: r.subject || "", threadId: null, emailId: null, clientIds: [],
+    quote: { at: r.date, who: r.fromName ? `${oneLine(r.fromName, 120)} <${r.from}>` : r.from, text: r.snippet || "" },
   };
 }
 
@@ -315,8 +330,9 @@ export function responsesFor(list: SavedResponse[], clientIds: string[], names: 
 /** The one line the reply panel shows under From while this account cannot send yet (10 Nov 2026: Reply is in the Tab
  *  list now, so the panel itself says what to do, once, instead of the button hiding). Empty when it can send, while
  *  the Mac has not said yet (status null), or when the Mac gave its own problem line. Words only; nothing is sent. */
-export function sendSetupHint(via: "gmail" | "instantly", ready: boolean, statusKnown: boolean, problem?: string | null): string {
+export function sendSetupHint(via: Via, ready: boolean, statusKnown: boolean, problem?: string | null): string {
   if (ready || !statusKnown || problem) return "";
+  if (via === "proton") return "Proton Mail is not linked on this Mac yet. Link it in Settings, Client emails, then Send works from here.";
   return via === "gmail"
     ? "Sending is not set up for this Gmail account yet. Click Connect Gmail for sending once: Google's own sign in opens in your browser and PS app keeps it in this Mac's Keychain. After that, Send works from here."
     : "Sending through Instantly is not set up yet. Click Add Instantly key once and paste your Instantly API key: PS app keeps it in this Mac's Keychain. After that, Send works from here.";

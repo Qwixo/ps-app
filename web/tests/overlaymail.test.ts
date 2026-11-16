@@ -118,10 +118,10 @@ ok("set up, the Mac not heard from yet, or the Mac's own problem line showing: n
 });
 
 // ---------- wiring (source checks: the overlay holds no vault, the main page opens the panel) ----------
-ok("the email panel has the Reply button, gated by replyButtonShows, before Open and Done", () => {
+ok("the email panel has the Reply button, gated by replyRoute, before Open and Done", () => {
   const t = src("src/views/TaskMap.tsx");
   const panel = t.slice(t.indexOf("function ClientMail("), t.indexOf("// ---------- upcoming meetings"));
-  assert.match(panel, /replyButtonShows\(\{ mode: import\.meta\.env\.MODE, mail, cardId: r\.cardId \}\)/);
+  assert.match(panel, /replyRoute\(\{ mode: import\.meta\.env\.MODE, mail, cardId: r\.cardId, boxOn: inline, protonOn \}\)/);
   assert.match(panel, /taskMapActions\.replyOpen\(r\.cardId\)/);
   assert.ok(panel.indexOf(">Reply<") < panel.indexOf(">Open<") && panel.indexOf(">Open<") < panel.indexOf(">Done<"));
   assert.match(t, /\(mailOnSnap\(s\) \|\| waOnSnap\(s\)\) && <Slot id="mail">\{mailOnSnap\(s\) && <ClientMail s=\{s\} mail \/>\}/);   // WhatsApp (PS 1.60) rides in the same place
@@ -159,6 +159,44 @@ ok("the reply panel shows the setup line under From", () => {
   const w = src("src/views/ReplyWindow.tsx");
   assert.match(w, /const setupHint = ctx \? sendSetupHint\(ctx\.via, ready, !!status, problem\) : "";/);
   assert.match(w, /\{setupHint && <div className="rw-hint rw-hint-row rw-setup" role="note">\{setupHint\}<\/div>\}/);
+});
+
+// ---------- PS 1.65: the panel's Reply opens the same reply window the pop up cards open ----------
+const R = (o: Partial<Parameters<typeof O.replyRoute>[0]>) => O.replyRoute({ mode: "ps", mail: true, cardId: "m:r1", boxOn: true, protonOn: false, ...o });
+ok("Mac: Gmail, Instantly and Proton rows all open the reply window, even with the small box switched on", () => {
+  assert.equal(R({}), "window");
+  assert.equal(R({ cardId: "n:abc" }), "window");
+  assert.equal(R({ cardId: "p:k1", protonOn: true }), "window");
+  assert.equal(R({ boxOn: false }), "window");
+});
+ok("Mac: a Proton row with the Proton switch off, or a bad card id, has no Reply", () => {
+  assert.equal(R({ cardId: "p:k1", protonOn: false }), "none");
+  assert.equal(R({ cardId: "x:1" }), "none");
+  assert.equal(R({ cardId: null }), "none");
+});
+ok("website and phone: the small box in the row when it is on, otherwise no Reply; never a window, never Proton", () => {
+  assert.equal(R({ mode: "production" }), "box");
+  assert.equal(R({ mode: "production", boxOn: false }), "none");
+  assert.equal(R({ mode: "production", cardId: "p:k1", protonOn: true }), "none");
+});
+ok("Client emails off on the Mac: Gmail and Instantly rows keep the old rule (no window)", () => {
+  assert.equal(R({ mail: false }), "box");
+  assert.equal(R({ mail: false, boxOn: false }), "none");
+});
+ok("a Proton email becomes the same reply context as Gmail: from, to, quote, via proton, no thread", () => {
+  const c = MR.ctxFromProton("p:k1", { from: "jane@northwind.example", fromName: "Jane Doe", subject: "Draft", snippet: "Hello", date: "2026-11-17T10:00:00Z" }, "Me@Example.com");
+  assert.equal(c?.via, "proton");
+  assert.equal(c?.account, "me@example.com");
+  assert.equal(c?.to, "jane@northwind.example");
+  assert.equal(c?.threadId, null);
+  assert.equal(c?.quote.text, "Hello");
+  assert.equal(MR.ctxFromProton("p:k1", { from: "jane@northwind.example", fromName: null, subject: "", snippet: "", date: "" }, ""), null);
+});
+ok("the panel sends the click to the reply window (replyOpen), and the window still sends only on its own Send", () => {
+  const t = src("src/views/TaskMap.tsx");
+  assert.match(t, /const route = replyRoute\(/);
+  assert.match(t, /taskMapActions\.replyOpen\(r\.cardId\)/);
+  assert.ok(O.cleanReplyCardId("p:k1"));
 });
 
 console.log(`\n${n} checks passed`);

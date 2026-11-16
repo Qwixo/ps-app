@@ -10,7 +10,8 @@
 import { vaultStore } from "./core/vault";
 import { settingsData } from "./core/select";
 import { saveSettings } from "./core/actions";
-import { applyMailReplyOp, cleanMailReplyOp, clientsForSender, ctxFromGmail, ctxFromLead, responsesOf, sendModeOf, type MailReplyOp, type ReplyCtx } from "./core/mailreply";
+import { protonCardId, protonKeyOf, protonMirror } from "./core/protonmail";
+import { applyMailReplyOp, cleanMailReplyOp, clientsForSender, ctxFromGmail, ctxFromProton, ctxFromLead, responsesOf, sendModeOf, type MailReplyOp, type ReplyCtx } from "./core/mailreply";
 import { ownAccounts } from "./core/mailrules";
 import type { ClientRec, Doc, Reply } from "./core/model";
 import { irepFeed, mailCardMessage } from "./mailcards";
@@ -54,6 +55,14 @@ export function ctxForCard(cardId: string): ReplyCtx | null {
     const c = d.data.clientId ? s.docs.get(d.data.clientId) as Doc<ClientRec> | undefined : undefined;
     return withClients(s, ctxFromGmail(cardId, d.data, c?.kind === "client" ? c.data : undefined));
   }
+  if (cardId.startsWith("p:")) {   // Proton (PS 1.65): the mail this Mac read through Bridge; the Mac itself finds who it goes to
+    const pk = protonKeyOf(cardId), m = protonMirror.get();
+    const row = pk ? m.rows.find((x) => x.key === pk) : undefined;
+    if (!row || !m.status.linked) return null;
+    const matched = clientList(s).find((c) => clientsForSender(row.from, [c]).length);
+    const cd = matched ? s.docs.get(matched.id) as Doc<ClientRec> | undefined : undefined;
+    return withClients(s, ctxFromProton(protonCardId(pk!), row, m.status.user || "", cd?.kind === "client" ? cd.data : undefined));
+  }
   if (cardId.startsWith("n:")) {
     const key = cardId.slice(2);
     const all = (irepFeed(s)?.replies || []).filter((r) => (r.id || "").replace(/[^\w-]/g, "").slice(0, 36) === key || (r.threadId || "").replace(/[^\w-]/g, "").slice(0, 36) === key);
@@ -70,7 +79,7 @@ export function ctxForCard(cardId: string): ReplyCtx | null {
 export function openReplyFor(cardId: string) {
   const ctx = ctxForCard(cardId), prefs = replyPrefs();
   if (ctx && prefs) post({ type: "reply:open", ctx, prefs });
-  else post({ type: "reply:cannot", via: cardId.startsWith("n:") ? "instantly" : "gmail" });   // the Mac says so on a small card
+  else post({ type: "reply:cannot", via: cardId.startsWith("n:") ? "instantly" : cardId.startsWith("p:") ? "proton" : "gmail" });   // the Mac says so on a small card
 }
 
 /** Settings' "Reply from PS" row: the same panel with no email in it (quick replies, signature, send behaviour, accounts). */

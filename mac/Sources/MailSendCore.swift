@@ -14,7 +14,7 @@ struct OutJob: Codable, Equatable {
   enum State: String, Codable { case queued, sending, sent, failed, cancelled }
   var id: String
   var cardId: String
-  var via: String            // "gmail" or "instantly"
+  var via: String            // "gmail", "instantly" or "proton" (Proton: Bridge on this Mac; ProtonBridge.sendReply finds the recipient itself)
   var account: String        // From
   var to: String
   var toName: String?
@@ -46,8 +46,8 @@ struct OutJob: Codable, Equatable {
   static func from(_ o: [String: Any], undo: Bool, now: Double) -> OutJob? {
     func s(_ k: String, _ max: Int) -> String? { (o[k] as? String).map { String($0.prefix(max)) } }
     guard let id = s("id", 40), id.range(of: #"^[\w-]{1,40}$"#, options: .regularExpression) != nil,
-          let cardId = s("cardId", 40), cardId.range(of: #"^[mn]:[\w-]{1,38}$"#, options: .regularExpression) != nil,
-          let via = s("via", 10), via == "gmail" || via == "instantly",
+          let cardId = s("cardId", 40), cardId.range(of: #"^[mnp]:[\w-]{1,38}$"#, options: .regularExpression) != nil,
+          let via = s("via", 10), via == "gmail" || via == "instantly" || via == "proton",
           let account = s("account", 254).map({ $0.lowercased() }), MailMime.validEmail(account),
           let to = s("to", 254)?.trimmingCharacters(in: .whitespaces), MailMime.validEmail(to),
           let subject = s("subject", 300), let text = s("text", 60_000), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -55,6 +55,8 @@ struct OutJob: Codable, Equatable {
     let threadId = s("threadId", 120).flatMap { $0.isEmpty ? nil : $0 }, emailId = s("emailId", 120).flatMap { $0.isEmpty ? nil : $0 }
     if via == "gmail" && threadId == nil { return nil }
     if via == "instantly" && emailId == nil { return nil }
+    if via == "proton" && cardId.hasPrefix("p:") == false { return nil }
+    if via != "proton" && cardId.hasPrefix("p:") { return nil }
     // 7 days ahead at most (the page's limit too); a time in the past means now.
     guard sendAt <= now + 7 * 24 * 3600_000 + 60_000 else { return nil }
     let draft = (o["draft"]).flatMap { try? JSONSerialization.data(withJSONObject: $0) }.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"

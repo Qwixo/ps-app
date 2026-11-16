@@ -218,7 +218,12 @@ final class MailSend {
   }
   private func send(_ j: OutJob) {
     let finish: (SendResult) -> Void = { [weak self] r in self?.q.async { self?.finished(j, r) } }
-    if j.via == "gmail" {
+    if j.via == "proton" {
+      // Proton (PS 1.65): through Bridge on this Mac. Anything that goes wrong waits for the person (never sent again by itself).
+      ProtonBridge.shared.sendReply(key: String(j.cardId.dropFirst(2)), text: j.text) { code in
+        finish(code == nil ? .sent(nil) : .failed("Proton: \(code!)", retry: false))
+      }
+    } else if j.via == "gmail" {
       GmailSender(http: http, fromName: { [weak self] a in self?.secrets.gmail[a]?.name }, token: { [weak self] a, d in
         guard let self else { return }
         self.q.async { self.accessToken(a, d) }
@@ -232,7 +237,7 @@ final class MailSend {
     switch r {
     case .sent:
       box.markSent(j.id, now: nowMs())
-      problems[j.via == "gmail" ? j.account : "instantly"] = nil
+      if j.via != "proton" { problems[j.via == "gmail" ? j.account : "instantly"] = nil }
       psLog("PS reply: SENT \(j.logLine)")
       let card = j.cardId
       DispatchQueue.main.async { [weak self] in self?.onSent?(card) }

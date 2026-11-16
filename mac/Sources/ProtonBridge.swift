@@ -204,24 +204,30 @@ final class ProtonBridge: NSObject {
 
   private func reply(_ msg: [String: Any]) {
     guard let key = msg["key"] as? String, key.count <= 40, let text = msg["text"] as? String else { return }
+    sendReply(key: key, text: text) { _ in }
+  }
+
+  /// The one way a Proton reply leaves: the panel's own box ({type:"proton:reply"}) and the reply window's queue (MailSend.swift,
+  /// after the person's click on Send and its Undo) both come here. `done`: nil when it went through Bridge, else the problem code.
+  func sendReply(key: String, text: String, done: @escaping (String?) -> Void) {
     q.async { [self] in
       loadIfNeeded()
       // Who it goes to, the subject and the thread come from this Mac's own copy of the email, never from the page.
-      guard !test, featureOn, let c = config, !replying.contains(key) else { tell(["type": "proton:sent", "key": key, "ok": false, "error": "noLink"]); return }
+      guard !test, featureOn, let c = config, !replying.contains(key) else { tell(["type": "proton:sent", "key": key, "ok": false, "error": "noLink"]); done("noLink"); return }
       guard let row = rows.first(where: { $0.key == key }),
             let r = ProtonReply.from(["to": row.from, "subject": row.subject, "text": text, "inReplyTo": row.msgId ?? "", "references": row.refs ?? ""]) else {
-        tell(["type": "proton:sent", "key": key, "ok": false, "error": "gone"]); return
+        tell(["type": "proton:sent", "key": key, "ok": false, "error": "gone"]); done("gone"); return
       }
       replying.insert(key); defer { replying.remove(key) }
       do {
         _ = try ProtonSmtp.send(try LoopbackTransport(host: c.host, port: c.smtpPort), config: c, reply: r)
         psLog("PS proton: a reply went through Bridge")
-        tell(["type": "proton:sent", "key": key, "ok": true])
+        tell(["type": "proton:sent", "key": key, "ok": true]); done(nil)
       } catch let e as ProtonError {
         psLog("PS proton: a reply did not go (\(e.code))")
         if case .certChanged = e { failure = e; publish() }
-        tell(["type": "proton:sent", "key": key, "ok": false, "error": e.code])
-      } catch { tell(["type": "proton:sent", "key": key, "ok": false, "error": "protocol"]) }
+        tell(["type": "proton:sent", "key": key, "ok": false, "error": e.code]); done(e.code)
+      } catch { tell(["type": "proton:sent", "key": key, "ok": false, "error": "protocol"]); done("protocol") }
     }
   }
 
