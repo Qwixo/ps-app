@@ -284,7 +284,7 @@ export function clockRoomPct(widthPx: number, sidesPx: number, share: number): n
 }
 /** PS 1.65: the Sleep settings row that opts out of starting AI Sentry mode with Sleep mode (core/sleepsettings.ts has the same words). */
 export const SLEEP_AUTO_NAME = "Start AI mode with Sleep mode";
-export const SLEEP_AUTO_LINE = "On: AI Sentry mode turns on by itself with Sleep mode. It stops at 20 percent battery and never restarts your Mac.";
+export const SLEEP_AUTO_LINE = "AI Sentry mode turns on with Sleep mode. It stops at 20 percent battery and never restarts your Mac.";
 /** The setting's one line (Customise and Sleep mode's settings). */
 export const SENTRY_SPOT_LINE = "On your Mac's sleep screen. Pressing it turns on Sentry mode under Sleep mode: your Mac stays awake and protected, and leaving opens its lock screen.";
 

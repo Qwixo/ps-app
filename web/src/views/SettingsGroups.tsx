@@ -56,7 +56,7 @@ import { MailPeople } from "./MailPeople";
 import { ClientEmailsSettings } from "./ClientEmailsSettings";
 import { WhatsAppSettings } from "./WhatsAppSettings";
 import { ScreenRecSettings } from "./ScreenRec";
-import { feature } from "../core/features";
+import { cleanSwitches, feature } from "../core/features";
 import { CHK_FEATURE, CHK_EVERY_CHOICES, chkCardItem, cleanChk, everyLabel } from "../core/chkremind";
 import { chkTest } from "../chkwatch";
 import { SR_FEATURE } from "../core/screenrec";
@@ -309,6 +309,12 @@ export const CONTROLS: Controls = {
   // Time and reset
   "home-tz": function HomeTz({ e }) { return <SetRow e={e} right={<TzSelect homeTz={useGen().gen.homeTz} />} />; },
   "tz-names": row(() => undefined),
+  // V1.65: click a zone to open it tall (views/TimeZones.tsx FocusCard). The same switch as in From the squad (squadFeatures).
+  "tz-focus": function TzFocus({ e }) {
+    const v = useVault();
+    const mine = cleanSwitches(settingsData(v).squadFeatures);
+    return <SetRow e={e} right={<OnOff label={e.name} on={feature("tz-focus")} ready={v.status === "unlocked"} set={(on) => save({ squadFeatures: { ...mine, "tz-focus": on } })} />} />;
+  },
   "auto-reset": function Reset({ e }) { return <SetRow e={e} body={<AutoResetSetting className="gs-reset" st={settingsData(useVault())} save={save} />} open />; },
   "day-ends": function DayEnds({ e }) {
     const v = settingsData(useVault()).dayEndsHour ?? DAY_ENDS_DEFAULT;
