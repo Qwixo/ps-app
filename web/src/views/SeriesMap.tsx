@@ -8,6 +8,8 @@ import type { Doc, Goal, JournalEntry, ScreenTimeDay, Todo } from "../core/model
 import { calendarSnap, dayLogs, journal, screenTimeDays, settingsData } from "../core/select";
 import { ScreenTimeBars, fmtDur, totalSecs } from "./ScreenTime";
 import { DAY_ENDS_DEFAULT, itemKey, workDayOf } from "../core/daylog";
+import { historyOn, readDay } from "../core/taskhist";
+import { feature } from "../core/features";
 import { saveSettings, setJournal } from "../core/actions";
 import { GoalsTimeline } from "./Goals";
 import { Icon, useVault } from "../ui/kit";
@@ -18,6 +20,9 @@ type View = "year" | "month" | "week" | "timeline";
 export interface MapSaves { journal: (key: string, patch: { title?: string | null; note?: string | null }) => Promise<unknown>; goals: (list: Goal[]) => Promise<unknown> }
 const SAVES: MapSaves = { journal: setJournal, goals: (list) => saveSettings({ goals: list }) };
 const Saves = createContext<MapSaves>(SAVES);
+/** Fuller task history (PS 1.65, core/taskhist.ts): per work day, what was missed, added, deleted, moved to Dimension X, and the totals. */
+type DayHist = ReturnType<typeof readDay>;
+const Hist = createContext<Map<string, DayHist>>(new Map());
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -77,6 +82,12 @@ export function SeriesMap({ onClose, embedded, saves = SAVES, escRef }: {
     }
     return m;
   }, [s, dayEnds]);
+  const hist = useMemo(() => {
+    const m = new Map<string, DayHist>();
+    if (!feature("fuller-history") || !historyOn(settingsData(s))) return m;
+    for (const [date, log] of dayLogs(s)) { const h = readDay(log.data); if (h.missed.length || h.totals || h.added.length || h.deleted.length || h.dimx.length) m.set(date, h); }
+    return m;
+  }, [s]);
   // Screen time per local day, counted by PS.
   const screen = useMemo(() => screenTimeDays(s), [s]);
   const [q, setQ] = useState("");
@@ -106,7 +117,7 @@ export function SeriesMap({ onClose, embedded, saves = SAVES, escRef }: {
     : `Week ${weekNo(cur)}, ${monday(cur).getDate()} ${MONTHS[monday(cur).getMonth()].slice(0, 3)}`;
 
   return (
-    <Saves.Provider value={saves}>
+    <Saves.Provider value={saves}><Hist.Provider value={hist}>
     <div className={`sm-overlay${embedded ? " sm-embedded" : ""}`} role={embedded ? undefined : "dialog"} aria-modal={embedded ? undefined : true} aria-label="Your series map">
       <header className="sm-bar">
         <div className="sm-bar-l">
@@ -143,7 +154,7 @@ export function SeriesMap({ onClose, embedded, saves = SAVES, escRef }: {
         {edit && <NotePanel k={edit} j={j} events={events} ticked={ticked} screen={screen} onClose={() => setEdit(null)} />}
       </div>
     </div>
-    </Saves.Provider>
+    </Hist.Provider></Saves.Provider>
   );
 }
 
@@ -205,6 +216,7 @@ function MonthView({ y, m, j, today, events, ticked, screen, onEdit, active }: {
   y: number; m: number; j: Map<string, Doc<JournalEntry>>; today: string;
   events: Map<string, string[]>; ticked: Map<string, string[]>; screen: Screen; onEdit: (k: string) => void; active: string | null;
 }) {
+  const hist = useContext(Hist);
   const first = new Date(y, m, 1);
   const start = monday(first);
   const weeks: Date[][] = [];
@@ -233,16 +245,18 @@ function MonthView({ y, m, j, today, events, ticked, screen, onEdit, active }: {
               const note = j.get(k)?.data.note;
               const ev = events.get(ds)?.length || 0;
               const tk = ticked.get(ds)?.length || 0;
+              const ms = hist.get(ds)?.totals?.missed || 0;
               const sc = totalSecs(screen.get(ds)?.data.apps || []);
               return (
                 <button key={k} type="button" className={`sm-day${d.getMonth() !== m ? " out" : ""}${ds === today ? " today" : ""}${note ? " has" : ""}${active === k ? " on" : ""}`}
                   onClick={() => onEdit(k)} aria-label={`${d.getDate()} ${MONTHS[d.getMonth()]}${note ? ", has a note" : ""}`}>
                   <span className="sm-dnum num">{d.getDate()}</span>
                   {note && <span className="sm-dnote">{note}</span>}
-                  {(ev > 0 || tk > 0 || sc >= 60) && (
+                  {(ev > 0 || tk > 0 || ms > 0 || sc >= 60) && (
                     <span className="sm-dmeta xs num">
                       {ev > 0 && <span title="Calendar events">{ev} on calendar</span>}
                       {tk > 0 && <span title="Ticked off">{tk} done</span>}
+                      {ms > 0 && <span className="sm-missed" title="Not done that day">{ms} missed</span>}
                       {sc >= 60 && <span title="Screen time">{fmtDur(sc)} screen</span>}
                     </span>
                   )}
@@ -271,7 +285,7 @@ function WeekView({ start, j, today, events, ticked, screen }: {
             <div key={ds} className={`sm-wday${ds === today ? " today" : ""}`}>
               <div className="sm-wday-h"><b>{DOW[i]}</b> <span className="num muted">{d.getDate()} {MONTHS[d.getMonth()].slice(0, 3)}</span>
                 {sc >= 60 && <span className="xs muted num" title="Screen time"> · {fmtDur(sc)} screen</span>}</div>
-              <Happened ev={events.get(ds)} tk={ticked.get(ds)} />
+              <Happened ev={events.get(ds)} tk={ticked.get(ds)} ds={ds} />
               <NoteBox k={dKey(d)} j={j} rows={5} label={`Note for ${ds}`} placeholder="What happened today?" />
             </div>
           );
@@ -281,14 +295,19 @@ function WeekView({ start, j, today, events, ticked, screen }: {
   );
 }
 
-function Happened({ ev, tk, all }: { ev?: string[]; tk?: string[]; all?: boolean }) {
-  if (!ev?.length && !tk?.length) return null;
+function Happened({ ev, tk, ds, all }: { ev?: string[]; tk?: string[]; ds?: string; all?: boolean }) {
+  const h = useContext(Hist).get(ds || "");
+  const miss = h?.missed || [];
+  if (!ev?.length && !tk?.length && !miss.length) return null;
   const n = all ? 999 : 6;
+  const t = h?.totals;
   return (
     <ul className="sm-happened">
       {(ev || []).slice(0, n).map((t, i) => <li key={"e" + i}><Icon name="cal" size={12} /> {t}</li>)}
       {(tk || []).slice(0, n).map((t, i) => <li key={"t" + i} className="done"><Icon name="check" size={12} /> {t}</li>)}
       {!all && (tk?.length || 0) > n && <li className="xs muted">and {tk!.length - n} more</li>}
+      {miss.slice(0, all ? 999 : 3).map((x, i) => <li key={"m" + i} className="sm-missed" title={x.p1 ? "Priority 1, not done" : "Not done"}><Icon name="x" size={12} /> {x.t}{x.p1 ? " (P1)" : ""}</li>)}
+      {t && (t.done > 0 || t.missed > 0) && all && <li className="xs muted num">{t.done} done, {t.missed} missed{t.p1Done + t.p1Missed > 0 ? `, P1 ${t.p1Done} done, ${t.p1Missed} missed` : ""}{t.added ? `, ${t.added} added` : ""}{t.deleted ? `, ${t.deleted} deleted` : ""}{t.dimx ? `, ${t.dimx} to Dimension X` : ""}</li>}
     </ul>
   );
 }
@@ -345,7 +364,7 @@ function NotePanel({ k, j, events, ticked, screen, onClose }: {
         <button type="button" className="btn quiet icon sm" onClick={onClose} aria-label="Close"><Icon name="x" size={16} /></button>
       </div>
       <NoteBox key={k} k={k} j={j} rows={9} label={`Note for ${title}`} placeholder={isWeek ? "What happened this week?" : "What happened today?"} />
-      {!isWeek && <Happened ev={events.get(ds)} tk={ticked.get(ds)} all />}
+      {!isWeek && <Happened ev={events.get(ds)} tk={ticked.get(ds)} ds={ds} all />}
       {!isWeek && <DayScreen apps={screen.get(ds)?.data.apps} />}
       {isWeek && <WeekScreen start={date} screen={screen} />}
       <span className="xs muted">Saved automatically when you click away.</span>

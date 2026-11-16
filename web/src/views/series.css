@@ -105,3 +105,7 @@
 .sm-noresults { padding: calc(24px * var(--k-dn, 1)) 0; }
 .sm-ydone { color: var(--good); font-weight: 700; }
 @media (max-width: 600px) { .sm-search { order: 3; max-width: none; flex-basis: 100%; } .sm-results button { grid-template-columns: auto 1fr; } .sm-r-d { grid-column: 2; } }
+
+/* Fuller task history (PS 1.65): what was not done stays quiet, greyed, with a small mark. */
+.sm-missed { opacity: .55; }
+.sm-happened li.sm-missed { color: var(--muted, inherit); text-decoration: none; }

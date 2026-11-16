@@ -293,6 +293,8 @@ export const SETTINGS: SetEntry[] = [
   { id: "phone-lock", group: "privacy", name: "Lock now", line: "Clears your keys from this phone's memory until you open it again.", on: PHONE, words: ["lock", "lock now", "sign out", "keys"] },
   // Open source build: the private ps-presence channel (src/ps.ts startPsPresence) can be switched off.
   { id: "ps-presence", group: "privacy", name: "Tell the website PS app is open", line: "Lets the website know PS app is open on this Mac, so the website leaves Tab to it. Nothing else is sent.", on: NOT_PHONE, words: ["presence", "online", "open", "website", "realtime", "channel", "privacy", "tab"] },
+  // Fuller task history (PS 1.65, core/taskhist.ts): on unless switched off, on every device.
+  { id: "fuller-history", group: "privacy", name: "Fuller task history", line: "Keeps a private, encrypted record of tasks you missed, added or deleted. Yours alone.", words: ["task", "history", "missed", "failed", "added", "deleted", "dimension x", "earnings", "money", "monthly", "privacy", "tracking", "collect", "log"] },
   // Rewind (PS 1.64, src/rewind.ts, core/rewind.ts): public, on unless switched off, on every device.
   { id: "rewind", group: "privacy", name: "Rewind (yearly recap)", line: "Keeps a private, encrypted history of your year on your account, for a recap on 1 January.", words: ["rewind", "recap", "wrapped", "year", "yearly", "history", "stats", "new year", "summary", "privacy", "tracking", "collect"] },
   { id: "rewind-delete", group: "privacy", name: "Delete my Rewind data", line: "Deletes your whole Rewind history from every device.", parent: "rewind", words: ["rewind", "delete", "erase", "remove", "recap", "history", "wipe"] },

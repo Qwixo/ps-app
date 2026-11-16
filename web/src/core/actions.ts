@@ -16,10 +16,12 @@ import { planLines, toHours, type Timeline } from "./stline";
 import { isUnseen, mergeReply, remindPatch } from "./mailcards";
 import { mergeSettings } from "./cardsync";
 import { cleanRuleEntry, mergeSender, setRule, type MailSender, type RuleList } from "./mailrules";
-import { addToLog, type DayLog } from "./daylog";
+import { addToLog, DAY_ENDS_DEFAULT, workDayOf, type DayLog } from "./daylog";
+import { addEvent, historyOn, type EvKind } from "./taskhist";
+import { feature } from "./features";
 import { dndApply, type DndOp } from "./dnd";
 import { overdueZone } from "./overdue";
-import { autoResetDue, resetMinOf } from "./resetday";
+import { autoResetDue, resetDayOf, resetMinOf } from "./resetday";
 import { planReset } from "./resetplan";
 import { cleanTzPerson, type TzPerson } from "./tzpeople";
 import { cleanTzZones, sameZones, zonesOf, type TzZones } from "./tzzones";
@@ -57,6 +59,30 @@ export function setDnd(o: DndOp): Promise<void> {
   return saveSettings({ dnd: dndApply(settings(vaultStore.get())?.data?.dnd, o) });
 }
 
+// ---------- task history (PS 1.65, core/taskhist.ts) ----------
+// What was added, deleted or moved to Dimension X goes on the day log of its day (the same owner only, sealed record the Reset
+// writes). One at a time, so two events fired together never undo each other. Never allowed to break the action it follows.
+let eventLane: Promise<unknown> = Promise.resolve();
+export function eventDay(at: number, st: Settings | undefined | null): string {
+  if (st?.autoReset === "midnight") return resetDayOf(at, overdueZone(st?.tmHomeTz), resetMinOf(st));
+  return workDayOf(at, st?.dayEndsHour ?? DAY_ENDS_DEFAULT);
+}
+export function logTaskEvent(kind: EvKind, ev: { id: string; title: string; p1?: boolean; clientId?: string | null }): Promise<void> {
+  const run = async () => {
+    try {
+      if (!feature("fuller-history") || !historyOn(settings(vaultStore.get())?.data)) return;
+      const t = Date.now();
+      const date = eventDay(t, settings(vaultStore.get())?.data);
+      const prev = dayLogs(vaultStore.get()).get(date);
+      const next = addEvent(prev?.data, date, kind, ev, new Date(t).toISOString());
+      if (next) await put<DayLog>("daylog", next, { id: prev?.id, ws: null });
+    } catch { /* history is a bonus, never a reason to fail */ }
+  };
+  const p = eventLane.then(run, run);
+  eventLane = p.catch(() => {});
+  return p;
+}
+
 export function saveSettings(patch: Partial<Settings>): Promise<void> {
   const run = async () => {
     // No settings yet and nothing downloaded yet: wait for the first download instead of starting a
@@ -65,6 +91,8 @@ export function saveSettings(patch: Partial<Settings>): Promise<void> {
     const snap = vaultStore.get();
     const s = settings(snap);
     await put<Settings>("settings", { ...DEFAULT_SETTINGS, ...(s?.data || {}), ...patch }, { id: s?.id, ws: null });
+    // Task history (PS 1.65): a card that is new in Dimension X is noted on today's day log.
+    if (patch.dimx) { const had = new Set((s?.data?.dimx || []).map((x) => x.id)); for (const x of patch.dimx) if (!had.has(x.id)) void logTaskEvent("dimx", { id: x.id, title: x.text }); }
     for (const id of extraSettingsIds(vaultStore.get())) await remove(id);   // folded into the one kept
   };
   const p = settingsLane.then(run, run);
@@ -433,9 +461,11 @@ export async function addTodo(t: Partial<Todo> & { title: string }) {
   // New tasks join the bottom of the priority list (drag them up to raise their priority).
   const list = todos(vaultStore.get());
   const order = t.order ?? (list.length ? Math.max(...list.map((x) => x.data.order ?? 0)) + 1 : 0);
-  return put<Todo>("todo", {
+  const id = await put<Todo>("todo", {
     type: "once", done: false, source: "manual", ...t, order, createdAt: now(),
   } as Todo, { ws: null });
+  if (!t.example && id) void logTaskEvent("added", { id, title: t.title, p1: t.p1, clientId: t.clientId });
+  return id;
 }
 /** Drag to reorder: the list's new order, top first. `p1` also sets the moved task's Priority 1
  *  flag in the same write (one write per task, so the order and the flag never race). */
@@ -586,7 +616,9 @@ export function subtaskOp(id: string, op: SubOp): Promise<void> {
   return p;
 }
 export async function deleteTodo(id: string) {
+  const d = doc<Todo>(id);
   await remove(id);
+  if (d?.data && !d.data.example) void logTaskEvent("deleted", { id, title: d.data.title, p1: d.data.p1, clientId: d.data.clientId });
 }
 
 /**
@@ -602,9 +634,12 @@ export async function resetTodos(opts: { auto?: boolean } = {}): Promise<() => P
   const plan = planReset(list, { at: t, tz: overdueZone(st?.tmHomeTz), atMin: resetMinOf(st), auto: opts.auto, dayEndsHour: st?.dayEndsHour });
   // History first: every ticked task goes into the log of its day.
   const logUndo: { prev: Doc<DayLog> | undefined; id: string | null }[] = [];
-  for (const [date, its] of plan.logs) {
+  const recordMissed = feature("fuller-history") && historyOn(st);
+  const logDays = new Map(plan.logs);
+  if (recordMissed && !logDays.has(plan.missedDay)) logDays.set(plan.missedDay, []);   // a day with nothing ticked still gets its missed list
+  for (const [date, its] of logDays) {
     const prevLog = dayLogs(vaultStore.get()).get(date);
-    const nextLog = addToLog(prevLog?.data, date, its, t);
+    const nextLog = addToLog(prevLog?.data, date, its, t, date === plan.missedDay && recordMissed ? plan.missed : undefined);
     if (!nextLog) continue;
     logUndo.push({ prev: prevLog, id: await put<DayLog>("daylog", nextLog, { id: prevLog?.id, ws: null }) });
   }

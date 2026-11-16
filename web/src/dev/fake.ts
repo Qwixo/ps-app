@@ -146,8 +146,11 @@ export function fakeDocs(): Doc[] {
   // Fictional work day logs, so the Map shows done tasks and search finds them.
   push("daylog", null, { date: d(-1), updatedAt: new Date().toISOString(), items: [
     { todoId: "x1", title: "Stretch for ten minutes", at: new Date(Date.now() - 20 * 3600_000).toISOString(), repeat: true },
-    { todoId: "x2", title: "Send Northwind the launch checklist", at: new Date(Date.now() - 18 * 3600_000).toISOString() },
-  ] });
+    { todoId: "x2", title: "Send Northwind the launch checklist", at: new Date(Date.now() - 18 * 3600_000).toISOString(), p1: true },
+  ], missed: [
+    { id: "m1", t: "Update the case study page", p1: 1, due: d(-1), age: 6 },
+    { id: "m2", t: "Walk after lunch", rep: 1 },
+  ], totals: { done: 2, missed: 2, p1Done: 1, p1Missed: 1, added: 3, deleted: 1, dimx: 1 } });
   push("daylog", null, { date: d(-2), updatedAt: new Date().toISOString(), items: [
     { todoId: "x1", title: "Stretch for ten minutes", at: new Date(Date.now() - 44 * 3600_000).toISOString(), repeat: true },
   ] });

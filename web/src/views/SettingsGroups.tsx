@@ -158,7 +158,7 @@ function OnOff({ on, ready = true, set, label }: { on: boolean; ready?: boolean;
   );
 }
 /** A synced On/Off that is on unless switched off (core/offswitches.ts), saved in the vault's settings for every device. */
-function SyncedOnOff({ e, field }: { e: RowProps["e"]; field: "squadAutoJoin" | "psPresence" | "tipsShow" }) {
+function SyncedOnOff({ e, field }: { e: RowProps["e"]; field: "squadAutoJoin" | "psPresence" | "tipsShow" | "taskHistory" }) {
   const v = useVault();
   return <SetRow e={e} right={<OnOff label={e.name} on={onUnlessOff(settingsData(v)[field])} ready={v.status === "unlocked"} set={(on) => save({ [field]: on })} />} />;
 }
@@ -369,6 +369,7 @@ export const CONTROLS: Controls = {
         </label>
       </div>) : <p className="gs-set-note">Off. The Purchases button is hidden. Your saved receipts stay where they are.</p>} open />;
   },
+  "fuller-history": function TaskHistory({ e }) { return <SyncedOnOff e={e} field="taskHistory" />; },
   // Rewind (PS 1.64): public, on unless switched off; the line says what it keeps, Delete my Rewind data under it (views/RewindSettings.tsx)
   "rewind": function Rewind({ e }) {
     const v = useVault();

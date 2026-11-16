@@ -1,0 +1,4 @@
+[    6663ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5198/client/node_modules/.vite/deps/react-dom_client.js?v=ba6a2664:20102
+[    6696ms] ReferenceError: Cannot access 'PS' before initialization
+    at http://localhost:5198/client/src/recstore.ts:79:1
+[   16372ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5198/client/@vite/client:864
