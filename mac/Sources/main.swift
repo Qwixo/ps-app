@@ -1183,6 +1183,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     if SleepScreen.shared.isUp { SleepScreen.shared.escape(); return }
     if HelperAlert.shared.escape() { return }   // V1.49: the restart helper pop up closes (until the next check)
     if Soundboard.shared.escape() { return }   // V1.47: a timed Soundboard play ringing stops first
+    if Toast.shared.escapeStack() { return }   // PS 1.65: a notification list a click is keeping open closes
     guard shown else { escapeOut(); return }
     let now = CACurrentMediaTime()
     escTimes = escTimes.filter { now - $0 < EscRules.burst } + [now]
@@ -1218,6 +1219,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     if SleepScreen.shared.isUp { SleepScreen.shared.escape(); return true }
     if HelperAlert.shared.escape() { return true }   // V1.49: the restart helper pop up
     if Soundboard.shared.escape() { return true }   // V1.47: a timed Soundboard play ringing
+    if Toast.shared.escapeStack() { return true }   // PS 1.65: a notification list a click is keeping open closes
     guard let w = e.window ?? NSApp.keyWindow else { return false }
     switch EscRules.native(for: w, panel: panel, signIn: window) {
     case .list: escKey()
@@ -2232,7 +2234,7 @@ final class TabWatch {
     // whatever mode it is in (pinned, Keep overlay, Hover mode, typing in it). V1.47: a timed Soundboard play ringing
     // takes the Esc too, whatever app is in front (that one Esc stops it; Soundboard.swift). V1.49: so does the restart
     // helper pop up while it is on screen (HelperAlert.swift; never over 1Password or Signal, the tap is off there).
-    if state == .idle && type == .keyDown && e.getIntegerValueField(.keyboardEventKeycode) == 53 && (app?.shown == true || app?.sleepUp == true || Soundboard.ringingNow || HelperAlert.upNow) {
+    if state == .idle && type == .keyDown && e.getIntegerValueField(.keyboardEventKeycode) == 53 && (app?.shown == true || app?.sleepUp == true || Soundboard.ringingNow || HelperAlert.upNow || Toast.stackOpenNow) {   // 1.65: an open notification list takes the Esc too
       DispatchQueue.main.async { self.app?.escKey() }
       return nil
     }

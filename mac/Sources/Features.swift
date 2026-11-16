@@ -71,6 +71,9 @@ enum Features {
   private static var testTold: [String: Bool]?
   /// Main thread, after the page's answers changed.
   static var onChange: (() -> Void)?
+  /// More listeners (PS 1.65), run after onChange: a part that only wants to hear a switch change adds one here and never
+  /// takes the single onChange slot another part may already hold.
+  static var observers: [() -> Void] = []
 
   static let bundledRegistry: [Entry] = {
     guard let url = Bundle.main.url(forResource: "ps-build", withExtension: "json"), let data = try? Data(contentsOf: url),
@@ -96,6 +99,7 @@ enum Features {
     else if let data = try? JSONSerialization.data(withJSONObject: v, options: [.sortedKeys]) { UserDefaults.standard.set(data, forKey: key) }
     psLog("PS features: \(v.filter { $0.value }.count) of \(v.count) on")
     onChange?()
+    observers.forEach { $0() }
     return true
   }
 }

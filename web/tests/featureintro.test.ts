@@ -25,6 +25,8 @@ const waits = (s: IntroState, f: IntroFacts) => { const p = nextIntro(s, f); ret
 ok("the list has the WhatsApp intro with its words", WA.id === "whatsapp" && WA.headline === "WhatsApp messages now supported" && WA.ask === "Did you know you can link WhatsApp?" && WA.show === "Show me" && WA.later === "Later");
 ok("ids are unique", new Set(INTROS.map((d) => d.id)).size === INTROS.length);
 ok("no dashes in the words", INTROS.every((d) => !/[–—]/.test(j(d))));
+const NS = INTROS.find((d) => d.id === "notif-stack-165");
+ok("PS 1.65 stacked notifications intro: one Ok button, nothing opens", !!NS && NS.choice === true && NS.show === "Ok" && !NS.later && !NS.guide);
 
 // ---- 1 minute of ACTIVE use, after an update, idle does not count
 let s = emptyState();
