@@ -156,6 +156,17 @@ await ok("job round trip: sealed, run on the other computer, bundle checked and 
   assert.ok(w.vault.has(`sojob-${r.id}`), "the small job record stays for the list (30 days)");
 });
 
+await ok("every record is dated by the engine's own clock (a result is never refused as from the future)", async () => {
+  const w = world(Date.now() - 50 * MIN);
+  const main = w.mk("main"), other = w.mk("other");
+  await main.e.onMac(w.state(null)); await other.e.onMac(w.state(null));
+  await main.e.enterCode(await other.e.startPairing(), false, "Main"); await w.sync(main, other);
+  const r = await main.e.sendJob(args); await w.sync(main, other);
+  await other.e.onMac({ type: "outsource", op: "done", id: r.id, state: "failed", report: "{}", exit: 1 });
+  await w.sync(main, other);
+  assert.equal(main.e.view().jobs[0].state, "failed");
+});
+
 await ok("a bundle with a wrong fingerprint is refused and never handed to the Mac", async () => {
   const { w, main, other } = await paired();
   const r = await main.e.sendJob(args);

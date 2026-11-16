@@ -168,7 +168,7 @@ export function createEngine(deps: Deps) {
     const check = await pairCheck(k.pub, match.pub);
     saveKeep({ ...keep!, role: asPhone ? "none" : "main", peer: { device: match.device, name: match.name, pub: match.pub, encPub: match.encPub, pairedAt: now, check } });
     store.poke("msg");
-    setNote(asPhone ? `This phone can now restart ${match.name}.` : `Paired with ${match.name}.`);
+    setNote(asPhone ? `This phone can now restart ${match.name}.` : "");   // the card itself says who it is paired with
     return { ok: true, why: "" };
   }
   /** OTHER computer: looks for an answer to its code. The first right answer wins; the code then stops working. */
@@ -188,7 +188,7 @@ export function createEngine(deps: Deps) {
         setNote(`${p.name} can now restart this computer.`);
       } else {
         saveKeep({ ...keep, seen: {}, peer: { ...p, check: await pairCheck(keep.pub, a.pub) } });
-        setNote(`Paired with ${p.name}.`);
+        setNote("");
       }
       offer = null;
       await store.remove(`spair-offer-${keep.device}`).catch(() => {});
@@ -347,7 +347,7 @@ export function createEngine(deps: Deps) {
   async function writeStatus(s: { job: string; state: JobState; reason?: string; tail: string; step?: string; startedAt?: number; endedAt?: number; exit?: number; summary?: string; result?: JobStatusBody["result"] }) {
     const k = keys(), p = peer();
     if (!k || !p) return;
-    const env = await makeStatus(k, { ...p, role: "primary" }, s as never);
+    const env = await makeStatus(k, { ...p, role: "primary" }, { ...s, at: deps.now() } as never);   // this engine's clock, like every other time it writes
     const fin = FINAL.includes(s.state);
     const doc: ResDoc = { job: s.job, to: p.device, from: k.device, at: deps.now(), env, final: fin };
     await store.put(fin ? "sores" : "sjobst", doc, `${fin ? "sores" : "sjobst"}-${s.job}`);
