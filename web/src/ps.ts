@@ -198,6 +198,7 @@ import { cleanPhoneLayoutOp } from "./core/phonelayout";
 import { cleanRemindOp, mergeRemind } from "./core/remind";
 import { remShellMessage, remWake, startRemWatch } from "./remwatch";
 import { postureShellMessage, startPostureWatch } from "./posturewatch";
+import { outsourceMessage, startOutsource } from "./outsourcerun";
 import { startChkWatch } from "./chkwatch";
 import { cleanSleepMode } from "./core/sleepmode";
 import { dirCardMessage, runSquadOp, squadStore, squadView, startSquad } from "./squad/engine";
@@ -644,6 +645,7 @@ export function startPsBridge() {
       if (privateAskMessage(m as { type?: string })) return;   // "Start private mode?" (src/meetwatch.ts)
       if (gymCardMessage(m as { type?: string })) return;   // the gym reminder card (src/gymwatch.ts)
       if (remShellMessage(m as { type?: string })) return;   // an Annoying 15 min reminder card answered (src/remwatch.ts)
+      if (outsourceMessage(m as { type?: string })) return;   // Outsource work to your other computer: the Mac runner talks (src/outsourcerun.ts, PS 1.65)
       if (postureShellMessage(m as { type?: string })) return;   // the Posture reminder card: idle time, answered (src/posturewatch.ts)
       if (dirCardMessage(m as { type?: string })) return;  // G Squad: "X asked to join" card, Approve and Decline (src/squad/direngine.ts)
       if (chatCardMessage(m as { type?: string; id?: string; action?: string; text?: string })) return;  // G Squad chat: the history vote card's Yes and No (src/squad/chatengine.ts)
@@ -1004,6 +1006,7 @@ export function startPsBridge() {
   startGymWatch(psPost);   // the gym reminder card (src/gymwatch.ts, core/gym.ts)
   // The Annoying 15 min reminders (src/remwatch.ts, core/remind.ts): the plan for the Mac's cards.
   startRemWatch(psPost);
+  startOutsource(psPost);   // Outsource work to your other computer (src/outsourcerun.ts, core/outsource.ts, PS 1.65)
   startPostureWatch(psPost);   // the Posture reminder (src/posturewatch.ts, core/posture.ts, PS 1.65)
   startChkWatch(psPost);   // the Checklist reminder's clock: DO YOUR CHECKLIST on the Mac's card (src/chkwatch.ts, core/chkremind.ts, PS 1.65)
   setLocalCalReader((ask) => psPost({ type: "localCal", op: "read", ask }));   // not the developer: this Mac's Calendar (src/calrefresh.ts)
