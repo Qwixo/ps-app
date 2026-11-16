@@ -16,7 +16,7 @@ import { planLines, toHours, type Timeline } from "./stline";
 import { isUnseen, mergeReply, remindPatch } from "./mailcards";
 import { mergeSettings } from "./cardsync";
 import { cleanRuleEntry, mergeSender, setRule, type MailSender, type RuleList } from "./mailrules";
-import { addToLog, DAY_ENDS_DEFAULT, workDayOf, type DayLog } from "./daylog";
+import { addToLog, DAY_ENDS_DEFAULT, mergeDayLog, workDayOf, type DayLog } from "./daylog";
 import { addEvent, historyOn, type EvKind } from "./taskhist";
 import { feature } from "./features";
 import { dndApply, type DndOp } from "./dnd";
@@ -30,6 +30,7 @@ import { cleanLayout, isDefault, pickLayout, sameLayout, type TabLayout } from "
 import { cleanPhoneLayout, isDefaultPhone, pickPhoneLayout, samePhoneLayout, type PhoneLayout } from "./phonelayout";
 import { cleanPhoneDev, shouldBeat, type PhoneDev } from "./phonedevices";
 import * as Dev from "./devicebg";
+import { cleanMonth, mergeMonth } from "./monthhist";
 import { cleanRemind, mergeRemind, pickRemind, sameRemind, type RemindRec } from "./remind";
 import { buildExamples, examplesLeft, withoutExamples, type ExampleState } from "./examples";
 
@@ -40,6 +41,8 @@ const now = () => new Date().toISOString();
 setMerger("settings", (a, b) => mergeSettings(a as Settings, b as Settings));
 setMerger("reply", (a, b) => mergeReply(a as Reply, b as Reply));
 setMerger("msender", (a, b) => mergeSender(a as MailSender, b as MailSender));
+setMerger("daylog", (a, b) => mergeDayLog(a as DayLog, b as DayLog));
+setMerger("mhist", (a, b) => { const x = cleanMonth(a), y = cleanMonth(b); return x && y ? mergeMonth(x, y) : (x || y || a); });
 setMerger("remind", (a, b) => mergeRemind(cleanRemind(a), cleanRemind(b)));
 
 // ---------- settings ----------
@@ -83,6 +86,9 @@ export function logTaskEvent(kind: EvKind, ev: { id: string; title: string; p1?:
   return p;
 }
 
+/** A card the person moved into Dimension X (never the Urgent migration or a list sent from the Mac or phone). */
+export const noteDimxMove = (id: string, title: string): Promise<void> => logTaskEvent("dimx", { id, title });
+
 export function saveSettings(patch: Partial<Settings>): Promise<void> {
   const run = async () => {
     // No settings yet and nothing downloaded yet: wait for the first download instead of starting a
@@ -91,8 +97,6 @@ export function saveSettings(patch: Partial<Settings>): Promise<void> {
     const snap = vaultStore.get();
     const s = settings(snap);
     await put<Settings>("settings", { ...DEFAULT_SETTINGS, ...(s?.data || {}), ...patch }, { id: s?.id, ws: null });
-    // Task history (PS 1.65): a card that is new in Dimension X is noted on today's day log.
-    if (patch.dimx) { const had = new Set((s?.data?.dimx || []).map((x) => x.id)); for (const x of patch.dimx) if (!had.has(x.id)) void logTaskEvent("dimx", { id: x.id, title: x.text }); }
     for (const id of extraSettingsIds(vaultStore.get())) await remove(id);   // folded into the one kept
   };
   const p = settingsLane.then(run, run);
@@ -615,10 +619,11 @@ export function subtaskOp(id: string, op: SubOp): Promise<void> {
   subLane = p.catch(() => {});
   return p;
 }
-export async function deleteTodo(id: string) {
+/** moved: the task is leaving for Dimension X, which is one move (noted by noteDimxMove), not also a delete. */
+export async function deleteTodo(id: string, o: { moved?: boolean } = {}) {
   const d = doc<Todo>(id);
   await remove(id);
-  if (d?.data && !d.data.example) void logTaskEvent("deleted", { id, title: d.data.title, p1: d.data.p1, clientId: d.data.clientId });
+  if (d?.data && !d.data.example && !o.moved) void logTaskEvent("deleted", { id, title: d.data.title, p1: d.data.p1, clientId: d.data.clientId });
 }
 
 /**
@@ -768,10 +773,12 @@ export function suggestionToDimx(id: string, zone: DimxZone) {
     const s = st?.suggestions?.find((x) => x.id === id);
     if (!st || !s) return;
     const dimx = st.dimx || [];
+    const fresh = !dimx.some((d) => d.id === s.id);
     await saveSettings({
       suggestions: (st.suggestions || []).filter((x) => x.id !== id),
-      dimx: dimx.some((d) => d.id === s.id) ? dimx : [...dimx, { id: s.id, text: s.title.slice(0, 500), zone, createdAt: now() }],
+      dimx: fresh ? [...dimx, { id: s.id, text: s.title.slice(0, 500), zone, createdAt: now() }] : dimx,
     });
+    if (fresh) void noteDimxMove(s.id, s.title);
   });
 }
 /**

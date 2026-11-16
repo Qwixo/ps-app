@@ -2,7 +2,7 @@
 import type { Approval, ClientRec, CTask, Doc, Draft, Meeting, Project, Reply, ProjectPrivate, Settings, Tick, Todo, Update, WsMeta, Brief, CalendarSnap, IEmail, IThread, Agenda, JournalEntry, Quote, Note, ScreenTimeDay, ScreenTimeDevice, StLine, CampaignStats } from "./model";
 import { DEFAULT_SETTINGS, currentStage, stageState, type ClientStatus } from "./model";
 import type { Snapshot } from "./vault";
-import type { DayLog } from "./daylog";
+import { foldDayDocs, type DayLog } from "./daylog";
 import type { TzPerson } from "./tzpeople";
 import type { TzZones } from "./tzzones";
 import { cleanLayout, emptyLayout, pickLayout, type TabLayout } from "./tablayout";
@@ -227,7 +227,7 @@ export function agendas(s: Snapshot): { current: Doc<Agenda>[]; past: Doc<Agenda
 /** The series map entries by key ("m:2026-10", "w:2026-10-12", "d:2026-10-15"). */
 /** What the developer got done, one log per work day (written by Reset). */
 export function dayLogs(s: Snapshot): Map<string, Doc<DayLog>> {
-  return new Map(byKind<DayLog>(s, "daylog").map((d) => [d.data.date, d]));
+  return foldDayDocs(byKind<DayLog>(s, "daylog"));   // two devices that both started a day read as one (core/daylog.ts)
 }
 /** Screen time, one record per local day per device (the Mac by default; old records are the Mac's). */
 /** The stored records as they are (saving uses this, so it can scrub them). */

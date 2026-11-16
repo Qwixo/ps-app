@@ -51,7 +51,8 @@ export function planReset(list: Doc<Todo>[], o: { at: string; tz: string; atMin:
   }
   const missedDay = o.auto ? addDays(today, -1) : workDayOf(o.at, o.dayEndsHour ?? DAY_ENDS_DEFAULT);
   // Judged before anything is unticked: a task ticked since today started (auto) is not open, and a repeating task is read as it stands.
-  const missed = planMissed(list.filter((d) => !fresh(d.data.doneAt) || !d.data.done), { day: missedDay, nowMs: ms });
+  const missed = planMissed(list.filter((d) => !fresh(d.data.doneAt) || !d.data.done), { day: missedDay, nowMs: ms,
+    dayOf: (x) => o.auto ? resetDayOf(x, o.tz, o.atMin) : workDayOf(new Date(x).toISOString(), o.dayEndsHour ?? DAY_ENDS_DEFAULT) });
   return { today, logs, puts, missedDay, missed };
 }
 

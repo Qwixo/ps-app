@@ -11,8 +11,8 @@
 // What you made last month (V1.43, the developer: "Make it so it doesn't pop up"): nothing opens by itself. From the 1st in
 // your G Squad time zone the Leaderboard shows "Add what you made in October" for the whole month, with a quiet dot
 // on its tab (core/squadboard.ts moneyDue). No pop-up, no sound, no notification. Money switched off: nothing.
-import { docs, put, vaultStore } from "../core/vault";
-import { cleanMonth, planMonths, type MonthRec } from "../core/monthhist";
+import { docs, put, remove, vaultStore } from "../core/vault";
+import { foldMonths, monthRecId, planMonths, type MonthRec } from "../core/monthhist";
 import { saveSettings } from "../core/actions";
 import { feature } from "../core/features";
 import { historyOn } from "../core/taskhist";
@@ -171,10 +171,14 @@ async function saveMonths(members: { id: string; me: boolean }[]) {
   monthBusy = true;
   try {
     const stored = docs<unknown>("mhist", null);
-    const have = new Map<string, MonthRec>(), ids = new Map<string, string>();
-    for (const d of stored) { const r = cleanMonth(d.data); if (r) { have.set(r.month, r); ids.set(r.month, d.id); } }
+    const folded = foldMonths(stored), have = new Map<string, MonthRec>();
+    for (const [month, f] of folded) have.set(month, f.rec);
     const st = settingsData(s);
-    for (const r of planMonths({ have, money: cleanMoney(st.squadMoney), members, cards, now: Date.now(), loaded })) await put<MonthRec>("mhist", r, { id: ids.get(r.month), ws: null });
+    for (const r of planMonths({ have, money: cleanMoney(st.squadMoney), members, cards, now: Date.now(), loaded })) {
+      const id = monthRecId(s.userId || "", r.month);   // one record per month, however many devices
+      await put<MonthRec>("mhist", r, { id, ws: null });
+      for (const old of folded.get(r.month)?.ids || []) if (old !== id) await remove(old);   // copies made before the fixed id
+    }
   } catch { /* a bonus copy, tried again on the next change */ } finally { monthBusy = false; }
 }
 function rebuild() {

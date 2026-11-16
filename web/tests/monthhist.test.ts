@@ -1,7 +1,7 @@
 // Run: node --experimental-strip-types tests/monthhist.test.ts
 // Month history (PS 1.65, core/monthhist.ts): your own earnings and the leaderboards as you saw them, copied once a month.
 import assert from "node:assert/strict";
-import { cleanMonth, MH, planMonths, type MonthRec } from "../src/core/monthhist.ts";
+import { cleanMonth, foldMonths, MH, mergeMonth, monthRecId, planMonths, type MonthRec } from "../src/core/monthhist.ts";
 import type { BoardKind, HeldCard } from "../src/core/squadboard.ts";
 
 let n = 0;
@@ -61,5 +61,28 @@ ok("stored records are read safely", () => {
   assert.equal(cleanMonth(null), null); assert.equal(cleanMonth({ t: "month", month: "bad" }), null);
   const r = cleanMonth({ t: "month", month: "2026-10", at: "x", mine: { amount: 5, currency: "USD" }, boards: { money: [{ m: "a", r: 1 }, { bad: 1 }] } })!;
   assert.equal(r.boards!.money!.length, 1); assert.equal(r.mine!.amount, 5);
+});
+ok("one fixed record id per person and month: the same every time, different for another month or person, shaped like an id", () => {
+  assert.equal(monthRecId("u1", "2026-10"), monthRecId("u1", "2026-10"));
+  assert.notEqual(monthRecId("u1", "2026-10"), monthRecId("u1", "2026-09"));
+  assert.notEqual(monthRecId("u1", "2026-10"), monthRecId("u2", "2026-10"));
+  assert.match(monthRecId("u1", "2026-10"), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/);
+});
+ok("two devices merge: the newer answer, the first boards copy, in either order", () => {
+  const a: MonthRec = { t: "month", v: 1, month: "2026-10", at: "2026-11-02T00:00:00Z", mine: { amount: 5000, currency: "USD", source: "squad-answer" }, boards: { tasks: [{ m: "a", r: 1, n: 3 }] } };
+  const b: MonthRec = { t: "month", v: 1, month: "2026-10", at: "2026-11-05T00:00:00Z", mine: { amount: 5500, currency: "USD", source: "squad-answer" }, boards: { tasks: [{ m: "a", r: 1, n: 3 }, { m: "b", r: 2, n: 1 }] } };
+  for (const m of [mergeMonth(a, b), mergeMonth(b, a)]) { assert.equal(m.mine!.amount, 5500); assert.equal(m.boards!.tasks!.length, 1, "frozen at the first copy"); }
+  assert.deepEqual(mergeMonth(a, a), a);
+});
+ok("old duplicates fold into one month, and the ids to clean up come back", () => {
+  const r = (at: string, amount: number): MonthRec => ({ t: "month", v: 1, month: "2026-10", at, mine: { amount, currency: "USD", source: "squad-answer" } });
+  const f = foldMonths([{ id: "x1", data: r("2026-11-01T00:00:00Z", 1) }, { id: "x2", data: r("2026-11-02T00:00:00Z", 2) }, { id: "x3", data: { junk: 1 } }]);
+  assert.equal(f.size, 1); assert.deepEqual(f.get("2026-10")!.ids, ["x1", "x2"]); assert.equal(f.get("2026-10")!.rec.mine!.amount, 2);
+});
+ok("last month's boards are written once and frozen, even when the cards change afterwards", () => {
+  const have = new Map(planMonths(base).map((r) => [r.month, r]));
+  const fewer = new Map(cards); fewer.delete("a");   // a member left
+  assert.deepEqual(planMonths({ ...base, have, cards: fewer, members: members.slice(0, 1).concat(members.slice(2)) }), []);
+  assert.deepEqual(planMonths({ ...base, have }), [], "written again with the same cards: nothing");
 });
 console.log(`monthhist: ${n} passed`);

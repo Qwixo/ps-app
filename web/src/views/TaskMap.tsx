@@ -30,7 +30,7 @@ import { dndMutes, type DndOp } from "../core/dnd";
 import { addDraft, addGate, addShape, cleanTitle, enterAction, quickDefaults, revealBy, type AddOpts } from "../core/quickadd";
 import { typedEdit, typedOrder } from "../core/typedprio";
 import { PrioInput, useTypedPrio } from "./TypedPrio";
-import { addTodo, approveSuggestion, awareDone, awareToList, awareUndone, suggestionToAware, suggestionToDimx, resetTodos, deleteTodo, dismissSuggestion, saveSettings, setReplyHandled, setTodoOrder, setWorkingOn, subtaskOp, toggleTodo, setTodoDone, setTodosDone, clearTodos, reviveTodos, buryTodos, restoreTodo, updateTodo, moveTasks, ungroupTasks, setDnd, setJournal } from "../core/actions";
+import { addTodo, approveSuggestion, awareDone, awareToList, awareUndone, suggestionToAware, suggestionToDimx, resetTodos, deleteTodo, noteDimxMove, dismissSuggestion, saveSettings, setReplyHandled, setTodoOrder, setWorkingOn, subtaskOp, toggleTodo, setTodoDone, setTodosDone, clearTodos, reviveTodos, buryTodos, restoreTodo, updateTodo, moveTasks, ungroupTasks, setDnd, setJournal } from "../core/actions";
 import { accepts, cleanGroups, dropAbovePrioIsP1, groupKey, hitSection, mergeOrder, newGroupId, sectionOrder, tabLists, type TabLists, type TaskMove } from "../core/groups";
 import { fmtDate, todayISO, useVault } from "../ui/kit";
 import { GSquadButton, GSquadHost } from "./GSquad";
@@ -200,7 +200,7 @@ export const taskMapActions: {
   /** The list's new order; p1 also sets the moved task's Priority 1 flag (same write). */
   reorder: (ids: string[], p1?: { id: string; on: boolean }) => Promise<unknown>; scale: (percent: number) => Promise<unknown>;
   clockScale: (percent: number) => Promise<unknown>;
-  update: (id: string, patch: TodoPatch) => Promise<unknown>; remove: (id: string) => Promise<unknown>;
+  update: (id: string, patch: TodoPatch) => Promise<unknown>; remove: (id: string) => Promise<unknown>; moveOut: (id: string) => Promise<unknown>; dimxMoved: (id: string, text: string) => Promise<unknown>;
   /** A mini task change (core/subtasks.ts); next is the list it makes, for PS's test copy. */
   sub: (id: string, op: SubOp, next: Subtask[]) => Promise<unknown>;
   /** A client email dealt with (the Done button in "Client emails"). */
@@ -328,6 +328,8 @@ export const taskMapActions: {
   clockScale: (percent) => saveSettings({ tmClockScale: percent }),
   update: (id, patch) => updateTodo(id, patch),
   remove: (id) => deleteTodo(id),
+  moveOut: (id) => deleteTodo(id, { moved: true }),
+  dimxMoved: (id, text) => noteDimxMove(id, text),
   aware: (list) => saveSettings({ aware: list }),
   awareDone: (id, todoId) => awareDone(id, todoId),
   awareUndone: (item, index, todoId) => awareUndone(item, index, todoId),
