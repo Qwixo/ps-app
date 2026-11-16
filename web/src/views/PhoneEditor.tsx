@@ -45,6 +45,8 @@ import { DeletePage, UndoDelete } from "./PhoneDeletePage";
 import { deletePage, pageAfterDelete, restorePage, type RemovedPage } from "../core/phonepagedelete";
 import { rowPos, type Row } from "../core/phonepan";
 import { usePhonePan, type PanApi } from "./usePhonePan";
+import { dragDelta, dragSig, frameQueue, ghostFor } from "../core/tiledrag";
+import { carriedEl, carry, carryNav, release, releaseNav, settle } from "./tiledrive";
 import "./phoneeditor.css";
 
 // ---------- Esc: the innermost open thing closes first (registered before the overview's own Esc, so it goes first) ----------
@@ -288,8 +290,12 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
   const [undo, setUndo] = useState<{ removed: RemovedPage; name: string; key: number } | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [tile, setTile] = useState<TileDrag | null>(null);
-  const tileRef = useRef(tile);
-  tileRef.current = tile;
+  // V1.65: tileRef is the live pose (read once per frame, never written to state per move); `tile` follows only when the landing cell or page changes.
+  const tileRef = useRef<TileDrag | null>(null);
+  const frames = useRef(frameQueue()).current;
+  const ptr = useRef({ x: 0, y: 0 });
+  const sigRef = useRef("");
+  useEffect(() => () => frames.cancel(), [frames]);
   const [nav, setNav] = useState<NavDrag | null>(null);
   const [pill, setPill] = useState<PillDrag | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -383,12 +389,17 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-    setTile({ id, mode, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0, over: null, p0: pan.off() });
+    const d: TileDrag = { id, mode, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0, over: null, p0: pan.off() };
+    tileRef.current = d; sigRef.current = "";
+    setTile(d);
   });
-  /** The carried tile under the pointer at x, y (also as the row slides under a still pointer). */
-  const tileAt = (x: number, y: number) => {
+  /** The carried tile under the pointer at x, y (also as the row slides under a still pointer): one frame at most. */
+  const tileFrame = () => {
     const t = tileRef.current;
-    if (!t || x < 0) return;
+    const tl = t && page.tiles?.find((x) => x.id === t.id);
+    if (!t || !tl) return;
+    const { x, y } = ptr.current;
+    if (x < 0) return;
     let over: string | null = null, onCur = false;
     if (t.mode === "move") for (const el of document.elementsFromPoint(x, y)) {
       const id = (el as HTMLElement).dataset?.pePage;
@@ -396,46 +407,66 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
       if (id === page.id) { onCur = true; break; }
       over = id; break;
     }
-    const next = { ...t, dx: (x - t.sx + (pan.off() - (t.p0 ?? 0))) / k, dy: (y - t.sy) / k, over, out: t.mode === "move" && !over && !onCur };
+    const { dx, dy } = dragDelta(t.sx, t.sy, x, y, k, pan.off() - (t.p0 ?? 0));
+    const next = { ...t, dx, dy, over, out: t.mode === "move" && !over && !onCur };
     tileRef.current = next;
-    setTile(next);
+    carry(carriedEl(roomRef.current, t.id), tl, t.mode, dx, dy, W);
+    const sig = dragSig(tl, t.mode, dx, dy, W, over, next.out);
+    if (sig !== sigRef.current) { sigRef.current = sig; setTile(next); }
+  };
+  const tileAt = (x: number, y: number) => {
+    if (!tileRef.current) return;
+    ptr.current = { x, y };
+    frames.push(tileFrame);
   };
   const tileMove = useStable((e: RPE) => tileAt(e.clientX, e.clientY));
-  const ghostOf = useStable((t: Tile, d: TileDrag) => {
-    const b = cellBox(t, W);
-    if (d.mode === "move") return { ...t, ...cellAt(b.left + d.dx, b.top + d.dy, W, t.w, t.h) };
-    const sz = cellsFor(b.width + d.dx, b.height + d.dy, W);
-    return { ...t, ...sz, c: Math.min(t.c, COLS - sz.w) };
-  });
+  const ghostOf = useStable((t: Tile, d: TileDrag) => ghostFor(t, d.mode, d.dx, d.dy, W));
   const tileUp = useStable(() => {
+    frames.flush();
     const d = tileRef.current;
     if (!d) return;
     const t = page.tiles?.find((x) => x.id === d.id);
+    const el = carriedEl(roomRef.current, d.id);
     setTile(null); tileRef.current = null;
-    if (!t || (Math.abs(d.dx) < 3 && Math.abs(d.dy) < 3)) { pan.settle(); return; }
+    if (!t || (Math.abs(d.dx) < 3 && Math.abs(d.dy) < 3)) { release(el); pan.settle(); return; }
     if (d.mode === "move" && d.over) {
       const j = pages.findIndex((p) => p.id === d.over);
-      if (pages[j]?.kind === "panels") { sfx.drop(); change(tileToPage(layout, page.id, t.id, pages[j].id, at())); setFresh(t.id); pan.settle(j); return; }
+      if (pages[j]?.kind !== "panels") release(el);
+      if (pages[j]?.kind === "panels") { release(el); sfx.drop(); change(tileToPage(layout, page.id, t.id, pages[j].id, at())); setFresh(t.id); pan.settle(j); return; }
       pan.settle(); return;   // a page that holds no panels (List, Plan, Inbox): the panel goes back where it was
     }
-    if (d.mode === "move" && d.out) { pan.settle(); return; }   // let go on no page: back where it was
+    if (d.mode === "move" && d.out) { settle(el, t, d.mode, d.dx, d.dy, t, W); pan.settle(); return; }   // let go on no page: back where it was
     pan.settle();
     const g = ghostOf(t, d);
+    settle(el, t, d.mode, d.dx, d.dy, g, W);
     sfx.drop();
     change(d.mode === "move" ? moveTile(layout, page.id, t.id, g.c, g.r, at()) : resizeTile(layout, page.id, t.id, g.w, g.h, at()));
   });
 
   // ---------- dragging the navbar or one of its buttons ----------
+  const navLive = useRef<NavDrag | null>(null);
+  const navSig = useRef("");
   const navDown = useStable((e: RPE, d: NavDrag) => {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    navLive.current = d; navSig.current = "";
     setNav(d);
   });
+  const navFrame = () => {
+    const d = navLive.current;
+    if (!d) return;
+    const { x, y } = ptr.current;
+    const next: NavDrag = d.kind === "bar" ? { ...d, dx: (x - d.sx) / k, dy: (y - d.sy) / k } : { ...d, dx: (x - d.sx) / k };
+    navLive.current = next;
+    carryNav(roomRef.current, next);
+    const sig = next.kind === "bar" ? (() => { const t = barDrop(next); return `${t.edge}.${t.align}`; })() : String(reorderTo(next));
+    if (sig !== navSig.current) { navSig.current = sig; setNav(next); }
+  };
   const navMove = useStable((e: RPE) => {
-    if (!nav) return;
-    if (nav.kind === "bar") setNav({ ...nav, dx: (e.clientX - nav.sx) / k, dy: (e.clientY - nav.sy) / k });
-    else setNav({ ...nav, dx: (e.clientX - nav.sx) / k });
+    if (!navLive.current) return;
+    ptr.current = { x: e.clientX, y: e.clientY };
+    frames.push(navFrame);
   });
   const navItemsNow = layout.nav.items;
   const itemW = navItemsW(layout, W);
@@ -454,9 +485,12 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
     return { edge, align } as const;
   };
   const navUp = useStable(() => {
-    if (!nav) return;
-    const d = nav;
+    frames.flush();
+    const d = navLive.current;
+    if (!d) return;
+    navLive.current = null;
     setNav(null);
+    releaseNav(roomRef.current);
     if (d.kind === "bar") {
       if (Math.abs(d.dx) < 3 && Math.abs(d.dy) < 3) return;
       const t = barDrop(d);
@@ -661,11 +695,10 @@ const Cells = memo(function Cells({ rows, W }: { rows: number; W: number }) {
 });
 const GridTile = memo(function GridTile({ t, W, drag, fresh, editing, acts }: { t: Tile; W: number; drag: TileDrag | null; fresh: boolean; editing: boolean; acts: TileActs }) {
   const b = cellBox(t, W);
-  const style = drag && drag.mode === "move" ? { left: b.left + drag.dx, top: b.top + drag.dy, width: b.width, height: b.height }
-    : drag && drag.mode === "size" ? { left: b.left, top: b.top, width: Math.max(30, b.width + drag.dx), height: Math.max(30, b.height + drag.dy) }
-    : { left: b.left, top: b.top, width: b.width, height: b.height };
+  // V1.65: a carried panel moves by CSS variables (views/tiledrive.ts), never by this style, so a drag writes no React state per move.
+  const style = { left: b.left, top: b.top, width: `calc(${b.width}px + var(--dw, 0px))`, height: `calc(${b.height}px + var(--dh, 0px))` };
   return (
-    <div className={`pe-tile${drag ? " dragging" : ""}${drag?.out ? " away" : ""}${fresh ? " fresh" : ""}`} style={style}>
+    <div className={`pe-tile${drag ? " dragging" : ""}${drag?.out ? " away" : ""}${fresh ? " fresh" : ""}`} style={style} data-tid={t.id}>
       <StillPanel id={t.id} />
       {editing && <>
         <div className="pe-tile-hit" onPointerDown={(e) => acts.down(e, t.id, "move")} title={tileLabel(t.id)} />
@@ -682,13 +715,12 @@ export function NavBar({ layout, nav, W, H, edit }: { layout: PhoneLayout; nav: 
   const left = nav.align === "left" ? 10 : nav.align === "right" ? W - 10 - bw : (W - bw) / 2;
   const d = edit?.nav;
   const barStyle: Record<string, number | string> = { width: bw, left, [nav.edge === "top" ? "top" : "bottom"]: nav.edge === "top" ? (layoutSB(layout) + 8) : 14 };
-  if (d?.kind === "bar") { barStyle.transform = `translate(${d.dx * 0.15}px, ${d.dy * 0.15}px)`; }
   return (
     <nav className={`pe-nav${d?.kind === "bar" ? " lifting" : ""}`} style={barStyle} data-h={H} onPointerMove={edit?.navMove} onPointerUp={edit?.navUp} onPointerCancel={edit?.navUp}>
       {edit && <span className="pe-nav-grip" title="Drag the navbar" onPointerDown={(e) => edit.navDown(e, { kind: "bar", sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 })} />}
       {nav.items.map((it) => (
         <span key={it} className={`pe-nav-i${d?.kind === "item" && d.id === it ? " lifting" : ""}`}
-          style={d?.kind === "item" && d.id === it ? { transform: `translateX(${d.dx}px)` } : undefined}
+          data-nid={it}
           onPointerDown={edit ? (e) => edit.navDown(e, { kind: "item", id: it, sx: e.clientX, dx: 0 }) : undefined}>
           <NavIcon id={it} />
           <em>{navLabel(layout, it)}</em>

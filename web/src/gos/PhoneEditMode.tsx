@@ -33,6 +33,8 @@ import { DeletePage, UndoDelete } from "../views/PhoneDeletePage";
 import { deletePage, pageAfterDelete, restorePage, type RemovedPage } from "../core/phonepagedelete";
 import { sidewaysWheel, wheelPages } from "../core/phonepan";
 import { PhoneLooks } from "../views/PhoneLooks";
+import { dragDelta, dragSig, frameQueue, ghostFor, outsideBox } from "../core/tiledrag";
+import { carriedEl, carry, carryNav, release, releaseNav, settle } from "../views/tiledrive";
 import { haptic } from "./bridge";
 import { usePhoneNow, viewOf } from "./phonepage";
 import { editSoundsClose, editSoundsOpen, phoneEditSoundOk, ringerNow, setPhoneEditGate, phoneEditSfx } from "./editsfx";
@@ -331,26 +333,45 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
   }, []);
 
   // ---------- swiping between pages (on the room, not on the page being edited) ----------
+  const frames = useRef(frameQueue()).current;
+  const ptr = useRef({ x: 0, y: 0 });
+  // V1.65: the swipe reads the finger once per frame too (the pages beside it move with it, so each frame is one draw).
+  const swipeLive = useRef<Swipe | null>(null);
+  const swipeFrame = () => {
+    const sw = swipeLive.current;
+    if (!sw) return;
+    const { x, y } = ptr.current;
+    const dx = x - sw.sx, dy = y - sw.sy;
+    let axis = sw.axis;
+    if (!axis && Math.hypot(dx, dy) > 8) { axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y"; if (axis === "x") roomRef.current?.setPointerCapture?.(sw.id); }
+    // A tick each time a page passes the middle.
+    const passed = Math.round(-dx / step);
+    if (axis === "x" && passed !== lastTick.current) { lastTick.current = passed; const j = ci + passed; if (j >= 0 && j < pages.length) { sound("edit-tick"); haptic("tick"); } }
+    const next = { ...sw, dx, axis };
+    swipeLive.current = next;
+    if (axis === "x") setSwipe(next);
+  };
   const roomDown = (e: RPE) => {
     if (phase !== "on" || tile || nav || pill) return;
     const t = e.target as Element;
     if (t.closest(".pm-card.cur, button, input, select, .pe-gal, .pm-drawer, .lk-panel, .pm-pill, .pe-del, .pe-undo")) return;
-    setSwipe({ sx: e.clientX, sy: e.clientY, dx: 0, id: e.pointerId, axis: null, t0: performance.now() });
+    const sw: Swipe = { sx: e.clientX, sy: e.clientY, dx: 0, id: e.pointerId, axis: null, t0: performance.now() };
+    swipeLive.current = sw;
+    ptr.current = { x: e.clientX, y: e.clientY };
     lastTick.current = 0;
   };
   const roomMove = (e: RPE) => {
-    if (!swipe || e.pointerId !== swipe.id) return;
-    const dx = e.clientX - swipe.sx, dy = e.clientY - swipe.sy;
-    let axis = swipe.axis;
-    if (!axis && Math.hypot(dx, dy) > 8) { axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y"; if (axis === "x") (e.currentTarget as Element).setPointerCapture?.(e.pointerId); }
-    // A tick each time a page passes the middle.
-    const passed = Math.round(-dx / step);
-    if (axis === "x" && passed !== lastTick.current) { lastTick.current = passed; const j = ci + passed; if (j >= 0 && j < pages.length) { sound("edit-tick"); haptic("tick"); } }
-    setSwipe({ ...swipe, dx, axis });
+    const sw = swipeLive.current;
+    if (!sw || e.pointerId !== sw.id) return;
+    ptr.current = { x: e.clientX, y: e.clientY };
+    frames.push(swipeFrame);
   };
   const roomUp = (e: RPE) => {
-    if (!swipe || e.pointerId !== swipe.id) return;
-    const sw = swipe;
+    const sw0 = swipeLive.current;
+    if (!sw0 || e.pointerId !== sw0.id) return;
+    frames.flush();
+    const sw = swipeLive.current ?? sw0;
+    swipeLive.current = null;
     setSwipe(null);
     if (sw.axis !== "x") {
       // A tap on a page beside: go to it.
@@ -363,55 +384,93 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
   };
 
   // ---------- dragging a panel (the Mac's way, in the phone's own pixels) ----------
+  // V1.65 (the developer's friend: "quite laggy"): the pointer is read once per frame, the panel is carried by CSS variables
+  // on its own element (core/tiledrag.ts, views/tiledrive.ts), and React hears only when the landing cell or the page
+  // under the finger changes. `tile` (state) is the last such change, `live` the exact pose each frame.
+  const live = useRef<TileDrag | null>(null);
+  const sigRef = useRef("");
+  const curBox = useRef<DOMRect | null>(null);
   const tileDown = (e: RPE, id: string, mode: "move" | "size") => {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     haptic("drag");
-    setTile({ id, mode, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0, over: null });
+    curBox.current = roomRef.current?.querySelector(".pm-card.cur")?.getBoundingClientRect() ?? null;
+    const d: TileDrag = { id, mode, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0, over: null };
+    ptr.current = { x: e.clientX, y: e.clientY };
+    live.current = d; sigRef.current = "";
+    setTile(d);
   };
-  const tileMove = (e: RPE) => {
-    if (!tile) return;
+  const tileFrame = () => {
+    const d = live.current, t = d && page.tiles?.find((x) => x.id === d.id);
+    if (!d || !t) return;
+    const { x, y } = ptr.current;
+    // Which page is under the finger: looked up only once the finger leaves the page in the middle.
     let over: string | null = null;
-    if (tile.mode === "move") for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
+    if (d.mode === "move" && outsideBox(x, y, curBox.current)) for (const el of document.elementsFromPoint(x, y)) {
       const id = (el as HTMLElement).dataset?.pePage;
       if (id && id !== page.id) { over = id; break; }
     }
-    if (over !== tile.over && over) haptic("tick");
-    setTile({ ...tile, dx: (e.clientX - tile.sx) / k, dy: (e.clientY - tile.sy) / k, over });
+    const { dx, dy } = dragDelta(d.sx, d.sy, x, y, k);
+    const next = { ...d, dx, dy, over };
+    live.current = next;
+    carry(carriedEl(roomRef.current, d.id), t, d.mode, dx, dy, W);
+    const sig = dragSig(t, d.mode, dx, dy, W, over);
+    if (sig !== sigRef.current) { sigRef.current = sig; if (over && over !== d.over) haptic("tick"); setTile(next); }
   };
-  const ghostOf = (t: Tile, d: TileDrag) => {
-    const b = cellBox(t, W);
-    if (d.mode === "move") return { ...t, ...cellAt(b.left + d.dx, b.top + d.dy, W, t.w, t.h) };
-    const sz = cellsFor(b.width + d.dx, b.height + d.dy, W);
-    return { ...t, ...sz, c: Math.min(t.c, COLS - sz.w) };
+  const tileMove = (e: RPE) => {
+    if (!live.current) return;
+    ptr.current = { x: e.clientX, y: e.clientY };
+    frames.push(tileFrame);
   };
+  const ghostOf = (t: Tile, d: TileDrag) => ghostFor(t, d.mode, d.dx, d.dy, W);
   const tileUp = () => {
-    if (!tile) return;
-    const t = page.tiles?.find((x) => x.id === tile.id);
+    frames.flush();
+    const d = live.current;
+    if (!d) return;
+    const t = page.tiles?.find((x) => x.id === d.id);
+    const el = carriedEl(roomRef.current, d.id);
+    live.current = null;
     setTile(null);
-    if (!t || (Math.abs(tile.dx) < 3 && Math.abs(tile.dy) < 3)) return;
+    if (!t || (Math.abs(d.dx) < 3 && Math.abs(d.dy) < 3)) { release(el); return; }
     sound("edit-drop"); haptic("drop");
-    if (tile.mode === "move" && tile.over) {
-      const dest = pages.find((p) => p.id === tile.over);
-      if (dest?.kind === "panels") { change(tileToPage(layout, page.id, t.id, dest.id, at())); setFresh(t.id); return; }
+    if (d.mode === "move" && d.over) {
+      const dest = pages.find((p) => p.id === d.over);
+      if (dest?.kind === "panels") { release(el); change(tileToPage(layout, page.id, t.id, dest.id, at())); setFresh(t.id); return; }
     }
-    const g = ghostOf(t, tile);
-    change(tile.mode === "move" ? moveTile(layout, page.id, t.id, g.c, g.r, at()) : resizeTile(layout, page.id, t.id, g.w, g.h, at()));
+    const g = ghostFor(t, d.mode, d.dx, d.dy, W);
+    settle(el, t, d.mode, d.dx, d.dy, g, W);
+    change(d.mode === "move" ? moveTile(layout, page.id, t.id, g.c, g.r, at()) : resizeTile(layout, page.id, t.id, g.w, g.h, at()));
   };
+  useEffect(() => () => frames.cancel(), [frames]);
 
   // ---------- dragging the navbar or one of its buttons ----------
+  // V1.65: the same as the panels: one read per frame, the bar or button carried by CSS variables, state only when the drop target changes.
+  const navLive = useRef<NavDrag | null>(null);
+  const navSig = useRef("");
   const navDown = (e: RPE, d: NavDrag) => {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     haptic("drag");
+    navLive.current = d; navSig.current = "";
+    ptr.current = { x: e.clientX, y: e.clientY };
     setNav(d);
   };
+  const navFrame = () => {
+    const d = navLive.current;
+    if (!d) return;
+    const { x, y } = ptr.current;
+    const next: NavDrag = d.kind === "bar" ? { ...d, dx: (x - d.sx) / k, dy: (y - d.sy) / k } : { ...d, dx: (x - d.sx) / k };
+    navLive.current = next;
+    carryNav(roomRef.current, next);
+    const sig = next.kind === "bar" ? (() => { const t = barDrop(next); return `${t.edge}.${t.align}`; })() : String(reorderTo(next));
+    if (sig !== navSig.current) { navSig.current = sig; setNav(next); }
+  };
   const navMove = (e: RPE) => {
-    if (!nav) return;
-    if (nav.kind === "bar") setNav({ ...nav, dx: (e.clientX - nav.sx) / k, dy: (e.clientY - nav.sy) / k });
-    else setNav({ ...nav, dx: (e.clientX - nav.sx) / k });
+    if (!navLive.current) return;
+    ptr.current = { x: e.clientX, y: e.clientY };
+    frames.push(navFrame);
   };
   const items = layout.nav.items;
   const itemW = (() => { const bw = layout.nav.align === "full" ? W - 20 : Math.min(W - 20, items.length * 58 + 14); return Math.max(30, (bw - 14) / Math.max(1, items.length)); })();
@@ -426,9 +485,12 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     return { edge, align } as const;
   };
   const navUp = () => {
-    if (!nav) return;
-    const d = nav;
+    frames.flush();
+    const d = navLive.current;
+    if (!d) return;
+    navLive.current = null;
     setNav(null);
+    releaseNav(roomRef.current);
     if (d.kind === "bar") {
       if (Math.abs(d.dx) < 3 && Math.abs(d.dy) < 3) return;
       const t = barDrop(d);
