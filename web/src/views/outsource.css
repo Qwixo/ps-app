@@ -1,0 +1,96 @@
+/* Settings > Outsource work to your other computer (views/OutsourceSettings.tsx). Every colour, size and corner reads a look token,
+   like the rest of Settings (the same tokens as taskapi.css). Motion: opacity and transform only, none with Reduce motion. */
+.os-wrap { --os-soft: var(--gs-soft, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent));
+  --os-line: var(--gs-line, color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent));
+  display: grid; gap: calc(14px * var(--k-dn, 1)); min-width: 0; }
+.os-intro { margin: 0; font-size: calc(13px * var(--k-fs, 1)); line-height: 1.5; color: var(--os-soft); max-width: 80ch; }
+.os-soft { margin: 0; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.45; color: var(--os-soft); overflow-wrap: anywhere; }
+.os-bad { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); color: var(--k-bad-t, #FCA5A5); }
+.os-note-line { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); color: var(--k-fg, #FFFFFF); animation: os-in .3s cubic-bezier(.22, 1, .36, 1) both; }
+.os-wrap code { font-family: var(--k-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .92em; padding: calc(1px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1));
+  border-radius: calc(6px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 9%, transparent); color: var(--k-fg, #FFFFFF); }
+.os-path { user-select: all; -webkit-user-select: all; }
+.os-row, .os-top, .os-head { display: flex; flex-wrap: wrap; align-items: center; gap: calc(10px * var(--k-dn, 1)); min-width: 0; }
+.os-head { flex-wrap: nowrap; }
+.os-pill { flex: none; font-size: calc(11px * var(--k-fs, 1)); font-weight: 780; padding: calc(3px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); color: var(--k-fg, #FFFFFF); transition: background .25s ease, color .25s ease; }
+.os-pill.sm { font-size: calc(10.5px * var(--k-fs, 1)); padding: calc(2px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); }
+.os-pill.good { background: color-mix(in srgb, var(--k-ok, #22C55E) 16%, transparent); color: var(--k-ok-t, #86EFAC); }
+.os-pill.warn { background: color-mix(in srgb, var(--k-warn, #F59E0B) 16%, transparent); color: var(--k-warn-t, #FCD34D); }
+.os-pill.bad { background: color-mix(in srgb, var(--k-bad, #EF4444) 16%, transparent); color: var(--k-bad-t, #FCA5A5); }
+.os-pill.live { background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); color: var(--k-fg, #FFFFFF); }
+
+/* The switch: a track with a knob that slides. */
+.os-sw { flex: none; position: relative; display: inline-flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); padding: 0; border: 0; background: none; color: var(--k-fg, #FFFFFF);
+  font: inherit; font-size: calc(14px * var(--k-fs, 1)); font-weight: 760; cursor: pointer; }
+.os-sw i { flex: none; position: relative; width: 46px; height: 26px; border-radius: 99px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); transition: background .22s ease; }
+.os-sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--k-fg, #FFFFFF);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: transform .26s cubic-bezier(.22, 1, .36, 1); }
+.os-sw.on i { background: var(--k-acc, #EC4E86); }
+.os-sw.on i::after { transform: translateX(20px); }
+.os-sw:focus-visible i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 35%, transparent); }
+
+.os-card { display: grid; gap: calc(10px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 4%, transparent); border: 1px solid var(--os-line); min-width: 0; animation: os-in .32s cubic-bezier(.22, 1, .36, 1) both; }
+.os-card h4 { margin: 0; font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 760; color: var(--k-fg, #FFFFFF); min-width: 0; overflow-wrap: anywhere; }
+.os-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 30%, transparent); transition: background .3s ease, box-shadow .3s ease; }
+.os-dot.on { background: var(--k-ok, #22C55E); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-ok, #22C55E) 18%, transparent); }
+.os-check { font-weight: 720; color: var(--k-fg, #FFFFFF); letter-spacing: .02em; }
+.os-group { font-size: calc(11px * var(--k-fs, 1)); font-weight: 820; letter-spacing: .12em; text-transform: uppercase; color: var(--os-soft); margin-top: calc(2px * var(--k-dn, 1)); }
+
+/* Which computer is this: two calm choices. */
+.os-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: calc(8px * var(--k-dn, 1)); }
+.os-choice { display: grid; gap: 3px; text-align: left; padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1));
+  border: 1px solid var(--os-line); background: none; color: var(--k-fg, #FFFFFF); font: inherit; cursor: pointer; transition: background .2s ease, border-color .2s ease, transform .2s cubic-bezier(.22, 1, .36, 1); }
+.os-choice:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); }
+.os-choice:active { transform: scale(.99); }
+.os-choice.on { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); background: color-mix(in srgb, var(--k-acc, #EC4E86) 8%, transparent); }
+.os-choice b { font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 720; }
+.os-choice em { font-style: normal; font-size: calc(12px * var(--k-fs, 1)); color: var(--os-soft); }
+
+/* The code: big, thin, easy to read across a desk. */
+.os-code { font-family: var(--k-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: calc(34px * var(--k-fs, 1)); font-weight: 300; letter-spacing: .14em;
+  color: var(--k-fg, #FFFFFF); user-select: all; -webkit-user-select: all; animation: os-pop .45s cubic-bezier(.34, 1.4, .64, 1) both; }
+.os-codein { width: 11ch; font-family: var(--k-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: calc(16px * var(--k-fs, 1)); letter-spacing: .1em;
+  padding: calc(7px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1)); border: 1px solid var(--os-line);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); color: var(--k-fg, #FFFFFF); }
+.os-codein:focus { outline: none; border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent); }
+
+/* Jobs. */
+.os-jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(4px * var(--k-dn, 1)); }
+.os-job { border-radius: calc(12px * var(--k-rd, 1)); transition: background .2s ease; }
+.os-job.open { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 4%, transparent); }
+.os-jobhead { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); width: 100%; padding: calc(7px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border: 0; border-radius: calc(12px * var(--k-rd, 1));
+  background: none; color: var(--k-fg, #FFFFFF); font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.os-jobhead.static { cursor: default; }
+.os-jobhead:not(.static):hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); }
+.os-jobt { flex: 1; min-width: 0; font-size: calc(13px * var(--k-fs, 1)); font-weight: 680; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.os-when { flex: none; font-size: calc(11.5px * var(--k-fs, 1)); color: var(--os-soft); }
+.os-step { margin: 0; padding: 0 calc(10px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); font-size: calc(12px * var(--k-fs, 1)); color: var(--os-soft); }
+.os-jobbody { display: grid; gap: calc(8px * var(--k-dn, 1)); padding: 0 calc(10px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); animation: os-in .25s cubic-bezier(.22, 1, .36, 1) both; }
+.os-report { display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.os-log { margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--k-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: calc(11.5px * var(--k-fs, 1)); line-height: 1.45; padding: calc(8px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); color: var(--k-fg, #FFFFFF); }
+
+.os-note { margin: 0; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.45; color: var(--k-fg, #FFFFFF);
+  padding: calc(8px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); border: 1px solid var(--os-line); }
+
+/* Copy for AI: the same calm accent button as the AI task API. */
+.os-copy { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--k-on-acc, #FFFFFF);
+  padding: calc(13px * var(--k-dn, 1)) calc(16px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1)); border: 0;
+  background: linear-gradient(135deg, var(--k-acc, #EC4E86), color-mix(in srgb, var(--k-acc, #EC4E86) 62%, #6D28D9)); transition: transform .2s cubic-bezier(.22, 1, .36, 1); }
+.os-copy:hover { transform: translateY(-1px); }
+.os-copy:active { transform: scale(.985); }
+.os-copy svg { flex: none; }
+.os-copy span { display: grid; gap: 2px; min-width: 0; }
+.os-copy b { font-size: calc(14px * var(--k-fs, 1)); font-weight: 760; }
+.os-copy em { font-style: normal; font-size: calc(12px * var(--k-fs, 1)); opacity: .85; }
+
+@keyframes os-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes os-pop { 0% { opacity: 0; transform: scale(.94, .9); } 30% { opacity: 1; transform: scale(.97, 1.02); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .os-card, .os-code, .os-jobbody, .os-note-line { animation: none; }
+  .os-sw i, .os-sw i::after, .os-choice, .os-copy, .os-pill, .os-dot { transition: none; }
+}

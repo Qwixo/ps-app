@@ -1,7 +1,7 @@
 // Outsource work to your other computer at work (PS 1.65, rules in core/second.ts, engine in core/outsource.ts). Runs in the page that holds the vault.
 // It builds the one engine with the real vault, the Mac's bridge (core/secondbridge.ts) and this device's saved data, and keeps it
-// fed. Nothing here polls while PS is closed: the only timer runs while the page is open, only on a paired other computer, and
-// writes only when its state changed or two minutes passed. A vault change is looked at once, after a short pause.
+// fed. Nothing here polls while PS is closed: the only timer runs while the page is open, makes no network call by itself and
+// lets the other computer write a small "still here" every 10 minutes. A vault change is looked at once, after a short pause.
 import { useSyncExternalStore } from "react";
 import { docs as vaultDocs, put, remove, vaultStore, onSecondPoke, pokeSecond, setSecondChannel } from "./core/vault";
 import { createEngine, FEATURE_ID, type Engine, type View } from "./core/outsource";
@@ -12,6 +12,8 @@ import type { MacToPage } from "./core/secondbridge";
 import type { Kind } from "./core/model";
 
 const MAC = import.meta.env.MODE === "ps";
+// The phone app (PS GOS) or the iPhone web app: it may only pair to restart the other computer (same test as gos/bridge.ts).
+const PHONE = import.meta.env.MODE === "gos" || (globalThis as { __psMobile?: unknown }).__psMobile === true;
 const KINDS: Kind[] = ["spair", "sojob", "sores", "sjobst", "sfile", "scmd", "sstat", "sdev"];
 let engine: Engine | null = null;
 let post: (m: object) => void = () => {};
@@ -37,7 +39,7 @@ function react() {
   const s = vaultStore.get();
   if (s.status !== "unlocked") return;
   const on = outsourceOn(), v = engine.view();
-  const want = on && (v.role !== "none" || !!v.code);
+  const want = on && (v.paired || !!v.code);
   if (want !== joined) { joined = want; setSecondChannel(want, v.role === "other"); }
   if (!on) return;
   const g = sig();
@@ -58,14 +60,14 @@ export function startOutsource(p?: (m: object) => void) {
       remove: (id) => remove(id),
       poke: (k) => { void pokeSecond(k).catch(() => {}); },
     },
-    post: (m) => post(m), local, now: () => Date.now(), native: MAC,
+    post: (m) => post(m), local, now: () => Date.now(), native: MAC, phone: PHONE,
   });
   vaultStore.subscribe(react);
   engine.subscribe(react);
   onSecondPoke(() => { /* a poke already pulls; the vault subscription above reacts to what changed */ });
-  if (MAC) engine.hello();
-  // The other computer reports every 2 minutes while PS is open. Nothing runs when the page is closed.
-  if (MAC) beat = window.setInterval(() => { if (outsourceOn()) void engine?.tick(); }, 120_000);
+  engine.hello();
+  // Once a minute while this page is open: no network by itself, only a check whether the other computer's "still here" is due.
+  if (MAC) beat = window.setInterval(() => { if (outsourceOn() && vaultStore.get().status === "unlocked") void engine?.tick(); }, 60_000);
   react();
   return engine;
 }

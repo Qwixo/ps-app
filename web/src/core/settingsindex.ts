@@ -17,7 +17,7 @@ export { norm, stem };
 
 /** Where PS is running: on a Mac (the Tab list), the website, or the phone (PS GOS and the iPhone web app). */
 export type Where = "mac" | "web" | "phone";
-export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "chkremind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "posture" | "sleep" | "sentry" | "gsquad" | "phone" | "about" | "assistant";
+export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "chkremind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "posture" | "sleep" | "sentry" | "gsquad" | "phone" | "about" | "assistant" | "outsource";
 /** What a setting opens instead of a row in Settings: a screen of its own. */
 export type Go = "fitness" | "security" | "dnd" | "gsquad" | "sleepSettings" | "phone" | "vault" | "macApp";
 
@@ -102,6 +102,8 @@ export const GROUPS: SetGroup[] = [
   { id: "pomodoro", label: "Pomodoro timer", line: "Work and break times, sounds and the island", on: ["mac", "web"], icon: "M12 21a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM12 6V3.5M9 4.5l3 1.5 3-1.5M12 13.5V10.5M12 13.5l2.2 1.6" },
   { id: "standup", label: "Stand-up reminders", line: "How often to stand, for how long, and when", on: ["mac"], icon: "M12 5.5a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6zM12 7.5v7M8 10l4-2 4 2M12 14.5l-3 6.5M12 14.5l3 6.5" },
   { id: "posture", label: "Posture Reminder", line: "A pop-up now and then to sit up straight", on: ["mac", "web"], icon: "M12 5.5a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6zM10 8.5v6.5M10 15h6.5v6M7 21V9" },
+  // PS 1.65 (the developer's idea, 17 Nov 2026): "A tab in General settings named 'Outsource work to your other computer'" (views/OutsourceSettings.tsx).
+  { id: "outsource", label: "Outsource work to your other computer", line: "Send heavy AI work to your other Mac", on: ["mac", "phone"], icon: "M2 6h9v7H2zM13 9h9v7h-9zM5 16v2h3M16 19h3M11 9.5h2" },
   { id: "sleep", label: "Sleep mode", line: "Sleep mode has its own settings", icon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" },
   // V1.48 Sentry mode (core/sentry.ts): the gear on the AI button opens this group. Every Mac, public and private.
   { id: "sentry", label: "Sentry mode", line: "Lock your Mac and keep AI jobs running", on: ["mac"], icon: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM8.5 12s1.3-2.5 3.5-2.5 3.5 2.5 3.5 2.5-1.3 2.5-3.5 2.5-3.5-2.5-3.5-2.5z" },
@@ -206,6 +208,8 @@ export const SETTINGS: SetEntry[] = [
   { id: "rem-test", group: "remind", parent: "reminders", name: "Test a reminder", line: "Shows it right now with its sound. Esc ends it.", words: ["test", "try", "preview", "see it", "demo"] },
 
   // ---------- Posture Reminder (PS 1.65, core/posture.ts; the controls are views/PostureSettings.tsx) ----------
+  // ---------- Outsource work to your other computer (PS 1.65) ----------
+  { id: "outsource-main", group: "outsource", name: "Outsource work to your other computer", line: "Pair your other computer, see if it is awake and ready, and see running and finished jobs.", on: ["mac", "phone"], words: ["outsource", "second computer", "other computer", "other mac", "m1", "m4", "pair", "pairing", "code", "jobs", "job", "offload", "remote", "build", "tests", "bundle", "restart", "claude", "codex", "ai", "cool", "fast"] },
   { id: "posture-on", group: "posture", name: "Posture reminder", line: "A pop-up with a stick figure that slouches and sits up straight, and one button, Sitting straight.", on: NOT_PHONE, pf: true, words: ["posture", "sit", "sitting", "straight", "slouch", "back", "spine", "desk", "ergonomic", "health", "reminder", "stick figure", "pop up", "popup"] },
   { id: "posture-every", group: "posture", name: "How often", line: "Every 30, 45, 60 or 90 minutes.", on: NOT_PHONE, pf: true, words: ["posture", "interval", "how often", "every", "minutes", "frequency", "30", "45", "60", "90"] },
   { id: "posture-hours", group: "posture", name: "Between these times", line: "It only comes inside these hours. An end time before the start time runs past midnight.", on: NOT_PHONE, pf: true, words: ["posture", "hours", "from", "to", "start", "end", "work hours", "schedule", "time", "midnight"] },

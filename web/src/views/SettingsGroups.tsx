@@ -80,6 +80,7 @@ import { AddFriendPanel } from "./AddFriend";
 import { PomoSetting } from "./Pomodoro";
 import { AssistAiRow, AssistOnRow, AssistPopRow, AssistRequestsRow } from "./AssistSettings";
 import { PostureSetting } from "./PostureSettings";
+import { OutsourceSettings } from "./OutsourceSettings";
 import { MeetBubbleSetting, StandSetting, WelcomeBackSetting, WorkoutMacSetting } from "./IslandTimersSettings";
 import { LinkIphoneRow } from "./LinkIphone";
 import { MacUpdateRow } from "./MacUpdate";
@@ -215,6 +216,8 @@ export const CONTROLS: Controls = {
   "pomo-sound": row(() => <PomoSetting k="sound" />),
   "pomo-clock": row(() => <PomoSetting k="clock" />),
   // Stand-up reminders and the next meeting bubble (V1.58, views/IslandTimersSettings.tsx)
+  // Outsource work to your other computer (PS 1.65, views/OutsourceSettings.tsx): the whole tab is one body, always open.
+  "outsource-main": function Outsource({ e }) { return <SetRow e={e} body={<OutsourceSettings />} open plain />; },
   // Posture Reminder (PS 1.65, views/PostureSettings.tsx)
   "posture-on": row(() => <PostureSetting k="on" />),
   "posture-every": row(() => <PostureSetting k="every" />),

@@ -2,7 +2,7 @@
 // vault and does all the crypto) and the MAC app (which runs the jobs and keeps files). Types only, no logic.
 // Both sides send one envelope kind: window.webkit...ps.postMessage(JSON) with type "outsource" (page to Mac), and
 // the Mac hands the page the object through the usual window.__ps.apply(m) with m.type "outsource" (Mac to page,
-// handled in src/outsourcerun.ts; it works the same in the main window and needs no new JS hook). The Mac never sees a private key of the vault, never
+// handled in src/outsourcerun.ts; it works the same in the main window and needs no new JS hook). The Mac never sees a key of the vault, never
 // signs for the person, and never decides who is paired: the page checks every signature and expiry first and
 // only then hands the Mac a plain, already checked job.
 export const BRIDGE_VERSION = 1;
@@ -17,8 +17,10 @@ export type KeepRecord = {
   role: BridgeRole;
   pub: string;               // public signing key, base64url (ECDSA P-256 raw)
   encPub: string;            // public sealing key, base64url (ECDH P-256 raw)
-  priv: string;              // private halves as one sealed blob the page made (the Mac stores it in the Keychain, opaque)
-  peer?: { device: string; name: string; pub: string; encPub: string; pairedAt: number };
+  priv: string;              // the private halves (the Mac keeps ONLY this field in its Keychain, never in a file or the page's storage)
+  peer?: { device: string; name: string; pub: string; encPub: string; pairedAt: number; check?: string };
+  phones?: { device: string; name: string; pub: string; encPub: string; pairedAt: number }[];   // the other computer: phones allowed to restart it
+  seen?: Record<string, number>;   // the other computer: job and command ids already taken (the replay list), kept across restarts
 };
 
 // ---------- page to Mac ----------
@@ -31,7 +33,7 @@ export type PageToMac =
   | { type: "outsource"; op: "cancel"; id: string }
   | { type: "outsource"; op: "land"; id: string; report: string; bundle?: { name: string; sha256: string; size: number; n: number }; shots?: string[] } // main computer: a verified result arrived, ask for chunks next
   | { type: "outsource"; op: "chunk"; id: string; i: number; b64: string }                // main computer: one verified chunk of a landed bundle
-  | { type: "outsource"; op: "restart"; kind: "restart" | "shutdown" }                    // other computer: a signed, fresh, checked restart command, run it through the helper
+  | { type: "outsource"; op: "restart"; kind: "restart" | "shutdown"; id: string; at: number; from: string } // other computer: a signed, fresh, checked command, run it through the restart helper
   | { type: "outsource"; op: "cli-answer"; req: string; ok: boolean; text: string; id?: string } // answer to a CLI request
   | { type: "outsource"; op: "island"; text: string };                                    // optional: show a line on the island
 
@@ -74,8 +76,7 @@ export type CliRequest =
   | { cmd: "send"; title: string; repo: string; base: string; prompt: string; bundle?: boolean; screenshots?: boolean; minutes?: number; tool?: "claude" | "codex" }
   | { cmd: "list" }
   | { cmd: "result"; id: string }
-  | { cmd: "cancel"; id: string }
-  | { cmd: "restart" };
+  | { cmd: "cancel"; id: string };   // no restart here on purpose: an AI never restarts a computer (the phone and the tab do, on a click)
 
 /** Bundle pieces: raw size per chunk before base64. */
 export const BRIDGE_CHUNK = 192 * 1024;

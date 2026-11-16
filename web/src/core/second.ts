@@ -30,7 +30,9 @@ export const MONTH_MAX = 2048 * MB;        // what one month of results may add 
 export const CHUNK = 192 * 1024;           // matches BRIDGE_CHUNK in core/secondbridge.ts
 export const MSG_MAX = 4000;
 export const PROMPT_MAX = 20_000;
-export const ONLINE_MS = 5 * 60 * 1000;    // heard from within 5 minutes (it reports every 2 minutes while PS is open) means awake and ready
+export const ONLINE_MS = 25 * 60 * 1000;   // heard from within 25 minutes means awake and ready (it writes on every change, and once every 10 minutes while PS is open)
+export const KEEPALIVE_MS = 10 * 60 * 1000;
+export const BUNDLE_MAX = 24 * MB;         // one result bundle at most: the vault is on a small free plan
 export const JOB_MAX_AGE = 24 * 3600_000;  // a job nobody picks up in a day expires
 export const FILE_MAX_AGE = 7 * 24 * 3600_000;
 export const FUTURE_SKEW = 5 * 60_000;     // clocks may differ by this much
@@ -285,38 +287,49 @@ async function aesFor(shared: Bytes, info: string, usage: KeyUsage[]): Promise<C
   return subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: bytes("ps-second-1"), info: bytes(info) }, base, { name: "AES-GCM", length: 256 }, false, usage);
 }
 
-/** Signs `body` with this computer's key and seals it so only `toEncPub` (the other computer) can read it. */
+/** What the signature covers: the sealed bytes and who to whom, so a signature can be checked BEFORE anything is opened and says
+ *  nothing about the plain text (encrypt, then sign). */
+const sigInput = (from: string, to: string, e: string, iv: string, ct: string): Bytes => bytes(`ps-second-2|${from}>${to}|${e}|${iv}|${ct}`);
+/** The key info names both ends and both keys, so a sealed body cannot be moved to another pair or another key. */
+const sealInfo = (from: string, to: string, eph: string, toEncPub: string) => `ps-second-2|${from}>${to}|${eph}|${toEncPub}`;
+
+/** Seals `body` so only `toEncPub` (the other computer) can read it, then signs the sealed bytes with this computer's key. */
 export async function signBody(keys: Keys, body: BodyBase, toEncPub: string): Promise<Env> {
   const p = await privOf(keys);
   const plain = canon(body);
-  const sig = b64url(new Uint8Array(await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, p.sign, bytes(`${body.from}>${body.to}|${plain}`))));
   const eph = await subtle.generateKey(ECDH, true, ["deriveBits"]);
+  const ephPub = await rawPub(eph.publicKey);
   const shared = new Uint8Array(await subtle.deriveBits({ name: "ECDH", public: await pubEnc(toEncPub) }, eph.privateKey, 256)) as Bytes;
-  const key = await aesFor(shared, `${body.from}>${body.to}`, ["encrypt"]);
+  const info = sealInfo(body.from, body.to, ephPub, toEncPub);
+  const key = await aesFor(shared, info, ["encrypt"]);
   const iv = randomBytes(12);
-  const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv, additionalData: bytes(`${body.from}>${body.to}`) }, key, bytes(plain)));
-  return { body: { e: await rawPub(eph.publicKey), iv: b64url(iv), ct: b64url(ct) }, sig, by: keys.device, v: 1 };
+  const ct = b64url(new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv, additionalData: bytes(info) }, key, bytes(plain))));
+  const ivs = b64url(iv);
+  const sig = b64url(new Uint8Array(await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, p.sign, sigInput(body.from, body.to, ephPub, ivs, ct))));
+  return { body: { e: ephPub, iv: ivs, ct }, sig, by: keys.device, v: 2 };
 }
 
-/** Opens a sealed envelope and checks the signature against `from`'s public key. Never throws: a bad one is { ok:false, why }. */
+/** Checks the signature against `from`'s public key first (a stranger's message is never even opened), then opens it.
+ *  Never throws: a bad one is { ok:false, why }. */
 export async function openEnv<T extends BodyBase = BodyBase>(keys: Keys, env: unknown, from: Peer | null | undefined): Promise<Check<T>> {
   try {
     const e = env as Env | null;
     if (!e || typeof e !== "object" || typeof e.sig !== "string" || typeof e.by !== "string") return { ok: false, why: "not a sealed message" };
     if (!from) return { ok: false, why: "not paired with that computer" };
     if (e.by !== from.device) return { ok: false, why: "signed by a computer that is not paired" };
+    if (e.v !== 2) return { ok: false, why: "a message from a newer or older version of PS" };
     const s = e.body as { e?: unknown; iv?: unknown; ct?: unknown };
-    if (!s || typeof s.e !== "string" || typeof s.iv !== "string" || typeof s.ct !== "string") return { ok: false, why: "not a sealed message" };
+    if (!s || typeof s.e !== "string" || typeof s.iv !== "string" || typeof s.ct !== "string" || s.ct.length > 4 * MB) return { ok: false, why: "not a sealed message" };
+    const ok = await subtle.verify({ name: "ECDSA", hash: "SHA-256" }, await pubSign(from.pub), unb64url(e.sig), sigInput(from.device, keys.device, s.e, s.iv, s.ct));
+    if (!ok) return { ok: false, why: "the signature does not match" };
     const p = await privOf(keys);
     const shared = new Uint8Array(await subtle.deriveBits({ name: "ECDH", public: await pubEnc(s.e) }, p.enc, 256)) as Bytes;
-    const dir = `${from.device}>${keys.device}`;
-    const key = await aesFor(shared, dir, ["decrypt"]);
+    const info = sealInfo(from.device, keys.device, s.e, keys.encPub);
+    const key = await aesFor(shared, info, ["decrypt"]);
     let plain: string;
-    try { plain = td.decode(await subtle.decrypt({ name: "AES-GCM", iv: unb64url(s.iv), additionalData: bytes(dir) }, key, unb64url(s.ct))); } catch { return { ok: false, why: "it was not sealed for this computer" }; }
-    const ok = await subtle.verify({ name: "ECDSA", hash: "SHA-256" }, await pubSign(from.pub), unb64url(e.sig), bytes(`${dir}|${plain}`));
-    if (!ok) return { ok: false, why: "the signature does not match" };
+    try { plain = td.decode(await subtle.decrypt({ name: "AES-GCM", iv: unb64url(s.iv), additionalData: bytes(info) }, key, unb64url(s.ct))); } catch { return { ok: false, why: "it was not sealed for this computer" }; }
     const body = JSON.parse(plain) as T;
-    if (!body || body.from !== from.device || body.to !== keys.device) return { ok: false, why: "addressed to someone else" };
+    if (!body || typeof body !== "object" || body.from !== from.device || body.to !== keys.device) return { ok: false, why: "addressed to someone else" };
     return { ok: true, body };
   } catch { return { ok: false, why: "could not be opened" }; }
 }
@@ -331,10 +344,21 @@ export function makeCode(): string {
 export const cleanCode = (c: unknown): string => (typeof c === "string" ? c.replace(/\D/g, "") : "");
 export const codeOk = (c: unknown): boolean => cleanCode(c).length === 8;
 export const PAIR_CODE_MS = 10 * 60_000;
-/** Pairing proof: what the other computer shows is the code; the proof is a hash that needs the code, so the vault holds no code. */
+/** How slow one pairing proof is on purpose (PBKDF2 rounds): one check takes a fraction of a second, so trying all 100 million codes
+ *  inside the 10 minutes a code lives is out of reach even for someone who can read the vault. */
+export const PAIR_ITERS = 200_000;
+/** Pairing proof: the other computer shows the code; the vault only ever holds this slow hash of it bound to the device and its keys. */
 export async function pairCode(code: string, ...parts: string[]): Promise<string> {
-  const d = await subtle.digest("SHA-256", bytes(`ps-pair-1|${cleanCode(code)}|${parts.join("|")}`));
+  const base = await subtle.importKey("raw", bytes(`ps-pair-2|${cleanCode(code)}`), "PBKDF2", false, ["deriveBits"]);
+  const d = await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: bytes(parts.join("|")), iterations: PAIR_ITERS }, base, 256);
   return b64url(new Uint8Array(d));
+}
+/** Four short words both screens show after pairing, so the person can see the two computers really paired with each other. */
+const CHECK_WORDS = ["apple", "river", "stone", "cloud", "maple", "tiger", "piano", "lemon", "ocean", "falcon", "candle", "pepper", "rocket", "silver", "meadow", "comet"];
+export async function pairCheck(aPub: string, bPub: string): Promise<string> {
+  const [x, y] = [aPub, bPub].sort();
+  const d = new Uint8Array(await subtle.digest("SHA-256", bytes(`ps-pair-check|${x}|${y}`)));
+  return [0, 1, 2, 3].map((i) => CHECK_WORDS[d[i] % 16]).join(" ");
 }
 
 // ---------- checking a job or a command ----------
