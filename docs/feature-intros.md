@@ -67,3 +67,12 @@ All in `web/src/core/featureintro.ts` (`nextIntro`), tested in `web/tests/featur
 
 The guide never goes away. For WhatsApp: Settings, WhatsApp settings, Link WhatsApp. Write that place into `settings` so the
 generic guide can say it.
+
+## The "where things live" tour (PS 1.65)
+
+After an update the big new features are NOT introduced one card at a time. One short tour (`core/tour.ts`, drawn by
+`views/FeatureIntro.tsx` as the intro `tour-165`) starts after the same first minute of active use, and has one step per new
+thing, saying where it lives. To put the next feature in it, add one entry to `TOUR_STEPS`, keyed by its feature id (`features.json`).
+A step whose feature id the build does not know is skipped, and a step only shows where the feature is on and fits the device
+(`on`, `owner`, `mail`). Its own switch is `whats-new-tour`. The intros it replaced (`TOUR_FOLDS`) are marked done when it runs, and
+they show alone again only when the tour switch is off. Settings, About and updates, "Show the tour again" runs it once more.

@@ -85,6 +85,7 @@ import { MacUpdateRow } from "./MacUpdate";
 import { WhatsNewEntry } from "./WhatsNew";
 import { ExamplesEntry, WelcomeEntry } from "./Welcome";
 import { TipsAgainEntry } from "./Tips";
+import { TourAgainEntry } from "./TourAgain";
 import { openSecurity } from "./Security";
 import { askFitness } from "../fitness/fitask";
 import { MINECRAFT_ENABLED } from "../core/mcmode";
@@ -422,6 +423,7 @@ export const CONTROLS: Controls = {
     </>);
   },
   "tips": row(() => <TipsAgainEntry />),
+  "tour-again": row(() => <TourAgainEntry />),
   "tips-show": function TipsShow({ e }) { return <SyncedOnOff e={e} field="tipsShow" />; },
   // V1.57 Settings, Controls: Invert swipe (off unless switched on; core/lists.ts swipeSign).
   "invert-swipe": function InvertSwipe({ e }) {
