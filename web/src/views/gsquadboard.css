@@ -67,3 +67,21 @@
 .gsb-add-in span { font-weight: 800; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); }
 .gsb-add-in input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--k-fg, #FFFFFF); font: 700 calc(14px * var(--k-fs, 1))/1.2 inherit; font-family: inherit; }
 @media (prefers-reduced-motion: reduce) { .gsb-row, .gsb-st { animation: none; } .gsb-bar b, .gsb-day i b { transition: none; } }
+
+/* PS 1.64 Past boards: the month chips (they scroll sideways on a narrow screen) and one card per month. */
+.gsb-months { display: flex; gap: calc(4px * var(--k-dn, 1)); overflow-x: auto; scrollbar-width: none; padding: calc(2px * var(--k-dn, 1)) 0 calc(4px * var(--k-dn, 1)); scroll-snap-type: x proximity; }
+.gsb-months::-webkit-scrollbar { display: none; }
+.gsb-months .gsb-chip { flex: none; scroll-snap-align: start; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); }
+.gsb-months .gsb-chip.on { background: color-mix(in srgb, var(--k-acc, #EC4E86) 22%, transparent); }
+.gsb-pcard { display: grid; gap: calc(2px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 4%, transparent); animation: gsbCard .3s cubic-bezier(.22, 1, .36, 1); }
+@keyframes gsbCard { from { opacity: 0; transform: translateY(6px) scale(.99); } }
+.gsb-ptitle { margin: 0 8px 4px; font-weight: 800; font-size: calc(13px * var(--k-fs, 1)); }
+.gsb-gulag { display: grid; gap: calc(2px * var(--k-dn, 1)); margin-top: calc(8px * var(--k-dn, 1)); padding-top: calc(8px * var(--k-dn, 1)); border-top: 1px dashed color-mix(in srgb, var(--k-fg, #FFFFFF) 16%, transparent); }
+.gsb-gtitle { margin: 0 8px 2px; font-weight: 800; font-size: calc(11.5px * var(--k-fs, 1)); letter-spacing: .06em; text-transform: uppercase; color: var(--k-bad-t, #FF8A8A); }
+.gsb-pline { margin: 4px 8px 0; font-style: italic; font-weight: 550; font-size: calc(12px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 60%, transparent); }
+@media (prefers-reduced-motion: reduce) { .gsb-pcard { animation: none; } }
+.gsb-ptitle em { display: block; margin-top: 1px; font-style: normal; font-weight: 600; font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) 55%, transparent); }
+.gsb-gulag { position: relative; }
+.gsb-lnote { justify-self: center; margin-top: calc(-17px * var(--k-dn, 1)); margin-bottom: 4px; padding: calc(2px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(99px * var(--k-rd, 1)); font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 750;
+  color: var(--k-warn-t, #FFD166); background: var(--gw-main, var(--k-surface, #17121A)); border: 1px solid color-mix(in srgb, var(--k-warn, #FFC145) 35%, transparent); }

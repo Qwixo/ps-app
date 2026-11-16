@@ -96,11 +96,14 @@ export function GifPicker({ onPick, onClose, className = "" }: { onPick: (url: s
 }
 
 // ---------- the reaction bar ----------
-export function ReactBar({ onPick, onMore, mine }: { onPick: (e: string) => void; onMore: (el: HTMLElement) => void; mine: boolean }) {
+const Back = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9.5 6.5L4.5 11.5l5 5" /><path d="M4.8 11.5h9.2c3.2 0 5.5 2.3 5.5 5.5v1" /></svg>;
+/** PS 1.64: onReply adds a Reply button at the end (the touch bar's way to reply; the mouse also has the hover button). */
+export function ReactBar({ onPick, onMore, mine, onReply }: { onPick: (e: string) => void; onMore: (el: HTMLElement) => void; mine: boolean; onReply?: () => void }) {
   return (
     <span className={`gc-rbar${mine ? " mine" : ""}`} role="toolbar" aria-label="React">
       {QUICK_EMOJI.map((e) => <button key={e} type="button" className="gc-rb" aria-label={`React with ${e}`} onClick={() => { sfx.click(); onPick(e); }}>{e}</button>)}
       <button type="button" className="gc-rb more" aria-label="More emoji" title="More" onClick={(ev) => onMore(ev.currentTarget)}><Plus /></button>
+      {onReply && <button type="button" className="gc-rb more rp" aria-label="Reply" title="Reply" onClick={() => { sfx.click(); onReply(); }}><Back /></button>}
     </span>
   );
 }

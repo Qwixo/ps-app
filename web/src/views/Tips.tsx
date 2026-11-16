@@ -56,7 +56,7 @@ const shownHere = new Set<TipId>();
 let shownAt = 0;
 
 const SCREEN =
-  "[role='dialog'],[role='menu'],[role='alertdialog'],.gs-layer,.tm-ctx,.tm-pop,.tm-addwin,.tm-editor,.tl-card,.sl-sheet,.slp-sheet,.mp-layer";
+  "[role='dialog'],[role='menu'],[role='alertdialog'],.gs-layer,.tm-ctx,.tm-pop,.tm-addwin,.tm-editor,.lp-make,.sl-sheet,.slp-sheet,.mp-layer";
 
 function visible(el: Element | null): HTMLElement | null {
   if (!(el instanceof HTMLElement)) return null;
@@ -70,7 +70,7 @@ function targetOf(id: TipId): HTMLElement | null {
   switch (id) {
     case "swipe": return q(".tl-pager");
     case "dots": return q(".tl-dots");
-    case "look": return q(".tl-strip .tl-name") ?? q(".tl-dots");
+    case "look": return q(".tl-strip .lp-name") ?? q(".tl-dots");
     case "edit": return q(".ed-corner .ed-btn");
     case "remind": {
       for (const el of document.querySelectorAll(".tm-list > .tm-row[data-id]:not(.done):not(.tm-editor)")) { const v = visible(el); if (v) return v; }

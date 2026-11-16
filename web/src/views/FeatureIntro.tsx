@@ -101,6 +101,8 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
     const todo = p1Default(squadStore.get().in, cleanShareOpts(settingsData(s).squadShare));
     return todo === "keep" ? "done" : todo === "tell" ? "open" : "unknown";
   },
+  // PS 1.64 G Squad replies and members list: only for people in a squad; Ok ends it for good (a choice with one button).
+  "gsquad-reply-164": async () => (squadStore.get().in ? "open" : "unknown"),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault

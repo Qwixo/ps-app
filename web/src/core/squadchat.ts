@@ -86,7 +86,12 @@ export const MAX_TEXT = 2000;
  *  no words in it and skip the row, so it never shows as a message there. */
 export interface ChatAbout { k: string; l: string; w?: string }   // kind, label, whose (member id)
 export interface ChatReact { to: string; e: string }               // the message id it is on, the emoji
-export interface ChatBody { t: string; a?: ChatAbout; r?: ChatReact }
+/** PS 1.64: a reply (Signal style). The message it answers, whose it was, and its first line as it was then (so the quote
+ *  shows even when the original is far up in history). Sealed inside the message like the words. Clients before 1.64
+ *  drop `q` in cleanBody and show the words as an ordinary message. */
+export interface ChatReply { id: string; w: string; s: string }
+export interface ChatBody { t: string; a?: ChatAbout; r?: ChatReact; q?: ChatReply }
+export const REPLY_SNIPPET = 120;
 
 export function cleanText(v: unknown): string {
   if (typeof v !== "string") return "";
@@ -112,6 +117,19 @@ export function cleanReact(v: unknown): ChatReact | undefined {
   const e = cleanEmoji(r.e);
   return typeof r.to === "string" && UUID.test(r.to) && e ? { to: r.to.toLowerCase(), e } : undefined;
 }
+/** The first line of a message, one line, cut short: what a reply quotes. */
+export function replySnippet(text: unknown): string {
+  if (typeof text !== "string") return "";
+  const line = text.replace(/\r\n?/g, "\n").split("\n").map((x) => x.trim()).find((x) => x) ?? "";
+  const one = line.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  return one.length > REPLY_SNIPPET ? `${one.slice(0, REPLY_SNIPPET - 3).trimEnd()}...` : one;
+}
+export function cleanReply(v: unknown): ChatReply | undefined {
+  const q = v as Record<string, unknown> | null;
+  if (!q || typeof q !== "object") return undefined;
+  if (typeof q.id !== "string" || !UUID.test(q.id) || typeof q.w !== "string" || !UUID.test(q.w)) return undefined;
+  return { id: q.id.toLowerCase(), w: q.w.toLowerCase(), s: replySnippet(q.s) };
+}
 export function cleanBody(v: unknown): ChatBody | null {
   const b = v as Record<string, unknown> | null;
   if (!b || typeof b !== "object") return null;
@@ -119,8 +137,8 @@ export function cleanBody(v: unknown): ChatBody | null {
   if (r) return { t: "", r };
   const t = cleanText(b.t);
   if (!t) return null;
-  const a = cleanAbout(b.a);
-  return a ? { t, a } : { t };
+  const a = cleanAbout(b.a), q = cleanReply(b.q);
+  return { t, ...(a ? { a } : {}), ...(q ? { q } : {}) };
 }
 export async function sealMessage(raw: string, squad: string, epoch: number, member: string, id: string, body: ChatBody): Promise<string> {
   const b = cleanBody(body);

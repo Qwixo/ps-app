@@ -82,6 +82,16 @@ export const INTROS: IntroDef[] = [
     choice: true,
   },
   {
+    // PS 1.64 (the developer approved these exact words, 16 Nov 2026): G Squad replies and the members list. One Ok ends it for good
+    // (a `choice` with one button: nothing opens). Only for people in a squad (views/FeatureIntro.tsx DONE_PROBES).
+    id: "gsquad-reply-164",
+    headline: "New in G Squad: reply to any message and see who is online.",
+    ask: "Hover over a message and click Reply, or click the people at the top.",
+    show: "Ok",
+    mark: "spark",
+    choice: true,
+  },
+  {
     // PS 1.60 (pull request 12b). Only for people who said No or have not answered (views/FeatureIntro.tsx DONE_PROBES, core/screenrecmeet.ts introAudience).
     id: "screenrec",
     headline: SR_INTRO.headline,

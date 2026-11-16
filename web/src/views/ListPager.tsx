@@ -256,7 +256,7 @@ function overOf(t: EventTarget | null): GestureOver {
   const el = t instanceof Element ? t : null;
   if (!el) return "other";
   if (el.closest(".tl-dots")) return "list";
-  if (el.closest(".tm-editor, .tm-ctx, .tl-menu, .tl-card, .trm-pop, input, textarea, select, [contenteditable='true']")) return "other";
+  if (el.closest(".tm-editor, .tm-ctx, .tl-menu, .lp-make, .trm-pop, input, textarea, select, [contenteditable='true']")) return "other";
   const scroller = el.closest(".tm-scroll");
   if (!scroller || !el.closest(".tm-overlay")) return "other";
   // Something inside the list that scrolls sideways itself keeps its own wheel.
@@ -377,7 +377,7 @@ function onKey(e: KeyboardEvent) {
   if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
   const a = document.activeElement as HTMLElement | null;
   if (a?.closest?.("input, textarea, select, [contenteditable='true'], [role='slider'], [role='menu'], .tm-ctx, .tl-menu")) return;
-  if (document.querySelector(".tm-ctx, .tl-menu, .tm-ghost, .tl-card, .trm-pop")) return;   // a menu, a drag, Create, a reminder pop-up
+  if (document.querySelector(".tm-ctx, .tl-menu, .tm-ghost, .lp-make, .trm-pop")) return;   // a menu, a drag, Create, a reminder pop-up
   const p = keyPager();
   if (!p || p.count() < 2) return;
   const to = stepIndex(p.index(), p.count(), e.key === "ArrowRight" ? 1 : -1);
@@ -725,17 +725,17 @@ function CreateCard({ at, busy, onDone }: { at: { x: number; y: number }; busy: 
   useEffect(() => { inp.current?.focus({ preventScroll: true }); taskMapActions.editing(true); return () => taskMapActions.editing(false); }, []);
   const go = () => { const v = tidyName(inp.current?.value, LIST_NAME_MAX); if (v) onDone(v); else inp.current?.focus(); };
   return (
-    <div className="tl-card no-drag" style={{ left: at.x, top: at.y }} role="dialog" aria-label="Create a to-do list"
+    <div className="lp-make no-drag" style={{ left: at.x, top: at.y }} role="dialog" aria-label="Create a to-do list"
       onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
       <b>Create a to-do list</b>
-      <input ref={inp} className="tl-card-in" placeholder="Its name, for example Streaks" maxLength={LIST_NAME_MAX} spellCheck={false} disabled={busy}
+      <input ref={inp} className="lp-make-in" placeholder="Its name, for example Streaks" maxLength={LIST_NAME_MAX} spellCheck={false} disabled={busy}
         onKeyDown={(e) => {
           if (e.key === "Enter") { e.preventDefault(); go(); }
           if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); onDone(null); }
         }} />
-      <span className="tl-card-row">
-        <button type="button" className="tl-card-no" onClick={() => onDone(null)} disabled={busy}>Cancel</button>
-        <button type="button" className="tl-card-go" onClick={go} disabled={busy}>{busy ? "Making it" : "Create"}</button>
+      <span className="lp-make-row">
+        <button type="button" className="lp-make-no" onClick={() => onDone(null)} disabled={busy}>Cancel</button>
+        <button type="button" className="lp-make-go" onClick={go} disabled={busy}>{busy ? "Making it" : "Create"}</button>
       </span>
     </div>
   );
@@ -869,7 +869,7 @@ export function ListStrip({ names, id: here }: { names: ListNames; id: string })
     <div className="tl-strip" onMouseDown={(e) => e.stopPropagation()}>
       {edit
         ? <NameInput value={cur.name} max={LIST_NAME_MAX} label="List name" onDone={(v) => { setEdit(false); if (v !== null) renameList(cur.id, v); }} />
-        : <span className="tl-name" title="Double click to rename. Right click or hold for more." onDoubleClick={() => { sfx.click(); setEdit(true); }}
+        : <span className="lp-name" title="Double click to rename. Right click or hold for more." onDoubleClick={() => { sfx.click(); setEdit(true); }}
             onContextMenu={(e) => openListMenu(e, cur.id)}
             onPointerDown={(e) => { if (e.pointerType === "mouse") return; const x = e.clientX, y = e.clientY, el = e.currentTarget; hold.current = window.setTimeout(() => menuAt(x, y, cur.id, el), 520); }}
             onPointerUp={() => window.clearTimeout(hold.current)} onPointerLeave={() => window.clearTimeout(hold.current)}>{cur.name}</span>}
@@ -887,7 +887,7 @@ export function NameInput({ value, max, label, onDone }: { value: string; max: n
   const done = useRef(false);
   const end = (v: string | null) => { if (done.current) return; done.current = true; taskMapActions.editing(false); onDone(v); };
   return (
-    <input className="tl-name-in no-drag" autoFocus defaultValue={value} maxLength={max} aria-label={label} spellCheck={false}
+    <input className="lp-name-in no-drag" autoFocus defaultValue={value} maxLength={max} aria-label={label} spellCheck={false}
       size={Math.max(6, Math.min(max, value.length + 2))}
       onFocus={(e) => { done.current = false; e.currentTarget.select(); taskMapActions.editing(true); }}
       onBlur={(e) => end(e.currentTarget.value)}
@@ -1036,14 +1036,14 @@ function Menu({ at, names, dir }: { at: MenuAt; names: ListNames; dir: SwipeDir 
             <span>{it.label}</span>{it.sub && <kbd>{open === it.k ? "▾" : "▸"}</kbd>}
           </button>
           {it.sub && open === it.k && (
-            <div className="tl-sub" role="group" aria-label={it.label}>
+            <div className="lp-sub" role="group" aria-label={it.label}>
               {it.sub.map((s) => (
-                <button key={s.k} type="button" role="menuitem" className={`tm-ctx-i tl-sub-i${s.bad ? " bad" : ""}${s.on ? " cur" : ""}`}
+                <button key={s.k} type="button" role="menuitem" className={`tm-ctx-i lp-sub-i${s.bad ? " bad" : ""}${s.on ? " cur" : ""}`}
                   onMouseEnter={(e) => { e.currentTarget.focus({ preventScroll: true }); sfx.hover(); }} onClick={() => pick(s)}>
                   <span>{s.label}</span>{s.on && <kbd>✓</kbd>}
                 </button>
               ))}
-              {!it.sub.length && <span className="tl-sub-none">No other list yet</span>}
+              {!it.sub.length && <span className="lp-sub-none">No other list yet</span>}
             </div>
           )}
         </div>
@@ -1073,14 +1073,14 @@ export function ListPicker({ ids, onDone }: { ids: string[]; onDone: () => void 
     onDone();
   };
   return (
-    <div className="tl-sub" role="group" aria-label="Move to list">
+    <div className="lp-sub" role="group" aria-label="Move to list">
       {others.map((p) => (
-        <button key={p.id} type="button" role="menuitem" className="tm-ctx-i tl-sub-i"
+        <button key={p.id} type="button" role="menuitem" className="tm-ctx-i lp-sub-i"
           onMouseEnter={(e) => { e.currentTarget.focus({ preventScroll: true }); sfx.hover(); }}
           onClick={() => { moveToList(ids, p.id); onDone(); }}><span>{p.name}</span></button>
       ))}
       {ctx.pages.length < PAGES_MAX && (
-        <button type="button" role="menuitem" className="tm-ctx-i tl-sub-i" onMouseEnter={(e) => { e.currentTarget.focus({ preventScroll: true }); sfx.hover(); }}
+        <button type="button" role="menuitem" className="tm-ctx-i lp-sub-i" onMouseEnter={(e) => { e.currentTarget.focus({ preventScroll: true }); sfx.hover(); }}
           onClick={make}><span>+ New list</span></button>
       )}
     </div>
@@ -1163,7 +1163,7 @@ export function EmptyList({ id }: { id: string }) {
     save({ tmGroups: cleanGroups([...c.groups, { id: gid, name: "To do" }]), tmSecOrder: [...c.full, groupKey(gid)], tmPages: moveSec(c.pages, groupKey(gid), id) });
   };
   return (
-    <div className="tl-empty">
+    <div className="lp-empty">
       <span>This list is empty. Right click a section's name on another list and pick Move to list, or drag a task onto this list's dot.</span>
       <button type="button" className="no-drag" onMouseDown={(e) => e.stopPropagation()} onClick={add}>Add a task group here</button>
     </div>

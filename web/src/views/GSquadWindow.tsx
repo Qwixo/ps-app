@@ -28,7 +28,7 @@ import { looksClass, looksVars } from "../squad/looks";
 import { signalOn } from "../squad/signal";
 import { todayISO } from "../ui/kit";
 import { sfx } from "../ui/sfx";
-import { Avatar } from "./SquadAvatar";
+import { MembersButton, MembersList } from "./GSquadMembers";
 import { SettingsIcon, SquadSettings, useLooks } from "./GSquadSettings";
 import "./gswin.css";
 import "./gswnew.css";
@@ -100,6 +100,7 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   const [page, setPage] = useState<SettingsPage | null>(null);
   const [list, setList] = useState(() => PHONE && !asked);   // narrow screens: the list instead of the section (the phone opens on the list)
   const [seen, setSeen] = useState(readSeen);
+  const [people, setPeople] = useState(false);   // PS 1.64: the members list from the pictures at the top right
   const leaving = useRef(false);
   const narrow = PHONE || vw < NARROW_PX;
 
@@ -110,6 +111,7 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   }, []);
   useEffect(() => { if (asked) { setTab(asked); setList(false); onAsked(); } }, [asked]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (v.in && v.waiting > 0 && !asked && lastSection === null) setTab("tasks"); }, [v.in]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPeople(false); }, [tab]);
   useEffect(() => { lastSection = tab; if (tab === "fitness") { markSeen(); setSeen(todayISO()); } if (tab !== "settings") setPage(null); }, [tab]);
   useEffect(() => {
     const l = chat.lines.at(-1);
@@ -273,13 +275,10 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
         {narrow && <button type="button" className="gsw-back" onClick={() => { sfx.hover(); setList(true); }} aria-label="Back to the list" data-tip="Back to the list" data-tip-line="Or press Esc"><BackIcon /></button>}
         <span className={`gsw-ico big ${TONE[curId] ?? "acc"}`}>{ICONS[curId] ?? ICONS.chat}</span>
         <span className="gsw-head-t">{curTitle}<em>{sub}</em></span>
-        {curId === "chat" && !narrow && (
-          <span className="gsw-stack" aria-hidden="true">
-            {v.members.slice(0, 5).map((m) => <Avatar key={m.id} id={m.id} name={m.name} size={34} working={m.working} />)}
-          </span>
-        )}
+        {curId === "chat" && v.members.length > 0 && <MembersButton v={v} size={narrow ? 28 : 34} max={narrow ? 3 : 5} open={people} onToggle={() => setPeople(!people)} />}
         {!narrow && closeBtn}
       </header>
+      {people && curId === "chat" && <MembersList v={v} narrow={narrow} onClose={() => setPeople(false)} />}
       {curId !== "members" && asks}
       {pins}
       <div key={curId} className={`gsw-body${curId === "chat" ? " fill" : ""}${curId === "fitness" ? " wide" : ""}`} role="tabpanel">

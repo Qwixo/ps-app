@@ -12,7 +12,7 @@ import { deviceHolder, localKeyMessage, shellHolder } from "./core/localholders"
 import { createLocalVault, discardLocalBackup, loadLocalRows, nudgeDue, openLocalVault, readHead, updateHead, type KeyHolder, type LocalHead } from "./core/localstore";
 import { type MoveProgress, type Payload } from "./core/move";
 import { moveIntoAccount, type GateChoice } from "./core/movegate";
-import { backupFileName, makeBackup, openBackup, planImport } from "./core/backup";
+import { backupFileName, makeBackup, NOT_IN_BACKUP, openBackup, planImport } from "./core/backup";
 import * as C from "./core/crypto";
 import { saveSettings } from "./core/actions";
 import { PROJECT, docs, lastUsername, lock, put, seedNewOwner, setMoveGate, sync, unlockLocal, vaultStore } from "./core/vault";
@@ -236,7 +236,7 @@ export async function reopenLocalBackup(): Promise<void> {
 
 // ---------- the backup file ----------
 function allRecords() {
-  return [...vaultStore.get().docs.values()].filter((d) => !d.ws).map((d) => ({ id: d.id, kind: d.kind as string, data: d.data }));
+  return [...vaultStore.get().docs.values()].filter((d) => !d.ws && !NOT_IN_BACKUP.has(d.kind)).map((d) => ({ id: d.id, kind: d.kind as string, data: d.data }));
 }
 /** Export my data: the encrypted file's text and a name for it. */
 export async function exportBackup(pass: string): Promise<{ text: string; name: string; count: number }> {

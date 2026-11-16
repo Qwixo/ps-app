@@ -346,5 +346,19 @@
   ],
   "by": "red",
   "shared": true
+ },
+ "1.64": {
+  "code": "96f46bd2ac0c",
+  "at": "2026-11-16T16:14:24.293Z",
+  "keyword": "Dawn",
+  "notes": [
+   "Reply to any G Squad message, even old ones, the same way as Signal.",
+   "Click the people at the top of G Squad to see who is online, who is at the gym, and when the others were last seen.",
+   "Past boards: the squad's leaderboards from December 2025 to July 2026 are now in the Leaderboard.",
+   "Rewind: PS now keeps a private, encrypted history of your year for a recap on 1 January. You can turn it off in Settings.",
+   "Fixes: Timelines cards no longer pile on top of each other."
+  ],
+  "by": "red",
+  "shared": true
  }
 }

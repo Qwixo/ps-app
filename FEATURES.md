@@ -84,6 +84,10 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | Export my data | An encrypted backup file, and bringing one back in. | Settings, Sync and account. Only when you click it. |
 | What's new | Shows the changes once per version. | Shown once. |
 
+## New in V1.64
+
+Rewind (yearly recap). PS keeps a private history of your year, such as the tasks you finished, your gym days and your screen time, so it can show you a recap on 1 January. It is encrypted on your device with your own vault key before it is saved, so the server only ever holds scrambled data. Nobody else can read it: not the server, not your squad, not any AI helper and not the developer of PS. It is never part of an export, and PS itself does not open it before 1 January. You can switch it off or delete it at any time in Settings, Privacy and sharing.
+
 ## New in V1.60
 
 - Island in workouts (phone): the island around the camera says Scanning with a spinner while the camera reads a label, grows to show the exercise it found with its little stick figure and a tick, and does a Face ID style "Workout added" moment (big tick, the figure, a chime). Between sets it counts down your rest live. After a set it says "Higher than last time" with how many days ago, or "Same weight as 7 days ago. Try going up next time." (past days only, never your earlier sets today), and before the next set it nudges you to try the higher weight when you matched last time. Each moment has its own sound. Switches: Settings, Fitness, "Island in workouts" and "Island sounds" (on by default). The Mac island does not show the rest countdown yet.

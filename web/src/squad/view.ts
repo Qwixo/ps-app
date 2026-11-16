@@ -8,7 +8,12 @@ import type { BoardView } from "../core/squadboard.ts";
 import type { AutoStage } from "../core/squadauto.ts";
 import type { P1Row } from "../core/squadp1.ts";
 
-export interface SquadMember { id: string; name: string; me: boolean; creator: boolean; working: boolean }
+export interface SquadMember {
+  id: string; name: string; me: boolean; creator: boolean; working: boolean;
+  /** PS 1.64 members list (core/squadpresence.ts memberStatus): last beat, last gym time, whether the hub sends these
+   *  (known), and whether this member shares "working" at all (false: no status shown, never a guess). */
+  seen?: string | null; gym?: string | null; known?: boolean; shares?: boolean;
+}
 export interface SquadTask extends TaskCopy { id: string; member: string }
 export interface SquadHand { id: string; from: string; to: string; state: "open" | "accepted" | "declined" | "cancelled"; t: string; d: string | null; at: string }
 export interface SquadView {

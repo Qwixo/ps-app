@@ -45,19 +45,24 @@ export interface HubSquad { id: string; gen: number; rekey: boolean; meta_ct: st
 export interface HubMemberRow { id: string; sign_pub: string; box_pub: string; card_ct: string | null; card_gen: number | null; joined_at: string; left_at: string | null; updated_at: string; has_key?: boolean }
 export interface HubTaskRow { id: string; member_id: string; ct: string; gen: number; deleted: boolean; updated_at: string }
 export interface HubHandRow { id: string; from_member: string; to_member: string; ct: string; gen: number; state: "open" | "accepted" | "declined" | "cancelled"; created_at: string; updated_at: string }
-export interface HubPull { now: string; squad: HubSquad; members: HubMemberRow[]; tasks: HubTaskRow[]; hands: HubHandRow[]; drops: { gen: number; sealed: string }[]; working: string[] }
+export interface HubPull { now: string; squad: HubSquad; members: HubMemberRow[]; tasks: HubTaskRow[]; hands: HubHandRow[]; drops: { gen: number; sealed: string }[]; working: string[];
+  /** PS 1.64 hub: last beats (and the sealed gym time) changed since `since.p` (core/squadpresence.ts). Missing on older hubs. */
+  seen?: unknown }
 /** n: working now; h: hand overs waiting for you; g: the squad key gen; rk: someone left, a re-key is due;
  *  q: requests to join waiting for you (the admin only, V1.42); k: people waiting for the squad key (V1.49). */
 export interface Pulse { n: number; h: number; g: number; rk: boolean; q?: number; k?: number; /** V1.57: people asking to join (the admin only) */ w?: number }
 /** V1.49: where your join stands while you wait for the squad key. */
 export interface AutoKey { gen: number; start: boolean; drop: { gen: number; sealed: string } | null; admin: boolean; /** V1.57: false while you wait for the admin */ admitted?: boolean }
-export interface Since { m?: string; t?: string; h?: string }
+export interface Since { m?: string; t?: string; h?: string; /** PS 1.64: the members list's last beats */ p?: string }
 
 /** Every act the hub knows, one function each. */
 export function hubApi(who: HubIdent, fetcher?: Fetcher) {
   const call = <T,>(act: string, args: unknown) => hubCall<T>(who, act, args, fetcher);
   return {
-    beat: () => call<Pulse>("beat", {}),
+    /** PS 1.64: extra = your gym time sealed with the squad key (core/squadpresence.ts), or st "" to clear it. */
+    beat: (extra?: { st: string; sg: number } | null) => call<Pulse>("beat", extra ? extra : {}),
+    /** PS 1.64: "working" switched off: the hub forgets your last beat and gym time. */
+    away: () => call<{ ok: true }>("away", {}),
     count: () => call<Pulse>("count", {}),
     pull: (since: Since | null, gen: number) => call<HubPull>("pull", { since, gen }),
     mine: () => call<{ rows: { id: string; fp: string }[] }>("mine", {}),

@@ -44,6 +44,7 @@ import { clearPhoneNow, setPhoneNow, thisPhoneKind, viewOf } from "./phonepage";
 import { usePhoneBeat } from "./phonebeat";
 import { PhoneEditMount } from "./PhoneEditMode";
 import { useFlip } from "./flip";
+import { noteGymScreen } from "../squad/presence";
 
 type Pane = "plan" | "list" | "inbox";
 // PS Fitness is a pop up over any of them since V1.29 (fitness/FitnessPop.tsx). V1.56: "page:<id>" is a page of panels
@@ -60,6 +61,7 @@ export function GosLayer() {
   const [show, setShow] = useState<"clocks" | null>(null);   // the Plan pane shows Time zones instead of Meetings
   const book = useRuleBook();
   const fit = useFitPop();
+  useEffect(() => { noteGymScreen(fit !== "closed"); }, [fit]);   // G Squad members list (PS 1.64): "At the gym" while Gym is open
   const sbOpen = useSb().open;
   useGosLayout();   // Compact, Cards, Focus or Simple (the phone settings): follows the vault settings
   useEffect(() => { startTouch(); }, []);

@@ -8,6 +8,8 @@ import * as C from "./crypto.ts";
 import { stableJson } from "./move.ts";
 
 export const BACKUP_FORMAT = "ps-backup";
+/** Never in a backup file, either way: Rewind (core/rewind.ts) stays sealed in the vault until its recap on 1 January. */
+export const NOT_IN_BACKUP: ReadonlySet<string> = new Set(["rwd"]);
 const AAD = "ps-backup-v1";
 export interface BackupRecord { id: string; kind: string; data: unknown }
 export interface BackupFile { format: typeof BACKUP_FORMAT; v: 1; kdf: { alg: "PBKDF2-SHA256"; iters: number; salt: string }; ct: string }
@@ -22,7 +24,7 @@ const digestOf = (recs: BackupRecord[]) => C.sha256hex(recs.map((r) => `${r.id}:
 /** The backup file's text. `iters` is lower only in tests. */
 export async function makeBackup(records: BackupRecord[], pass: string, o: { name?: string; now?: Date; iters?: number } = {}): Promise<string> {
   if (!C.passphraseScore(pass).ok) throw new Error("Pick a stronger passphrase for the file. You need it to open the backup.");
-  const recs = records.filter((r) => r && typeof r.id === "string" && typeof r.kind === "string" && r.kind !== "_deleted")
+  const recs = records.filter((r) => r && typeof r.id === "string" && typeof r.kind === "string" && r.kind !== "_deleted" && !NOT_IN_BACKUP.has(r.kind))
     .map((r) => ({ id: r.id, kind: r.kind, data: r.data })).sort((a, b) => (a.id < b.id ? -1 : 1));
   const inner: Inner = { app: "PS", exportedAt: (o.now ?? new Date()).toISOString(), name: String(o.name ?? "").slice(0, 40), records: recs, digest: await digestOf(recs) };
   const salt = C.randomBytes(16), iters = o.iters ?? C.KDF_ITERS;
@@ -53,6 +55,7 @@ export function planImport(file: BackupRecord[], have: Map<string, { kind: strin
   let same = 0, kept = 0;
   let fileSettings: Record<string, unknown> | null = null;
   for (const r of file) {
+    if (NOT_IN_BACKUP.has(r.kind)) continue;
     if (r.kind === "settings") { fileSettings = { ...(fileSettings || {}), ...((r.data as Record<string, unknown>) || {}) }; if (have.has(r.id)) same++; continue; }
     const h = have.get(r.id);
     if (!h) add.push(r);

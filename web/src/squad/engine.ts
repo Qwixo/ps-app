@@ -29,6 +29,9 @@ import { feature } from "../core/features";
 import { P1_FEATURE, p1Panel, p1Rows, type P1Row } from "../core/squadp1";
 import { startP1 } from "./p1engine";
 import { aiError, listAis, registerAiCode, unlinkAi } from "./devlink";
+import { cleanSeenRows, openPresence, sealPresence } from "../core/squadpresence";
+import { gymScreen, onGymScreen } from "./presence";
+import type { FitWorkout } from "../core/fitness";
 export { dirCardMessage };
 
 const BEAT_MS = 3 * 60_000, OPEN_PULL_MS = 20_000, PEEK_MS = 60_000, PUSH_DELAY_MS = 4_000;
@@ -44,6 +47,10 @@ let hands = new Map<string, HandView>();
 let since: Since | null = null;
 let have: Map<string, string> | null = null;   // your copies on the hub: squad task id to fingerprint
 let open = false, countAt = 0, pushTimer: number | undefined, pullTimer: number | undefined, beatTimer: number | undefined;
+// PS 1.64 members list: each member's last beat and last gym time (opened), from the hub's change only `seen` list.
+// `seenKnown` stays false while the hub does not send that list (an older hub): then "Online" comes from `working`.
+let seen = new Map<string, { at: string | null; gym: string | null }>();
+let seenKnown = false, gymSent = false, extraBeatAt = 0;
 let pulling = false, pushing = false;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
@@ -83,7 +90,12 @@ function p1All(): P1Row[] {
 function rebuild() {
   set({
     members: [...members.values()].filter((m) => !m.left).sort((a, b) => Number(b.me) - Number(a.me) || Number(b.working) - Number(a.working) || a.name.localeCompare(b.name))
-      .map((m) => ({ id: m.id, name: m.name, me: m.me, creator: m.creator, working: m.working })),
+      .map((m) => {
+        // PS 1.64: your own row follows this device (your switch, your Fitness screen); the others' come from the hub.
+        const p = m.me ? { at: shareOn(share(), "working") ? new Date().toISOString() : null, gym: gymNow() ? new Date().toISOString() : null } : seen.get(m.id);
+        const shares = m.me ? shareOn(share(), "working") : !seenKnown || !!p?.at || m.working;
+        return { id: m.id, name: m.name, me: m.me, creator: m.creator, working: m.working, seen: p?.at ?? null, gym: p?.gym ?? null, known: m.me || seenKnown, shares };
+      }),
     tasks: [...tasks.values()].filter((t) => members.has(t.member) && !members.get(t.member)!.left).slice(0, 600),
     p1: p1Panel(p1All()),
     hands: [...hands.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 100),
@@ -117,7 +129,7 @@ function readRec() {
   if ((next?.squadId ?? null) === (rec?.squadId ?? null)) return;
   rec = next; recId = top?.d.id ?? null;
   api = rec ? apiFor(rec) : null;
-  members = new Map(); rawMembers = new Map(); tasks = new Map(); hands = new Map(); since = null; have = null;
+  members = new Map(); rawMembers = new Map(); tasks = new Map(); hands = new Map(); since = null; have = null; seen = new Map(); seenKnown = false;
   view = { ...EMPTY_VIEW, in: !!rec, me: rec?.memberId ?? "", meName: rec?.me ?? "", creator: !!rec?.creator };
   emit();
   restartBeat();
@@ -134,7 +146,7 @@ async function saveRec(next: SquadRec) {
 async function dropRec(msg: string | null) {
   const id = recId;
   rec = null; recId = null; api = null;
-  members = new Map(); rawMembers = new Map(); tasks = new Map(); hands = new Map(); since = null; have = null;
+  members = new Map(); rawMembers = new Map(); tasks = new Map(); hands = new Map(); since = null; have = null; seen = new Map(); seenKnown = false;
   view = { ...EMPTY_VIEW, error: msg };
   emit();
   restartBeat();
@@ -171,18 +183,57 @@ function onPulse(p: Pulse) {
   autoPulse(p.k);   // V1.49: someone is waiting for the squad key, and you hold it
   if (rec && (p.rk || p.g > currentKey(rec).gen)) void pull();   // a new key or a re-key: the full state once
 }
+/** PS 1.64: this person is at the gym right now on this device (Fitness open, or a workout running). */
+function gymNow(): boolean { return shareOn(share(), "fitness") && (gymScreen() || workoutOpen()); }   // only while you share Fitness
+/** A workout started in the last 6 hours and not finished (the same rule as fitness/store.ts), from the vault as it is. */
+function workoutOpen(): boolean {
+  const s = vaultStore.get();
+  if (s.status !== "unlocked") return false;
+  const fresh = Date.now() - 6 * 3600_000;
+  for (const d of s.docs.values()) {
+    if ((d.kind as string) !== "fwork") continue;
+    const w = d.data as FitWorkout;
+    if (w && !w.endedAt && Date.parse(w.startedAt) > fresh) return true;
+  }
+  return false;
+}
 async function beat() {
   if (!rec || !api || !navigator.onLine) return;
   try {
     const opts = share();
-    if (shareOn(opts, "working")) onPulse(await api.beat());   // switched off: no beat at all, only the count
-    else if (Date.now() - countAt >= PEEK_MS) onPulse(await api.count());
+    if (shareOn(opts, "working")) {
+      // PS 1.64: the gym rides along, sealed with the squad key, only while it is on (and once more to clear it), so a
+      // second device of yours that is not at the gym never overwrites the one that is.
+      const gym = gymNow();
+      const extra = gym ? await sealPresence(rec, new Date().toISOString()) : gymSent ? { st: "", sg: 0 } : null;
+      onPulse(await api.beat(extra));
+      gymSent = gym;
+    }
+    else if (Date.now() - countAt >= PEEK_MS) onPulse(await api.count());   // switched off: no beat at all, only the count
   } catch (e) { gone(e); }
 }
+/** PS 1.64: the gym started or stopped on this device: tell the squad now (a beat), not at the next 3 minute one.
+ *  At most one extra beat every 20 seconds. */
+function gymChanged() {
+  if (!rec || !shareOn(share(), "working")) return;
+  rebuild();
+  if (gymNow() === gymSent) return;
+  const wait = Math.max(0, extraBeatAt + 20_000 - Date.now());
+  window.setTimeout(() => { if (gymNow() !== gymSent) { extraBeatAt = Date.now(); void beat(); } }, wait);
+}
+/** PS 1.64: "working" switched off: the hub forgets your last beat (and gym), so nobody sees a stale "Last seen".
+ *  Once per switch; the hub before 1.64 does not know the step, which is fine (it is only skipped). */
+async function away() {
+  if (!rec || !api || !navigator.onLine) return;
+  try { await api.away(); gymSent = false; try { localStorage.setItem(AWAY_KEY, rec.memberId); } catch { /* storage off */ } } catch (e) { gone(e); }
+}
+const AWAY_KEY = "ps.sqAwaySent";
 function restartBeat() {
   if (beatTimer !== undefined) window.clearInterval(beatTimer);
   beatTimer = undefined;
   if (!rec) return;
+  // PS 1.64: "working" is off and the hub was never told on this device: clear the last beat once (members list).
+  if (!shareOn(share(), "working")) { let sent: string | null = null; try { sent = localStorage.getItem(AWAY_KEY); } catch { /* storage off */ } if (sent !== rec.memberId) void away(); }
   beatTimer = window.setInterval(() => void beat(), BEAT_MS);
   void beat();
 }
@@ -221,9 +272,17 @@ async function pull() {
       const v = await handView(rec, h);
       if (v && v.state === "open") hands.set(h.id, v); else if (v && hands.has(h.id)) hands.set(h.id, v); else if (!v) hands.delete(h.id);
     }
+    // PS 1.64: last beats and gym times that changed (the first pull: everyone seen in the last 14 days).
+    if (Array.isArray(p.seen)) {
+      seenKnown = true;
+      for (const r of cleanSeenRows(p.seen)) {
+        const body = r.at ? await openPresence(rec, r.id, r.ct, r.gen) : null;
+        seen.set(r.id, { at: r.at, gym: body?.g ?? null });
+      }
+    }
     const name = await squadName(rec, p.squad);
     const back = new Date(Date.parse(p.now) - 5_000).toISOString();   // a little overlap: a row written as we read is never missed
-    since = { m: back, t: back, h: back };
+    since = { m: back, t: back, h: back, p: back };
     countAt = Date.now();
     set({ in: true, name, me: rec.memberId, meName: rec.me, creator: p.squad.created_by === rec.memberId, count: working.size,
       waiting: [...hands.values()].filter((h) => h.to === rec!.memberId && h.state === "open").length, loaded: true, error: null });
@@ -379,7 +438,8 @@ export async function runSquadOp(o: SquadOp): Promise<void> {
       case "share": {
         await saveSettings({ squadShare: { ...share(), [o.piece]: o.on } });
         if (o.piece === "tasks" || o.piece === "p1") schedulePush();
-        if (o.piece === "working") restartBeat();
+        if (o.piece === "fitness") gymChanged();
+        if (o.piece === "working") { if (!o.on) void away(); else { try { localStorage.removeItem(AWAY_KEY); } catch { /* storage off */ } } restartBeat(); rebuild(); }
         return;
       }
       case "p1show": await saveSettings({ squadP1Show: o.on }); void pull(); return;
@@ -532,4 +592,8 @@ export function startSquad(post: ((m: object) => void) | null = null) {
   // PS 1.63 Priority 1 (squad/p1engine.ts): the 24 hour clock on your own P1 tasks, the side panel's data, the missed task cards.
   startP1({ post, rec: () => rec, view: () => view, p1All, onPulled: (f) => { hooks.add({ pulled: f }); }, pull: () => void pull(), push: () => schedulePush(), isOpen: () => open });
   window.addEventListener("online", () => { void beat(); if (open) void pull(); schedulePush(); });
+  // PS 1.64: Fitness opened or closed on this device, or a workout started or ended (it is in the vault).
+  onGymScreen(gymChanged);
+  let wasWorkout = false;
+  vaultStore.subscribe(() => { const w = workoutOpen(); if (w !== wasWorkout) { wasWorkout = w; gymChanged(); } });
 }

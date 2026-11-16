@@ -14,6 +14,7 @@
 import { vaultStore } from "./core/vault";
 import { remindRec, settings, settingsData } from "./core/select";
 import { saveSettings } from "./core/actions";
+import { rewindNote } from "./rewind";   // Rewind (PS 1.64): reminders shown, Later and Yes, as behaviour notes for the recap
 import { ackGym, gymReady, gymCard, gymCardText, gymDue, gymEnd, gymLater, gymNextWake, gymPlan, gymPrefs, gymQuiet, gymRingAt, gymSnoozed, pruneFired, YES_WORDS, type GymSnooze } from "./core/gym";
 import { alarmRings } from "./core/remind";
 import { DEVICE_TZ } from "./core/tz";
@@ -71,7 +72,7 @@ function run() {
   let fired = load(FIRED);
   const due = gymDue(p, now, tz, acked, fired);
   let chime = false, snooze = loadSnooze();
-  if (due) { fired = pruneFired([...fired, due.id], now, tz); keep(FIRED, fired); chime = true; }
+  if (due) { fired = pruneFired([...fired, due.id], now, tz); keep(FIRED, fired); chime = true; rewindNote("gymShown"); }
   const card = gymCard(p, now, tz, acked, fired);
   const step = card ? `${card.day}:${card.mins}` : "";
   // Later is over (or a new step came): the card is back, chiming once.
@@ -101,11 +102,11 @@ function run() {
 export function gymCardMessage(m: { type?: string; id?: string; action?: string }) {
   if (m.type !== "cardAction" || m.id !== "gym") return false;
   const day = shownDay;
-  if (m.action === "ack" && day) { ackGymDay(day); hide(); }
+  if (m.action === "ack" && day) { ackGymDay(day); hide(); rewindNote("gymYes"); }
   else if (m.action === "later") {
     const s = vaultStore.get(), st = settingsData(s), tz = homeTz();
     const c = gymCard(prefsOf(st), Date.now(), tz, st.gymAck || [], load(FIRED));
-    if (c) keepSnooze(gymLater(c.day, Date.now()));
+    if (c) { keepSnooze(gymLater(c.day, Date.now())); rewindNote("gymLater"); }
     hide();
     run();   // arms the look for when Later is over
   }
@@ -115,6 +116,7 @@ export function gymCardMessage(m: { type?: string; id?: string; action?: string 
 export function gymShellMessage(m: { type?: unknown; day?: unknown }) {
   if (m.type !== "gymAck" || typeof m.day !== "string") return false;
   ackGymDay(m.day);
+  rewindNote("gymYes");
   return true;
 }
 

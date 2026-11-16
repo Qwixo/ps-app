@@ -21,7 +21,8 @@ import type { ScreenTimeDay, Todo } from "../core/model";
 import { answerMoney, buildBoard, cleanBoardOp, cleanMoney, moneyMonthOk, planBoardSync, skipMoney, type BoardKind, type BoardOp, type HeldCard } from "../core/squadboard";
 import { HubError } from "./hub";
 import { boardApi, takeBoardRows } from "./boardhub";
-import { onSquad, patchSquadView, squadMemberIds, squadOpen, squadRecNow } from "./engine";
+import { onSquad, patchSquadView, squadMemberIds, squadOpen, squadRecNow, squadView } from "./engine";
+import { cleanPastDoc, openPast, planPastSync, type PastDoc, type PastMonth } from "../core/squadpast";
 
 const PUSH_MS = 20_000, SCREEN_EVERY_MS = 15 * 60_000, PULL_MS = 60_000, ROLL_MS = 60 * 60_000;
 
@@ -33,6 +34,10 @@ let have: Map<string, string> | null = null;
 let loaded = false, pulling = false, pushing = false;
 let pushTimer: number | undefined, pullTimer: number | undefined;
 let lastScreenPut = 0, pushAll = false;
+// PS 1.64 Past boards: the months as opened, the change only cursor, and (the owner's PS) what was last published.
+let past = new Map<string, PastMonth>();
+let pastSince: string | null = null, pastPulling = false, pastPushing = false;
+const PAST_SENT = "ps.sqPastSent";   // this device: the signature of the vault's months last published (owner only)
 
 const sameSquad = (a: SquadRec | null, b: SquadRec | null) => !!a && !!b && a.squadId === b.squadId && a.memberId === b.memberId;
 const sameRec = (a: SquadRec | null, b: SquadRec | null) => (!a && !b) || (sameSquad(a, b) && currentKey(a!).gen === currentKey(b!).gen);
@@ -41,7 +46,7 @@ function reset(next: SquadRec | null) {
   const same = sameSquad(next, rec);
   rec = next;
   api = next ? boardApi(next) : null;
-  if (!same) { cards = new Map(); since = null; loaded = false; }
+  if (!same) { cards = new Map(); since = null; loaded = false; past = new Map(); pastSince = null; }
   have = null;   // a new key gen: every card is sealed again under it (its fingerprint names the gen)
   if (rec) schedulePush(true, 2_000); else clearTimeout(pushTimer);
   rebuild();
@@ -98,7 +103,60 @@ function setOpen(on: boolean) {
   clearInterval(pullTimer); pullTimer = undefined;
   if (!on) return;
   void pull();
+  void pullPast();   // PS 1.64: once per opening (they rarely change): nothing new is a few dozen bytes
   pullTimer = window.setInterval(() => void pull(), PULL_MS);
+}
+
+// ---------- PS 1.64 Past boards (core/squadpast.ts) ----------
+async function pullPast() {
+  if (!rec || !api || pastPulling || !navigator.onLine) return;
+  pastPulling = true;
+  const r0 = rec;
+  try {
+    const p = await api.past(pastSince);
+    if (!sameSquad(rec, r0)) return;
+    for (const r of p.rows) {
+      if (r.deleted) { past.delete(r.month); continue; }
+      const m = await openPast(r0, r.month, r.ct, r.gen);
+      if (m) past.set(r.month, m); else past.delete(r.month);
+    }
+    pastSince = new Date(Date.parse(p.now) - 5_000).toISOString();
+    rebuild();
+  } catch { /* an older hub has no Past boards yet: nothing shows */ } finally { pastPulling = false; }
+}
+/** The owner's vault records of Past boards (scripts/gsquad-past.ts puts them there), newest record per month. */
+function pastDocs(): PastDoc[] {
+  const by = new Map<string, { d: PastDoc; at: string }>();
+  for (const d of docs<unknown>("sqpast")) {
+    const p = cleanPastDoc(d.data);
+    if (!p) continue;
+    const at = d.updatedAt || "";
+    if (!by.has(p.month) || at > by.get(p.month)!.at) by.set(p.month, { d: p, at });
+  }
+  return [...by.values()].map((x) => x.d);
+}
+const pastSig = (list: PastDoc[]) => JSON.stringify([rec?.squadId, rec ? currentKey(rec).gen : 0, [...list].sort((a, b) => a.month.localeCompare(b.month))]);
+/** The owner's PS only: what changed in the vault's months goes to the hub (sealed, by fingerprint). Nothing at all
+ *  while there are no records, or when this device already published this exact set under this key. */
+async function pushPast() {
+  if (!rec || !api || pastPushing || !navigator.onLine || !squadView().creator) return;
+  const list = pastDocs();
+  if (!list.length) return;
+  const sig = pastSig(list);
+  let sent: string | null = null;
+  try { sent = localStorage.getItem(PAST_SENT); } catch { /* storage off: compare with the hub */ }
+  if (sent === sig) return;
+  pastPushing = true;
+  const r0 = rec;
+  try {
+    const hub = await api.past(null);   // the fingerprints on the hub now
+    const have = new Map(hub.rows.filter((r) => !r.deleted).map((r) => [r.month, r.fp]));
+    const plan = await planPastSync(r0, list, have);
+    for (let i = 0; i < plan.put.length; i += 4) await api.pastPut(plan.put.slice(i, i + 4), i === 0 ? plan.del : []);
+    if (!plan.put.length && plan.del.length) await api.pastPut([], plan.del);
+    try { localStorage.setItem(PAST_SENT, sig); } catch { /* storage off */ }
+    if (plan.put.length || plan.del.length) void pullPast();
+  } catch { /* not the owner on the hub, or offline: tried again on the next change or start */ } finally { pastPushing = false; }
 }
 
 // ---------- the view (the month to add comes ready made in it: board.due) ----------
@@ -109,7 +167,7 @@ function rebuild() {
   const members = ids.length ? ids : [{ id: rec.memberId, me: true }];
   for (const id of [...cards.keys()]) if (!members.some((m) => m.id === id)) cards.delete(id);   // left the squad
   const board = buildBoard({ members, cards, myMoney: cleanMoney(st.squadMoney), myShare: cleanShareOpts(st.squadShare), now: Date.now(), deviceTz: DEVICE_TZ, loaded });
-  patchSquadView({ board });
+  patchSquadView({ board: { ...board, past: [...past.values()].sort((a, b) => b.month.localeCompare(a.month)) } });
 }
 
 // ---------- what the Tab list asks for ----------
@@ -133,21 +191,23 @@ export function startSquadBoard() {
   if (started) return;
   started = true;
   onSquad({
-    rec: (r) => reset(r),
+    rec: (r) => { reset(r); void pushPast(); },
     open: (on) => setOpen(on),
-    pulled: () => rebuild(),
+    pulled: () => { rebuild(); void pushPast(); },   // the owner flag comes with the squad's pull
   });
-  let sigTasks = "", sigScreen = "", sigSettings = "";
+  let sigTasks = "", sigScreen = "", sigSettings = "", sigPast = "";
   vaultStore.subscribe(() => {
     const s = vaultStore.get();
     if (s.status !== "unlocked") return;
     reset(squadRecNow());
     if (!rec) return;
-    let a = "", b = "";
+    let a = "", b = "", c0 = "";
     for (const d of s.docs.values()) {
       if (d.kind === "todo") a += `${d.id}:${d.updatedAt};`;
       else if (d.kind === "screentime") b += `${d.id}:${d.updatedAt};`;
+      else if (d.kind === "sqpast") c0 += `${d.id}:${d.updatedAt};`;
     }
+    if (c0 !== sigPast) { sigPast = c0; if (c0) void pushPast(); }   // PS 1.64: the owner's Past boards changed in the vault
     // Only the settings that change a card (what you share, the months you added).
     const st = settingsData(s);
     const c = JSON.stringify([st.squadShare ?? null, st.squadMoney ?? null]);

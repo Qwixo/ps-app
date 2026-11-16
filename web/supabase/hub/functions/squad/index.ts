@@ -39,6 +39,7 @@ const CORS = {
   "Access-Control-Max-Age": "86400",
 };
 const WORKING_MS = 7 * 60_000;          // a beat every 3 minutes while PS runs; gone 7 minutes after the last one
+const SEEN_MS = 14 * 86_400_000;        // PS 1.64 members list: "Last seen" goes back 14 days
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PUB = /^[A-Za-z0-9+/]{86}[A-Za-z0-9+/=]{2}$/;
 const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
@@ -195,8 +196,22 @@ async function handle(body: Record<string, unknown>) {
   const m = me!;
   switch (act) {
     case "beat": {
-      must(await db.from("squad_members").update({ last_beat: new Date().toISOString() }).eq("id", m.id));
+      // PS 1.64 members list (migration presence_001_seen.sql): presence_at marks the change for the others' change only
+      // pulls. st: the member's gym time sealed with the squad key ("" clears it); the hub never sees what is inside.
+      const now = new Date().toISOString();
+      const upd: Record<string, unknown> = { last_beat: now, presence_at: now, presence_off: false };
+      if (args.st === "") { upd.presence_ct = null; upd.presence_gen = null; }
+      else if (args.st !== undefined) { const sq = await squadOf(m.squad_id); upd.presence_ct = ct(args.st, 600); upd.presence_gen = int(args.sg, 1, sq.gen); }
+      // Deployed before presence_001_seen.sql is applied, the presence columns are missing: the beat still counts.
+      const r = await db.from("squad_members").update(upd).eq("id", m.id);
+      if (r.error) must(await db.from("squad_members").update({ last_beat: now }).eq("id", m.id));
       return await pulse(m);
+    }
+    // PS 1.64: the member switched "working" off: the others' lists show no last beat and no gym time for them. last_beat
+    // itself stays (auto_join reads it to keep a second device of the same person in), only presence_off hides it.
+    case "away": {
+      must(await db.from("squad_members").update({ presence_off: true, presence_ct: null, presence_gen: null, presence_at: new Date().toISOString() }).eq("id", m.id));
+      return { ok: true };
     }
     case "count":
       return await pulse(m);
@@ -219,12 +234,21 @@ async function handle(body: Record<string, unknown>) {
         .or(`from_member.eq.${m.id},to_member.eq.${m.id}`).order("updated_at").limit(200);
       if (at("h")) hq = hq.gt("updated_at", at("h")!); else hq = hq.eq("state", "open");
       const myGen = Number.isInteger(args.gen) ? args.gen as number : 0;
-      const [members, tasks, hands, drops, working] = await Promise.all([
+      // PS 1.64 members list: last beats (and the sealed gym time) that changed since `since.p`; the first time, everyone
+      // seen in the last 14 days. Change only: a beat touches presence_at, never updated_at.
+      let pq = db.from("squad_members").select("id, last_beat, presence_ct, presence_gen, presence_off").eq("squad_id", m.squad_id).eq("admitted", true).is("left_at", null).limit(300);
+      pq = at("p") ? pq.gt("presence_at", at("p")!) : pq.gt("last_beat", new Date(Date.now() - SEEN_MS).toISOString()).eq("presence_off", false);
+      const [members, tasks, hands, drops, working, seen] = await Promise.all([
         mq, tq, hq,
         db.from("squad_keydrops").select("gen, sealed").eq("member_id", m.id).gt("gen", myGen),
         db.from("squad_members").select("id").eq("squad_id", m.squad_id).is("left_at", null).gt("last_beat", new Date(Date.now() - WORKING_MS).toISOString()),
+        pq,
       ]);
-      return { now, squad: sq, members: must(members), tasks: must(tasks), hands: must(hands), drops: must(drops), working: (must(working) as { id: string }[]).map((r) => r.id) };
+      return { now, squad: sq, members: must(members), tasks: must(tasks), hands: must(hands), drops: must(drops), working: (must(working) as { id: string }[]).map((r) => r.id),
+        // No `seen` at all while the columns are missing (presence_001_seen.sql not applied yet): PS then shows "Online"
+        // from `working` only, as it would with the hub before 1.64.
+        ...(seen.error ? {} : { seen: (seen.data as { id: string; last_beat: string | null; presence_ct: string | null; presence_gen: number | null; presence_off: boolean }[])
+          .map((r) => (r.presence_off ? { id: r.id, at: null, ct: null, gen: null } : { id: r.id, at: r.last_beat, ct: r.presence_ct, gen: r.presence_gen })) }) };
     }
     case "mine":
       return { rows: must(await db.from("squad_tasks").select("id, fp").eq("member_id", m.id).eq("deleted", false).limit(1000)) };

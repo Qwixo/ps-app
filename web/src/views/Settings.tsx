@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { NOT_IN_BACKUP } from "../core/backup";   // Rewind never leaves the vault (core/rewind.ts)
 import "./extra.css";
 import { GmailSettings } from "./Replies";
 import { ClientEmailsSettings } from "./ClientEmailsSettings";
@@ -510,7 +511,7 @@ function ExportPanel() {
   const s = useVault();
   const [ask, setAsk] = useState(false);
   function download() {
-    const all = [...s.docs.values()].map((d) => ({ id: d.id, ws: d.ws, kind: d.kind, data: d.data, updatedAt: d.updatedAt }));
+    const all = [...s.docs.values()].filter((d) => !NOT_IN_BACKUP.has(d.kind)).map((d) => ({ id: d.id, ws: d.ws, kind: d.kind, data: d.data, updatedAt: d.updatedAt }));
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), note: "NOT ENCRYPTED. Keep this file safe and delete it when done.", documents: all }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -534,7 +535,7 @@ function ExportPanel() {
           <button className="btn danger" onClick={download}>I understand, download</button>
         </>}>
           <p>Anyone who opens this file can read every client record, note and email draft in it. Store it somewhere private, never email it, and delete it when you no longer need it. Your NDAs still apply to it.</p>
-          <p className="small muted">{s.docs.size} records will be included.</p>
+          <p className="small muted">{[...s.docs.values()].filter((d) => !NOT_IN_BACKUP.has(d.kind)).length} records will be included.</p>
         </Modal>
       )}
     </section>

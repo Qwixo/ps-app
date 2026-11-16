@@ -13,6 +13,7 @@ import { taskMapActions } from "../views/TaskMap";
 import { DumbbellIcon, FitnessApp } from "./FitnessApp";
 import { FitMini } from "./FitMini";
 import { fitnessNow } from "./store";
+import { noteGymScreen } from "../squad/presence";
 
 const MORPH = { body: ".fit-scr-content", tint: ".fit-scr-morph" };
 let fitOpen = false;
@@ -44,12 +45,14 @@ export function FitnessButton({ docked }: { docked?: boolean }) {
     const root = btn.current?.closest<HTMLElement>(".tm-overlay");
     const leave = () => {
       fitOpen = false;
+      noteGymScreen(false);   // G Squad members list (PS 1.64): no longer "At the gym" from this screen
       if (PS) psPost({ type: "dimx", open: false }); else taskMapActions.editing(false);
       const a = document.activeElement as HTMLElement | null;
       if (a && win.current?.contains(a)) a.blur();
     };
     if (phase === "open") {
       fitOpen = true;
+      noteGymScreen(true);   // G Squad members list (PS 1.64): "At the gym" while Fitness is open
       restBehind(root, "fitness", true);   // the Tab list's moving looks rest while this covers them (ui/screenrest.ts)
       // PS: the list stays when Tab is let go and takes the keyboard, so kg and reps can be typed.
       if (PS) psPost({ type: "dimx", open: true }); else taskMapActions.editing(true);
@@ -85,7 +88,7 @@ export function FitnessButton({ docked }: { docked?: boolean }) {
     return () => { window.removeEventListener("keydown", key, true); if (w.__psDimxClose === escape) delete w.__psDimxClose; };
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => {
-    if (fitOpen) { fitOpen = false; if (!PS) taskMapActions.editing(false); }
+    if (fitOpen) { fitOpen = false; noteGymScreen(false); if (!PS) taskMapActions.editing(false); }
     restBehind(btn.current?.closest(".tm-overlay"), "fitness", false);
   }, []);
   // The self test, and every other place that used to open the Fitness window, opens this screen.

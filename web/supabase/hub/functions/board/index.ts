@@ -36,6 +36,7 @@ async function verify(pub: string, act: string, member: string, ts: number, nonc
 }
 const ct = (v: unknown) => { if (typeof v !== "string" || !v || v.length > 4000 || !B64.test(v)) throw new Fail(400, "bad ciphertext"); return v; };
 const int = (v: unknown, lo: number, hi: number) => { if (!Number.isInteger(v) || (v as number) < lo || (v as number) > hi) throw new Fail(400, "bad number"); return v as number; };
+const month = (v: unknown) => { if (typeof v !== "string" || !/^20\d\d-(0[1-9]|1[0-2])$/.test(v)) throw new Fail(400, "bad month"); return v; };
 const kind = (v: unknown) => { if (typeof v !== "string" || !KINDS.has(v)) throw new Fail(400, "bad kind"); return v; };
 const must = <T,>(r: { data: T; error: { message: string } | null }) => { if (r.error) throw new Fail(500, "database"); return r.data; };
 
@@ -90,6 +91,35 @@ async function handle(body: Record<string, unknown>) {
         .in("member_id", ins.map((r) => r.id)).order("updated_at").limit(300);
       q = since ? q.gt("updated_at", since) : q.eq("deleted", false);
       return { now, rows: must(await q) };
+    }
+    // PS 1.64 Past boards (migration board_002_past.sql): the monthly boards from before PS, one sealed record per month.
+    // Every member reads them (all the first time, then only what changed; only when the Leaderboard opens).
+    case "board_past": {
+      const since = typeof args.since === "string" && !Number.isNaN(Date.parse(args.since)) ? args.since : null;
+      const now = new Date().toISOString();
+      let q = db.from("board_past").select("month, ct, gen, fp, deleted, updated_at").eq("squad_id", me.squad_id).order("updated_at").limit(100);
+      q = since ? q.gt("updated_at", since) : q.eq("deleted", false);
+      return { now, rows: must(await q) };
+    }
+    // Only the squad's owner (squads.created_by: the developer, the admin) writes them: new or changed months (by fingerprint, at
+    // most 4 a request), and months taken back (a tombstone, so the others' change only reads see them go).
+    case "board_pastput": {
+      const sq = must(await db.from("squads").select("gen, created_by").eq("id", me.squad_id).maybeSingle()) as { gen: number; created_by: string | null } | null;
+      if (!sq) throw new Fail(404, "no squad");
+      if (sq.created_by !== me.id) throw new Fail(403, "owner only");
+      const rows = Array.isArray(args.rows) ? args.rows : [], del = Array.isArray(args.del) ? args.del : [];
+      if (rows.length > 4 || del.length > 36 || (!rows.length && !del.length)) throw new Fail(400, "rows");
+      const now = new Date().toISOString();
+      const clean = rows.map((r: Record<string, unknown>) => {
+        if (typeof r.fp !== "string" || !/^[0-9a-f]{16,64}$/.test(r.fp)) throw new Fail(400, "fp");
+        if (typeof r.ct !== "string" || !r.ct || r.ct.length > 8000 || !B64.test(r.ct)) throw new Fail(400, "bad ciphertext");
+        return { squad_id: me.squad_id, month: month(r.month), ct: r.ct, gen: int(r.gen, 1, sq.gen), fp: r.fp, deleted: false, updated_at: now };
+      });
+      if (new Set(clean.map((r) => r.month)).size !== clean.length) throw new Fail(400, "rows");
+      if (clean.length) must(await db.from("board_past").upsert(clean));
+      const gone = del.map(month);
+      if (gone.length) must(await db.from("board_past").update({ deleted: true, ct: "", fp: "", updated_at: now }).eq("squad_id", me.squad_id).in("month", gone).eq("deleted", false));
+      return { ok: true };
     }
   }
   throw new Fail(400, "unknown act");

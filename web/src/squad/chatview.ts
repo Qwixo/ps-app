@@ -1,11 +1,16 @@
 // G Squad chat (V1.40): what the Tab list is told about the chat (plain, no keys, like the core's SquadView) and what
 // it may ask for. The main page opens everything (squad/chatengine.ts); the Tab list sends its buttons back as one
 // `sqChatOp`, checked here.
-import { cleanAbout, cleanEmoji, cleanText, type ChatAbout } from "../core/squadchat.ts";
+import { cleanAbout, cleanEmoji, cleanReply, cleanText, replySnippet, type ChatAbout, type ChatReply } from "../core/squadchat.ts";
 import { cleanGifItems, cleanGifQuery, type GifItem } from "./chatgif.ts";
 import type { ReactionPill } from "./chatreact.ts";
 
-export interface ChatLine { id: string; from: string; name: string; mine: boolean; t: string; a?: ChatAbout; at: string; edited: boolean; left: boolean; sending?: boolean; failed?: boolean; r?: ReactionPill[] }
+/** PS 1.64: the quote above a reply. name: who wrote the original ("You" for yours); s: its first line (the original's
+ *  words as they are now when it is loaded, else the line the reply carried); gone: deleted or not on the hub for you. */
+export interface QuoteView { id: string; name: string; from: string; s: string; gone: boolean }
+export interface ChatLine { id: string; from: string; name: string; mine: boolean; t: string; a?: ChatAbout; q?: QuoteView; at: string; edited: boolean; left: boolean; sending?: boolean; failed?: boolean; r?: ReactionPill[] }
+/** PS 1.64: where a "go to the original" ended (n counts up so the screen acts once per ask). */
+export interface ChatJump { id: string; ok: boolean; n: number }
 export interface ChatVoteView {
   id: string; joiner: string; name: string; stage: "ask" | "again" | null; mine: boolean | null; n: number; k: number;
   title: string; sub: string; body: string;
@@ -32,15 +37,18 @@ export interface ChatView {
   error: string | null;
   loaded: boolean;
   gif: GifView;
+  jump?: ChatJump | null;         // PS 1.64: the answer to the last "seek" (a reply's quote was clicked)
+  seeking?: boolean;              // PS 1.64: older history is loading to find a reply's original
 }
 export const EMPTY_CHAT: ChatView = { in: false, ready: false, open: false, unread: 0, lines: [], more: false, votes: [], note: null, sound: false, notify: false, notifyOn: true, noteSound: true, islandOk: false, noteIsland: true, sending: 0, error: null, loaded: false, gif: EMPTY_GIF };
 
 export type ChatOp =
-  | { op: "open"; on: boolean } | { op: "send"; text: string; a?: ChatAbout } | { op: "edit"; id: string; text: string } | { op: "del"; id: string }
+  | { op: "open"; on: boolean } | { op: "send"; text: string; a?: ChatAbout; q?: ChatReply } | { op: "edit"; id: string; text: string } | { op: "del"; id: string }
   | { op: "vote"; id: string; yes: boolean } | { op: "older" } | { op: "sound"; on: boolean } | { op: "retry" }
   | { op: "notify"; on: boolean } | { op: "noteSound"; on: boolean } | { op: "noteIsland"; on: boolean }
   | { op: "react"; to: string; e: string }                    // PS 1.63: an emoji on a message (again = take it back)
-  | { op: "gifs"; q: string; more?: boolean } | { op: "gifclear" };   // the GIF picker's search, and closing it
+  | { op: "gifs"; q: string; more?: boolean } | { op: "gifclear" }   // the GIF picker's search, and closing it
+  | { op: "seek"; id: string };                                // PS 1.64: find a reply's original (loads older history if needed)
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const id = (v: unknown) => (typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null);
@@ -53,7 +61,8 @@ export function cleanChatOp(v: unknown): ChatOp | null {
     case "older": case "retry": return { op: o.op };
     case "sound": return typeof o.on === "boolean" ? { op: "sound", on: o.on } : null;
     case "notify": case "noteSound": case "noteIsland": return typeof o.on === "boolean" ? { op: o.op, on: o.on } : null;
-    case "send": { const t = cleanText(o.text); if (!t) return null; const a = cleanAbout(o.a); return a ? { op: "send", text: t, a } : { op: "send", text: t }; }
+    case "send": { const t = cleanText(o.text); if (!t) return null; const a = cleanAbout(o.a), q = cleanReply(o.q); return { op: "send", text: t, ...(a ? { a } : {}), ...(q ? { q } : {}) }; }
+    case "seek": { const i = id(o.id); return i ? { op: "seek", id: i } : null; }
     case "edit": { const i = id(o.id), t = cleanText(o.text); return i && t ? { op: "edit", id: i, text: t } : null; }
     case "del": { const i = id(o.id); return i ? { op: "del", id: i } : null; }
     case "react": { const i = id(o.to), e = cleanEmoji(o.e); return i && e ? { op: "react", to: i, e } : null; }
@@ -81,18 +90,28 @@ function cleanGif(v: unknown): GifView {
   return { on: typeof o.on === "boolean" ? o.on : null, q: cleanGifQuery(o.q), items: cleanGifItems(o.items), next: Number.isInteger(o.next) && (o.next as number) >= 0 ? (o.next as number) : null, busy: o.busy === true, failed: o.failed === true };
 }
 
+function cleanQuote(v: unknown): QuoteView | null {
+  const q = v as Record<string, unknown> | null;
+  if (!q || typeof q !== "object" || !id(q.id)) return null;
+  return { id: id(q.id)!, name: typeof q.name === "string" ? q.name.slice(0, 40) || "Someone" : "Someone", from: typeof q.from === "string" ? q.from.slice(0, 40) : "",
+    s: q.gone === true ? "" : replySnippet(q.s), gone: q.gone === true };
+}
+
 /** The Tab list's copy, checked lightly (shapes and lengths). */
 export function cleanChatView(v: unknown): ChatView {
   const o = (v && typeof v === "object" ? v : null) as Record<string, unknown> | null;
   if (!o) return EMPTY_CHAT;
   const s = (x: unknown, max: number) => (typeof x === "string" ? x.slice(0, max) : "");
   const n = (x: unknown) => (Number.isInteger(x) && (x as number) >= 0 ? (x as number) : 0);
-  const lines = (Array.isArray(o.lines) ? o.lines.slice(-600) : []).filter((l) => l && typeof l === "object" && typeof l.id === "string").map((l): ChatLine => ({
+  const lines = (Array.isArray(o.lines) ? o.lines.slice(-1500) : []).filter((l) => l && typeof l === "object" && typeof l.id === "string").map((l): ChatLine => ({
     id: s(l.id, 40), from: s(l.from, 40), name: s(l.name, 40) || "Someone", mine: l.mine === true, t: s(l.t, 2000), at: s(l.at, 40), edited: l.edited === true, left: l.left === true,
     ...(l.sending === true ? { sending: true } : {}), ...(l.failed === true ? { failed: true } : {}),
     ...(cleanAbout(l.a) ? { a: cleanAbout(l.a) } : {}),
+    ...(cleanQuote(l.q) ? { q: cleanQuote(l.q)! } : {}),
     ...(cleanPills(l.r).length ? { r: cleanPills(l.r) } : {}),
   }));
+  const j = o.jump as Record<string, unknown> | null | undefined;
+  const jump = j && typeof j === "object" && id(j.id) && Number.isInteger(j.n) ? { id: id(j.id)!, ok: j.ok === true, n: j.n as number } : null;
   const votes = (Array.isArray(o.votes) ? o.votes.slice(0, 10) : []).filter((x) => x && typeof x === "object" && typeof x.id === "string").map((x): ChatVoteView => ({
     id: s(x.id, 40), joiner: s(x.joiner, 40), name: s(x.name, 40), stage: x.stage === "ask" || x.stage === "again" ? x.stage : null, mine: typeof x.mine === "boolean" ? x.mine : null,
     n: n(x.n), k: n(x.k), title: s(x.title, 200), sub: s(x.sub, 300), body: s(x.body, 900),
@@ -102,6 +121,7 @@ export function cleanChatView(v: unknown): ChatView {
     note: typeof o.note === "string" ? o.note.slice(0, 300) : null, sound: o.sound === true,
     notify: o.notify === true, notifyOn: o.notifyOn !== false, noteSound: o.noteSound !== false, islandOk: o.islandOk === true, noteIsland: o.noteIsland !== false, sending: n(o.sending),
     error: typeof o.error === "string" ? o.error.slice(0, 200) : null, loaded: o.loaded === true, gif: cleanGif(o.gif),
+    jump, seeking: o.seeking === true,
   };
 }
 

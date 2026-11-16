@@ -10,11 +10,12 @@
 //   open     one pull every 5 seconds with a cursor: only rows changed since the last one (usually none, ~300 bytes).
 //   keys     the period keys are opened from the hub on each start (a few hundred bytes each) and kept in memory only.
 // Sound: none by default (the developer). The chat's own switch turns on a short sound for new messages, on the Mac only.
+import { rewindNote } from "../rewind";
 import { docs, vaultStore } from "../core/vault";
 import { saveSettings } from "../core/actions";
 import { settingsData } from "../core/select";
 import { cleanSquadRec, type SquadRec } from "../core/squadrec";
-import { joinerLine, voteCardDue, voteWords } from "../core/squadchat";
+import { joinerLine, replySnippet, voteCardDue, voteWords } from "../core/squadchat";
 import { homeTz } from "../core/tz";
 import { dndMutes } from "../core/dnd";
 import { feature } from "../core/features";
@@ -25,8 +26,8 @@ import { ChatSession, type ChatMsg } from "./chatflows";
 import { HubError } from "./hub";
 import { gifApi, type GifApi } from "./gifhub";
 import { foldReactions } from "./chatreact";
-import { gifMemory } from "./chatgif";
-import { EMPTY_CHAT, EMPTY_GIF, type GifView, type ChatLine, type ChatOp, type ChatView, type ChatVoteView } from "./chatview";
+import { gifMemory, parseGifMessage } from "./chatgif";
+import { EMPTY_CHAT, EMPTY_GIF, type GifView, type ChatJump, type ChatLine, type ChatOp, type ChatView, type ChatVoteView, type QuoteView } from "./chatview";
 
 const TICK_MS = 2 * 60_000, OPEN_PULL_MS = 5_000, PAGE = 150;
 const PS_PAGE = import.meta.env.MODE === "ps";
@@ -40,7 +41,8 @@ let view: ChatView = { ...EMPTY_CHAT };
 let open = false, limit = PAGE, error: string | null = null;
 let tickTimer: number | undefined, pullTimer: number | undefined;
 let ticking = false, pulling = false;
-const pending = new Map<string, { t: string; a?: ChatMsg["a"]; failed: boolean; at: string }>();
+const pending = new Map<string, { t: string; a?: ChatMsg["a"]; q?: ChatMsg["q"]; failed: boolean; at: string }>();
+let jump: ChatJump | null = null, jumpN = 0, seeking = false;   // PS 1.64: the last "go to the original" and its answer
 const cards = new Map<string, string>();       // vote cards on screen (Mac): card id to its JSON
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
@@ -55,6 +57,8 @@ export function chatView(): ChatView { return view; }
 const settings = () => settingsData(vaultStore.get());
 const seenAgain = (): string[] => { try { const v = JSON.parse(localStorage.getItem(SEEN) || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
 const markSeenAgain = (id: string) => { try { localStorage.setItem(SEEN, JSON.stringify([...seenAgain().filter((x) => x !== id), id].slice(-40))); } catch { /* storage off */ } };
+/** The first line a quote shows (a GIF message shows "GIF"). */
+const quoteLine = (t: string) => (parseGifMessage(t) ? "GIF" : replySnippet(t));
 const say = (e: unknown) => (e instanceof HubError
   ? e.status === 401 && /clock/.test(e.message) ? "This device's clock is off. Set the date and time to automatic and try again."
   : e.status === 429 ? "Slow down a little: that was a lot of messages in one minute."
@@ -110,11 +114,23 @@ function lines(): ChatLine[] {
   const pills = foldReactions([...s.reacts.values()], (id) => shown.has(id), me, (id) => s!.people.get(id)?.name ?? "Someone");
   const out: ChatLine[] = msgs.map((m) => {
     const p = s!.people.get(m.from);
+    const q = m.q ? quoteOf(m.q) : null;
     return { id: m.id, from: m.from, name: m.from === me ? "You" : p?.name ?? "Someone", mine: m.from === me, t: m.t,
-      ...(m.a ? { a: m.a } : {}), at: m.at, edited: m.edited, left: !!p?.left, ...(pills.get(m.id) ? { r: pills.get(m.id) } : {}) };
+      ...(m.a ? { a: m.a } : {}), ...(q ? { q } : {}), at: m.at, edited: m.edited, left: !!p?.left, ...(pills.get(m.id) ? { r: pills.get(m.id) } : {}) };
   });
-  for (const [id, p] of pending) if (!s.msgs.has(id)) out.push({ id, from: me, name: "You", mine: true, t: p.t, ...(p.a ? { a: p.a } : {}), at: p.at, edited: false, left: false, ...(p.failed ? { failed: true } : { sending: true }) });
+  for (const [id, p] of pending) if (!s.msgs.has(id)) { const q = p.q ? quoteOf(p.q) : null; out.push({ id, from: me, name: "You", mine: true, t: p.t, ...(p.a ? { a: p.a } : {}), ...(q ? { q } : {}), at: p.at, edited: false, left: false, ...(p.failed ? { failed: true } : { sending: true }) }); }
   return out;
+}
+/** PS 1.64: the quote above a reply. The original's words as they are now when it is here (an edit shows); the line the
+ *  reply carried while the original is further up; "not available" once it is known deleted or not there for you. */
+function quoteOf(q: NonNullable<ChatMsg["q"]>): QuoteView {
+  const cur = s!;
+  const me = cur.rec.memberId;
+  const orig = cur.msgs.get(q.id);
+  const name = q.w === me ? "You" : cur.people.get(q.w)?.name ?? "Someone";
+  if (orig) return { id: q.id, name, from: q.w, s: quoteLine(orig.t), gone: false };
+  const gone = cur.gone.has(q.id) || (cur.loaded && !cur.more);
+  return { id: q.id, name, from: q.w, s: gone ? "" : q.s, gone };
 }
 function votes(): ChatVoteView[] {
   if (!s) return [];
@@ -354,7 +370,8 @@ export async function runChatOp(o: ChatOp): Promise<void> {
     switch (o.op) {
       case "send": {
         const id = globalThis.crypto.randomUUID();
-        pending.set(id, { t: o.text, ...(o.a ? { a: o.a } : {}), failed: false, at: new Date().toISOString() });
+        pending.set(id, { t: o.text, ...(o.a ? { a: o.a } : {}), ...(o.q ? { q: o.q } : {}), failed: false, at: new Date().toISOString() });
+        rewindNote("squadSent");   // Rewind (PS 1.64): a count only, never the words (src/rewind.ts)
         rebuild();
         await send(cur, id);
         return;
@@ -366,6 +383,17 @@ export async function runChatOp(o: ChatOp): Promise<void> {
       case "edit": await cur.edit(o.id, o.text); break;
       case "del": await cur.del(o.id); break;
       case "older": limit += PAGE; if (cur.list(limit).length < limit && cur.more) await cur.older(); break;
+      case "seek": {
+        // A reply's quote was clicked and its original is not on screen: older pages until it is here (one request a
+        // page, only on this click), then the screen scrolls to it, or says it is not available.
+        if (seeking) return;
+        seeking = true; rebuild();
+        let found = false;
+        try { found = await cur.seek(o.id); } finally { seeking = false; }
+        if (found) { const at = cur.list(Infinity).findIndex((m) => m.id === o.id), n = cur.msgs.size; if (at >= 0) limit = Math.max(limit, n - at + 20); }
+        jump = { id: o.id, ok: found, n: ++jumpN };
+        break;
+      }
       case "vote": {
         await cur.vote(o.id, o.yes);
         markSeenAgain(o.id);
@@ -381,7 +409,7 @@ async function send(cur: ChatSession, id: string) {
   const p = pending.get(id);
   if (!p) return;
   try {
-    await cur.send({ t: p.t, ...(p.a ? { a: p.a } : {}) }, id);
+    await cur.send({ t: p.t, ...(p.a ? { a: p.a } : {}), ...(p.q ? { q: p.q } : {}) }, id);
     pending.delete(id);
     error = null;
   } catch (e) {
@@ -399,7 +427,7 @@ function readRec(): SquadRec | null {
   return list[0] ?? null;
 }
 function stop() {
-  s = null; who = ""; pending.clear(); error = null;
+  s = null; who = ""; pending.clear(); error = null; jump = null; seeking = false;
   gifOn = null; gifApiNow = null; gifState = EMPTY_GIF; gifAsk++;
   if (tickTimer !== undefined) window.clearInterval(tickTimer);
   if (pullTimer !== undefined) window.clearInterval(pullTimer);

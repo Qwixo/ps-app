@@ -21,6 +21,9 @@ import { tabStaysShown } from "../core/tabstays";
 import { DAY_ENDS_DEFAULT } from "../core/daylog";
 import { cleanUpdateEvery, UPDATE_EVERY_CHOICES, UPDATE_EVERY_OFF } from "../core/updateevery";
 import { onUnlessOff } from "../core/offswitches";
+import { rewindOn } from "../core/rewind";
+import { setRewindOn } from "../rewind";
+import { RewindBody } from "./RewindSettings";
 import { hasExamples } from "../core/examples";
 import type { Settings } from "../core/model";
 import type { Go, SetEntry, Where } from "../core/settingsindex";
@@ -320,6 +323,12 @@ export const CONTROLS: Controls = {
 
   // Privacy and sharing (open source build): the "PS app is open" presence channel (src/ps.ts startPsPresence)
   "ps-presence": function PsPresence({ e }) { return <SyncedOnOff e={e} field="psPresence" />; },
+  // Rewind (PS 1.64): public, on unless switched off; the line says what it keeps, Delete my Rewind data under it (views/RewindSettings.tsx)
+  "rewind": function Rewind({ e }) {
+    const v = useVault();
+    const on = rewindOn(settingsData(v).rewind);
+    return <SetRow e={e} right={<OnOff label={e.name} on={on} ready={v.status === "unlocked" && v.role === "owner"} set={(x) => void setRewindOn(x)} />} body={<RewindBody on={on} />} open />;
+  },
 
   // Sync and account
   "local-data": function LocalData({ e }) { const s = useVault(); return s.local || hasLocalBackup() ? <SetRow e={e} body={<LocalDataSetting s={s} />} open /> : null; },

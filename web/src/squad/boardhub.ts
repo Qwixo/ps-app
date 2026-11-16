@@ -5,6 +5,7 @@ import * as S from "../core/squadcrypto.ts";
 import { signRequest } from "../core/squadcrypto.ts";
 import { keyFor, type SquadRec } from "../core/squadrec.ts";
 import { boardAad, cleanCard, type BoardKind, type BoardRow, type HeldCard } from "../core/squadboard.ts";
+import type { PastRow } from "../core/squadpast.ts";
 import { HUB_URL, HubError, hubBytes } from "./hub.ts";
 export const BOARD_FN = `${HUB_URL}/functions/v1/board`;
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
@@ -23,6 +24,7 @@ export async function boardCall<T = unknown>(rec: Pick<SquadRec, "memberId" | "s
   if (!res.ok) throw new HubError(res.status, (j as { error?: string } | null)?.error || `board ${res.status}`);
   return j as T;
 }
+export interface PastPullRow { month: string; ct: string; gen: number; fp: string; deleted: boolean; updated_at: string }
 export interface BoardPullRow { member_id: string; kind: BoardKind; ct: string; gen: number; deleted: boolean; updated_at: string }
 export function boardApi(rec: Pick<SquadRec, "memberId" | "sign">, fetcher?: Fetcher) {
   return {
@@ -30,6 +32,9 @@ export function boardApi(rec: Pick<SquadRec, "memberId" | "sign">, fetcher?: Fet
     put: (rows: BoardRow[]) => boardCall<{ ok: true }>(rec, "board_put", { rows }, fetcher),
     del: (kinds: BoardKind[]) => boardCall<{ ok: true }>(rec, "board_del", { kinds }, fetcher),
     pull: (since: string | null) => boardCall<{ now: string; rows: BoardPullRow[] }>(rec, "board_pull", { since }, fetcher),
+    // PS 1.64 Past boards (core/squadpast.ts): every member reads; only the squad's owner writes (the hub checks).
+    past: (since: string | null) => boardCall<{ now: string; rows: PastPullRow[] }>(rec, "board_past", { since }, fetcher),
+    pastPut: (rows: PastRow[], del: string[]) => boardCall<{ ok: true }>(rec, "board_pastput", { rows, del }, fetcher),
   };
 }
 /** Opens the cards a pull brought into `cards` (member to kind to card); a card that does not open is dropped. */

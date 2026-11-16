@@ -1,6 +1,7 @@
 // G Squad (V1.40) in the Tab list: the Leaderboard and Screen time view as the main page sent it, checked lightly
 // (shapes and lengths only). It holds no key and no other person's money amount unless the rule is "exact".
 import type { BoardEntry, BoardView, ScreenEntry } from "../core/squadboard.ts";
+import { cleanPastMonth, type PastMonth } from "../core/squadpast.ts";
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -35,5 +36,6 @@ export function cleanBoardView(v: unknown): BoardView | null {
     mine: { tz: str(mine.tz, 64) || "Asia/Dubai", on: mine.on !== false, months: arr(mine.months, 12).map((m) => ({ month: str(m.month, 7), label: str(m.label, 30), amount: num(m.amount), skipped: m.skipped === true })) },
     due: due && typeof due.month === "string" ? { month: str(due.month, 7), label: str(due.label, 20) } : null,
     loaded: o.loaded === true,
+    past: (Array.isArray(o.past) ? o.past.slice(0, 36) : []).map(cleanPastMonth).filter((m): m is PastMonth => !!m),
   };
 }

@@ -4,14 +4,14 @@
 // lives in your vault, so every device of yours opens them again after a restart (a few hundred bytes each).
 import { cleanName, openCard, type SquadRec } from "../core/squadrec.ts";
 import { newUuid } from "../core/squadcrypto.ts";
-import { cleanBody, cleanVotes, hubMicros, openChatDrops, openMessage, planChatRotate, planGive, sealMessage, type ChatAbout, type ChatBody, type VoteInfo } from "../core/squadchat.ts";
+import { cleanBody, cleanVotes, hubMicros, openChatDrops, openMessage, planChatRotate, planGive, sealMessage, type ChatAbout, type ChatBody, type ChatReply, type VoteInfo } from "../core/squadchat.ts";
 import { HubError, type HubMemberRow } from "./hub.ts";
 import { reactPlan, type ReactEvent } from "./chatreact.ts";
 import { chatApi, type ChatApi, type ChatMsgRow, type ChatStatus } from "./chathub.ts";
 
 type Fetcher = Parameters<typeof chatApi>[1];
 
-export interface ChatMsg { id: string; from: string; epoch: number; t: string; a?: ChatAbout; at: string; edited: boolean }
+export interface ChatMsg { id: string; from: string; epoch: number; t: string; a?: ChatAbout; q?: ChatReply; at: string; edited: boolean }
 export interface ChatPerson { id: string; name: string; left: boolean; me: boolean }
 
 export class ChatSession {
@@ -22,6 +22,7 @@ export class ChatSession {
   people = new Map<string, ChatPerson>();
   msgs = new Map<string, ChatMsg>();
   reacts = new Map<string, ReactEvent>();   // reaction rows (PS 1.63), by row id: they are chat rows with no words
+  gone = new Set<string>();           // PS 1.64: messages seen deleted (or looked for and not found): a reply's quote says so
   locked = 0;                         // rows the hub sent that we could not open (should stay 0)
   status: ChatStatus | null = null;
   votes: VoteInfo[] = [];
@@ -77,13 +78,13 @@ export class ChatSession {
   }
   private async take(rows: ChatMsgRow[]) {
     for (const r of rows) {
-      if (r.deleted) { this.msgs.delete(r.id); this.reacts.delete(r.id); continue; }
+      if (r.deleted) { this.msgs.delete(r.id); this.reacts.delete(r.id); this.gone.add(r.id); continue; }
       const raw = this.keys.get(r.epoch);
       if (!raw) { this.locked++; continue; }
       const b = await openMessage(raw, this.rec.squadId, r.epoch, r.member_id, r.id, r.ct);
       if (!b) { this.locked++; continue; }
       if (b.r) { this.reacts.set(r.id, { id: r.id, from: r.member_id, to: b.r.to, e: b.r.e, at: r.created_at }); continue; }
-      this.msgs.set(r.id, { id: r.id, from: r.member_id, epoch: r.epoch, t: b.t, ...(b.a ? { a: b.a } : {}), at: r.created_at, edited: r.edited });
+      this.msgs.set(r.id, { id: r.id, from: r.member_id, epoch: r.epoch, t: b.t, ...(b.a ? { a: b.a } : {}), ...(b.q ? { q: b.q } : {}), at: r.created_at, edited: r.edited });
     }
   }
 
@@ -137,7 +138,7 @@ export class ChatSession {
       try {
         const r = await this.api.post(id, epoch, ct);
         if (b.r) { this.reacts.set(id, { id, from: this.rec.memberId, to: b.r.to, e: b.r.e, at: r.at }); return null; }
-        const m: ChatMsg = { id, from: this.rec.memberId, epoch, t: b.t, ...(b.a ? { a: b.a } : {}), at: r.at, edited: false };
+        const m: ChatMsg = { id, from: this.rec.memberId, epoch, t: b.t, ...(b.a ? { a: b.a } : {}), ...(b.q ? { q: b.q } : {}), at: r.at, edited: false };
         this.msgs.set(id, m);
         return m;
       } catch (e) {
@@ -151,7 +152,7 @@ export class ChatSession {
     const m = this.msgs.get(id);
     if (!m || m.from !== this.rec.memberId) return;
     const raw = this.keys.get(m.epoch);
-    const b = cleanBody({ t: text, ...(m.a ? { a: m.a } : {}) });
+    const b = cleanBody({ t: text, ...(m.a ? { a: m.a } : {}), ...(m.q ? { q: m.q } : {}) });   // an edit keeps what it replies to
     if (!raw || !b) return;
     await this.api.edit(id, await sealMessage(raw, this.rec.squadId, m.epoch, m.from, id, b));
     this.msgs.set(id, { ...m, t: b.t, edited: true });
@@ -162,6 +163,22 @@ export class ChatSession {
     if (!m || m.from !== this.rec.memberId) return;
     await this.api.del(id);
     this.msgs.delete(id);
+    this.gone.add(id);
+  }
+  /** PS 1.64: a reply's original, wherever it is: older pages are loaded until it comes in or the history ends (at most
+   *  `maxPages` pages, each one request). True when it is here now; false when it was deleted or is not on the hub for
+   *  you (then it is remembered as gone, so the quote says "not available"). */
+  async seek(id: string, maxPages = 60): Promise<boolean> {
+    if (this.msgs.has(id)) return true;
+    if (this.gone.has(id)) return false;
+    for (let i = 0; i < maxPages && this.more && !this.msgs.has(id); i++) {
+      const before = this.msgs.size;
+      await this.older();
+      if (this.msgs.size === before && !this.more) break;
+    }
+    if (this.msgs.has(id)) return true;
+    if (!this.more) this.gone.add(id);
+    return false;
   }
   /** Your reaction on a message (PS 1.63): the emoji if you have not put it there yet, taken back if you have. The screen
    *  hears at once through `onLocal` (before the hub answers); a refusal puts everything back and throws. */

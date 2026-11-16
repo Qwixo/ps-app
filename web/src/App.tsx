@@ -26,6 +26,7 @@ import { SettingsView } from "./views/Settings";
 import { FriendJoinCard, FriendLanding } from "./views/AddFriend";
 import { pendingFriendLink, takeFriendLink } from "./squad/engine";
 import { PS, psPost, psUpdateReady, startPsBridge, startPsOverlay, startPsPresence, startPsSecondWindow } from "./ps";
+import { rewindAddMoney, startRewind } from "./rewind";
 import { describeOps, notify, quietOp, setNotifySink, type NoteCard } from "./core/notify";
 import { dndMutes } from "./core/dnd";
 import { storeCampaignsPage } from "./core/campaigns";
@@ -36,6 +37,7 @@ import { WhatsNewHost } from "./views/WhatsNew";
 import { FeatureIntroHost } from "./views/FeatureIntro";
 import { TipsHost } from "./views/Tips";
 import { NewPopupsHost } from "./views/NewPopups";
+import { cleanPastDoc, cleanPastMonths } from "./core/squadpast";
 import { privateNotesPlan, type PrivateNotes } from "./core/privatenotes";
 import { PsLayout, PsLocked, PsOpenPill, PsOverlay, PsSecondWindow } from "./views/PsApp";
 import { RuleBookHost } from "./views/RuleBook";
@@ -162,6 +164,8 @@ export default function App() {
   const [r, setR] = useState(route);
   useTheme();
   useEffect(() => { if (r !== "overlay" && r !== "second-window" && r !== "reply-window") { startPsBridge(); startPsPresence(); } }, [r]);
+  // Rewind (PS 1.64): the private history for the yearly recap, in the main page only (src/rewind.ts, core/rewind.ts).
+  useEffect(() => { if (r !== "overlay" && r !== "second-window" && r !== "reply-window" && r !== "fitview" && r !== "expics") startRewind(); }, [r]);
   if (r === "overlay") { startPsOverlay(); return <PsOverlay />; }
   if (r === "fitview") { startPsOverlay(); return <Wait><FitnessTestView /></Wait>; }
   if (r === "expics" && ExPicsDev) return <Suspense fallback={null}><ExPicsDev /></Suspense>;
@@ -419,7 +423,9 @@ function OwnerShell() {
         | { op: "tickTask"; name: string; project: string; match: string; done: boolean; by?: string; at?: string }
         | { op: "setStage"; name: string; project: string; current: number; doneAt?: Record<string, string>; nowLine?: string | null; nowWindow?: string | null }
         | { op: "addPreview"; name: string; project: string; stage: string; label: string; url: string; note?: string | null; expiresAt?: string | null }
-        | { op: "psPrivateNotes"; version: string; notes: string[] };
+        | { op: "psPrivateNotes"; version: string; notes: string[] }
+        | { op: "rewindMoney"; months: unknown }
+        | { op: "sqPastBoards"; months?: unknown; remove?: unknown };
       const list = Array.isArray(ops) ? ops as Op[] : [];
       let done = 0;
       const missing: string[] = [];
@@ -428,7 +434,7 @@ function OwnerShell() {
       // A package with a step this version does not know is left in the inbox (the throw
       // below stops it being deleted) so a newer version can apply it. Known steps are
       // idempotent, so applying them again later is safe.
-      const KNOWN = new Set(["updateClient", "upsertTask", "attachDoc", "putBrief", "putCampaignStats", "putCampaignsPage", "addTodo", "claudeTick", "addSubtask", "claudeTickSubtask", "upsertProject", "setPayments", "updateProject", "pruneInstantly", "updateSettings", "tickTask", "setStage", "addPreview", "meetingNotes", "chatDone", "numPeople", "fitPlans", "psPrivateNotes"]);
+      const KNOWN = new Set(["updateClient", "upsertTask", "attachDoc", "putBrief", "putCampaignStats", "putCampaignsPage", "addTodo", "claudeTick", "addSubtask", "claudeTickSubtask", "upsertProject", "setPayments", "updateProject", "pruneInstantly", "updateSettings", "tickTask", "setStage", "addPreview", "meetingNotes", "chatDone", "numPeople", "fitPlans", "psPrivateNotes", "rewindMoney", "sqPastBoards"]);
       const unknown = list.filter((o) => !KNOWN.has((o as { op: string }).op));
       if (unknown.length) throw new Error(`Package needs a newer app version (${unknown.map((o) => (o as { op: string }).op).join(", ")})`);
       // Never apply against an empty vault: keep the package for the next sync instead.
@@ -442,6 +448,30 @@ function OwnerShell() {
           if (plan.act === "put") { await put<PrivateNotes>("psnote", plan.data, { id: plan.id, ws: null }); for (const id of plan.extra) await remove(id); }
           else if (plan.act === "remove") for (const id of plan.ids) await remove(id);
           continue;   // the What's new panel is its notice (quietOp)
+        }
+        if (o.op === "rewindMoney") {
+          // Rewind (PS 1.64): months of money in from the squad's board, for the person's own recap. Write only: it adds
+          // into their sealed Rewind and nothing about Rewind ever goes back (src/rewind.ts, core/rewind.ts moneyRecs).
+          await rewindAddMoney(o.months);
+          continue;
+        }
+        if (o.op === "sqPastBoards") {
+          // G Squad Past boards (PS 1.64, core/squadpast.ts; sealed by scripts/gsquad-past.ts after the developer approved the
+          // exact entries): one record per month in the owner's vault; his PS publishes them to the squad (squad/board.ts).
+          if (!vaultStore.get().red) continue;
+          const have = new Map(docs<unknown>("sqpast").map((d) => [cleanPastDoc(d.data)?.month ?? "", d]));
+          for (const m of cleanPastMonths({ months: o.months })) {
+            const old = have.get(m.month);
+            if (old && JSON.stringify(cleanPastDoc(old.data)) === JSON.stringify({ month: m.month, data: m })) continue;
+            await put("sqpast", { month: m.month, data: m }, old ? { id: old.id, ws: null } : { ws: null });
+            done++;
+          }
+          for (const month of Array.isArray(o.remove) ? o.remove.filter((x): x is string => typeof x === "string" && /^20\d\d-(0[1-9]|1[0-2])$/.test(x)).slice(0, 36) : []) {
+            const old = have.get(month);
+            await put("sqpast", { month, removed: true }, old ? { id: old.id, ws: null } : { ws: null });
+            done++;
+          }
+          continue;
         }
         if (o.op === "chatDone") {
           // A Claude Code chat finished (core/chatdone.ts): a card on the Mac and the phone (mailcards.ts).

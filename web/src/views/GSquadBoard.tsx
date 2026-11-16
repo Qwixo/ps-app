@@ -11,6 +11,7 @@ import { registerSquadTab, TAB_ORDER, type SquadTabProps } from "../squad/tabs";
 import type { SquadView } from "../squad/view";
 import { sfx } from "../ui/sfx";
 import { SharingList } from "./GSquad";
+import { fmtUsd, monthLabel, monthShort, type PastEntry, type PastMonth } from "../core/squadpast";
 import "./gsquadboard.css";
 
 /** 3h 12m, 45m, under 1m. */
@@ -94,9 +95,51 @@ function Leaderboard({ view }: SquadTabProps) {
         </ol>
         <p className="gs-note">Counts only the tasks you share with G Squad; anonymised ones count too.</p>
       </section>
+      {!!b.past?.length && <PastBoards past={b.past} />}
       <YourMoney b={b} />
       <SharingList only="money" />
     </div>
+  );
+}
+
+// ---------- PS 1.64 Past boards: the monthly boards from before PS, read only (core/squadpast.ts) ----------
+// Nothing shows while there are none (PS 1.64 ships with none; the squad's owner adds them). Newest month first;
+// the month chips slide, the card fades in on each switch.
+function PastBoards({ past }: { past: PastMonth[] }) {
+  const [pick, setPick] = useState(past[0].month);
+  const m = past.find((x) => x.month === pick) ?? past[0];
+  return (
+    <section className="gsb-sec gsb-past" aria-label="Past boards">
+      <div className="gsb-top"><span className="gs-h">Past boards</span></div>
+      <div className="gsb-months" role="tablist" aria-label="Month">
+        {past.map((x) => (
+          <button key={x.month} type="button" role="tab" aria-selected={x.month === m.month} className={`gsb-chip${x.month === m.month ? " on" : ""}`} title={monthLabel(x.month)}
+            onClick={() => { if (x.month !== m.month) { sfx.hover(); setPick(x.month); } }}>{monthShort(x.month)}</button>
+        ))}
+      </div>
+      <div key={m.month} className="gsb-pcard" role="tabpanel" aria-label={monthLabel(m.month)}>
+        <p className="gsb-ptitle">{monthLabel(m.month)}{m.title && <em>{m.title}</em>}</p>
+        {m.ranked.length > 0 && <ol className="gsb-list">{m.ranked.map((e, i) => <PastRow key={i} e={e} i={i} />)}</ol>}
+        {!!m.notes?.length && <ul className="gsb-list">{m.notes.map((e, i) => <PastRow key={i} e={e} i={i + m.ranked.length} />)}</ul>}
+        {(m.gulag.length > 0 || !!m.line) && (
+          <div className="gsb-gulag">
+            {m.lineNote && <span className="gsb-lnote">{m.lineNote}</span>}
+            <p className="gsb-gtitle">{m.gulagTitle || "Gulag"}</p>
+            {m.gulag.length > 0 && <ol className="gsb-list">{m.gulag.map((e, i) => <PastRow key={i} e={e} i={i + m.ranked.length + (m.notes?.length ?? 0)} />)}</ol>}
+            {m.line && <p className="gsb-pline">{m.line}</p>}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+function PastRow({ e, i }: { e: PastEntry; i: number }) {
+  return (
+    <li className="gsb-row" style={{ animationDelay: `${Math.min(i, 14) * 24}ms` }}>
+      <Place rank={e.place} />
+      <span className="gsb-who">{e.names.join(" & ")}{e.note && <em>{e.note}</em>}</span>
+      <span className="gsb-val num">{e.amount ? <span className="gsb-off">{e.amount}</span> : e.usd !== null ? fmtUsd(e.usd) : ""}</span>
+    </li>
   );
 }
 

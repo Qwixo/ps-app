@@ -13,7 +13,7 @@ type OpLike = { op: string; name?: string };
 /** Steps that change nothing the developer reads in the vault: a finished chat (it has its own card, core/chatdone.ts)
  *  trimming old Instantly preview copies, and the developer's private release notes (the What's new panel is their notice,
  *  core/privatenotes.ts). They never count toward "Claude updated your vault". */
-const QUIET_OPS = new Set(["chatDone", "pruneInstantly", "psPrivateNotes"]);
+const QUIET_OPS = new Set(["chatDone", "pruneInstantly", "psPrivateNotes", "rewindMoney"]);   // rewindMoney: Rewind is never announced (src/rewind.ts)
 export const quietOp = (op: string) => QUIET_OPS.has(op);
 /** "Claude updated your vault: Sample Vintage's dashboard, your Morning Brief, 2 to-do items". */
 export function describeOps(ops: OpLike[]) {

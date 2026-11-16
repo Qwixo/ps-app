@@ -20,7 +20,8 @@ import { useBack } from "../squad/back";
 import { sfx } from "../ui/sfx";
 import { toneOf } from "../squad/window";
 import { Avatar } from "./SquadAvatar";
-import { About, ChatComposer, sendChat, useComposer } from "./GSquadComposer";
+import { About, ChatComposer, sendChat, useComposer, type ReplyDraft } from "./GSquadComposer";
+import { replySnippet } from "../core/squadchat";
 import { EmojiPicker, GifImage, GifPicker, ReactBar } from "./GSquadPickers";
 import "./gschat.css";
 import "./gssignal.css";
@@ -49,13 +50,19 @@ export function VoteBox({ v }: { v: ChatVoteView }) {
 // V1.43, the messenger look: messages from one person in a row are one group; others' groups carry their picture at
 // the bottom and their name (in their colour) at the top; the last bubble of a group has a small tail.
 interface Extras { onReact: (id: string, e: string) => void; onMore: (id: string, el: HTMLElement) => void; onMedia: () => void }
-function Line({ l, first, last, onEdit, x }: { l: ChatLine; first: boolean; last: boolean; onEdit: (l: ChatLine) => void; x?: Extras }) {
+/** PS 1.64 replies: Reply on hover and in the right click menu; a click on a quote goes to the original. */
+interface Replies { onReply: (l: ChatLine) => void; onMenu: (l: ChatLine, at: { x: number; y: number }) => void; onJump: (id: string, gone: boolean) => void }
+const ReplyIcon = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9.5 6.5L4.5 11.5l5 5" /><path d="M4.8 11.5h9.2c3.2 0 5.5 2.3 5.5 5.5v1" /></svg>;
+export const NOT_AVAILABLE = "Original message not available";
+const CopyIcon = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.4" /><path d="M15.5 8.5V6.9a2.4 2.4 0 0 0-2.4-2.4H6.9a2.4 2.4 0 0 0-2.4 2.4v6.2a2.4 2.4 0 0 0 2.4 2.4h1.6" /></svg>;
+function Line({ l, first, last, onEdit, x, rp }: { l: ChatLine; first: boolean; last: boolean; onEdit: (l: ChatLine) => void; x?: Extras; rp: Replies }) {
   const [sure, setSure] = useState(false);
   const [bar, setBar] = useState(false);          // touch: a long press opens the reaction bar
   const press = useRef<number | undefined>(undefined);
   const gif = x ? parseGifMessage(l.t) : null;
   const big = x && !gif ? emojiSize(emojiOnly(l.t)) : "";
   const live = !!x && !l.sending && !l.failed;   // a message not on the hub yet cannot be reacted to
+  const canReply = !l.sending && !l.failed;      // the same for a reply: it needs the original's hub id
   useEffect(() => {
     if (!bar) return;
     const down = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest?.(`[data-id="${l.id}"] .gc-rbar`)) setBar(false); };
@@ -69,10 +76,26 @@ function Line({ l, first, last, onEdit, x }: { l: ChatLine; first: boolean; last
       {!l.mine && <span className="gc-av">{last && <Avatar id={l.from} name={l.name} size={30} />}</span>}
       <div className="gc-col">
         <div className={`gc-bubble${gif ? " gif" : ""}${big ? ` emo emo-${big}` : ""}`}
-          onPointerDown={(e) => { if (live && e.pointerType === "touch") { stop(); press.current = window.setTimeout(() => { press.current = undefined; setBar(true); }, 420); } }}
-          onPointerUp={stop} onPointerCancel={stop} onPointerMove={stop} onContextMenu={(e) => { if (live && (e.nativeEvent as PointerEvent).pointerType === "touch") e.preventDefault(); }}>
-          {live && x && <ReactBar mine={l.mine} onPick={(e) => { setBar(false); x.onReact(l.id, e); }} onMore={(el) => { setBar(false); x.onMore(l.id, el); }} />}
+          onPointerDown={(e) => {
+            if (e.pointerType !== "touch" || !canReply) return;
+            stop();
+            const at = { x: e.clientX, y: e.clientY };
+            press.current = window.setTimeout(() => { press.current = undefined; if (live) setBar(true); else rp.onMenu(l, at); }, 420);
+          }}
+          onPointerUp={stop} onPointerCancel={stop} onPointerMove={stop}
+          onContextMenu={(e) => {
+            if ((e.nativeEvent as PointerEvent).pointerType === "touch") { if (canReply) e.preventDefault(); return; }
+            if (!canReply || window.getSelection()?.toString()) return;   // selected words keep the usual menu (Copy)
+            e.preventDefault(); rp.onMenu(l, { x: e.clientX, y: e.clientY });
+          }}>
+          {live && x && <ReactBar mine={l.mine} onPick={(e) => { setBar(false); x.onReact(l.id, e); }} onMore={(el) => { setBar(false); x.onMore(l.id, el); }} onReply={() => { setBar(false); rp.onReply(l); }} />}
           {first && !l.mine && <span className={`gc-who t${toneOf(l.from || l.name)}`}>{l.name}{l.left && <em> (left)</em>}</span>}
+          {l.q && (
+            <button type="button" className={`gc-quote t${toneOf(l.q.from || l.q.name)}${l.q.gone ? " gone" : ""}`} onClick={() => { sfx.hover(); rp.onJump(l.q!.id, l.q!.gone); }}
+              aria-label={l.q.gone ? `Reply to ${l.q.name}. ${NOT_AVAILABLE}` : `Reply to ${l.q.name}: ${l.q.s}. Go to the message`}>
+              <b>{l.q.name}</b><span>{l.q.gone ? NOT_AVAILABLE : l.q.s}</span>
+            </button>
+          )}
           {l.a && <About a={l.a} />}
           {gif
             ? <GifImage url={gif} onLoad={x?.onMedia} />
@@ -88,6 +111,9 @@ function Line({ l, first, last, onEdit, x }: { l: ChatLine; first: boolean; last
               </button>
             ))}
           </span>
+        )}
+        {canReply && (
+          <button type="button" className="gc-rp" aria-label={`Reply to ${l.mine ? "your message" : l.name}`} title="Reply" onClick={() => { sfx.click(); rp.onReply(l); }}><ReplyIcon /></button>
         )}
         {l.mine && !l.sending && (
           <span className="gc-acts">
@@ -125,6 +151,59 @@ export function ChatPanel() {
     onMedia: () => { const el = list.current; if (el && atBottom.current) el.scrollTop = el.scrollHeight; },
   } : undefined;
 
+  // ---------- PS 1.64 replies ----------
+  const [menu, setMenu] = useState<{ l: ChatLine; x: number; y: number } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const waitJump = useRef<string | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
+  const say = (t: string) => { setToast(t); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(null), 2600); };
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+  const startReply = (l: ChatLine) => {
+    setMenu(null);
+    const d: ReplyDraft = { id: l.id, w: l.from, name: l.mine ? "You" : l.name, s: parseGifMessage(l.t) ? "GIF" : replySnippet(l.t) };
+    c.startReply(d);
+  };
+  /** Glides to a message on screen and lights it up for a moment. False when it is not in the list. */
+  const flash = (id: string): boolean => {
+    const el = list.current?.querySelector<HTMLElement>(`.gc-line[data-id="${CSS.escape(id)}"]`);
+    if (!el) return false;
+    atBottom.current = false;
+    const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "center", behavior: calm ? "instant" : "smooth" });
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+    window.setTimeout(() => el.classList.remove("flash"), 1700);
+    return true;
+  };
+  const jumpTo = (id: string, gone: boolean) => {
+    if (gone) { say(NOT_AVAILABLE); return; }
+    if (flash(id)) return;
+    waitJump.current = id;
+    chatOp({ op: "seek", id });   // the page with the keys loads older history until it is there
+  };
+  // The answer to a seek: once the lines are drawn, glide there; or say it is gone.
+  useLayoutEffect(() => {
+    const j = v.jump;
+    if (!j || j.id !== waitJump.current) return;
+    waitJump.current = null;
+    if (!j.ok || !flash(j.id)) say(NOT_AVAILABLE);
+  }, [v.jump?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  useBack(!!menu, () => setMenu(null));
+  useEffect(() => {
+    if (!menu) return;
+    const down = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest?.(".gc-menu")) setMenu(null); };
+    const away = () => setMenu(null);
+    document.addEventListener("pointerdown", down, true);
+    list.current?.addEventListener("scroll", away, { passive: true });
+    const el = list.current;
+    return () => { document.removeEventListener("pointerdown", down, true); el?.removeEventListener("scroll", away); };
+  }, [menu]);
+  const rp: Replies = { onReply: startReply, onJump: jumpTo, onMenu: (l, at) => { sfx.hover(); setMenu({ l, x: at.x, y: at.y }); } };
+  const menuAt = (() => {
+    if (!menu || !root.current) return null;
+    const b = root.current.getBoundingClientRect();
+    return { left: Math.max(6, Math.min(menu.x - b.left, b.width - 170)), top: Math.max(6, Math.min(menu.y - b.top, b.height - 100)) };
+  })();
+
   // Open while on screen: the page that holds the keys pulls every 5 s and marks what you see as read.
   useEffect(() => { chatOp({ op: "open", on: true }); return () => chatOp({ op: "open", on: false }); }, []);
   // Stay at the newest message when it comes in, unless you scrolled up to read.
@@ -134,7 +213,7 @@ export function ChatPanel() {
     if (!el || !atBottom.current) return;
     el.scrollTo({ top: el.scrollHeight, behavior: placed.current ? "smooth" : "instant" });   // the first time straight to the newest, then gliding
     if (v.lines.length) placed.current = true;
-  }, [v.lines.length, v.lines.at(-1)?.id, v.votes.length, v.note, about, editing]);
+  }, [v.lines.length, v.lines.at(-1)?.id, v.votes.length, v.note, about, editing, c.reply]);
 
   const votes = v.votes;
   // The new look also starts a new group after a pause; the classic look groups by sender and day only.
@@ -150,9 +229,19 @@ export function ChatPanel() {
         <ul className="gc-lines">
           {items.map((it) => it.kind === "day"
             ? <li key={it.key} className="gc-day" aria-label={it.label}><span>{it.label}</span></li>
-            : <Line key={it.key} l={it.line} first={it.first} last={it.last} onEdit={c.startEdit} x={x} />)}
+            : <Line key={it.key} l={it.line} first={it.first} last={it.last} onEdit={c.startEdit} x={x} rp={rp} />)}
         </ul>
       </div>
+      {v.seeking && <p className="gc-toast" role="status">Finding the message...</p>}
+      {!v.seeking && toast && <p className="gc-toast" role="status">{toast}</p>}
+      {menu && menuAt && (
+        <div className="gc-menu" role="menu" aria-label="Message" style={menuAt} onMouseDown={(e) => e.stopPropagation()}>
+          <button type="button" role="menuitem" autoFocus onClick={() => { sfx.click(); startReply(menu.l); }}><ReplyIcon />Reply</button>
+          {!parseGifMessage(menu.l.t) && (
+            <button type="button" role="menuitem" onClick={() => { sfx.click(); void navigator.clipboard?.writeText(menu.l.t).catch(() => {}); setMenu(null); }}><CopyIcon />Copy text</button>
+          )}
+        </div>
+      )}
       {v.error && <p className="gs-err" role="alert">{v.error}</p>}
       {pick?.k === "react" && <EmojiPicker className="over" style={{ left: pick.at.left, top: pick.at.top }} onClose={() => setPick(null)} onPick={(e) => { chatOp({ op: "react", to: pick.to, e }); setPick(null); }} />}
       {pick?.k === "box" && <EmojiPicker className="dock" onClose={() => setPick(null)} onPick={(e) => { c.insert(e); }} />}

@@ -150,6 +150,7 @@ import { cleanWaOp, runWaOp } from "./core/waops";
 import { notesCardMessage, startNotesCard } from "./notescard";
 import { rebootWarnMessage, startRebootWarn } from "./rebootwarn";
 import { ackGymDay, gymCardMessage, gymWake, startGymWatch } from "./gymwatch";
+import { rewindActive, rewindAys } from "./rewind";
 import { okFeedId } from "./core/calfeeds";
 import { calLinkNow, calRefreshIfStale, calRefreshNow, setLocalCalReader, startCalRefresh } from "./calrefresh";
 import { CAL_OFF_SNAP, localSnap, localStatusPatch } from "./core/localcal";
@@ -188,6 +189,7 @@ import { remShellMessage, remWake, startRemWatch } from "./remwatch";
 import { cleanSleepMode } from "./core/sleepmode";
 import { dirCardMessage, runSquadOp, squadStore, squadView, startSquad } from "./squad/engine";
 import { boardWake, runBoardOp, startSquadBoard } from "./squad/board";
+import { setGymScreen } from "./squad/presence";
 import { cleanSquadOp } from "./squad/view";
 import { setSquadMirror } from "./squad/mirror";
 import { chatCardMessage, chatStore, chatView, runChatOp, startChat } from "./squad/chatengine";
@@ -626,6 +628,7 @@ export function startPsBridge() {
       if (chatCardMessage(m as { type?: string; id?: string; action?: string; text?: string })) return;  // G Squad chat: the history vote card's Yes and No (src/squad/chatengine.ts)
       if (islandMessage(m as { type?: string })) return;   // a tick on the Dynamic Island (src/island.ts)
       if (secondOn && secondMessage(m as unknown as { type?: string })) return;   // The developer only, see sayOwner   // Second Computer (src/second/store.ts)
+      if (m.type === "sync") rewindActive();   // Tab held: active on this Mac now (Rewind, src/rewind.ts)
       if (m.type === "mic") setMic(m);
       // A tick from the Tab list says which way since V1.34 (a repeat is harmless); the Dynamic Island still toggles.
       else if (m.type === "tick") void (typeof m.done === "boolean" ? setTodoDone(m.id, m.done) : toggleTodo(m.id));
@@ -722,6 +725,8 @@ export function startPsBridge() {
         if (patch.boardOp) void runBoardOp(patch.boardOp).catch(() => psPost({ type: "log", text: "gsquad: a money answer from the Tab list failed to save" }));
         // G Squad chat (V1.40, src/squad/chatengine.ts): send, edit, delete, vote, open, sound.
         { const c = cleanChatOp(patch.sqChatOp); if (c) void runChatOp(c); }
+        // G Squad members list (PS 1.64, src/squad/presence.ts): the Tab list's Fitness screen opened or closed ("At the gym").
+        if (typeof patch.sqGym === "boolean") setGymScreen(patch.sqGym);
         // G Squad Fitness (V1.40, src/squad/gym.ts): the Squad screen in Fitness, compare, reactions, challenges.
         { const o = cleanGymOp(patch.gymOp); if (o) void runGymOp(o); }
         // The Soundboard's G Squad sharing (V1.47, src/squad/sbshare.ts): list, share, save, take off.
@@ -865,7 +870,7 @@ export function startPsBridge() {
       else if (m.type === "wake") { reconnect(); gymWake(); remWake(); boardWake(); calRefreshIfStale(); }   // the Mac woke: a fresh Realtime socket and a sync; the gym card looks again; the calendar when over a minute old
       else if (m.type === "replyHandled" && typeof m.id === "string") void setReplyHandled(m.id, true);
       else if (m.type === "tap") { tapOn = !!m.on; retrack(); }
-      else if (m.type === "psSettings") { const hadRem = !!psSettings; psSettings = m.data; settingsListeners.forEach((l) => l()); remWake(!hadRem); }
+      else if (m.type === "psSettings") { const hadRem = !!psSettings; psSettings = m.data; settingsListeners.forEach((l) => l()); remWake(!hadRem); rewindAys((m.data as { ays?: { today?: unknown } })?.ays?.today); }   // Rewind: today's Are you sure count (src/rewind.ts)
       else if (m.type === "tab") { tabState = { enabled: m.enabled, trusted: m.trusted }; tapOn = !!m.on; retrack(); settingsListeners.forEach((l) => l()); }
       else if (m.type === "rememberStatus") { remembered = m.exists; touchLocked = m.locked === true; setPsKeepOpen(m.exists); settingsListeners.forEach((l) => l()); }
       else if (m.type === "touchid") { touchMissed = Date.now(); settingsListeners.forEach((l) => l()); }

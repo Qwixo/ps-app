@@ -44,7 +44,7 @@ export function clickPick(hit: Hit, start: string, ids: readonly string[]): stri
 /** Anything with closest(): a DOM element, or a stand in for the tests. */
 type Near = { closest(sel: string): unknown } | null;
 /** Things inside the live page that keep their own click (a click on anything else there is a click on the page). */
-export const OWN_CLICK = "button, a[href], input, textarea, select, label, [contenteditable='true'], [role='button'], [role='menu'], [role='menuitem'], [role='slider'], [role='switch'], [role='checkbox'], .tm-editor, .tm-ctx, .tl-menu, .tl-card, .trm-pop, .ed-box";
+export const OWN_CLICK = "button, a[href], input, textarea, select, label, [contenteditable='true'], [role='button'], [role='menu'], [role='menuitem'], [role='slider'], [role='switch'], [role='checkbox'], .tm-editor, .tm-ctx, .tl-menu, .lp-make, .trm-pop, .ed-box";
 /** Sort a click target into a Hit. `page` is the page showing in the middle (the live list). */
 export function hitOf(t: Near, page: string): Hit {
   if (!t) return { kind: "room" };

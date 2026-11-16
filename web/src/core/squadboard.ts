@@ -225,7 +225,9 @@ export interface BoardView {
   mine: { tz: string; on: boolean; months: { month: string; label: string; amount: number | null; skipped: boolean }[] };
   due: { month: string; label: string } | null;   // V1.43: the month that just ended, not added yet (the entry and the dot)
   loaded: boolean;
+  past?: PastMonth[];                     // PS 1.64 Past boards (core/squadpast.ts), newest first; none until the owner adds them
 }
+import type { PastMonth } from "./squadpast.ts";
 export interface HeldCard { kind: BoardKind; card: BoardCard; at: string }
 
 /** Standard ranks: equal values share a place (1, 1, 3). */
