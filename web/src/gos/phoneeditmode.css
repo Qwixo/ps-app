@@ -33,7 +33,7 @@
 .pm-room .pe-tile-hit, .pm-room .pe-tile-rs, .pm-room .pe-nav, .pm-room .pe-nav-i, .pm-room .pe-nav-grip { touch-action: none; }
 .pm-room .pe-tile-name { opacity: 1; transform: none; font-size: calc(11px * min(var(--inv), 1.7)); top: calc(-13px * min(var(--inv), 1.7)); }
 .pm-room .pe-tile { animation: pm-wiggle 2.6s ease-in-out infinite; animation-delay: calc(var(--n, 0) * -.4s); }
-.pm-room .pe-tile.dragging, .pm-room .pe-tile.fresh { animation: none; }
+.pm-room .pe-tile.dragging, .pm-room .pe-tile.fresh, .pm-room .pe-tile[data-settling] { animation: none; }   /* the wiggle would hide the glide into the new place */
 .pm-room .pe-tile.fresh { animation: pe-fresh .6s cubic-bezier(.34, 1.56, .5, 1) both; }
 @keyframes pm-wiggle { 0%, 100% { rotate: 0deg; } 25% { rotate: -.5deg; } 75% { rotate: .5deg; } }
 .pm-room .pe-nav-x { opacity: 1; width: calc(22px * var(--inv)); height: calc(22px * var(--inv)); font-size: calc(15px * var(--inv)); right: calc(-4px * var(--inv)); top: calc(-8px * var(--inv)); }

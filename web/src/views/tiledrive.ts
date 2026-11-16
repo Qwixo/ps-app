@@ -4,6 +4,8 @@
 import { moveTransform, navTransform, settleVars, tileVars, type DragMode } from "../core/tiledrag";
 import type { Tile } from "../core/phonelayout";
 
+/** Slightly longer than the .32s glide in phoneeditor.css. */
+export const SETTLE_MS = 360;
 const SIZE_VARS = ["--dw", "--dh"];
 const clear = (el: HTMLElement) => { el.style.removeProperty("transform"); for (const k of SIZE_VARS) el.style.removeProperty(k); };
 
@@ -21,8 +23,15 @@ export function carry(el: HTMLElement | null, t: Tile, mode: DragMode, dx: numbe
 
 /** Let go: start from where it was carried to, then (two frames later, once React has put it at its new place) let the
  *  CSS bring it to 0 so it glides into its place. */
+const settling = new WeakMap<HTMLElement, number>();
 export function settle(el: HTMLElement | null, t: Tile, mode: DragMode, dx: number, dy: number, landed: Tile, W: number) {
   if (!el) return;
+  // For a moment only the carried offset may animate: left, top, width and height jump to the new cell at once (the offset above makes up
+  // the difference), otherwise both animate and the panel flies a whole move further away before it glides back. A data attribute, because
+  // React rewrites the class when the dragging class goes.
+  el.dataset.settling = "1";
+  window.clearTimeout(settling.get(el));
+  settling.set(el, window.setTimeout(() => { delete el.dataset.settling; }, SETTLE_MS));
   const v = settleVars(t, mode, dx, dy, landed, W);
   if (mode === "move") el.style.transform = moveTransform(parseFloat(v["--dx"]), parseFloat(v["--dy"]));
   else { el.style.setProperty("--dw", v["--dw"]); el.style.setProperty("--dh", v["--dh"]); }

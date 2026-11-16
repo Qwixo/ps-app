@@ -137,12 +137,14 @@ function Line({ l, first, last, onEdit, x, rp }: { l: ChatLine; first: boolean; 
   );
 }
 // ---------- the panel ----------
-export function ChatPanel() {
+/** hold: this panel says the chat is open (default). The window holds it once itself, so a conversation switch does not close and reopen it.
+ *  convKey: a panel that stays mounted across conversations (a piece) keeps its draft and quote per conversation. */
+export function ChatPanel({ hold = true, convKey }: { hold?: boolean; convKey?: string } = {}) {
   const v = useChat();
   const list = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const looks = useSyncExternalStore(looksStore.subscribe, looksStore.get);
-  const c = useComposer({ onSent: () => { atBottom.current = true; } });
+  const c = useComposer({ onSent: () => { atBottom.current = true; }, convKey });
   const { about, editing } = c;
   const sig = signalOn();
   const root = useRef<HTMLDivElement>(null);
@@ -211,7 +213,7 @@ export function ChatPanel() {
   })();
 
   // Open while on screen: the page that holds the keys pulls every 5 s and marks what you see as read.
-  useEffect(() => holdChatOpen(), []);   // PS 1.65: counted, so a chat piece and this window never close each other (squad/chathold.ts)
+  useEffect(() => (hold ? holdChatOpen() : undefined), [hold]);   // PS 1.65: counted, so a chat piece and this window never close each other (squad/chathold.ts)
   // Stay at the newest message when it comes in, unless you scrolled up to read.
   const placed = useRef(false);
   useLayoutEffect(() => {
@@ -266,7 +268,7 @@ export function ChatPanel() {
   );
 }
 
-function ChatTab(_: SquadTabProps) { return <ChatPanel />; }
+function ChatTab(_: SquadTabProps) { return <ChatPanel hold={false} />; }   // the window holds the chat open itself (GSquadWindow)
 registerSquadTab({ id: "chat", title: "Chat", order: TAB_ORDER.chat, Panel: ChatTab, badge: () => chatNow().unread });
 
 // ---------- the website: a chat button in the To-do page's top bar, and the history vote pop-up ----------

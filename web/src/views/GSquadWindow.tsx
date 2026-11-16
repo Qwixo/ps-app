@@ -18,6 +18,7 @@ import { workingLine, type SquadView } from "../squad/view";
 import { useChat } from "../squad/chatmirror";
 import { useGymSquad } from "../squad/gymclient";
 import { popBack } from "../squad/back";
+import { holdChatOpen } from "../squad/chathold";
 import {
   boardRow, chatRow, escStep, firstSection, fitnessRow, membersRow, NARROW_PX, screenRow, settingsRow, tasksRow,
   type LastLine, type RowInfo,
@@ -103,6 +104,7 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   const gym = useGymSquad();
   const looks = useLooks();
   const [vw, setVw] = useState(() => window.innerWidth);
+  const [vh, setVh] = useState(() => window.innerHeight);
   const [tab, setTab] = useState<string>(() => firstSection({ asked, waiting: v.in ? v.waiting : 0, last: lastSection, ids }));
   const [page, setPage] = useState<SettingsPage | null>(null);
   const [list, setList] = useState(() => PHONE && !asked);   // narrow screens: the list instead of the section (the phone opens on the list)
@@ -117,11 +119,11 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   const float = v3 && floats(narrow, PHONE);
   const panel = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<WinSize>(() => readWin(safeLocal()));
-  const sizeNow = clampWin(size, vw, window.innerHeight);
+  const sizeNow = clampWin(size, vw, vh);
   const conv = useConvs(v);
 
   useEffect(() => {
-    const f = () => setVw(window.innerWidth);
+    const f = () => { setVw(window.innerWidth); setVh(window.innerHeight); };
     window.addEventListener("resize", f);
     return () => window.removeEventListener("resize", f);
   }, []);
@@ -242,18 +244,29 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
     e.preventDefault(); e.stopPropagation();
     const el = e.currentTarget, x0 = e.clientX, y0 = e.clientY, start = sizeNow;
     el.setPointerCapture(e.pointerId);
-    let last = start;
-    const move = (m: PointerEvent) => { last = dragWin(start, m.clientX - x0, m.clientY - y0, dir, window.innerWidth, window.innerHeight); setSize(last); };
-    const up = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); saveWin(last, safeLocal()); };
-    el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+    let last = start, frame = 0;
+    // Each move writes the size straight to the window's element once per frame; React draws again only when you let go.
+    const paint = () => { frame = 0; const p = panel.current; if (p) { p.style.width = `${last.w}px`; p.style.height = `${last.h}px`; } };
+    const move = (m: PointerEvent) => { last = dragWin(start, m.clientX - x0, m.clientY - y0, dir, window.innerWidth, window.innerHeight); if (!frame) frame = requestAnimationFrame(paint); };
+    let done = false;
+    const up = () => {
+      if (done) return; done = true;
+      if (frame) { cancelAnimationFrame(frame); frame = 0; }
+      for (const t of ["pointermove", "pointerup", "pointercancel", "lostpointercapture"] as const) el.removeEventListener(t, t === "pointermove" ? move as EventListener : up);
+      setSize(last); saveWin(last, safeLocal());
+    };
+    el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("lostpointercapture", up);
   };
   const HANDLES: { c: string; x: -1 | 0 | 1; y: -1 | 0 | 1 }[] = [
     { c: "n", x: 0, y: -1 }, { c: "s", x: 0, y: 1 }, { c: "w", x: -1, y: 0 }, { c: "e", x: 1, y: 0 },
     { c: "nw", x: -1, y: -1 }, { c: "ne", x: 1, y: -1 }, { c: "sw", x: -1, y: 1 }, { c: "se", x: 1, y: 1 },
   ];
+  // A click closes the window only when the press AND the release were on the dark area: selecting text and letting go outside must not.
+  const bgDown = useRef(false);
   const frame = (mode: string, body: ReactNode) => createPortal(
     <div ref={win} className={`${cls} ${mode}`} role="dialog" aria-modal="true" aria-label="G Squad" style={style}
-      onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); if (float && e.target === e.currentTarget) { sfx.click(); leave(); } }}>
+      onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => { bgDown.current = e.target === e.currentTarget; }}
+      onClick={(e) => { e.stopPropagation(); const both = bgDown.current && e.target === e.currentTarget; bgDown.current = false; if (float && both) { sfx.click(); leave(); } }}>
       <div className="gsw-bg" aria-hidden="true" />
       <div ref={panel} className="gsw-in" style={float ? { width: sizeNow.w, height: sizeNow.h } : undefined}>
         {body}
@@ -262,6 +275,8 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
     </div>, document.body);
 
   // ---------- not in a squad yet: The G Squad in the middle, one step at a time ----------
+  const holdTab = v.in && (tab === "settings" ? "settings" : (tabs.find((t) => t.id === tab) ?? tabs[0])?.id ?? "chat");
+  useEffect(() => (holdTab === "chat" ? holdChatOpen() : undefined), [holdTab]);   // once for the chat tab, not per conversation
   if (!v.in) return frame("solo", <>
     <div className="gsw-top"><span className="gsw-top-t">G Squad</span>{closeBtn}</div>
     <div className="gsw-solo">

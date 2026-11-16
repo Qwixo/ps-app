@@ -29,7 +29,7 @@ export const PIECES: readonly PieceDef[] = [
   { id: "sqchat", label: "Squad chat", needs: ["squad", "chat"], opens: "chat", live: true },
   { id: "sqconvs", label: "Conversations", needs: ["squad", "chat"], opens: "chat", live: false },
   { id: "sqboard", label: "Squad leaderboard", needs: ["squad"], opens: "leaderboard", live: false },
-  { id: "sqdone", label: "Squad tasks done", needs: ["squad"], opens: "leaderboard", live: false },
+  { id: "sqdone", label: "Squad tasks done", needs: ["squad"], opens: "tasks", live: false },
   { id: "sqnow", label: "Working now", needs: ["squad"], opens: "members", live: false },
 ];
 export const PIECE_IDS: readonly string[] = PIECES.map((p) => p.id);
@@ -50,6 +50,26 @@ export function openCounter(send: (on: boolean) => void): OpenCount {
     add() { n += 1; if (n === 1) send(true); },
     drop() { if (n === 0) return; n -= 1; if (n === 0) send(false); },
     n: () => n,
+  };
+}
+
+// ---------- a piece's draft, per conversation ----------
+/** Whether a chat piece draws its live chat: the feature is on, the page shows, the squad has you AND the Tab list is actually on screen
+ *  (PS keeps the list's window alive while hidden, so a page that is "shown" is not enough: otherwise the chat would count as open all
+ *  day, pull every 5 s, mark messages read and swallow the new message card and chime). */
+export const chatPieceLive = (o: { on: boolean; shown: boolean; inSquad: boolean; listShown: boolean }): boolean => o.on && o.shown && o.inSquad && o.listShown;
+/** What a chat piece keeps for one conversation: the typed text and the quote chip. Nothing crosses to another conversation. */
+export interface PieceDraft<R> { text: string; reply: R | null }
+export function draftKeeper<R>() {
+  const m = new Map<string, PieceDraft<R>>();
+  return {
+    /** Leaving conversation `from` with `cur` in the box: keep it, and give back what `to` had (empty when nothing). */
+    swap(from: string, cur: PieceDraft<R>, to: string): PieceDraft<R> {
+      if (cur.text || cur.reply) m.set(from, cur); else m.delete(from);
+      return m.get(to) ?? { text: "", reply: null };
+    },
+    clear() { m.clear(); },
+    size: () => m.size,
   };
 }
 
