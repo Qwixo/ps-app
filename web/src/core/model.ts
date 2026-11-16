@@ -477,11 +477,13 @@ export interface Settings {
   island?: { mode: "notch" | "pill" | "off"; idle: "next" | "none"; pill?: PillLook; notch?: NotchLook; hide?: number; cards?: boolean; top?: string[] };   // hide: seconds a click on the grab line hides it (V1.40, 60 unless set); cards: the Mac's notification cards come out of the island (V1.55, on unless false)| "pill" | "off"; idle: "next" | "none"; pill?: PillLook; notch?: NotchLook };   // pill, notch: their looks (core/islandlook.ts)   // PS Dynamic Island (core/island.ts): around the notch, a pill below it, or off; what shows when nothing is in progress
   pomodoro?: Partial<import("./pomodoro").PomoPrefs>;   // Pomodoro (core/pomodoro.ts, V1.58): the button on or off, work and break lengths, sessions before a long break, auto start, sound, time left on the island
   pomoRun?: import("./pomodoro").PomoRun | null;         // the Pomodoro running now, by wall clock end times (survives a restart, sleep and a lock); null when stopped
+  posture?: Partial<import("./posture").PosturePrefs>;   // Posture Reminder (core/posture.ts, PS 1.65): on, how often, from and to times (missing = on, every 45 minutes, 09:00 to 18:00)
   standup?: Partial<import("./standup").StandPrefs>;   // Stand-up reminders (core/standup.ts, V1.58): on, how often, how long, sound, active hours
   meetBubble?: Partial<import("./meetbubble").MeetBubblePrefs>;   // the next meeting bubble on the island (core/meetbubble.ts, V1.58): on, minutes before
   pomoIntro?: boolean;           // the first Pomodoro card (it recommends the Dynamic Island) was answered
   welcomeBack?: Partial<import("./welcomeback").WelcomePrefs>;   // Welcome back on the Mac island after being away (core/welcomeback.ts, PS 1.60): on, minutes
   workoutMac?: Partial<import("./workoutsummary").SummaryPrefs>;   // Workout summary on the Mac after a workout on the phone (core/workoutsummary.ts, PS 1.60): on
+  postureAsk?: boolean;          // PS 1.65: the first posture pop-up's question ("Do you want to turn the posture reminder off?") was seen; asked once per person
   standAsk?: boolean;            // V1.59: the first stand-up's question ("Do you want to turn stand-up reminders off?") was seen; asked once per person
   dnd?: Dnd;                     // PS Do Not Disturb (core/dnd.ts, the developer 30 Oct 2026): the moon top right of the Tab list; muted cards are held, never lost
   calChoices?: import("./calpick").CalChoices;   // which of the Mac's calendars are Show only or Off (core/calpick.ts, 15 Nov 2026); unlisted = Meetings

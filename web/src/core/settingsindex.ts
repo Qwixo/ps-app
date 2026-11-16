@@ -17,7 +17,7 @@ export { norm, stem };
 
 /** Where PS is running: on a Mac (the Tab list), the website, or the phone (PS GOS and the iPhone web app). */
 export type Where = "mac" | "web" | "phone";
-export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
+export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "posture" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
 /** What a setting opens instead of a row in Settings: a screen of its own. */
 export type Go = "fitness" | "security" | "dnd" | "gsquad" | "sleepSettings" | "phone" | "vault" | "macApp";
 
@@ -55,12 +55,14 @@ export interface SetEntry {
   mailCan?: true;
   /** Only where screen recording is on in this build (core/features.ts "screen-recording"). */
   sr?: true;
+  /** Only where the Posture reminder feature is on in this build (core/features.ts "posture-reminder"). */
+  pf?: true;
   /** Only in this phone shell: the GrapheneOS app ("gos") or the iPhone web app ("mweb"). V1.47. */
   shell?: Shell;
 }
 /** Which phone shell: the GrapheneOS app (ps-gos, a WebView with the native bridge) or the iPhone web app. */
 export type Shell = "gos" | "mweb";
-export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean }
+export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean }
 
 export const GROUPS: SetGroup[] = [
   // V1.51 (the developer, 12 Nov 2026): About and updates is the top item of the Settings menu, above everything else, so the
@@ -93,6 +95,7 @@ export const GROUPS: SetGroup[] = [
   { id: "fitness", label: "Fitness", line: "Rest times, sets, week goal, gym reminder", icon: "M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11" },
   { id: "pomodoro", label: "Pomodoro timer", line: "Work and break times, sounds and the island", on: ["mac", "web"], icon: "M12 21a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM12 6V3.5M9 4.5l3 1.5 3-1.5M12 13.5V10.5M12 13.5l2.2 1.6" },
   { id: "standup", label: "Stand-up reminders", line: "How often to stand, for how long, and when", on: ["mac"], icon: "M12 5.5a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6zM12 7.5v7M8 10l4-2 4 2M12 14.5l-3 6.5M12 14.5l3 6.5" },
+  { id: "posture", label: "Posture Reminder", line: "A pop-up now and then to sit up straight", on: ["mac", "web"], icon: "M12 5.5a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6zM10 8.5v6.5M10 15h6.5v6M7 21V9" },
   { id: "sleep", label: "Sleep mode", line: "Sleep mode has its own settings", icon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" },
   // V1.48 Sentry mode (core/sentry.ts): the gear on the AI button opens this group. Every Mac, public and private.
   { id: "sentry", label: "Sentry mode", line: "Lock your Mac and keep AI jobs running", on: ["mac"], icon: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM8.5 12s1.3-2.5 3.5-2.5 3.5 2.5 3.5 2.5-1.3 2.5-3.5 2.5-3.5-2.5-3.5-2.5z" },
@@ -187,6 +190,12 @@ export const SETTINGS: SetEntry[] = [
   // V1.57: alarms at any time (the phone rings like the gym ring, the Mac shows a card).
   { id: "alarms", group: "remind", parent: "reminders", name: "Phone alarms", line: "Your phone rings like an alarm at the times you pick, and your Mac shows a card.", words: ["ring", "wake", "wake up", "alarm clock", "phone rings", "ring screen", "acknowledge", "time"] },
   { id: "rem-test", group: "remind", parent: "reminders", name: "Test a reminder", line: "Shows it right now with its sound. Esc ends it.", words: ["test", "try", "preview", "see it", "demo"] },
+
+  // ---------- Posture Reminder (PS 1.65, core/posture.ts; the controls are views/PostureSettings.tsx) ----------
+  { id: "posture-on", group: "posture", name: "Posture reminder", line: "A pop-up with a stick figure that slouches and sits up straight, and one button, Sitting straight.", on: NOT_PHONE, pf: true, words: ["posture", "sit", "sitting", "straight", "slouch", "back", "spine", "desk", "ergonomic", "health", "reminder", "stick figure", "pop up", "popup"] },
+  { id: "posture-every", group: "posture", name: "How often", line: "Every 30, 45, 60 or 90 minutes.", on: NOT_PHONE, pf: true, words: ["posture", "interval", "how often", "every", "minutes", "frequency", "30", "45", "60", "90"] },
+  { id: "posture-hours", group: "posture", name: "Between these times", line: "It only comes inside these hours. An end time before the start time runs past midnight.", on: NOT_PHONE, pf: true, words: ["posture", "hours", "from", "to", "start", "end", "work hours", "schedule", "time", "midnight"] },
+  { id: "posture-test", group: "posture", name: "Try it now", line: "Shows the pop-up right now. Esc closes it.", on: NOT_PHONE, pf: true, words: ["posture", "test", "try", "preview", "demo", "see it"] },
 
   // ---------- Add Telegram Bot (views/TelegramBot.tsx, core/tgbot.ts) ----------
   { id: "telegram-bot", group: "telegram", name: "Your Telegram bot", line: "Make a bot with BotFather, give PS app its key, link your Telegram, test it.", words: ["telegram", "bot", "botfather", "text", "message", "sms", "chat", "add task", "send task", "token", "key", "at", "tasks from phone", "remote"] },
@@ -381,6 +390,7 @@ export function visibleTo(e: SetEntry, ctx: Ctx): boolean {
   if (e.mail && !ctx.mail) return false;
   if (e.mailCan && !ctx.mailCan) return false;
   if (e.sr && !ctx.sr) return false;
+  if (e.pf && !ctx.pf) return false;
   if (e.shell && e.shell !== ctx.shell) return false;
   if (e.on && !e.on.includes(ctx.where)) return false;
   const g = groupById(e.group);

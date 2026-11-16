@@ -1,0 +1,18 @@
+/* Posture reminder (PS 1.65). The card is the Annoying 15 min reminder's (remind.css .rm-card), so the pop-up looks the
+   same; this file only adds the stick figure's room and the one button. The figure's own CSS comes from core/posturefigure.ts. */
+.pf-card { text-align: center; }
+.pf-card .rm-card-pill { margin: 0 auto; }
+.pf-card h3 { margin: 10px 0 4px; }
+.pf-fig { margin: 4px 0 8px; }
+.pf-btn { display: inline-block; border: 0; font: inherit; font-weight: 700; font-size: 13px; padding: 9px 22px; border-radius: 99px; cursor: pointer; color: var(--rc-on); background: linear-gradient(180deg, color-mix(in srgb, var(--rc-acc) 80%, #fff), color-mix(in srgb, var(--rc-acc) 85%, #000)); box-shadow: 0 8px 20px color-mix(in srgb, var(--rc-acc) 35%, transparent); animation: pf-btn-in .45s ease 3500ms both; }
+.pf-btn:focus-visible { outline: 2px solid var(--rc-ink); outline-offset: 2px; }
+@keyframes pf-btn-in { from { opacity: 0; transform: translateY(4px); } }
+.pf-btn:not(.rdy), .pf-ask:not(.rdy) { pointer-events: none; }
+.pf-ask { margin-top: 14px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--rc-ink) 14%, transparent); animation: pf-btn-in .45s ease 3500ms both; }
+.pf-ask p { margin: 0 0 8px; font-size: 12.5px; color: var(--rc-sub); }
+.pf-ask span { display: inline-flex; gap: 8px; }
+.pf-ask button { border: 1px solid color-mix(in srgb, var(--rc-ink) 25%, transparent); background: transparent; color: var(--rc-ink); font: inherit; font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 99px; cursor: pointer; }
+.pf-ask button:focus-visible { outline: 2px solid var(--rc-ink); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .pf-btn, .pf-ask { animation: none; } }
+.pf-card .pf { color: var(--rc-ink); }
+.pf-set-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

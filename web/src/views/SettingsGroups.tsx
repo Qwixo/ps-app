@@ -75,6 +75,7 @@ import { SharingList, openGSquad } from "./GSquad";
 import { FromTheSquad } from "./FromTheSquad";
 import { AddFriendPanel } from "./AddFriend";
 import { PomoSetting } from "./Pomodoro";
+import { PostureSetting } from "./PostureSettings";
 import { MeetBubbleSetting, StandSetting, WelcomeBackSetting, WorkoutMacSetting } from "./IslandTimersSettings";
 import { LinkIphoneRow } from "./LinkIphone";
 import { MacUpdateRow } from "./MacUpdate";
@@ -104,7 +105,8 @@ export function SettingsHost({ st, gen, owner }: { st: Settings; gen: GenProps; 
   const mail = mailOnSnap(v);   // the Client emails switch (core/mailswitch.ts); it was "has email records" before 1.60
   const mailC = mailCan(v);
   const sr = feature(SR_FEATURE);   // PS 1.60: the Screen recording group shows only where the feature is on in this build
-  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr]);
+  const pf = feature("posture-reminder");   // PS 1.65: the Posture Reminder group shows only where the feature is on
+  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, pf, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr, pf]);
   return (
     <GenContext.Provider value={{ gen, st }}>
       <SettingsScreen owner={owner} ctx={ctx} controls={CONTROLS} phone={GOS || MWEB} onGo={(go, e, close) => goTo(go, e, close, owner)} />
@@ -205,6 +207,11 @@ export const CONTROLS: Controls = {
   "pomo-sound": row(() => <PomoSetting k="sound" />),
   "pomo-clock": row(() => <PomoSetting k="clock" />),
   // Stand-up reminders and the next meeting bubble (V1.58, views/IslandTimersSettings.tsx)
+  // Posture Reminder (PS 1.65, views/PostureSettings.tsx)
+  "posture-on": row(() => <PostureSetting k="on" />),
+  "posture-every": row(() => <PostureSetting k="every" />),
+  "posture-hours": row(() => <PostureSetting k="hours" />),
+  "posture-test": row(() => <PostureSetting k="test" />),
   "stand-on": row(() => <StandSetting k="on" />),
   "stand-every": row(() => <StandSetting k="every" />),
   "stand-len": row(() => <StandSetting k="len" />),
