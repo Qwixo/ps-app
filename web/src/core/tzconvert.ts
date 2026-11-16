@@ -119,18 +119,21 @@ export function zoneName(tz: string) { return (zoneList().find((z) => z.id === t
 // the day moves with it. What the developer typed keeps its look: "2pm" becomes "3pm", "14:00" becomes "15:00",
 // "1430" becomes "1445", and a zone word at the end ("2pm PT") stays.
 
-export type Part = "hour" | "min";
+export type Part = "hour" | "min" | "half";
 /** Minutes per notch over the minutes. */
 export const MIN_STEP = 15;
+/** Minutes per click of the small up and down arrows next to the typed time (and per arrow key), V1.65. */
+export const HALF_STEP = 30;
+const gridOf = (part: Part) => (part === "half" ? HALF_STEP : part === "min" ? MIN_STEP : 0);
 
 /** A time moved by n hours or n quarter hours. snap: an hour step from an off the hour start lands on
  *  the hour (used when the box was empty and the start is the clock now). days: how many midnights it
  *  crossed (+1 = into the next day). */
 export function shiftTime(h: number, mi: number, part: Part, n: number, snap = false): { h: number; mi: number; days: number } {
-  const grid = part === "min" ? MIN_STEP : snap ? 60 : 0;
+  const grid = gridOf(part) || (snap ? 60 : 0);
   let t = h * 60 + mi;
   if (grid && n) t = (n > 0 ? Math.floor(t / grid) : Math.ceil(t / grid)) * grid;
-  t += n * (part === "min" ? MIN_STEP : 60);
+  t += n * (gridOf(part) || 60);
   const days = Math.floor(t / 1440);
   t -= days * 1440;
   return { h: Math.floor(t / 60), mi: t % 60, days };
@@ -190,7 +193,7 @@ export function stepTyped(text: string, part: Part, n: number, start?: { h: numb
   const look = typed ? lookOf(text) : null;
   if (typed && look) {
     const r = shiftTime(typed.h, typed.mi, part, n);
-    return { text: writeTime(r.h, r.mi, { ...look, hasMin: look.hasMin || part === "min" || r.mi !== 0 }), days: r.days };
+    return { text: writeTime(r.h, r.mi, { ...look, hasMin: look.hasMin || part !== "hour" || r.mi !== 0 }), days: r.days };
   }
   if (!start || text.trim()) return null;
   const r = shiftTime(start.h, start.mi, part, n, true);
