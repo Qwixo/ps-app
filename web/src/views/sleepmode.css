@@ -358,7 +358,7 @@ html:not(.gos) .tm-done-bar :is(.tm-all, .tm-all-ask) + .slp-end { margin-left: 
 
 /* ---------- V1.43 the analogue face (views/SleepFace.tsx Dial): face, hands and ticks in their own colours, a soft glow ---------- */
 .slp-dial {
-  display: block; width: min(calc(clamp(200px, 74cqmin, 420px) * var(--k-fs, 1) * var(--slp-size, 1)), 92cqw, 64cqh); height: auto; aspect-ratio: 1; overflow: visible;
+  display: block; width: min(calc(clamp(200px, 74cqmin, 420px) * var(--k-fs, 1) * var(--slp-size, 1)), var(--slp-dial-room, 92cqw), 64cqh); height: auto; aspect-ratio: 1; overflow: visible;
   filter: drop-shadow(0 0 calc(10px * var(--slp-bright, .78)) rgba(var(--slp-face), calc(var(--slp-bright, .78) * .45))); /* k-keep */
 }
 .slp-dial-face { fill: rgba(var(--slp-face), .045); stroke: rgba(var(--slp-face), calc(var(--slp-bright, .78) * .5)); stroke-width: 1.4; /* k-keep */ }

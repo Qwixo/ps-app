@@ -1470,7 +1470,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       MiddleClick.shared.handle(msg); sendSettings()
     case "aiDone:set" where fromMain || fromOverlay:           // Settings > AI chat finished cards, a click on On or Off (Sources/AiDone.swift)
       AiDone.shared.handle(msg)
-    case "autoApprove:set" where fromMain || fromOverlay, "autoApprove:clearLog" where fromMain || fromOverlay:   // Settings > Sentry mode > Auto approve (AutoApprove.swift)
+    case "autoApprove:set" where fromMain || fromOverlay, "autoApprove:clearLog" where fromMain || fromOverlay, "autoApprove:noticed" where fromMain || fromOverlay:   // Settings > Sentry mode > Auto approve (AutoApprove.swift)
       AutoApprove.shared.handle(msg)
     case "aiDone:taken" where fromMain:                        // those finished chats are in the vault now: their files go
       if let keys = msg["keys"] as? [String] { AiDone.shared.taken(Array(keys.prefix(100))) }
@@ -1614,7 +1614,9 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       // 1Password or Signal: the golden rule, the list never takes their keyboard). Not while a
       // screen is pinned: then letting go of Tab or / always hides everything. Never while the list
       // is hidden (a pinned screen reopening itself after a restart must not take the keyboard).
-      if on && shown { if !screenPinned { TabWatch.shared.pinned = true }; if !Protected.front && !selfTest { panel.makeKey() } }
+      // PS 1.65: `quiet` (a choice notice) keeps the list up without taking the keyboard; Esc still reaches it (escape above).
+      let quiet = msg["quiet"] as? Bool == true
+      if on && shown { if !screenPinned { TabWatch.shared.pinned = true }; if !quiet && !Protected.front && !selfTest { panel.makeKey() } }
       if selfTest { print("DIMX FLAG:", on ? "open" : "closed") }
     case "pin" where fromOverlay:             // a screen pinned by double clicking its top bar (web src/ui/pin.ts)
       pinChanged(msg["on"] as? Bool ?? false)

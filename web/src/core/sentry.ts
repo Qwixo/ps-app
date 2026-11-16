@@ -23,8 +23,9 @@ export interface SentryPrefs {
    *  own time, default 18 h (a night's sleep and the morning); plain Sentry mode keeps restartH. */
   restartSleepH: number;
   /** PS 1.65 (the developer's friend, 17 Nov 2026): AI Sentry mode starts by itself whenever Sleep mode starts. On until the person
-   *  turns it off (Sleep settings). Everything Sentry mode does under Sleep mode (stay awake, battery stop, lid, restart,
-   *  Auto approve) already applies with it. */
+   *  turns it off (Sleep settings). Nobody pressed anything, so the stricter rule wins (the Mac's SleepSentryRules.autoPlan):
+   *  Sleep mode's 20 percent battery stop always holds, a closed lid stays awake only if the person switched the lid on
+   *  themselves, and the restart if not unlocked is not armed. Pressing the button keeps the person's own settings. */
   sleepAuto: boolean;
   // V1.52 (the developer): the heat and bag warning is gone everywhere. Old records may still hold `warned` and `lidWarned`;
   // cleanSentry drops them (lidWarned is still read once, by lidOf, for a V1.48 record's lid).
@@ -272,10 +273,19 @@ export const SENTRY_SPOTS: SentrySpot[] = ["left", "right", "bottomLeft", "botto
 export const SENTRY_SPOT_NAMES: Record<SentrySpot, string> = { left: "Left centre", right: "Right centre", bottomLeft: "Bottom left", bottomRight: "Bottom right", hidden: "Hidden" };
 export const SENTRY_SPOT_DEF: SentrySpot = "left";
 export const okSpot = (v: unknown): v is SentrySpot => (SENTRY_SPOTS as unknown[]).includes(v);
-/** The setting's one line (Customise and Sleep mode's settings). */
-/** PS 1.65: the Sleep settings row that opts out of starting AI Sentry mode with Sleep mode. */
+/** PS 1.65: the room (points, each side) the Mac's sleep screen keeps free for the AI Sentry mode button at the screen's edge: margin,
+ *  button, a gap (the Mac's SleepRules.sentrySide). The Customise preview sizes a big clock with the same rule. */
+export const SENTRY_SIDE = 28 + 210 + 24;
+/** The widest the clock (share 94) or the analogue face (92) may be, in percent of the screen's width: the share, less the
+ *  button's room on both sides, never under 40 (the Mac's SleepRules.roomWidth). */
+export function clockRoomPct(widthPx: number, sidesPx: number, share: number): number {
+  if (!(widthPx > 0)) return share;
+  return Math.max(40, Math.min(share, 100 * (widthPx - 2 * Math.max(0, sidesPx)) / widthPx));
+}
+/** PS 1.65: the Sleep settings row that opts out of starting AI Sentry mode with Sleep mode (core/sleepsettings.ts has the same words). */
 export const SLEEP_AUTO_NAME = "Start AI mode with Sleep mode";
-export const SLEEP_AUTO_LINE = "On: AI Sentry mode turns on by itself when Sleep mode starts. Off: only the button does.";
+export const SLEEP_AUTO_LINE = "On: AI Sentry mode turns on by itself with Sleep mode. It stops at 20 percent battery and never restarts your Mac.";
+/** The setting's one line (Customise and Sleep mode's settings). */
 export const SENTRY_SPOT_LINE = "On your Mac's sleep screen. Pressing it turns on Sentry mode under Sleep mode: your Mac stays awake and protected, and leaving opens its lock screen.";
 
 /** Every sentence the sleep screen says about it (the Mac has the same as fallbacks; the test checks they match). */
@@ -317,6 +327,9 @@ export interface SleepSentry {
   restartOn: number;
   /** PS 1.65: the Mac starts Sentry mode by itself when the sleep screen comes up (false: only the button does). */
   auto: boolean;
+  /** PS 1.65: the person switched the lid on themselves (lidSet), so a Sentry mode that started by itself may keep a closed Mac
+   *  awake. False: the default lid never does on an automatic start. */
+  autoLid: boolean;
 }
 export function sleepSentry(p: SentryPrefs, reboot: RestartFacts | null | undefined): SleepSentry {
   const c = restartCheck(reboot, p.restartSleepH);
@@ -336,6 +349,7 @@ export function sleepSentry(p: SentryPrefs, reboot: RestartFacts | null | undefi
     words: SLEEP_SENTRY_WORDS,
     restartOn: RESTART_ON_SLEEP_HOURS,
     auto: p.sleepAuto,
+    autoLid: p.lidSet && p.lid,
   };
 }
 /** The lines the sleep screen's warning shows, in the same order as restartWarnLines. */

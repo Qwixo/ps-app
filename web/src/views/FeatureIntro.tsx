@@ -12,7 +12,7 @@
 //    The phone's Back closes it (gos-back). Reduced motion turns the animation off.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { PS, psPost, psSettingsNow, useOverlayShown } from "../ps";
+import { PS, onPsSettings, psPost, psSettingsNow, useOverlayShown } from "../ps";
 import { askScreenRec, screenRecNow } from "../screenrec";
 import { introAudience } from "../core/screenrecmeet";
 import { useVault } from "../ui/kit";
@@ -24,7 +24,7 @@ import { chatStore } from "../squad/chatengine";
 import { RCPT_FEATURE, receiptsOn } from "../core/receipts";
 import { posturePrefs } from "../core/posture";
 import { PROTON_FEATURE, protonMirror } from "../core/protonmail";
-import { APPROVE_FEATURE, APPROVE_INTRO, approveAnswer, approveIntroProbe, cleanApprove, type ApproveKey } from "../core/autoapprove";
+import { APPROVE_FEATURE, APPROVE_INTRO, approveAnswer, approveIntroProbe, approveOffAfter, approvePicksFor, approveSyncPosts, cleanApprove, type ApproveState } from "../core/autoapprove";
 import { mailCan } from "../core/mailswitch";
 import { attachedLayout, ISLAND_ASK_MS, ISLAND_QUEUED_MS, type IslandAnchor } from "../core/whatsnew";
 import { addActive, answer, CARD_W, cleanDone, LOGO_MOMENT, logoChime, cleanState, INTROS, introReply, markShown, nextIntro, recheckMs, retire, retireFolded, updaterAnswer, type IntroDef, type IntroState } from "../core/featureintro";
@@ -61,6 +61,9 @@ declare module "../core/model" {
   interface Settings {
     /** Feature intro ids with `ack` (core/featureintro.ts) this person closed with Ok, on any device (V1.62). */
     introsDone?: string[];
+    /** PS 1.65: the Auto approve switches ("ai", "sleep") this person turned off from the 1.65 notice, so the answer applies on
+     *  every one of their Macs (core/autoapprove.ts approveSyncPosts). */
+    approveOff?: string[];
   }
 }
 /** The version this device had handled before this page started (What's new's own record), read once at load, before What's new
@@ -84,6 +87,15 @@ const MARKS: Record<IntroDef["mark"], (size: number) => ReactNode> = {
   whatsapp: (n) => <WaMark size={n} />,
   record: recordMark,
   logo: (n) => <img src={logoPng} width={n} height={n} alt="" style={{ borderRadius: Math.round(n * 0.22) }} />,
+  // PS 1.65: the Sentry shield (blue to violet, the same drawing as the Sentry screen) for the Auto approve notice.
+  shield: (n) => (
+    <svg width={n} height={n} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <defs><linearGradient id="fi-shield-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#5AC8FA" /><stop offset="1" stopColor="#AF52DE" /></linearGradient></defs>
+      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" fill="url(#fi-shield-g)" opacity=".22" />
+      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" stroke="url(#fi-shield-g)" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M9.5 12l2 2 3.5-3.5" stroke="#f5f5f7" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   spark: (n) => (
     <svg width={n} height={n} viewBox="0 0 24 24" fill="none" stroke="#FFD60A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z" />
@@ -147,8 +159,9 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   "gsquad-dm": foldedUnlessTour(async () => (feature("gsquad-dm") && squadStore.get().in && chatStore.get().dm === true ? "open" : "unknown")),
   // PS 1.65 Proton Mail through Bridge: only on a Mac with the feature on, and only until Bridge is linked (a link retires it for good).
   "proton-bridge-165": foldedUnlessTour(async () => (!PS || !feature(PROTON_FEATURE) ? "unknown" : protonMirror.get().status.linked ? "done" : "open")),
-  // PS 1.65 Auto approve defaults: only on a Mac with the feature on, and only while a default stands (the Mac says so). Never saves anything here.
-  [APPROVE_INTRO.id]: async () => (!PS || !feature(APPROVE_FEATURE) ? "unknown" : approveIntroProbe(cleanApprove((psSettingsNow() as { autoApprove?: unknown } | null)?.autoApprove))),
+  // PS 1.65 Auto approve defaults: only on a Mac with the feature on, and while one of its switches still has no choice on THIS Mac
+  // (each Mac shows it once; a Turn off given on another Mac reaches this one through approveOff and retires it). Saves nothing.
+  [APPROVE_INTRO.id]: async (_can, s) => (!PS || !feature(APPROVE_FEATURE) ? "unknown" : approveIntroProbe(macApprove(), settingsData(s).approveOff)),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault
@@ -157,10 +170,25 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   },
 };
 
+/** The Mac's Auto approve state (psSettings.autoApprove), cleaned. Undefined until the Mac sent it. */
+const macApprove = (): ApproveState | undefined => cleanApprove((psSettingsNow() as { autoApprove?: unknown } | null)?.autoApprove);
+/** A choice card's switches as they stand on this device (only the ones still open here), instead of the card's own list. */
+const PICKS_NOW: Record<string, () => IntroDef["picks"]> = {
+  [APPROVE_INTRO.id]: () => approvePicksFor(macApprove()),
+};
+
 /** What a choice intro's answer does (core/featureintro.ts `choice`). Yes and No are both saved as the person's own answer. */
 const CHOICES: Record<string, (yes: boolean, s: Snapshot, keep: string[]) => void> = {
-  // Each switch is sent as the person's own choice (the Mac saves it, so the default no longer applies). Keep it on: the ticked ones stay on.
-  [APPROVE_INTRO.id]: (yes, _s, keep) => { for (const a of approveAnswer(!yes, keep as ApproveKey[])) psPost({ type: "autoApprove:set", key: a.key, on: a.on }); },
+  // Each switch still open on this Mac is sent as the person's own choice, quietly (the Mac saves it and asks macOS nothing). Keep it
+  // on: the ticked ones stay on. What was turned off is saved with the person's settings, so every one of their Macs turns it off too.
+  [APPROVE_INTRO.id]: (yes, s, keep) => {
+    const sent = approveAnswer(!yes, keep, macApprove()?.unset ?? []);
+    for (const a of sent) psPost({ type: "autoApprove:set", key: a.key, on: a.on, quiet: a.quiet });
+    if (sent.some((a) => !a.on)) {
+      const before = settingsData(s).approveOff;
+      void saveSettings({ approveOff: approveOffAfter(before, sent) }).catch(() => { /* this Mac has it; the others ask themselves */ });
+    }
+  },
   "squad-p1": (yes, s) => { void saveSettings({ squadShare: { ...cleanShareOpts(settingsData(s).squadShare), p1: yes } }).catch(() => { /* asks again later */ }); },
 };
 
@@ -193,6 +221,24 @@ export function FeatureIntroHost() {
     window.addEventListener("ps:tour-again", again);
     return () => window.removeEventListener("ps:tour-again", again);
   }, [commit]);
+
+  // PS 1.65: a Turn off given on the notice on another of this person's Macs applies here too (only to a switch still on its default
+  // here; a choice saved on this Mac stands). Sent once per switch while this page runs, quietly (the Mac asks macOS nothing).
+  const synced = useRef(new Set<string>());
+  useEffect(() => {
+    if (!PS) return;
+    const apply = () => {
+      const L = live.current.s;
+      if (L.status !== "unlocked" || !feature(APPROVE_FEATURE)) return;
+      for (const a of approveSyncPosts(macApprove(), settingsData(L).approveOff)) {
+        if (synced.current.has(a.key)) continue;
+        synced.current.add(a.key);
+        psPost({ type: "autoApprove:set", key: a.key, on: a.on, quiet: a.quiet });
+      }
+    };
+    apply();
+    return onPsSettings(apply);
+  }, [s]);
 
   // 12b: the Mac's saved screen recording choice is read once, early, so the screen recording intro knows who said No (nothing from macOS).
   useEffect(() => { if (PS) askScreenRec(); }, []);
@@ -249,14 +295,20 @@ export function FeatureIntroHost() {
         tourRef.current = tourListFor(L.s);
         if (!tourRef.current.length) { probe.current[pick.show.id] = "unknown"; return; }
       }
-      setOpen(pick.show);
+      const picks = PICKS_NOW[pick.show.id]?.();
+      if (picks && !picks.length) { probe.current[pick.show.id] = "unknown"; return; }   // nothing left to ask on this device
+      setOpen(picks ? { ...pick.show, picks } : pick.show);
     };
     const t = window.setInterval(tick, 5000);
     return () => window.clearInterval(t);
   }, [commit]);
 
   // The tour running marks the intros it replaces done, so no separate card ever follows it.
-  const onShown = useCallback((id: string) => commit((x) => { const n = markShown(x, id, Date.now()); return id === TOUR_ID ? retireFolded(n, Date.now()) : n; }), [commit]);
+  const onShown = useCallback((id: string) => {
+    // PS 1.65: the Auto approve defaults count on this Mac only from the moment its notice was shown here.
+    if (id === APPROVE_INTRO.id) psPost({ type: "autoApprove:noticed" });
+    commit((x) => { const n = markShown(x, id, Date.now()); return id === TOUR_ID ? retireFolded(n, Date.now()) : n; });
+  }, [commit]);
   const onAnswer = useCallback((id: string, a: "show" | "later") => {
     commit((x) => answer(x, id, a));
     // A one button notice: Ok is the end of it on every device of this person (saved with their settings).
@@ -370,9 +422,10 @@ function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: I
     };
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
   // The Mac keeps the list up and gives it the keyboard while the card or guide is open (never over 1Password or Signal, PS checks).
+  // PS 1.65: a choice card never takes the keyboard (quiet): it has only buttons, and Esc reaches it through PS's own Esc.
   useLayoutEffect(() => {
     if (phase !== "card" && phase !== "guide") return;
-    psPost({ type: "dimx", open: true });
+    psPost({ type: "dimx", open: true, ...(def.choice && phase === "card" ? { quiet: true } : {}) });
     return () => { psPost({ type: "dimx", open: false }); };
   }, [phase === "card" || phase === "guide"]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -384,7 +437,7 @@ function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: I
   const hung = at ? ({ "--fi-left": `${at.left}px`, "--fi-top": `${at.top}px`, "--fi-ox": `${at.originX}px`, "--fi-from": at.from } as CSSProperties) : undefined;
   return createPortal(
     <div className={`fi-layer${at ? " isl" : " plain"}${def.ack ? " fi-ack" : ""}${phase === "out" ? " out" : ""}`} style={hung} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-      <section className="fi-card" role="dialog" aria-modal="true" aria-labelledby="fi-title" style={{ "--fi-w": `${Math.min(def.ack ? ACK_W : CARD_W, window.innerWidth - 16)}px` } as CSSProperties}>
+      <section className={`fi-card${def.picks ? " calm" : ""}`} role="dialog" aria-modal="true" aria-labelledby="fi-title" style={{ "--fi-w": `${Math.min(def.ack ? ACK_W : CARD_W, window.innerWidth - 16)}px` } as CSSProperties}>
         {def.ack ? (
           // V1.62 the logo moment: the logo comes out of the island, big, with a shine; the words under it.
           <>
@@ -407,11 +460,17 @@ function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: I
         )}
         {def.ask && <p className="fi-ask">{def.ask}</p>}
         {def.picks && (
-          <div className="fi-picks" role="group" aria-label="Keep on">
-            {def.picks.map((p) => (
-              <button key={p.id} type="button" className={`fi-pick${kept.includes(p.id) ? " on" : ""}`} aria-pressed={kept.includes(p.id)}
-                onClick={() => { sfx.click(); setKept((k) => (k.includes(p.id) ? k.filter((x) => x !== p.id) : [...k, p.id])); }}>{p.label}</button>
-            ))}
+          // PS 1.65: one quiet row per switch, a thin switch on the right (no focus taken, a click flips it).
+          <div className="fi-picks" role="group" aria-label={def.headline}>
+            {def.picks.map((p) => {
+              const on = kept.includes(p.id);
+              return (
+                <button key={p.id} type="button" role="switch" aria-checked={on} className={`fi-pick${on ? " on" : ""}`}
+                  onClick={() => { sfx.hover(); setKept((k) => (k.includes(p.id) ? k.filter((x) => x !== p.id) : [...k, p.id])); }}>
+                  <span>{p.label}</span><i className="fi-sw" aria-hidden="true" />
+                </button>
+              );
+            })}
           </div>
         )}
         {def.tour && (

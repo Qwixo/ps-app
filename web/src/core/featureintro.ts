@@ -31,7 +31,7 @@ export interface IntroDef {
   show: string;
   later?: string;
   /** Which picture swoops in (views/FeatureIntro.tsx MARKS). */
-  mark: "whatsapp" | "spark" | "record" | "logo";
+  mark: "whatsapp" | "spark" | "record" | "logo" | "shield";
   /** V1.62: a one button notice ("Ok"): no question, no Later, no guide. Ok (or Esc, or Back) ends it for good, and it is saved
    *  with the person's settings (introsDone), so it shows once per person, not once per device. */
   ack?: true;
@@ -182,14 +182,15 @@ export const INTROS: IntroDef[] = [
   },
   {
     // PS 1.65 Auto approve on by default (the developer's friend, 17 Nov 2026; words wait for the owner's approval). About a minute in, one
-    // notice says what Sentry mode's Auto approve does and asks "Do you want this off?". Keep it on keeps the ticked switches, Turn off
-    // turns both off. Only while a default stands (the Mac says so), never again after an answer (views/FeatureIntro.tsx DONE_PROBES).
+    // calm notice on each Mac says what Auto approve now does, with a switch for AI mode and Sleep mode. Keep it on keeps the ticked
+    // switches, Turn off turns them off on every one of the person's Macs (synced approveOff). The defaults count on a Mac only once
+    // it was shown there. Only while a switch still has no choice on that Mac (views/FeatureIntro.tsx DONE_PROBES, PICKS_NOW).
     id: APPROVE_INTRO.id,
     headline: APPROVE_INTRO.headline,
     ask: APPROVE_INTRO.ask,
     show: APPROVE_INTRO.show,
     later: APPROVE_INTRO.later,
-    mark: "spark",
+    mark: "shield",
     choice: true,
     picks: [...APPROVE_PICKS],
   },

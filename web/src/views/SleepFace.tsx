@@ -36,10 +36,12 @@ export const watchActions = {
 const rgbOf = (hex: string) => { const n = parseInt(/^#[0-9a-f]{6}$/i.test(hex ?? "") ? hex.slice(1) : "e7a35e", 16); return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`; };
 /** The look as CSS variables on the screen (or the preview): colours, brightness, background, size, font weight and
  *  letter spacing (V1.43: the other words have their own colour). */
-export function faceStyle(l: PlanLook, clockChars: number): CSSProperties {
-  // The biggest clock that still fits across: each digit is about 0.6 of the font size wide (wider with spacing).
-  const fit = Math.max(8, Math.floor(94 / (Math.max(4, clockChars) * (0.6 + Math.max(0, (l.spacing ?? 0) / 100)))));
+export function faceStyle(l: PlanLook, clockChars: number, room: { clock: number; dial: number } = { clock: 94, dial: 92 }): CSSProperties {
+  // The biggest clock that still fits across: each digit is about 0.6 of the font size wide (wider with spacing). PS 1.65: `room` is
+  // the share of the width it may use (less on the Mac's preview, where the AI Sentry mode button keeps its room at both edges).
+  const fit = Math.max(8, Math.floor(room.clock / (Math.max(4, clockChars) * (0.6 + Math.max(0, (l.spacing ?? 0) / 100)))));
   return {
+    "--slp-dial-room": `${room.dial}cqw`,
     "--slp-rgb": rgbOf(l.ink), "--slp-trgb": rgbOf(l.text ?? l.ink), "--slp-bright": String(l.bright), "--slp-night": l.bg, "--slp-size": String(l.size / 100), "--slp-fit": `${fit}cqw`,
     ...(l.weight ? { "--slp-w": String(l.weight) } : {}), "--slp-ls": `${(l.spacing ?? 0) / 100}em`,
     "--slp-face": rgbOf(l.faceInk ?? l.ink), "--slp-hand": rgbOf(l.handInk ?? l.ink), "--slp-tick": rgbOf(l.tickInk ?? l.ink),

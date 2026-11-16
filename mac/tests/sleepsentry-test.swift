@@ -46,12 +46,26 @@ do {
   check("auto: never from an older page (no part)", !go(nil))
   check("auto: only once per sleep screen", !go(on, tried: true))
   check("auto: never for an alarm alone, when already protected, busy or with a pop up", !go(on, alarmOnly: true) && !go(on, isOn: true) && !go(on, busy: true) && !go(on, panel: true))
-  check("auto: a restart gap means no pop up by itself, the button stays", !go(gap))
-  check("auto: a helper gap found fresh stops it, a lid gap too, clean goes on",
-        !SleepSentryRules.autoContinues(helperGap: true, lidGap: nil, lidOn: false)
-        && !SleepSentryRules.autoContinues(helperGap: false, lidGap: "refused", lidOn: true)
-        && SleepSentryRules.autoContinues(helperGap: false, lidGap: nil, lidOn: true))
-  check("auto: the screen starts it once and quietly (source)", ss.contains("autoStartIfDue") && ss.contains("autoTried = true") && ss.contains("autoQuiet") && ss.contains("the button stays"))
+  check("auto: the restart check is not for it (it arms no restart), so a restart gap does not stop it", go(gap))
+  check("auto: never with the button Hidden", !SleepSentryRules.autoGo(on, spot: "hidden", alarmOnly: false, tried: false, on: false, busy: false, panel: false)
+        && SleepSentryRules.autoGo(on, spot: "bottomRight", alarmOnly: false, tried: false, on: false, busy: false, panel: false))
+  // The stricter rule wins on an automatic start (security review 17 Nov 2026).
+  let mine = SleepSentryN.parse(["plan": ["lowStop": false, "lowPct": 10, "lid": true, "restartH": 18]])!
+  let a = SleepSentryRules.autoPlan(mine)
+  check("auto plan: Sleep mode's 20 percent stop holds even with Sentry's stop switched off", a.lowStop && a.lowPct == 20)
+  check("auto plan: a higher stop of the person's own is kept", SleepSentryRules.autoPlan(SleepSentryN.parse(["plan": ["lowStop": true, "lowPct": 30]])!).lowPct == 30
+        && SleepSentryRules.autoPlan(SleepSentryN.parse(["plan": ["lowStop": true, "lowPct": 5]])!).lowPct == 20)
+  check("auto plan: the default lid never keeps a closed Mac awake", !a.lid)
+  check("auto plan: the lid only when the person switched it on themselves", SleepSentryRules.autoPlan(SleepSentryN.parse(["plan": ["lid": true], "autoLid": true])!).lid
+        && !SleepSentryRules.autoPlan(SleepSentryN.parse(["plan": ["lid": false], "autoLid": true])!).lid)
+  check("auto plan: no restart if not unlocked", a.restartH == 0)
+  check("auto plan: pressing the button keeps the person's own plan", mine.plan.lid && mine.plan.restartH == 18 && !mine.plan.lowStop)
+  check("Sleep mode's stop is the same 20 percent everywhere", SleepSentryRules.sleepStopPct == 20 && sleep.contains("static let stopPct = 20"))
+  check("the battery line shows the stop the engaged plan really has", SleepSentryRules.batteryLine(mine, plan: a, onBattery: true) == "On battery. Sentry mode keeps your Mac awake and locks it at 20%.")
+  check("auto: the screen starts it once and quietly (source)", ss.contains("autoStartIfDue") && ss.contains("autoTried = true") && ss.contains("autoQuiet")
+        && ss.contains("engage(SleepSentryRules.autoPlan(s))") && ss.contains("gen == self.autoGen") && ss.contains("onPlan = p"))
+  check("auto: a lid gap starts it without the lid, never a pop up (source)", ss.contains("q.lid = false; lidChecked = nil"))
+  check("auto: every refusal note stays hidden when it started by itself (source)", ss.contains("&& !quiet {"))
 }
 
 // ---------- where it sits ----------

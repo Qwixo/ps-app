@@ -28,6 +28,9 @@ struct SleepSentryN {
   var restartOn = SleepSentryRules.restartOnHours
   /// PS 1.65: AI Sentry mode starts by itself when Sleep mode starts (on until the person turns it off in Sleep settings).
   var auto = true
+  /// PS 1.65: the person switched "keep awake with the lid closed" on themselves (core/sentry.ts lidSet). Only then does a
+  /// Sentry mode that started by itself keep a closed Mac awake; the default never does.
+  var autoLid = false
 
   static func parse(_ any: Any?) -> SleepSentryN? {
     guard let d = any as? [String: Any] else { return nil }
@@ -45,6 +48,7 @@ struct SleepSentryN {
     }
     for (k, v) in (d["words"] as? [String: Any]) ?? [:] where SleepSentryRules.words[k] != nil { if let x = str(v, 300) { s.words[k] = x } }
     if let a = d["auto"] as? Bool { s.auto = a }
+    if let a = d["autoLid"] as? Bool { s.autoLid = a }
     if let n = (d["restartOn"] as? NSNumber)?.intValue, n > 0, SentryRules.restartHours.contains(n) { s.restartOn = n }
     return s
   }
@@ -131,16 +135,25 @@ enum SleepSentryRules {
   }
 
   /// PS 1.65 (the developer's friend, 17 Nov 2026): AI Sentry mode turns on by itself whenever Sleep mode starts, unless the person
-  /// opted out. Once per sleep screen. Only when nothing would need a person: no restart pop up (`check` nil), a real
-  /// Sleep mode (not an alarm alone), nothing already protecting, nothing busy. A gap leaves the button as it is today.
+  /// opted out (Sleep settings) or hid the button (Hidden is a no). Once per sleep screen, a real Sleep mode only (not an
+  /// alarm alone), nothing already protecting, busy or asking. It needs nothing from a person: it arms no restart and keeps
+  /// no closed lid awake by default (autoPlan), so the restart check's pop up is not for it.
   static func autoGo(_ s: SleepSentryN?, spot: String, alarmOnly: Bool, tried: Bool, on: Bool, busy: Bool, panel: Bool) -> Bool {
     guard let s, s.auto, !tried, !alarmOnly, !on, !busy, !panel else { return false }
-    return s.check == nil
+    return okSpot(spot) != "hidden"
   }
-  /// After the fresh helper check: a found gap means no automatic engage (the person can still press the button).
-  static func autoContinues(helperGap: Bool, lidGap: String?, lidOn: Bool) -> Bool {
-    if helperGap { return false }
-    return !(lidOn && (lidGap == "helper" || lidGap == "refused"))
+  /// PS 1.65 (security review 17 Nov 2026): the plan an AUTOMATIC start uses. Nobody pressed the button, so the stricter rule
+  /// wins everywhere: Sleep mode's own battery stop (sleepStopPct, 20 percent) always holds (the stop is on and never
+  /// lower than it); a closed lid keeps the Mac awake only when the person switched that on themselves (`autoLid`), never by
+  /// default; the restart if not unlocked is not armed (unsaved work is never lost to a start nobody asked for). Pressing the
+  /// button keeps the person's own Sentry settings.
+  static func autoPlan(_ s: SleepSentryN) -> SentryPlanN {
+    var q = s.plan
+    q.lowStop = true
+    q.lowPct = max(s.plan.lowStop ? s.plan.lowPct : 0, sleepStopPct)
+    q.lid = s.plan.lid && s.autoLid
+    q.restartH = 0
+    return q
   }
   /// Leaving Sleep mode (Wake up, Customise, Settings, Esc, the page): while Sentry protects it, only through the real
   /// lock screen; otherwise Touch ID or the password (Sleep's own lock), or at once when that is switched off.
@@ -170,12 +183,16 @@ enum SleepSentryRules {
   /// After these PS locks too (the padlock), the same as Esc in Sleep mode.
   static func locksPS(_ sleepWhy: String) -> Bool { sleepWhy == "esc" || sleepWhy == "locked" }
 
+  /// Sleep mode's own battery stop, percent (the same as SleepRules.stopPct in SleepScreen.swift; the test checks they match).
+  static let sleepStopPct = 20
   /// Sleep's own battery rule (stop at 20 percent) is replaced by Sentry's own while protected.
-  static func sleepStops(protected: Bool, onBattery: Bool, pct: Int?) -> Bool { !protected && onBattery && (pct ?? 100) <= 20 }
-  /// The battery line while protected: Sentry's own stop level, or that it keeps the Mac awake. Nil: on mains.
-  static func batteryLine(_ s: SleepSentryN, onBattery: Bool) -> String? {
+  static func sleepStops(protected: Bool, onBattery: Bool, pct: Int?) -> Bool { !protected && onBattery && (pct ?? 100) <= sleepStopPct }
+  /// The battery line while protected: the stop level of the plan Sentry runs on (`p`, an automatic start's own), or that it
+  /// keeps the Mac awake. Nil: on mains.
+  static func batteryLine(_ s: SleepSentryN, plan p: SentryPlanN? = nil, onBattery: Bool) -> String? {
     guard onBattery else { return nil }
-    return s.plan.lowStop ? s.word("batteryStop").replacingOccurrences(of: "{pct}", with: String(s.plan.lowPct)) : s.word("batteryOn")
+    let p = p ?? s.plan
+    return p.lowStop ? s.word("batteryStop").replacingOccurrences(of: "{pct}", with: String(p.lowPct)) : s.word("batteryOn")
   }
   /// The sentence for a refusal code from Sentry (SentryRules.refusal).
   static func refusedLine(_ s: SleepSentryN?, code: String) -> String {

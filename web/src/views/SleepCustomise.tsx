@@ -12,7 +12,7 @@ import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { BGS, BRIGHT_MIN, COLORS, COLOR_NAMES, DIAL_NAMES, HAND_NAMES, FONTS, FONT_NAMES, LOOK_DEF, PIECE_NAMES, POINTER_STEPS, SIZE_MAX, SIZE_MIN, SPACING_MAX, SPACING_MIN, WEIGHTS, WEIGHT_NAMES,
   bgHex, clockText, cleanLook, inkHex, planLook, prefsOf, sleepModeOf, type ClockColor, type Ink, type SleepLook, type SleepPieces } from "../core/sleepmode";
-import { SENTRY_SPOTS, SENTRY_SPOT_LINE, SENTRY_SPOT_NAMES, type SentrySpot } from "../core/sentry";
+import { SENTRY_SIDE, SENTRY_SPOTS, SENTRY_SPOT_LINE, SENTRY_SPOT_NAMES, clockRoomPct, type SentrySpot } from "../core/sentry";
 import { ColorWheel } from "./ColorWheel";
 import { WHERE, closeCustomise, currentPlan, goToSleep, openSleep, sleepLog, sleepPsBase, useSleepMode } from "../sleepmode/engine";
 import { SleepFace, faceStyle } from "./SleepFace";
@@ -134,9 +134,12 @@ export function SleepPreview({ look }: { look: SleepLook }) {
   const plan = useMemo(() => currentPlan(since), [since, Math.floor(now / 30_000)]);   // eslint-disable-line react-hooks/exhaustive-deps
   const pl = planLook(look, sleepPsBase());
   const c = clockText(now, look);
+  // PS 1.65: on the Mac the clock keeps the AI Sentry mode button's room free at both edges (SleepScreen.swift), so the preview does too.
+  const sides = WHERE === "mac" && look.sentry !== "hidden" ? SENTRY_SIDE : 0;
+  const room = { clock: clockRoomPct(BASE_W, sides, 94), dial: clockRoomPct(BASE_W, sides, 92) };
   return (
     <div ref={box} className="slp-prev-box" style={{ height: Math.round(BASE_H * k) }} aria-label="Preview">
-      <div className="slp-screen slp-prev" style={{ ...faceStyle(pl, c.time.length + (c.ampm ? 2 : 0)), width: BASE_W, height: BASE_H, transform: `scale(${k})` }}>
+      <div className="slp-screen slp-prev" style={{ ...faceStyle(pl, c.time.length + (c.ampm ? 2 : 0), room), width: BASE_W, height: BASE_H, transform: `scale(${k})` }}>
         <SleepFace plan={plan} look={pl} since={since} now={now} ringing={false} peek={false} preview />
         <div className="slp-foot"><span className="slp-wake">{plan.words.wakeUp}</span></div>
       </div>

@@ -51,16 +51,21 @@ System Settings, Privacy and Security. Saying no never breaks the rest of PS: on
 
 Says Yes to permission prompts of AI coding tools (Claude Code, Codex) so an AI keeps working while you are away.
 Settings says plainly what this risks: if a web page or a file tricks an AI into something harmful, nothing stops
-it. Three switches, all off by default: "In AI mode" (while Sentry mode is on), "In Sleep mode" (while the sleep
-screen is up) and "Always auto approve" (while PS is open). Code: `mac/Sources/AutoApprove.swift`,
+it. Three switches: "In AI mode" (while Sentry mode is on), "In Sleep mode" (while the sleep screen is up for Sleep mode,
+not for an alarm alone) and "Always auto approve" (while PS is open). Since 1.65 "In AI mode" and "In Sleep mode" are on
+until you choose and "Always auto approve" is off; on each Mac the defaults count only after PS has shown its short
+notice there, where Turn off switches them off on every one of your Macs. A choice you saved is never changed. Code: `mac/Sources/AutoApprove.swift`,
 `mac/Sources/AutoApproveCore.swift`, `web/src/core/autoapprove.ts`.
 
-- **What it writes, only while a switch is on**: one hook line (`hooks.PermissionRequest`) in `~/.claude/settings.json`,
+- **What it writes, and when**: one hook line (`hooks.PermissionRequest`) in `~/.claude/settings.json`,
   and in `~/.codex/hooks.json` when Codex is on this Mac. The line runs `~/Library/PS/auto-approve/hook.sh`, which
   answers "allow" only while PS keeps a fresh time in `~/Library/PS/auto-approve/active` (PS moves it on every 30
   seconds; if PS stops or the mode ends, the time runs out within 2 minutes and prompts show as usual). Before each
   change PS keeps a copy of the file next to it (`.ps-auto-approve-backup`), and it never rewrites a file it cannot
-  read. Turning every switch off takes out exactly the lines PS added, the script and the time file.
+  read. Only PS's own entry changes: every other byte of the file (order, spacing) stays as it was. With a switch you
+  turned On yourself the line stays from the moment PS opens; a switch that is only on by its default never writes at
+  launch: the line goes in when Sentry or Sleep mode starts and comes out when it ends. Turning every switch off takes
+  out exactly the lines PS added, the script and the time file.
 - **What it never answers**: questions an AI asks you and plan approvals (`AskUserQuestion`, `ExitPlanMode`) go to
   you as usual.
 - **What it reads and presses**: for prompts the hook cannot reach, every 2.5 seconds it reads the text of Terminal

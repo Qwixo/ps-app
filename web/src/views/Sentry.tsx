@@ -350,8 +350,6 @@ function useNoHelper() {
 /** Restart if not unlocked: Off or a time (default 8 h). The restart itself is the PS helper's (the restart helper, set
  *  up in Security): without it this says so and offers to set it up, never failing silently. */
 export function SentryRestartSetting() { return <RestartPicker which="restartH" label="Restart if not unlocked" />; }
-/** V1.52 (the developer): Restart if not unlocked during Sleep mode, the time armed when Sentry mode is turned on from Sleep mode's
- *  AI Sentry mode button (default 18 h). The same synced value in Settings, Sentry mode and in Sleep mode's settings. */
 /** PS 1.65: start AI Sentry mode by itself with Sleep mode (on by default, this opts out). */
 export function SentrySleepAutoSetting() {
   const p = usePrefs();
@@ -362,6 +360,9 @@ export function SentrySleepAutoSetting() {
     </div>
   );
 }
+/** V1.52 (the developer): Restart if not unlocked during Sleep mode, the time armed when Sentry mode is turned on from Sleep mode's
+ *  AI Sentry mode button (default 18 h). The same synced value in Settings, Sentry mode and in Sleep mode's settings. PS 1.65: an
+ *  automatic start (SentrySleepAutoSetting) never arms it. */
 export function SentryRestartSleepSetting() { return <RestartPicker which="restartSleepH" label="Restart if not unlocked during Sleep mode" />; }
 function RestartPicker({ which, label }: { which: "restartH" | "restartSleepH"; label: string }) {
   const p = usePrefs();
