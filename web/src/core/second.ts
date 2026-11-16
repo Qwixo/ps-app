@@ -67,11 +67,11 @@ export type JobStatusBody = BodyBase & {
 };
 export type Machine = {
   awake?: boolean; locked?: boolean; fileVault?: "on" | "off" | "unknown"; passwordImmediately?: boolean;
-  timer?: { on?: boolean; hours: number; deadline: number | string; mode?: RebootSetMode; asked?: boolean; live?: boolean; safeMode?: boolean; lastWould?: number;
+  timer?: { on?: boolean; hours: number; deadline: number | string; mode?: RebootSetMode; asked?: RebootSetMode; live?: boolean; safeMode?: boolean; lastWould?: number;
     minutes?: number; postponed?: number; postpone?: boolean; set?: boolean; lockedAt?: number; signedIn?: boolean; periods?: LockPeriod[] };
   helper?: "approved" | "needs approval" | "not set up" | "missing"; bootedAt?: number; lastRestart?: { at: number; kind: string };
 };
-export type LockPeriod = { lockedAt: number; endedAt: number; ran: number; end: string; postponed?: number; would?: boolean };
+export type LockPeriod = { lockedAt: number; endedAt: number; ran: number; end: string; postponed?: number; would?: number };
 export type StatBody = BodyBase & {
   t: "stat"; cpu: number; mem?: number; battery: number; charging: boolean; power: "ac" | "battery"; busy: boolean; queue: number; have: string[];
   disk?: number; app?: string; sleepSoon?: boolean; machine?: Machine;
