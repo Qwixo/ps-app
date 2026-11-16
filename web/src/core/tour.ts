@@ -16,7 +16,7 @@ export const TOUR_ID = "tour-165";
 /** The tour's own switch (features.json). */
 export const TOUR_FEATURE = "whats-new-tour";
 /** The intros the tour replaces (core/featureintro.ts INTROS ids): marked done when the tour runs. */
-export const TOUR_FOLDS: readonly string[] = ["receipts", "posture-165", "checklist-165", "notif-stack-165"];
+export const TOUR_FOLDS: readonly string[] = ["receipts", "posture-165", "checklist-165", "notif-stack-165", "gsquad-v3-165", "gsquad-pieces-165", "gsquad-dm", "proton-bridge-165"];
 
 export interface TourStep {
   /** Which feature ids show this step: ANY one on is enough (a feature can have a few, for example G Squad's look and its messages). */
@@ -44,7 +44,8 @@ export const TOUR_STEPS: TourStep[] = [
   { ids: ["proton-bridge"], title: "Proton Mail", line: "Read your clients' Proton Mail in the email panel.", where: "Settings, Client emails, Link Proton Mail", on: ["mac"], mail: true },
   { ids: ["fuller-history"], title: "Fuller history", line: "A private record of tasks you missed, added or deleted.", where: "Settings, Privacy and sharing, Fuller task history" },
   { ids: ["gsquad-v3", "gsquad-dm"], title: "G Squad, new look", line: "A new look with direct messages and group chats.", where: "Open G Squad. Your picture: Squad settings, Your name and picture" },
-  { ids: ["edit-mobile"], title: "Edit mode on your phone", line: "Zoom out to move your pages and panels around.", where: "The Edit button at the top left of your list", on: ["phone"] },
+  { ids: ["gsquad-pieces"], title: "G Squad on your pages", line: "Put the squad chat, the leaderboard or who is working on any page.", where: "Edit mode, Add, the G Squad pieces" },
+  { ids: ["whats-new-tour"], title: "Edit mode on your phone", line: "Zoom out to move your pages and panels around.", where: "The Edit button at the top left of your list", on: ["phone"] },
 ];
 
 export const TOUR_WORDS = {
