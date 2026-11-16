@@ -39,6 +39,7 @@ import "./GSquadBoard";   // G Squad Leaderboard and Screen time (V1.40); last m
 import { GSquadChatWeb } from "./GSquadChat";
 import { SquadAddRow, type SquadAdd } from "./GSquadTask";
 import { SquadP1Panel } from "./SquadP1Panel";
+import { SquadPieceSlots } from "./SquadPieces";
 import { vaultStore } from "../core/vault";
 import { calLinkNow, calRefreshNow } from "../calrefresh";
 import { agoText, calLine, calStatus, type CalStatus } from "../core/calstatus";
@@ -1414,6 +1415,7 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
         {/* G Squad Priority 1 (PS 1.63, views/SquadP1Panel.tsx): the squad's P1 tasks with their 24 hour clocks, under the email panel, above Sleep. */}
         <Slot id="squadp1"><SquadP1Panel /></Slot>
         <Slot id="meetnotes"><LiveMeetingNotes meet={meet} notes={st.meetingNotes || []} standing={st.standingNotes || []} /></Slot>
+        <SquadPieceSlots />   {/* PS 1.65 G Squad pieces (views/SquadPieces.tsx): off the page until added in Edit mode */}
         <Slot id="leftovers"><NotesLeftovers /></Slot>
         <Slot id="undo"><UndoButton docked={docked} /></Slot>
         {red && <Slot id="newtasks"><NewTasks list={st.suggestions || []} clients={clients} minAt={st.tmInboxMinAt} docked={docked} prio={prio} daily={daily} /></Slot>}

@@ -4,6 +4,7 @@
 // Text only, smooth and simple. Your own messages: Edit and Delete (for everyone). New messages: a small badge on the
 // G Squad icon; no sound unless switched on here (Mac). History votes: a pop-up with Yes and No (a PS card on the
 // Mac, a pop-up on the website) and the same question at the top of this tab until answered.
+import { holdChatOpen } from "../squad/chathold";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { registerSquadTab, TAB_ORDER, type SquadTabProps } from "../squad/tabs";
@@ -210,7 +211,7 @@ export function ChatPanel() {
   })();
 
   // Open while on screen: the page that holds the keys pulls every 5 s and marks what you see as read.
-  useEffect(() => { chatOp({ op: "open", on: true }); return () => chatOp({ op: "open", on: false }); }, []);
+  useEffect(() => holdChatOpen(), []);   // PS 1.65: counted, so a chat piece and this window never close each other (squad/chathold.ts)
   // Stay at the newest message when it comes in, unless you scrolled up to read.
   const placed = useRef(false);
   useLayoutEffect(() => {

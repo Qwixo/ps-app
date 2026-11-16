@@ -40,7 +40,9 @@ export const MAX_EXTRA = 120;
 /** Every panel and button of the floating Tab list that Edit mode knows, top left to bottom right.
  *  off: switched off in this build (core/features.ts), so never offered in the tray.
  *  keep: never removable (the gear opens Settings). red: the developer's own (other accounts never see it, so never in their tray). */
-export type SlotInfo = { id: string; label: string; keep?: boolean; red?: boolean; mail?: boolean; off?: boolean; inner?: string; ps?: boolean; wide?: boolean };
+export type SlotInfo = { id: string; label: string; keep?: boolean; red?: boolean; mail?: boolean; off?: boolean; inner?: string; ps?: boolean; wide?: boolean;
+  /** PS 1.65 (G Squad pieces): off the page until the person adds one from the Add panel gallery. The original is never drawn, only copies. */
+  optIn?: boolean };
 export const SLOTS: readonly SlotInfo[] = [
   { id: "clocks", label: "Time zones" },
   { id: "pomodoro", label: "Pomodoro" },   // V1.58: between Time zones and Sentry mode (views/Pomodoro.tsx)
@@ -72,6 +74,12 @@ export const SLOTS: readonly SlotInfo[] = [
   { id: "screenrec", label: "Record screen", ps: true },   // PS 1.60 (views/ScreenRec.tsx): right below the email panel, only after the person switched screen recording on
   { id: "receipts", label: "Purchases" },   // PS 1.65 (views/Purchases.tsx): the receipts finance screen, below Record screen
   { id: "squadp1", label: "Squad Priority 1" },   // PS 1.63 (views/SquadP1Panel.tsx): under the email panel and Record screen, above Sleep
+  // PS 1.65 G Squad pieces (core/squadpieces.ts, views/SquadPieces.tsx): parts of G Squad as panels of their own. Off the page until added in Edit mode.
+  { id: "sqchat", label: "Squad chat", optIn: true },
+  { id: "sqconvs", label: "Conversations", optIn: true },
+  { id: "sqboard", label: "Squad leaderboard", optIn: true },
+  { id: "sqdone", label: "Squad tasks done", optIn: true },
+  { id: "sqnow", label: "Working now", optIn: true },
   { id: "meetnotes", label: "Meeting notes" },
   { id: "leftovers", label: "Notes left over" },
   { id: "undo", label: "Undo" },
@@ -84,13 +92,15 @@ export const SLOTS: readonly SlotInfo[] = [
   { id: "privacy", label: "Private mode", inner: "meetings" },
 ];
 /** Panels wide enough to get a width handle in the overview (buttons only get the size handle). */
-const WIDE = new Set(["clocks", "timelines", "meetings", "campaigns", "dimx", "glass", "mail", "squadp1", "meetnotes", "leftovers", "newtasks", "overdue", "series", "numerology"]);
+const WIDE = new Set(["clocks", "timelines", "meetings", "campaigns", "dimx", "glass", "mail", "squadp1", "sqchat", "sqconvs", "sqboard", "sqdone", "sqnow", "meetnotes", "leftovers", "newtasks", "overdue", "series", "numerology"]);
 const KNOWN = new Map(SLOTS.map((s) => [s.id, s]));
 /** The kind of a panel: its own id, or the part before the dot for a copy ("sleep.k3f9a" is a Sleep). */
 export const kindOf = (id: string) => id.split(".")[0];
 export const isCopy = (id: string) => id.includes(".");
 export const slotLabel = (id: string) => KNOWN.get(kindOf(id))?.label ?? id;
 export const slotInfo = (id: string) => KNOWN.get(kindOf(id));
+/** Off the page by default: only copies of it are ever drawn (the original is not on any page). */
+export const isOptIn = (id: string) => !isCopy(id) && !!KNOWN.get(id)?.optIn;
 export const isWide = (id: string) => WIDE.has(kindOf(id));
 /** Can it be taken off the screen? A copy always can; of the originals all but the gear and Tab and Lock. */
 export const canHide = (id: string) => KNOWN.has(kindOf(id)) && (isCopy(id) || !KNOWN.get(id)!.keep);
@@ -220,7 +230,7 @@ export const cfgOf = (l: TabLayout, id: string): InstCfg => l.cfg?.[id] ?? {};
  *  copies there (in the order they were added). red: the developer's account (his own panels are only ever his). */
 export function onPage(l: TabLayout, page: string, red: boolean, pages?: ReadonlySet<string>): string[] {
   const ok = (id: string) => { const s = slotInfo(id); return !!s && !s.off && slotOk(s, red); };
-  const orig = SLOTS.filter((s) => !s.inner && !l.hidden.includes(s.id) && ok(s.id) && pageOf(l, s.id, pages) === page).map((s) => s.id);
+  const orig = SLOTS.filter((s) => !s.inner && !s.optIn && !l.hidden.includes(s.id) && ok(s.id) && pageOf(l, s.id, pages) === page).map((s) => s.id);
   const copies = (l.extra ?? []).filter((id) => ok(id) && pageOf(l, id, pages) === page);
   return [...orig, ...copies];
 }
@@ -264,7 +274,7 @@ export function putOnPage(l: TabLayout, id: string, page: string, at: string): T
 export function addPanel(l: TabLayout, kind: string, page: string, at: string, p?: SlotPos, rnd?: () => number): { layout: TabLayout; id: string | null } {
   const s = KNOWN.get(kind);
   if (!s || s.off || !PAGE_ID.test(page)) return { layout: l, id: null };
-  if (!s.inner && l.hidden.includes(kind)) {
+  if (!s.inner && !s.optIn && l.hidden.includes(kind)) {
     let n = putOnPage(showSlot(l, kind, at), kind, page, at);
     if (p) n = moveSlot(n, kind, p, at);
     return { layout: n, id: kind };
@@ -327,8 +337,8 @@ export function dropPage(l: TabLayout, page: string, at: string): TabLayout {
 export type GalleryItem = { kind: string; label: string; here: number; all: number; removed: boolean; inner?: string };
 export function gallery(l: TabLayout, page: string, red: boolean, ps: boolean, pages?: ReadonlySet<string>): GalleryItem[] {
   return SLOTS.filter((s) => !s.off && slotOk(s, red) && (ps || !s.ps) && !s.keep).map((s) => {
-    const ids = [...(!s.inner && !l.hidden.includes(s.id) ? [s.id] : []), ...(l.extra ?? []).filter((x) => kindOf(x) === s.id)];
-    return { kind: s.id, label: s.label, here: ids.filter((id) => pageOf(l, id, pages) === page).length, all: ids.length, removed: !s.inner && l.hidden.includes(s.id), ...(s.inner ? { inner: s.inner } : {}) };
+    const ids = [...(!s.inner && !s.optIn && !l.hidden.includes(s.id) ? [s.id] : []), ...(l.extra ?? []).filter((x) => kindOf(x) === s.id)];
+    return { kind: s.id, label: s.label, here: ids.filter((id) => pageOf(l, id, pages) === page).length, all: ids.length, removed: !s.inner && !s.optIn && l.hidden.includes(s.id), ...(s.inner ? { inner: s.inner } : {}) };
   });
 }
 

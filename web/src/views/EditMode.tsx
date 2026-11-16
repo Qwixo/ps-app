@@ -30,7 +30,7 @@ import { createPortal } from "react-dom";
 import { PS, psPost } from "../ps";
 import { saveTabLayout } from "../core/actions";
 import {
-  addPanel, canHide, cfgOf, dropPage, gallery, hideSlot, isCopy, isWide, kindOf, moveSlot, onPage, outOf, pageOf, pullOut, pushIn, putOnPage, resetLayout,
+  addPanel, canHide, cfgOf, isOptIn, dropPage, gallery, hideSlot, isCopy, isWide, kindOf, moveSlot, onPage, outOf, pageOf, pullOut, pushIn, putOnPage, resetLayout,
   sameLayout, setCfg, setSize, sizeOf, slotInfo, slotLabel, slotStyle, followStyle, snapRect, toPos, fromPos, MAIN_PAGE, SIZE_MAX, SIZE_MIN, EDGE,
   type InstCfg, type Rect, type TabLayout,
 } from "../core/tablayout";
@@ -167,6 +167,7 @@ export function useShownHere(): boolean {
 const shownHere = (c: Ctx, id: string) => {
   const s = slotInfo(id);
   if (s?.keep) return true;   // the gear and Tab and Lock are on every page
+  if (isOptIn(id)) return false;   // PS 1.65 G Squad pieces: off the page until a copy is added
   if (!isCopy(id) && c.layout.hidden.includes(id)) return false;
   return pageOf(c.layout, id, c.pages) === c.page;
 };
@@ -181,7 +182,7 @@ export function Slot({ id, children }: { id: string; children: ReactNode }) {
   // V1.58 smooth page swipe (views/pagelayer.ts): which page it belongs to (none for the gear and Tab and Lock, on
   // every page, and for a removed one). A main page panel in a column keeps its room while another page shows
   // (ed-box), so the columns never reflow as pages change and it can slide back in with its page.
-  const removed = !isCopy(id) && c.layout.hidden.includes(id);
+  const removed = !isCopy(id) && (c.layout.hidden.includes(id) || isOptIn(id));
   const pg = slotInfo(id)?.keep || removed ? undefined : pageOf(c.layout, id, c.pages);
   const box = !here && !removed && !p && pg === MAIN_PAGE;
   const z = sizeOf(c.layout, id);

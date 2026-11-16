@@ -18,7 +18,7 @@ let seed = 1;
 const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 const P2 = "pg2abc", P3 = "pg3xyz";
 const pages = new Set([MAIN_PAGE, P2, P3]);
-const allOriginals = SLOTS.filter((s) => !s.inner && !s.off).map((s) => s.id);
+const allOriginals = SLOTS.filter((s) => !s.inner && !s.off && !s.optIn).map((s) => s.id);
 
 // ---------- migration: a layout from before V1.55 ----------
 ok("a V1.54 layout reads exactly as before: every panel on the main page, moved ones where they were, removed ones removed", () => {
