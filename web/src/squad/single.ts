@@ -26,7 +26,7 @@ export function notInStage(v: Pick<SquadView, "in" | "auto">): AutoStage | null 
 // ---------- Squad settings (V1.47: simpler, one page per thing) ----------
 export const SETTINGS_PAGES = [
   { id: "share", title: "What you share", line: "Choose what the squad can see" },
-  { id: "name", title: "Your name", line: "How the squad sees you" },
+  { id: "name", title: "Your name and picture", line: "How the squad sees you" },
   { id: "notify", title: "Notifications", line: "Message cards, sound, Do Not Disturb" },
   { id: "looks", title: "Appearance", line: "Light or dark, colour, bubbles, text size, background" },
   { id: "ai", title: "Link my AI", line: "Let your AI talk to your friends' AIs" },

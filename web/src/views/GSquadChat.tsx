@@ -23,6 +23,8 @@ import { Avatar } from "./SquadAvatar";
 import { About, ChatComposer, sendChat, useComposer, type ReplyDraft } from "./GSquadComposer";
 import { replySnippet } from "../core/squadchat";
 import { EmojiPicker, GifImage, GifPicker, ReactBar } from "./GSquadPickers";
+import { MsgText, v3On } from "./GSquadV3";
+import { bubbleShape } from "../core/gsmsg";
 import "./gschat.css";
 import "./gssignal.css";
 
@@ -62,6 +64,7 @@ function Line({ l, first, last, onEdit, x, rp }: { l: ChatLine; first: boolean; 
   const gif = x ? parseGifMessage(l.t) : null;
   const big = x && !gif ? emojiSize(emojiOnly(l.t)) : "";
   const live = !!x && !l.sending && !l.failed;   // a message not on the hub yet cannot be reacted to
+  const v3 = v3On();                             // PS 1.65: Read more, and the hover buttons never move the message
   const canReply = !l.sending && !l.failed;      // the same for a reply: it needs the original's hub id
   useEffect(() => {
     if (!bar) return;
@@ -72,7 +75,7 @@ function Line({ l, first, last, onEdit, x, rp }: { l: ChatLine; first: boolean; 
   useBack(bar, () => setBar(false));
   const stop = () => { if (press.current !== undefined) { window.clearTimeout(press.current); press.current = undefined; } };
   return (
-    <li className={`gc-line${l.mine ? " mine" : ""}${first ? " first" : ""}${last ? " last" : ""}${l.edited ? " edited" : ""}${l.sending ? " sending" : ""}${l.failed ? " failed" : ""}${bar ? " bar-open" : ""}${l.r?.length ? " has-r" : ""}`} data-id={l.id}>
+    <li data-shape={bubbleShape(first, last)} className={`gc-line${l.mine ? " mine" : ""}${first ? " first" : ""}${last ? " last" : ""}${l.edited ? " edited" : ""}${l.sending ? " sending" : ""}${l.failed ? " failed" : ""}${bar ? " bar-open" : ""}${l.r?.length ? " has-r" : ""}`} data-id={l.id}>
       {!l.mine && <span className="gc-av">{last && <Avatar id={l.from} name={l.name} size={30} />}</span>}
       <div className="gc-col">
         <div className={`gc-bubble${gif ? " gif" : ""}${big ? ` emo emo-${big}` : ""}`}
@@ -99,6 +102,7 @@ function Line({ l, first, last, onEdit, x, rp }: { l: ChatLine; first: boolean; 
           {l.a && <About a={l.a} />}
           {gif
             ? <GifImage url={gif} onLoad={x?.onMedia} />
+            : v3 ? <MsgText t={l.t}><span className="gc-pad" aria-hidden="true" /></MsgText>
             : <span className="gc-text selectable">{l.t}<span className="gc-pad" aria-hidden="true" /></span>}
           <span className="gc-meta">{l.failed ? "Not sent" : l.sending ? "Sending" : `${l.edited ? "edited " : ""}${when(l.at)}`}</span>
         </div>

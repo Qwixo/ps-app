@@ -30,9 +30,12 @@ import { todayISO } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { MembersButton, MembersList } from "./GSquadMembers";
 import { SettingsIcon, SquadSettings, useLooks } from "./GSquadSettings";
+import { ConvAvatar, ConvRow, openConv, useConvs, v3On, v3Op } from "./GSquadV3";
+import { clampWin, dragWin, floats, readWin, saveWin, type WinSize } from "../core/gswinsize";
 import "./gswin.css";
 import "./gswnew.css";
 import "./gssignal.css";
+import "./gssignal3.css";
 
 // ---------- small parts ----------
 function Svg({ children, size = 24, w = 1.9 }: { children: ReactNode; size?: number; w?: number }) {
@@ -65,6 +68,7 @@ const FIT_SEEN = "gsquad.fitSeen";              // the day you last opened Fitne
 const readSeen = () => { try { return localStorage.getItem(FIT_SEEN); } catch { return null; } };
 const markSeen = () => { try { localStorage.setItem(FIT_SEEN, todayISO()); } catch { /* storage off */ } };
 
+const safeLocal = (): Storage | null => { try { return localStorage; } catch { return null; } };
 const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const EASE = "cubic-bezier(.22, 1, .36, 1)";
 /** PS's own text size (core/looks.ts puts it on the page); Appearance's text size multiplies it. */
@@ -103,6 +107,14 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   const [people, setPeople] = useState(false);   // PS 1.64: the members list from the pictures at the top right
   const leaving = useRef(false);
   const narrow = PHONE || vw < NARROW_PX;
+  // PS 1.65 (feature gsquad-v3): the Signal style window. On a wide screen it is a window of its own size that grows out of
+  // the G Squad button and can be resized (the size is kept on this device); on a phone it fills the screen.
+  const v3 = v3On() && looks.look === "new";
+  const float = v3 && floats(narrow, PHONE);
+  const panel = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<WinSize>(() => readWin(safeLocal()));
+  const sizeNow = clampWin(size, vw, window.innerHeight);
+  const conv = useConvs(v);
 
   useEffect(() => {
     const f = () => setVw(window.innerWidth);
@@ -125,6 +137,21 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   };
   // Opening: it grows out of the button with a soft spring; the list and the section follow a beat later (CSS).
   useLayoutEffect(() => {
+    const pn = panel.current;
+    if (float && pn && !reduced() && typeof pn.animate === "function") {
+      // grows out of the G Squad button: it starts as a small round dot on the button and opens to the window
+      const a = anchor?.current?.getBoundingClientRect();   // the window is centred, so its middle is the screen's middle (read before any animation moves it)
+      const dx = a && a.width ? a.left + a.width / 2 - window.innerWidth / 2 : 0, dy = a && a.width ? a.top + a.height / 2 - window.innerHeight / 2 : 40;
+      const k = a && a.width ? 0.05 : 0.94;
+      pn.animate([
+        { opacity: 0, transform: `translate(${dx}px, ${dy}px) scale(${k})`, borderRadius: "60px" },
+        { opacity: 1, offset: 0.28 },
+        { opacity: 1, transform: "none", borderRadius: "16px" },
+      ], { duration: 520, easing: "cubic-bezier(.22, 1.12, .3, 1)" });
+      win.current?.animate([{ backgroundColor: "rgba(0,0,0,0)" }, { backgroundColor: "rgba(0,0,0,.3)" }], { duration: 360, easing: "ease-out" });
+      pn.querySelector(".gsw-side")?.animate([{ opacity: 0, transform: "translateX(-14px)" }, { opacity: 1, transform: "none" }], { duration: 420, delay: 140, easing: EASE, fill: "backwards" });
+      return;
+    }
     const el = win.current;
     if (!el || reduced() || typeof el.animate !== "function") return;
     el.style.transformOrigin = origin();
@@ -137,6 +164,18 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   const leave = () => {
     if (leaving.current) return;
     leaving.current = true;
+    const pn = panel.current;
+    if (float && pn && !reduced() && typeof pn.animate === "function") {
+      const a = anchor?.current?.getBoundingClientRect();   // the window is centred, so its middle is the screen's middle (read before any animation moves it)
+      const dx = a && a.width ? a.left + a.width / 2 - window.innerWidth / 2 : 0, dy = a && a.width ? a.top + a.height / 2 - window.innerHeight / 2 : 40;
+      const k = a && a.width ? 0.05 : 0.94;
+      const an = pn.animate([{ opacity: 1, transform: "none", borderRadius: "16px" }, { opacity: 0, transform: `translate(${dx}px, ${dy}px) scale(${k})`, borderRadius: "60px" }],
+        { duration: 260, easing: "cubic-bezier(.5, 0, .9, .4)", fill: "forwards" });
+      win.current?.animate([{ backgroundColor: "rgba(0,0,0,.3)" }, { backgroundColor: "rgba(0,0,0,0)" }], { duration: 240, fill: "forwards" });
+      an.onfinish = () => onClose();
+      window.setTimeout(onClose, 400);
+      return;
+    }
     const el = win.current;
     if (!el || reduced() || typeof el.animate !== "function") { onClose(); return; }
     el.style.transformOrigin = origin();
@@ -189,16 +228,33 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const style = { ...looksVars(looks, psFs()) } as CSSProperties;
-  const cls = `gsw${narrow ? " narrow" : ""}${PHONE ? " phone" : ""} ${looksClass(looks)}${looks.look === "new" && signalOn() ? " sg" : ""}`;
+  const cls = `gsw${narrow ? " narrow" : ""}${PHONE ? " phone" : ""} ${looksClass(looks)}${looks.look === "new" && signalOn() ? " sg" : ""}${v3 ? " v3" : ""}${float ? " float" : ""}`;
   const closeBtn = (
     <button type="button" className="gsw-x" onClick={() => { sfx.click(); leave(); }} aria-label="Close" data-tip="Close" data-tip-line="Closes G Squad. Or press Esc">
       <CloseIcon /></button>
   );
+  // The window's edges and corners: pull one to resize (the window stays in the middle), the size is remembered.
+  const grab = (dir: { x: -1 | 0 | 1; y: -1 | 0 | 1 }) => (e: React.PointerEvent<HTMLElement>) => {
+    e.preventDefault(); e.stopPropagation();
+    const el = e.currentTarget, x0 = e.clientX, y0 = e.clientY, start = sizeNow;
+    el.setPointerCapture(e.pointerId);
+    let last = start;
+    const move = (m: PointerEvent) => { last = dragWin(start, m.clientX - x0, m.clientY - y0, dir, window.innerWidth, window.innerHeight); setSize(last); };
+    const up = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); saveWin(last, safeLocal()); };
+    el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  };
+  const HANDLES: { c: string; x: -1 | 0 | 1; y: -1 | 0 | 1 }[] = [
+    { c: "n", x: 0, y: -1 }, { c: "s", x: 0, y: 1 }, { c: "w", x: -1, y: 0 }, { c: "e", x: 1, y: 0 },
+    { c: "nw", x: -1, y: -1 }, { c: "ne", x: 1, y: -1 }, { c: "sw", x: -1, y: 1 }, { c: "se", x: 1, y: 1 },
+  ];
   const frame = (mode: string, body: ReactNode) => createPortal(
     <div ref={win} className={`${cls} ${mode}`} role="dialog" aria-modal="true" aria-label="G Squad" style={style}
-      onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); if (float && e.target === e.currentTarget) { sfx.click(); leave(); } }}>
       <div className="gsw-bg" aria-hidden="true" />
-      <div className="gsw-in">{body}</div>
+      <div ref={panel} className="gsw-in" style={float ? { width: sizeNow.w, height: sizeNow.h } : undefined}>
+        {body}
+        {float && HANDLES.map((h) => <i key={h.c} className={`gsw-rs ${h.c}`} onPointerDown={grab(h)} aria-hidden="true" />)}
+      </div>
     </div>, document.body);
 
   // ---------- not in a squad yet: The G Squad in the middle, one step at a time ----------
@@ -221,7 +277,7 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
       case "chat": return chatRow(chat.unread, lastLine, rowTime);
       case "tasks": return tasksRow(v);
       case "fitness": return fitnessRow(gym, seen);
-      case "leaderboard": return boardRow(v);
+      case "leaderboard": return boardRow(v, v3);
       case "screen": return screenRow();
       case "members": return membersRow(v);
       case "settings": return settingsRow();
@@ -235,7 +291,8 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
   const isSettings = tab === "settings";
   const cur = isSettings ? null : tabs.find((t) => t.id === tab) ?? tabs[0];
   const curId = isSettings ? "settings" : cur?.id ?? "chat";
-  const curTitle = isSettings ? "Squad settings" : cur?.title ?? "";
+  const chatConv = v3 && curId === "chat" ? conv.cur : null;
+  const curTitle = isSettings ? "Squad settings" : chatConv ? chatConv.title : cur?.title ?? "";
 
   const row = (id: string, title: string, extra?: { placeholder?: boolean; count?: number; dot?: boolean }) => {
     const r = rowOf(id);
@@ -262,26 +319,31 @@ export function GSquadWindow({ anchor, onClose, v, props, asked, onAsked, Icon, 
         {narrow && closeBtn}
       </div>
       <ul className="gsw-rows" role="tablist" aria-orientation="vertical">
-        {tabs.map((t) => row(t.id, t.title, { placeholder: t.placeholder, count: t.badge?.(v), dot: t.dot?.(v) }))}
+        {tabs.map((t) => v3 && t.id === "chat"
+          ? conv.list.map((c) => <ConvRow key={c.id} c={c} v={v} on={curId === "chat" && conv.active === c.id && !(narrow && list)} onPick={() => { if (curId !== "chat" || conv.active !== c.id) sfx.hover(); openConv(c.id); setTab("chat"); setList(false); }} />)
+          : row(t.id, t.title, { placeholder: t.placeholder, count: t.badge?.(v), dot: t.dot?.(v) }))}
       </ul>
       <ul className="gsw-rows gsw-rows-end" role="tablist" aria-orientation="vertical">{row("settings", "Squad settings")}</ul>
       <p className="gsw-e2e"><Lock />End to end encrypted</p>
     </aside>
   );
-  const sub = curId === "chat" ? `${v.members.length} ${v.members.length === 1 ? "member" : "members"}, ${working} working` : SUBTITLE[curId] ?? "";
+  const sub = curId === "chat" ? (chatConv && chatConv.kind === "dm" ? "Direct message" : `${chatConv && chatConv.kind === "group" ? chatConv.memberIds.length : v.members.length} ${(chatConv && chatConv.kind === "group" ? chatConv.memberIds.length : v.members.length) === 1 ? "member" : "members"}${chatConv && chatConv.kind === "group" ? "" : `, ${working} working`}`) : (v3 && curId === "leaderboard" ? "Money made" : SUBTITLE[curId]) ?? "";
   const main = (
     <section className="gsw-main" aria-label={curTitle}>
       <header className="gsw-head">
         {narrow && <button type="button" className="gsw-back" onClick={() => { sfx.hover(); setList(true); }} aria-label="Back to the list" data-tip="Back to the list" data-tip-line="Or press Esc"><BackIcon /></button>}
-        <span className={`gsw-ico big ${TONE[curId] ?? "acc"}`}>{ICONS[curId] ?? ICONS.chat}</span>
+        {chatConv
+          ? <span className="gsw-ico big conv"><ConvAvatar c={chatConv} v={v} size={36} /></span>
+          : <span className={`gsw-ico big ${TONE[curId] ?? "acc"}`}>{ICONS[curId] ?? ICONS.chat}</span>}
         <span className="gsw-head-t">{curTitle}<em>{sub}</em></span>
-        {curId === "chat" && v.members.length > 0 && <MembersButton v={v} size={narrow ? 28 : 34} max={narrow ? 3 : 5} open={people} onToggle={() => setPeople(!people)} />}
+        {curId === "chat" && v.members.length > 0 && (!chatConv || chatConv.kind === "squad") && <MembersButton v={v} size={narrow ? 28 : 34} max={narrow ? 3 : 5} open={people} onToggle={() => setPeople(!people)} />}
         {!narrow && closeBtn}
       </header>
-      {people && curId === "chat" && <MembersList v={v} narrow={narrow} onClose={() => setPeople(false)} />}
+      {people && curId === "chat" && <MembersList v={v} narrow={narrow} onClose={() => setPeople(false)}
+        onMessage={v3 ? (m) => { v3Op({ op: "newDm", memberId: m.id }); setPeople(false); setTab("chat"); setList(false); } : undefined} />}
       {curId !== "members" && asks}
       {pins}
-      <div key={curId} className={`gsw-body${curId === "chat" ? " fill" : ""}${curId === "fitness" ? " wide" : ""}`} role="tabpanel">
+      <div key={curId === "chat" && v3 ? `chat-${conv.active}` : curId} className={`gsw-body${curId === "chat" ? " fill" : ""}${curId === "fitness" ? " wide" : ""}`} role="tabpanel">
         {isSettings ? <SquadSettings view={v} page={page} onPage={setPage} /> : cur && <cur.Panel {...props} />}
       </div>
       {v.error && <p className="gs-err gsw-err" role="alert">{v.error}</p>}

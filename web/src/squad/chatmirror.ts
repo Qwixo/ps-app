@@ -7,6 +7,7 @@ import { chatStore, runChatOp } from "./chatengine";
 
 const PS = import.meta.env.MODE === "ps";
 let mirror: ChatView = EMPTY_CHAT;
+let devMirror = false;   // the dev pictures fill the mirror on the website too (src/dev/gsquad-fake.ts), like squad/mirror.ts
 let mirrorJson = "";
 const subs = new Set<() => void>();
 const sub = (l: () => void) => { subs.add(l); return () => { subs.delete(l); }; };
@@ -14,15 +15,16 @@ const sub = (l: () => void) => { subs.add(l); return () => { subs.delete(l); }; 
 /** From the state PS hands the Tab list (null while locked). */
 export function setChatMirror(v: unknown) {
   const next = v ? cleanChatView(v) : EMPTY_CHAT;
+  if (v && !PS) devMirror = true;
   const json = JSON.stringify(next);
   if (json === mirrorJson) return;
   mirror = next; mirrorJson = json;
   subs.forEach((l) => l());
 }
 export function useChat(): ChatView {
-  return useSyncExternalStore(PS ? sub : chatStore.subscribe, PS ? () => mirror : chatStore.get);
+  return useSyncExternalStore(PS || devMirror ? sub : chatStore.subscribe, PS || devMirror ? () => mirror : chatStore.get);
 }
-export function chatNow(): ChatView { return PS ? mirror : chatStore.get(); }
+export function chatNow(): ChatView { return PS || devMirror ? mirror : chatStore.get(); }
 
 type W = Window & { webkit?: { messageHandlers?: { ps?: { postMessage(m: string): void } } } };
 /** A button in the chat: in PS to the main page (which checks it again, squad/chatview.ts cleanChatOp, and runs it);

@@ -2,6 +2,7 @@
 // and let you adjust appearance options". One short list of big rows; each opens one page with a back arrow (Esc
 // steps back too): What you share, Your name, Notifications, Appearance, Leave the squad. Every sharing switch
 // lives here (and on the join screen), so a stranger's PS shows them all.
+import { PictureEdit, v3On } from "./GSquadV3";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { settingsData } from "../core/select";
 import { feature } from "../core/features";
@@ -133,10 +134,13 @@ export function SquadSettings({ view, page, onPage }: { view: SquadView; page: S
 
 function NamePage({ view }: { view: SquadView }) {
   return (
+    <>
+    {v3On() && <PictureEdit v={view} />}
     <div className="gss-card">
       <NameEdit label="Your name in the squad" value={view.meName} busy={view.busy === "Renaming"} onSave={(name) => squadOp({ op: "renameMe", name })} />
       <p className="gs-note">Everyone in {view.name || THE_SQUAD} sees this name next to your messages, tasks and boards. It is end to end encrypted like everything else.</p>
     </div>
+    </>
   );
 }
 

@@ -108,6 +108,7 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   },
   // PS 1.64 G Squad replies and members list: only for people in a squad; Ok ends it for good (a choice with one button).
   "gsquad-reply-164": async () => (squadStore.get().in ? "open" : "unknown"),
+  "gsquad-v3-165": async () => (feature("gsquad-v3") && squadStore.get().in ? "open" : "unknown"),
   // PS 1.65 Receipts: only while the feature is on for an owner; Ok ends it for good.
   receipts: async (_can, s) => (s.status === "unlocked" && s.role === "owner" && receiptsOn(feature(RCPT_FEATURE), settingsData(s).receipts) ? "open" : "unknown"),
   // PS 1.65 Posture reminder: only while the feature is on and the person has not switched it off; Ok ends it for good.
