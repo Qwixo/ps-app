@@ -39,6 +39,20 @@ do {
   ok("the lease is moved on well inside its life", ApproveCore.leaseEvery * 3 < ApproveCore.leaseSeconds)
 }
 
+// ---------- PS 1.65 defaults: AI mode and Sleep mode on until chosen, Always off ----------
+do {
+  typealias S = ApproveCore.Switches; typealias M = ApproveCore.Modes; typealias V = ApproveCore.Saved
+  let fresh = ApproveCore.resolve(V())
+  ok("never chosen: AI mode and Sleep mode on, Always off", fresh == S(ai: true, sleep: true, always: false))
+  ok("a saved Off stays off", ApproveCore.resolve(V(ai: false, sleep: false, always: false)) == S())
+  ok("a saved Off on one switch leaves the other default", ApproveCore.resolve(V(ai: false)) == S(ai: false, sleep: true, always: false))
+  ok("a saved On for Always stays on", ApproveCore.resolve(V(always: true)).always)
+  ok("feature switch off: unset switches stay off as before 1.65", ApproveCore.resolve(V(), defaults: false) == S() && ApproveCore.resolve(V(ai: true), defaults: false) == S(ai: true))
+  ok("Always is never turned on by the default", !ApproveCore.resolve(V(ai: true, sleep: true)).always)
+  ok("default on is only in AI mode or Sleep mode, never all the time", !ApproveCore.active(fresh, M()) && ApproveCore.why(fresh, M(ai: true)) == "AI mode" && ApproveCore.why(fresh, M(sleep: true)) == "Sleep mode")
+  ok("a default stands until the person chooses (notice asks)", ApproveCore.defaulted(V()) && ApproveCore.defaulted(V(ai: true)) && !ApproveCore.defaulted(V(ai: false, sleep: true)))
+}
+
 // ---------- the classifier: permission prompts ----------
 let claudeBash = """
   ~/projects/shop $ claude

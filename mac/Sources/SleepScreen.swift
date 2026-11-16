@@ -222,9 +222,27 @@ enum SleepRules {
     return ("\(hh):\(String(format: "%02d", m))\(secs ? String(format: ":%02d", sec) : "")", h12 ? (h < 12 ? "AM" : "PM") : nil)
   }
   /// The clock's point size: the usual size times the chosen percent, never wider than the screen.
-  static func clockPoints(width W: Double, size: Double, chars: Int, spacing: Double = 0) -> Double {
+  /// PS 1.65 (the developer's friend, 17 Nov 2026, a 15 inch MacBook Air): the AI Sentry mode button sits at the left or right edge,
+  /// half way up, where a big clock reaches. Its room (margin, button, a gap) is kept free on BOTH sides, so the clock stays
+  /// centred and never touches it, whatever the screen or the size slider. `sides` is that room, 0 with no button.
+  static let sentrySide: Double = 28 + 210 + 24
+  /// The clock's text as the label shows it. PS 1.65: an attributed string with no paragraph style loses the label's centring (the
+  /// clock sat at the left edge on a wide screen: measured on a 1710 point wide screen, the digits started at the left), so the
+  /// centring is carried by the string itself.
+  static func clockString(time: String, ampm: String?, font f: NSFont, ink: NSColor, kern: CGFloat) -> NSAttributedString {
+    let t = NSMutableAttributedString(string: time, attributes: [.font: f, .foregroundColor: ink, .kern: kern])
+    if let ap = ampm {
+      t.append(NSAttributedString(string: " " + ap, attributes: [.font: NSFont.systemFont(ofSize: f.pointSize * 0.26, weight: .semibold), .foregroundColor: ink, .baselineOffset: f.pointSize * 0.5]))
+    }
+    let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineBreakMode = .byClipping
+    t.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: t.length))
+    return t
+  }
+  /// The widest the clock or face may be: nearly the screen, less the button's room on both sides (never under 40% of the screen).
+  static func roomWidth(_ W: Double, sides: Double, share: Double) -> Double { max(W * 0.4, min(W * share, W - 2 * sides)) }
+  static func clockPoints(width W: Double, size: Double, chars: Int, spacing: Double = 0, sides: Double = 0) -> Double {
     let usual = max(84, min(240, W * 0.17))
-    return max(24, min(usual * size / 100, W * 0.94 / (Double(max(4, chars)) * (0.6 + max(0, spacing / 100)))))
+    return max(24, min(usual * size / 100, roomWidth(W, sides: sides, share: 0.94) / (Double(max(4, chars)) * (0.6 + max(0, spacing / 100)))))
   }
   /// V1.47: when the next alarm with Sleep mode off needs the screen: its sunrise's start, or its time (one missed by
   /// up to ringGrace still counts). Nil: none to come.
@@ -249,9 +267,9 @@ enum SleepRules {
     return usual
   }
   /// V1.43: the analogue face's size: the usual size times the slider, never over 92% of the width or 64% of the height.
-  static func dialPoints(width W: Double, height H: Double, size: Double) -> Double {
+  static func dialPoints(width W: Double, height H: Double, size: Double, sides: Double = 0) -> Double {
     let usual = max(200, min(480, min(W, H) * 0.44))
-    return max(80, min(usual * size / 100, W * 0.92, H * 0.64))
+    return max(80, min(usual * size / 100, roomWidth(W, sides: sides, share: 0.92), H * 0.64))
   }
   /// V1.43: the hands' angles in degrees clockwise from 12 (the same as core/sleepmode.ts handAngles).
   static func handAngles(hour h: Int, minute m: Int, second s: Int, ms: Int, sweep: Bool) -> (hour: Double, minute: Double, second: Double) {
@@ -420,6 +438,8 @@ protocol SleepGuard: AnyObject {
   func leave(_ why: String)
   /// The battery line and the hint while protected (nil: Sleep mode's own).
   func lines(onBattery: Bool) -> (battery: String, hint: String)?
+  /// PS 1.65: the room (points, each side) the button needs at the edges, 0 when it is hidden or not there (SleepRules.sentrySide).
+  func sideReserve(plan: SleepPlanN) -> Double
 }
 
 final class SleepScreen: NSObject {
@@ -1068,12 +1088,12 @@ final class SleepScreen: NSObject {
 
   /// V1.42: lays the face out for the look (font, size, which pieces show, the stopwatch, where it sits). Only when the
   /// look, the screen size or the clock's width changes, so the second by second redraw stays cheap.
-  private func layFace(_ L: SleepPlanN.Look, chars: Int, ringing: Bool, in v: NSView) {
+  private func layFace(_ L: SleepPlanN.Look, chars: Int, ringing: Bool, sides: Double, in v: NSView) {
     let W = v.bounds.width, H = v.bounds.height
-    let key = "\(L.face)|\(L.digi)|\(L.font)|\(L.size)|\(L.weight)|\(L.spacing)|\(L.watch)|\(L.pos)|\(L.shows("date"))|\(L.shows("count"))|\(L.shows("asleep") || ringing)|\(L.shows("alarm"))|\(chars)|\(Int(W))x\(Int(H))"
+    let key = "\(L.face)|\(L.digi)|\(L.font)|\(L.size)|\(L.weight)|\(L.spacing)|\(L.watch)|\(L.pos)|\(L.shows("date"))|\(L.shows("count"))|\(L.shows("asleep") || ringing)|\(L.shows("alarm"))|\(chars)|\(Int(sides))|\(Int(W))x\(Int(H))"
     guard key != laidFor else { return }
     laidFor = key
-    let big = CGFloat(SleepRules.clockPoints(width: W, size: L.size, chars: chars, spacing: L.spacing))
+    let big = CGFloat(SleepRules.clockPoints(width: W, size: L.size, chars: chars, spacing: L.spacing, sides: sides))
     clock.font = SleepFonts.font(L.font, size: big, weight: L.weight, dir: sys.fontDir())
     countL.font = NSFont.systemFont(ofSize: max(15, min(240, big) * 0.09), weight: .semibold)
     sub.font = NSFont.systemFont(ofSize: max(18, min(240, big) * 0.12), weight: .medium)
@@ -1104,7 +1124,7 @@ final class SleepScreen: NSObject {
     }
     if L.face == "analogue" {
       // V1.43: the face, sized by the same slider, never over 92% of the width or 64% of the height; the time small under it.
-      let D = CGFloat(SleepRules.dialPoints(width: W, height: H, size: L.size))
+      let D = CGFloat(SleepRules.dialPoints(width: W, height: H, size: L.size, sides: sides))
       let small = max(22, min(56, D * 0.1))
       clock.font = SleepFonts.font(L.font, size: small, weight: L.weight, dir: sys.fontDir())
       clock.isHidden = !L.digi
@@ -1144,17 +1164,14 @@ final class SleepScreen: NSObject {
     let peek = now < peekUntil
     let cal = Calendar.current, d = Date()
     let c = SleepRules.clockText(hour: cal.component(.hour, from: d), minute: cal.component(.minute, from: d), second: cal.component(.second, from: d), h12: L.h12, secs: L.secs)
-    layFace(L, chars: c.time.count + (c.ampm == nil ? 0 : 2), ringing: ringing, in: v)
+    layFace(L, chars: c.time.count + (c.ampm == nil ? 0 : 2), ringing: ringing, sides: guardian?.sideReserve(plan: p) ?? 0, in: v)
     // V1.43: the other words have their own colour; on a bright light (Bright white, a full sunrise) they turn dark.
     let darkInk = NSColor(srgbRed: 26 / 255, green: 15 / 255, blue: 6 / 255, alpha: 1)
     let ink = { (a: Double) in self.lightDark ? darkInk.withAlphaComponent(CGFloat(max(0.5, min(1, a)))) : SleepScreen.color(L.text, CGFloat(min(1, a))) }
     let b = L.bright
     let clockInk = lightDark ? darkInk : ringing ? SleepScreen.glow(0.96) : SleepScreen.color(L.ink, CGFloat(min(1, b)))
     let kern = (clock.font?.pointSize ?? 100) * CGFloat(SleepFonts.baseSpacing(L.font) + L.spacing / 100)
-    let t = NSMutableAttributedString(string: c.time, attributes: [.font: clock.font as Any, .foregroundColor: clockInk, .kern: kern])
-    if let ap = c.ampm, let f = clock.font {
-      t.append(NSAttributedString(string: " " + ap, attributes: [.font: NSFont.systemFont(ofSize: f.pointSize * 0.26, weight: .semibold), .foregroundColor: clockInk, .baselineOffset: f.pointSize * 0.5]))
-    }
+    let t = SleepRules.clockString(time: c.time, ampm: c.ampm, font: clock.font ?? NSFont.systemFont(ofSize: 100), ink: clockInk, kern: kern)
     let next = p.rings.first { $0.at > now }
     countL.stringValue = next.map { WakeRules.countdown($0.at, now) } ?? ""
     countL.textColor = ink(b * 0.577)

@@ -12,7 +12,7 @@
 //    The phone's Back closes it (gos-back). Reduced motion turns the animation off.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { PS, psPost, useOverlayShown } from "../ps";
+import { PS, psPost, psSettingsNow, useOverlayShown } from "../ps";
 import { askScreenRec, screenRecNow } from "../screenrec";
 import { introAudience } from "../core/screenrecmeet";
 import { useVault } from "../ui/kit";
@@ -24,6 +24,7 @@ import { chatStore } from "../squad/chatengine";
 import { RCPT_FEATURE, receiptsOn } from "../core/receipts";
 import { posturePrefs } from "../core/posture";
 import { PROTON_FEATURE, protonMirror } from "../core/protonmail";
+import { APPROVE_FEATURE, APPROVE_INTRO, approveAnswer, approveIntroProbe, cleanApprove, type ApproveKey } from "../core/autoapprove";
 import { mailCan } from "../core/mailswitch";
 import { attachedLayout, ISLAND_ASK_MS, ISLAND_QUEUED_MS, type IslandAnchor } from "../core/whatsnew";
 import { addActive, answer, CARD_W, cleanDone, LOGO_MOMENT, logoChime, cleanState, INTROS, introReply, markShown, nextIntro, recheckMs, retire, retireFolded, updaterAnswer, type IntroDef, type IntroState } from "../core/featureintro";
@@ -146,6 +147,8 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   "gsquad-dm": foldedUnlessTour(async () => (feature("gsquad-dm") && squadStore.get().in && chatStore.get().dm === true ? "open" : "unknown")),
   // PS 1.65 Proton Mail through Bridge: only on a Mac with the feature on, and only until Bridge is linked (a link retires it for good).
   "proton-bridge-165": foldedUnlessTour(async () => (!PS || !feature(PROTON_FEATURE) ? "unknown" : protonMirror.get().status.linked ? "done" : "open")),
+  // PS 1.65 Auto approve defaults: only on a Mac with the feature on, and only while a default stands (the Mac says so). Never saves anything here.
+  [APPROVE_INTRO.id]: async () => (!PS || !feature(APPROVE_FEATURE) ? "unknown" : approveIntroProbe(cleanApprove((psSettingsNow() as { autoApprove?: unknown } | null)?.autoApprove))),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault
@@ -155,7 +158,9 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
 };
 
 /** What a choice intro's answer does (core/featureintro.ts `choice`). Yes and No are both saved as the person's own answer. */
-const CHOICES: Record<string, (yes: boolean, s: Snapshot) => void> = {
+const CHOICES: Record<string, (yes: boolean, s: Snapshot, keep: string[]) => void> = {
+  // Each switch is sent as the person's own choice (the Mac saves it, so the default no longer applies). Keep it on: the ticked ones stay on.
+  [APPROVE_INTRO.id]: (yes, _s, keep) => { for (const a of approveAnswer(!yes, keep as ApproveKey[])) psPost({ type: "autoApprove:set", key: a.key, on: a.on }); },
   "squad-p1": (yes, s) => { void saveSettings({ squadShare: { ...cleanShareOpts(settingsData(s).squadShare), p1: yes } }).catch(() => { /* asks again later */ }); },
 };
 
@@ -266,7 +271,7 @@ export function FeatureIntroHost() {
       if (!done.includes(id)) void saveSettings({ introsDone: [...done, id] }).catch(() => { /* this device still never shows it again */ });
     }
   }, [commit]);
-  const onChoose = useCallback((id: string, yes: boolean) => { CHOICES[id]?.(yes, live.current.s); }, []);
+  const onChoose = useCallback((id: string, yes: boolean, keep: string[]) => { CHOICES[id]?.(yes, live.current.s, keep); }, []);
   const onGone = useCallback((why?: string) => {
     setOpen(null);
     holdUntil.current = Date.now() + (why ? recheckMs("busy") : 15_000);
@@ -279,8 +284,9 @@ type Phase = "ask" | "card" | "guide" | "out";
 /** The logo moment's card width and logo size (points). */
 const ACK_W = 260, LOGO_PX = 92;
 
-function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: IntroDef; tour: TourStep[]; onShown: (id: string) => void; onAnswer: (id: string, a: "show" | "later") => void; onChoose: (id: string, yes: boolean) => void; onGone: (why?: string) => void }) {
+function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: IntroDef; tour: TourStep[]; onShown: (id: string) => void; onAnswer: (id: string, a: "show" | "later") => void; onChoose: (id: string, yes: boolean, keep: string[]) => void; onGone: (why?: string) => void }) {
   const viaIsland = PS && feature("island-moments");
+  const [kept, setKept] = useState<string[]>(() => (def.picks ?? []).map((p) => p.id));   // PS 1.65: the switches the card keeps on
   // The page's own queue first (a web card of this page goes before it), then on the Mac the island's queue.
   const turn = useIslandTurn(`intro:${def.id}`, true, "low");
   const [phase, setPhase] = useState<Phase>("ask");
@@ -337,7 +343,7 @@ function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: I
   const finish = (a: "show" | "later", yes = true) => {
     if (phaseRef.current === "out") return;
     if (def.tour) a = "show";   // PS 1.65: Next moves on in the card, Done and Esc end the tour for good
-    if (def.choice && a === "show") onChoose(def.id, yes);   // PS 1.63: Yes or No is the end of it, no guide
+    if (def.choice && a === "show") onChoose(def.id, yes, kept);   // PS 1.63: Yes or No is the end of it, no guide
     if (def.ack) a = "show";   // V1.62: a one button notice has no Later: Ok, Esc and Back all close it for good
     onAnswer(def.id, a);
     if (a === "show" && !def.ack && !def.choice) { setGuide(true); setPhase("guide"); return; }
@@ -400,6 +406,14 @@ function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: I
           </div>
         )}
         {def.ask && <p className="fi-ask">{def.ask}</p>}
+        {def.picks && (
+          <div className="fi-picks" role="group" aria-label="Keep on">
+            {def.picks.map((p) => (
+              <button key={p.id} type="button" className={`fi-pick${kept.includes(p.id) ? " on" : ""}`} aria-pressed={kept.includes(p.id)}
+                onClick={() => { sfx.click(); setKept((k) => (k.includes(p.id) ? k.filter((x) => x !== p.id) : [...k, p.id])); }}>{p.label}</button>
+            ))}
+          </div>
+        )}
         {def.tour && (
           <div className="fi-btns">
             {/* The tour takes no focus (a choice card, no autofocus). Next moves on, Done and Esc end it for good. */}

@@ -23,7 +23,7 @@ import { vaultStore } from "../core/vault";
 import { sfx } from "../ui/sfx";
 import type { Settings } from "../core/model";
 import { HELPER_CHECK, LOW_PCTS, RESTART_HOURS, RESTART_ON_HOURS, RESTART_ON_SLEEP_HOURS, RESTART_WARN, WORDS, checkId, checksFresh, freshHelperCheck, helperFixable, restartCheck, restartLabel, restartWarnLines, checkTitle, planOf, sentryOf, stateOf, type RestartCheck, type RestartFacts, type SentryPrefs, type SentryState } from "../core/sentry";
-import { LID_CHECK_WAIT_MS, LID_WARN, lidLine, lidNote, okLidGap, preEngage, preEngageLines, preEngageTitle, type LidGap } from "../core/sentry";
+import { SLEEP_AUTO_NAME, LID_CHECK_WAIT_MS, LID_WARN, lidLine, lidNote, okLidGap, preEngage, preEngageLines, preEngageTitle, type LidGap } from "../core/sentry";
 import { openSettings } from "./SettingsScreen";
 import { openSecurity } from "./Security";
 import { Choice, taskMapActions } from "./TaskMap";
@@ -352,6 +352,16 @@ function useNoHelper() {
 export function SentryRestartSetting() { return <RestartPicker which="restartH" label="Restart if not unlocked" />; }
 /** V1.52 (the developer): Restart if not unlocked during Sleep mode, the time armed when Sentry mode is turned on from Sleep mode's
  *  AI Sentry mode button (default 18 h). The same synced value in Settings, Sentry mode and in Sleep mode's settings. */
+/** PS 1.65: start AI Sentry mode by itself with Sleep mode (on by default, this opts out). */
+export function SentrySleepAutoSetting() {
+  const p = usePrefs();
+  return (
+    <div className="tm-ed-seg" role="radiogroup" aria-label={SLEEP_AUTO_NAME}>
+      <Choice selected={p.sleepAuto} onPick={() => { sfx.hover(); save(p, { sleepAuto: true }); }}>On</Choice>
+      <Choice selected={!p.sleepAuto} onPick={() => { sfx.hover(); save(p, { sleepAuto: false }); }}>Off</Choice>
+    </div>
+  );
+}
 export function SentryRestartSleepSetting() { return <RestartPicker which="restartSleepH" label="Restart if not unlocked during Sleep mode" />; }
 function RestartPicker({ which, label }: { which: "restartH" | "restartSleepH"; label: string }) {
   const p = usePrefs();

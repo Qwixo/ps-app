@@ -9,6 +9,7 @@ import { cleanAnchor, cleanVersion, cmpVersion, type IslandAnchor } from "./what
 import { SR_INTRO } from "./screenrecmeet.ts";
 import { PROTON_WORDS } from "./protonmail.ts";
 import { TOUR_FOLDS, TOUR_ID, TOUR_WORDS } from "./tour.ts";
+import { APPROVE_INTRO, APPROVE_PICKS } from "./autoapprove.ts";
 
 // The rules (all in nextIntro):
 //  - Not right after an update: only after about 1 minute of ACTIVE use of the to do list on this version (idle time does not
@@ -44,6 +45,9 @@ export interface IntroDef {
    *  not held back by the one day gap, comes back until it is finished (Done, or Esc, which ends it for good) and is saved with the
    *  person's settings (introsDone), so it shows once per person. Its steps are drawn by views/FeatureIntro.tsx. */
   tour?: true;
+  /** PS 1.65: small switches on a `choice` card the person can untick before answering (id and label each). "Keep it on" keeps the
+   *  ticked ones and "Turn off" turns every one off (views/FeatureIntro.tsx CHOICES gets the kept ids). Never take focus. */
+  picks?: { id: string; label: string }[];
   /** What "Show me" opens (views/FeatureIntro.tsx GUIDES). Without one, `steps` are shown in a small generic guide. */
   guide?: "wa-link";
   /** A few plain steps for the generic guide (one short sentence each). */
@@ -175,6 +179,19 @@ export const INTROS: IntroDef[] = [
     show: "Ok",
     mark: "spark",
     choice: true,
+  },
+  {
+    // PS 1.65 Auto approve on by default (the developer's friend, 17 Nov 2026; words wait for the owner's approval). About a minute in, one
+    // notice says what Sentry mode's Auto approve does and asks "Do you want this off?". Keep it on keeps the ticked switches, Turn off
+    // turns both off. Only while a default stands (the Mac says so), never again after an answer (views/FeatureIntro.tsx DONE_PROBES).
+    id: APPROVE_INTRO.id,
+    headline: APPROVE_INTRO.headline,
+    ask: APPROVE_INTRO.ask,
+    show: APPROVE_INTRO.show,
+    later: APPROVE_INTRO.later,
+    mark: "spark",
+    choice: true,
+    picks: [...APPROVE_PICKS],
   },
   {
     // PS 1.65 Proton Mail through Bridge (core/protonmail.ts PROTON_WORDS.intro). Mac only: the probe in views/FeatureIntro.tsx never lets it

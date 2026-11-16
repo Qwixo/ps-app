@@ -13,6 +13,10 @@
 .fi-mark { flex: none; display: grid; place-items: center; width: 34px; height: 34px; animation: fi-swoop .8s .12s var(--fi-spring) both; }
 .fi-head { font-size: 15px; font-weight: 800; letter-spacing: -.01em; animation: fi-text .45s .22s ease both; }
 .fi-ask { margin: 0; font-size: 13.5px; line-height: 1.4; color: rgba(245, 245, 247, .78); animation: fi-text .45s .55s ease both; }
+.fi-picks { display: flex; gap: 6px; flex-wrap: wrap; animation: fi-text .45s .62s ease both; }
+.fi-pick { font: inherit; font-weight: 600; font-size: 12.5px; padding: 5px 11px; border: 1px solid rgba(255, 255, 255, .22); border-radius: 99px; cursor: pointer; color: rgba(245, 245, 247, .6); background: transparent; }
+.fi-pick.on { color: #f5f5f7; background: rgba(255, 255, 255, .16); border-color: rgba(255, 255, 255, .4); }
+.fi-pick:hover { background: rgba(255, 255, 255, .24); }
 .fi-btns { display: flex; gap: 8px; animation: fi-text .45s .7s ease both; }
 .fi-btns[hidden] { display: none; }
 .fi-btn { flex: 1; text-align: center; text-decoration: none; font: inherit; font-weight: 700; font-size: 13.5px; padding: 9px 12px; border: 0; border-radius: 99px; cursor: pointer; color: #f5f5f7; background: rgba(255, 255, 255, .14); }
@@ -35,7 +39,7 @@
 .fi-where { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #FFD60A; }
 @media (prefers-reduced-motion: reduce) {
   .fi-tour { animation: none !important; }
-  .fi-card, .fi-mark, .fi-head, .fi-ask, .fi-btns { animation: none !important; }
+  .fi-card, .fi-mark, .fi-head, .fi-ask, .fi-picks, .fi-btns { animation: none !important; }
 }
 
 /* V1.62 the new app logo moment (core/featureintro.ts LOGO_MOMENT has the same times). The card hangs from the island in the same

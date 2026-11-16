@@ -31,6 +31,29 @@ check("18 h is a choice for plain Sentry mode too; plain stays 8 h by default", 
 check("Turn on restart on the sleep screen sets 18 h", SleepSentryRules.restartOnHours == 18)
 check("the shield's words are always exactly Protected by PS", SleepSentryRules.words["on"] == "Protected by PS" && SleepSentryRules.words["on"] == SentryRules.title)
 
+// ---------- PS 1.65: it starts with Sleep mode by itself, opt out ----------
+do {
+  let on = SleepSentryN.parse([:])!
+  let off = SleepSentryN.parse(["auto": false])!
+  let gap = SleepSentryN.parse(full)!
+  check("auto: on by default when the page says nothing", on.auto)
+  check("auto: the page can switch it off", !off.auto && SleepSentryN.parse(["auto": true])!.auto)
+  func go(_ n: SleepSentryN?, alarmOnly: Bool = false, tried: Bool = false, isOn: Bool = false, busy: Bool = false, panel: Bool = false) -> Bool {
+    SleepSentryRules.autoGo(n, spot: "left", alarmOnly: alarmOnly, tried: tried, on: isOn, busy: busy, panel: panel)
+  }
+  check("auto: starts when Sleep mode is up and nothing is in the way", go(on))
+  check("auto: never when switched off", !go(off))
+  check("auto: never from an older page (no part)", !go(nil))
+  check("auto: only once per sleep screen", !go(on, tried: true))
+  check("auto: never for an alarm alone, when already protected, busy or with a pop up", !go(on, alarmOnly: true) && !go(on, isOn: true) && !go(on, busy: true) && !go(on, panel: true))
+  check("auto: a restart gap means no pop up by itself, the button stays", !go(gap))
+  check("auto: a helper gap found fresh stops it, a lid gap too, clean goes on",
+        !SleepSentryRules.autoContinues(helperGap: true, lidGap: nil, lidOn: false)
+        && !SleepSentryRules.autoContinues(helperGap: false, lidGap: "refused", lidOn: true)
+        && SleepSentryRules.autoContinues(helperGap: false, lidGap: nil, lidOn: true))
+  check("auto: the screen starts it once and quietly (source)", ss.contains("autoStartIfDue") && ss.contains("autoTried = true") && ss.contains("autoQuiet") && ss.contains("the button stays"))
+}
+
 // ---------- where it sits ----------
 let sz = CGSize(width: 210, height: 92)
 check("spot: the default is the left, half way up", SleepSentryRules.spotDef == "left" && SleepSentryRules.okSpot(nil) == "left" && SleepSentryRules.okSpot("middle") == "left")

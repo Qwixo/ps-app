@@ -291,6 +291,7 @@ final class SleepSentry: NSObject, SleepGuard {
     detach()
     view = v
     turnedOn = false; busy = false; leaving = nil; note = nil
+    autoTried = false; autoQuiet = false
     let b = SleepSentryButton(frame: .zero)
     b.onTap = { [weak self] in self?.tapped() }
     b.alphaValue = 0
@@ -323,6 +324,7 @@ final class SleepSentry: NSObject, SleepGuard {
     b.isHidden = !visible
     noteL.isHidden = !visible
     guard visible else { return }
+    autoStartIfDue(p)
     let place = SleepSentryRules.frame(spot: spot == "hidden" ? SleepSentryRules.spotDef : spot, width: Double(v.bounds.width), height: Double(v.bounds.height), size: SleepSentryButton.size)
       ?? CGRect(origin: .zero, size: SleepSentryButton.size)
     let target = NSPoint(x: place.minX + drift.x, y: place.minY + drift.y)
@@ -345,6 +347,12 @@ final class SleepSentry: NSObject, SleepGuard {
     if isOn { leave("esc"); return true }
     return false
   }
+  /// PS 1.65: the room the clock keeps free at both edges while the button is there (shown, or the shield while protected).
+  func sideReserve(plan p: SleepPlanN) -> Double {
+    let spot = SleepSentryRules.okSpot(p.look.sentry)
+    let there = isOn || (SleepSentryN.parse(p.sentry) != nil && !p.alarmOnly && spot != "hidden")
+    return there && SleepSentryRules.edgeSpot(spot) ? SleepRules.sentrySide : 0
+  }
   func leave(_ why: String) {
     guard isOn else { return }
     if leaving == nil { leaving = (why, SleepSentry.now()) }
@@ -356,10 +364,36 @@ final class SleepSentry: NSObject, SleepGuard {
     return (SleepSentryRules.batteryLine(s, onBattery: onBattery) ?? "", s.word("hint"))
   }
 
+  // MARK: PS 1.65 it starts with Sleep mode by itself (the developer's friend, 17 Nov 2026), unless switched off in Sleep settings
+
+  /// Tried once for this sleep screen (a failed or skipped try is never repeated: the button stays for a person).
+  private var autoTried = false
+  /// The engage in progress was the automatic one: it never shows a pop up and never takes focus.
+  private var autoQuiet = false
+  private func autoStartIfDue(_ p: SleepPlanN) {
+    guard SleepScreen.shared.isUp, Features.on("sentry-sleep-auto"), SleepSentryRules.autoGo(spec, spot: spot, alarmOnly: p.alarmOnly, tried: autoTried, on: isOn, busy: busy, panel: panel != nil) else { return }
+    autoTried = true
+    psLog("PS sleep sentry: starting by itself with Sleep mode")
+    busy = true; helperOK = false; autoQuiet = true
+    SleepScreen.shared.redraw()
+    AutoReboot.shared.check { [weak self] in
+      guard let self else { return }
+      self.busy = false
+      self.helperOK = AutoReboot.shared.lastGap == nil
+      guard SleepScreen.shared.isUp, !self.isOn, self.panel == nil, let now = self.spec,
+            SleepSentryRules.autoContinues(helperGap: !self.helperOK, lidGap: nil, lidOn: false) else {
+        psLog("PS sleep sentry: not started by itself (the restart helper has a gap), the button stays")
+        self.autoQuiet = false; SleepScreen.shared.redraw(); return
+      }
+      self.engage(now.plan)
+    }
+  }
+
   // MARK: pressing it
 
   private func tapped() {
     guard SleepScreen.shared.isUp, !isOn, !busy, panel == nil, spec != nil else { return }
+    autoQuiet = false
     SleepScreen.shared.touched()
     psLog("PS sleep sentry: AI Sentry mode pressed")
     // V1.54 (HelperCheckCore): ask the restart helper fresh first (a few seconds at most, the button shows busy), so a
@@ -481,9 +515,14 @@ final class SleepSentry: NSObject, SleepGuard {
 
   private func engage(_ p: SentryPlanN) {
     guard SleepScreen.shared.isUp, !isOn, !busy else { return }
+    let quiet = autoQuiet
     // V1.54: the lid check before engaging; a gap shows its own pop up (Engage anyway comes back here).
     if lidGate(p, then: { [weak self] in self?.engage(p) }) { return }
-    if !lidAnyway, let s = spec, let lp = SleepSentryRules.lidPanel(nil, gap: lidGap, s) { showLidOnly(lp, s); return }
+    if !lidAnyway, let s = spec, let lp = SleepSentryRules.lidPanel(nil, gap: lidGap, s) {
+      if autoQuiet { autoQuiet = false; lidChecked = nil; psLog("PS sleep sentry: not started by itself (the lid check has a gap), the button stays"); SleepScreen.shared.redraw(); return }
+      showLidOnly(lp, s); return
+    }
+    autoQuiet = false
     lidAnyway = false; lidChecked = nil
     busy = true; note = nil
     SleepScreen.shared.redraw()
@@ -495,7 +534,7 @@ final class SleepSentry: NSObject, SleepGuard {
         self.busy = false
         if let r {
           psLog("PS sleep sentry: not engaged (\(r))")
-          if r != "gone" && r != "engaged" { self.note = (SleepSentryRules.refusedLine(self.spec, code: r), SleepSentry.now() + 6000) }
+          if r != "gone" && r != "engaged" && !(quiet && r == "protected") { self.note = (SleepSentryRules.refusedLine(self.spec, code: r), SleepSentry.now() + 6000) }
         } else { psLog("PS sleep sentry: protected, the button is the shield now") }
         SleepScreen.shared.touched()
       }))

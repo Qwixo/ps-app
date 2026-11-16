@@ -22,11 +22,15 @@ export interface SentryPrefs {
   /** V1.52 (the developer, 12 Nov 2026): the same restart, for Sentry mode turned on from Sleep mode's AI Sentry mode button. Its
    *  own time, default 18 h (a night's sleep and the morning); plain Sentry mode keeps restartH. */
   restartSleepH: number;
+  /** PS 1.65 (the developer's friend, 17 Nov 2026): AI Sentry mode starts by itself whenever Sleep mode starts. On until the person
+   *  turns it off (Sleep settings). Everything Sentry mode does under Sleep mode (stay awake, battery stop, lid, restart,
+   *  Auto approve) already applies with it. */
+  sleepAuto: boolean;
   // V1.52 (the developer): the heat and bag warning is gone everywhere. Old records may still hold `warned` and `lidWarned`;
   // cleanSentry drops them (lidWarned is still read once, by lidOf, for a V1.48 record's lid).
 }
 
-export const SENTRY_DEFAULTS: SentryPrefs = { lowStop: true, lowPct: 10, lid: true, lidSet: false, restartH: 8, restartSleepH: 18 };
+export const SENTRY_DEFAULTS: SentryPrefs = { lowStop: true, lowPct: 10, lid: true, lidSet: false, restartH: 8, restartSleepH: 18, sleepAuto: true };
 /** The restart times to pick from (hours; 0 is Off). V1.52: 18 h added (the Sleep mode default). */
 export const RESTART_HOURS = [0, 1, 2, 4, 8, 12, 18, 24, 48, 72] as const;
 const okHours = (v: unknown): boolean => (RESTART_HOURS as readonly number[]).includes(Number(v)) && v !== null && v !== "";
@@ -45,6 +49,7 @@ export function cleanSentry(v: unknown): SentryPrefs {
     ...lidOf(o),
     restartH: okHours(o.restartH) ? Number(o.restartH) : SENTRY_DEFAULTS.restartH,
     restartSleepH: okHours(o.restartSleepH) ? Number(o.restartSleepH) : SENTRY_DEFAULTS.restartSleepH,
+    sleepAuto: typeof o.sleepAuto === "boolean" ? o.sleepAuto : SENTRY_DEFAULTS.sleepAuto,
   };
 }
 /** The lid: the default (on) until the person picks it. A V1.48 record has no lidSet: there, the lid warning seen
@@ -268,6 +273,9 @@ export const SENTRY_SPOT_NAMES: Record<SentrySpot, string> = { left: "Left centr
 export const SENTRY_SPOT_DEF: SentrySpot = "left";
 export const okSpot = (v: unknown): v is SentrySpot => (SENTRY_SPOTS as unknown[]).includes(v);
 /** The setting's one line (Customise and Sleep mode's settings). */
+/** PS 1.65: the Sleep settings row that opts out of starting AI Sentry mode with Sleep mode. */
+export const SLEEP_AUTO_NAME = "Start AI mode with Sleep mode";
+export const SLEEP_AUTO_LINE = "On: AI Sentry mode turns on by itself when Sleep mode starts. Off: only the button does.";
 export const SENTRY_SPOT_LINE = "On your Mac's sleep screen. Pressing it turns on Sentry mode under Sleep mode: your Mac stays awake and protected, and leaving opens its lock screen.";
 
 /** Every sentence the sleep screen says about it (the Mac has the same as fallbacks; the test checks they match). */
@@ -307,6 +315,8 @@ export interface SleepSentry {
   words: typeof SLEEP_SENTRY_WORDS;
   /** "Turn on restart" sets the Sleep mode time to this many hours (RESTART_ON_SLEEP_HOURS). */
   restartOn: number;
+  /** PS 1.65: the Mac starts Sentry mode by itself when the sleep screen comes up (false: only the button does). */
+  auto: boolean;
 }
 export function sleepSentry(p: SentryPrefs, reboot: RestartFacts | null | undefined): SleepSentry {
   const c = restartCheck(reboot, p.restartSleepH);
@@ -325,6 +335,7 @@ export function sleepSentry(p: SentryPrefs, reboot: RestartFacts | null | undefi
     } : null,
     words: SLEEP_SENTRY_WORDS,
     restartOn: RESTART_ON_SLEEP_HOURS,
+    auto: p.sleepAuto,
   };
 }
 /** The lines the sleep screen's warning shows, in the same order as restartWarnLines. */

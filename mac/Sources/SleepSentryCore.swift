@@ -26,6 +26,8 @@ struct SleepSentryN {
   var check: Check?
   var words: [String: String] = [:]
   var restartOn = SleepSentryRules.restartOnHours
+  /// PS 1.65: AI Sentry mode starts by itself when Sleep mode starts (on until the person turns it off in Sleep settings).
+  var auto = true
 
   static func parse(_ any: Any?) -> SleepSentryN? {
     guard let d = any as? [String: Any] else { return nil }
@@ -42,6 +44,7 @@ struct SleepSentryN {
       if let t = str(c["fileVaultTitle"], 120), !t.isEmpty { s.check?.fileVaultTitle = t }
     }
     for (k, v) in (d["words"] as? [String: Any]) ?? [:] where SleepSentryRules.words[k] != nil { if let x = str(v, 300) { s.words[k] = x } }
+    if let a = d["auto"] as? Bool { s.auto = a }
     if let n = (d["restartOn"] as? NSNumber)?.intValue, n > 0, SentryRules.restartHours.contains(n) { s.restartOn = n }
     return s
   }
@@ -92,6 +95,8 @@ enum SleepSentryRules {
     default: return nil
     }
   }
+  /// The spots at the left or right edge (half way up or in a bottom corner): the clock keeps room for them on both sides.
+  static func edgeSpot(_ s: String) -> Bool { okSpot(s) != "hidden" }
   /// The button hugs the screen's edge: its pill and shield sit on the left for the left spots, on the right otherwise.
   static func hugsLeft(_ spot: String) -> Bool { okSpot(spot) == "left" || okSpot(spot) == "bottomLeft" }
 
@@ -125,6 +130,18 @@ enum SleepSentryRules {
     return left
   }
 
+  /// PS 1.65 (the developer's friend, 17 Nov 2026): AI Sentry mode turns on by itself whenever Sleep mode starts, unless the person
+  /// opted out. Once per sleep screen. Only when nothing would need a person: no restart pop up (`check` nil), a real
+  /// Sleep mode (not an alarm alone), nothing already protecting, nothing busy. A gap leaves the button as it is today.
+  static func autoGo(_ s: SleepSentryN?, spot: String, alarmOnly: Bool, tried: Bool, on: Bool, busy: Bool, panel: Bool) -> Bool {
+    guard let s, s.auto, !tried, !alarmOnly, !on, !busy, !panel else { return false }
+    return s.check == nil
+  }
+  /// After the fresh helper check: a found gap means no automatic engage (the person can still press the button).
+  static func autoContinues(helperGap: Bool, lidGap: String?, lidOn: Bool) -> Bool {
+    if helperGap { return false }
+    return !(lidOn && (lidGap == "helper" || lidGap == "refused"))
+  }
   /// Leaving Sleep mode (Wake up, Customise, Settings, Esc, the page): while Sentry protects it, only through the real
   /// lock screen; otherwise Touch ID or the password (Sleep's own lock), or at once when that is switched off.
   enum Leave: Equatable { case lockScreen, touchID, now }

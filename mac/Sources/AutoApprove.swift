@@ -71,13 +71,21 @@ final class AutoApprove {
     ("com.todesktop.230313mzl4w4u92", "Cursor", .ax),
   ]
 
+  /// What this Mac has saved for each switch: nil when the person never chose it.
+  private func saved() -> ApproveCore.Saved {
+    let d = UserDefaults.standard
+    let g = { (k: String) -> Bool? in d.object(forKey: k) == nil ? nil : d.bool(forKey: k) }
+    return ApproveCore.Saved(ai: g(Self.keyAi), sleep: g(Self.keySleep), always: g(Self.keyAlways))
+  }
+
   // MARK: start and stop
 
   func start(testDir: String?) {
     test = testDir != nil
     guard !test else { return }
     let d = UserDefaults.standard
-    sw = ApproveCore.Switches(ai: d.bool(forKey: Self.keyAi), sleep: d.bool(forKey: Self.keySleep), always: d.bool(forKey: Self.keyAlways))
+    // PS 1.65: a switch the person never chose takes its default (AI mode and Sleep mode on, Always off); a saved one stands.
+    sw = ApproveCore.resolve(saved(), defaults: Features.on("auto-approve-defaults"))
     log = (d.array(forKey: Self.keyLog) as? [[String: Any]]) ?? []
     let armed = ApproveCore.armed(sw)
     q.async { [self] in
@@ -101,6 +109,7 @@ final class AutoApprove {
   func settingsJSON() -> [String: Any] {
     mu.lock(); defer { mu.unlock() }
     var out: [String: Any] = ["ai": sw.ai, "sleep": sw.sleep, "always": sw.always, "on": why != nil, "keys": keysLine,
+                              "defaulted": ApproveCore.defaulted(saved()) && Features.on("auto-approve-defaults"),
                               "log": Array(log.suffix(30).reversed())]
     if let why { out["why"] = why }
     out["hooks"] = hookLines

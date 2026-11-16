@@ -3,7 +3,8 @@
 // Foundation only, no AppKit, so tests/autoapprove-test.sh can build it alone. AutoApprove.swift runs it.
 //
 // When it is on (ApproveCore.active): in AI mode (Sentry mode) with its switch on, in Sleep mode with its switch on, or
-// always with "Always auto approve" on. Every switch starts off.
+// always with "Always auto approve" on. PS 1.65 (the developer's friend, 17 Nov 2026): "In AI mode" and "In Sleep mode" start ON
+// for a person who never chose them, "Always" stays off; a saved choice (on or off) is never changed (ApproveCore.resolve).
 //
 // Two routes, in this order:
 // 1. The AI tool's own hook, no keys pressed. While any switch is on, PS keeps one line in ~/.claude/settings.json
@@ -48,11 +49,21 @@ enum ApproveCore {
 
   // MARK: - when it is on
 
-  /// The three switches in Settings (all off by default).
+  /// The three switches in Settings. PS 1.65: AI mode and Sleep mode are on until the person chooses, Always is off.
   struct Switches: Equatable {
     var ai = false, sleep = false, always = false
     var any: Bool { ai || sleep || always }
   }
+  /// The defaults for a switch the person never chose (never both "Always" and nothing: it stays off).
+  static let defaultAi = true, defaultSleep = true, defaultAlways = false
+  /// What is saved on this Mac for each switch (nil: never chosen). A saved on or off always wins.
+  struct Saved: Equatable { var ai: Bool?, sleep: Bool?, always: Bool? }
+  /// `defaults` false is the feature switch "auto-approve-defaults" off: an unset switch is off, as before 1.65.
+  static func resolve(_ s: Saved, defaults: Bool = true) -> Switches {
+    Switches(ai: s.ai ?? (defaults && defaultAi), sleep: s.sleep ?? (defaults && defaultSleep), always: s.always ?? defaultAlways)
+  }
+  /// A default is still standing for AI mode or Sleep mode (the 1.65 notice asks about these once).
+  static func defaulted(_ s: Saved) -> Bool { s.ai == nil || s.sleep == nil }
   /// What the Mac is doing now.
   struct Modes: Equatable { var ai = false, sleep = false }
 

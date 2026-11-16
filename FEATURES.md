@@ -71,6 +71,8 @@ removed in Edit mode (top left), but that only hides them; the switches below ar
 | AI Inbox | Its own column in Dimension X for tasks an AI adds. | Fills only through the AI task API. |
 | Copy for AI | Copies the API's instructions and its key to your clipboard, to paste into an AI tool. | Only when you click it. |
 | Auto approve | Says Yes to AI coding tools' permission prompts (Claude Code, Codex) while you are away. See PERMISSIONS.md. Settings warns: a web page or file can trick an AI into harm, and nothing then stops it. | Every switch off by default. Settings, Sentry mode, Auto approve: "In AI mode", "In Sleep mode", "Always auto approve". |
+| Auto approve starts on | In AI mode and In Sleep mode are On for anyone who never chose them (Always stays Off). A saved choice is never changed. One island notice about a minute in asks "Do you want this off?". | Settings, Sentry mode, Auto approve. Feature "auto-approve-defaults". |
+| AI Sentry mode with Sleep mode | AI Sentry mode turns on by itself when Sleep mode starts (nothing pops up; a restart or lid gap leaves the button as it was). | Settings, Sleep mode, What shows on screen, "Start AI mode with Sleep mode" (on by default). Feature "sentry-sleep-auto". |
 | Island in full screen | The island shows over full screen apps and glides to the top left. | Settings, Mac, Dynamic Island, "Move to the top left in full screen" (on by default). |
 | Tick circle side | Which side of the island the tick circle sits on. | Settings, Mac, Dynamic Island, "Tick circle side". |
 | Private mode label | In a meeting, the island says it is in private mode; a click turns private mode off. | Settings, Notifications and Do Not Disturb, "Meetings". |
