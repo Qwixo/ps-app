@@ -139,6 +139,31 @@ await ok("Esc and Back close every Purchases screen, and the switch hides the bu
   assert.match(read("../../FEATURES.md"), /Receipts and Purchases/);
 });
 
+await ok("a failed photo save never makes a second receipt: the second Save writes the same one, and says clearly what happened", () => {
+  const sc = read("../src/views/ReceiptScan.tsx");
+  assert.match(sc, /id: id \?\? done\.current\.id/);
+  assert.match(sc, /done\.current = \{ id: out\.id, ph: out\.ph \}/);
+  assert.match(sc, /noPhoto: "The receipt is saved, but its photo is not\. Tap Save to try the photo again/);
+  assert.match(read("../src/receipts.ts"), /Promise<\{ id: string; photo: boolean; ph\?: string \}>/);
+});
+
+await ok("editing a receipt keeps its first save time, so it does not jump to the top of Recent purchases", () => {
+  assert.match(read("../src/views/ReceiptScan.tsx"), /new Date\(at\)/);
+  assert.match(read("../src/views/Purchases.tsx"), /<ReceiptCheck id=\{sub\.id\} at=\{sub\.r\.at\}/);
+});
+
+await ok("a receipt deleted in the Tab list deletes its sealed photo too; a photo that cannot be deleted is queued and tried again", () => {
+  const ps = read("../src/ps.ts");
+  assert.match(ps, /if \(have\.kind === RCPT_KIND\) await removeReceipt\(w\.id\)/);
+  const rs = read("../src/receipts.ts");
+  assert.match(rs, /catch \{ setOrphans\(addOrphan\(orphans\(\), ph\)\); \}/);
+  assert.match(read("../src/views/Purchases.tsx"), /void flushOrphans\(\)/);
+  assert.deepEqual(R.parseOrphans('["abcdef12","bad id","abcdef12"]'), ["abcdef12"]);
+  assert.deepEqual(R.parseOrphans("not json"), []);
+  assert.deepEqual(R.addOrphan(["abcdef12"], "zzzzzz99"), ["abcdef12", "zzzzzz99"]);
+  assert.deepEqual(R.dropOrphan(["abcdef12", "zzzzzz99"], "abcdef12"), ["zzzzzz99"]);
+});
+
 await ok("no dashes in the Purchases files", () => {
   for (const p of ["../src/core/receipts.ts", "../src/core/purchases.ts", "../src/receipts.ts", "../src/views/Purchases.tsx", "../src/views/ReceiptScan.tsx", "../src/gos/receiptscan.ts", "./purchases.test.ts"]) assert.doesNotMatch(read(p), /[\u2013\u2014]/);
 });

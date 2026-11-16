@@ -7,7 +7,7 @@ import { docs, put, remove, getBlob, putBlob, deleteBlob, doc } from "./core/vau
 import { useVault } from "./ui/kit";
 import { settingsData } from "./core/select";
 import { feature } from "./core/features";
-import { RC, RCPT_FEATURE, RCPT_KIND, cleanReceipt, defaultCurrency, receiptsOn, type Receipt } from "./core/receipts";
+import { RC, RCPT_FEATURE, RCPT_KIND, ORPHAN_KEY, addOrphan, cleanReceipt, defaultCurrency, dropOrphan, parseOrphans, receiptsOn, type Receipt } from "./core/receipts";
 import type { Rc } from "./core/purchases";
 
 /** Receipts and Purchases are on: the registry (features.json, From the squad) and the switch in Settings. */
@@ -45,8 +45,9 @@ export async function shrinkPhoto(dataUrl: string): Promise<Uint8Array | null> {
   return null;
 }
 
-/** Saves one receipt. A photo is stored first as its own sealed file; if that fails the receipt is still saved, without it. */
-export async function saveReceipt(r: Receipt, opts: { id?: string; photo?: string } = {}): Promise<{ id: string; photo: boolean }> {
+/** Saves one receipt. A photo is stored first as its own sealed file; if that fails the receipt is still saved, without it.
+ *  Pass the id (and ph) from an earlier try and the same receipt is written again, never a second one. */
+export async function saveReceipt(r: Receipt, opts: { id?: string; photo?: string } = {}): Promise<{ id: string; photo: boolean; ph?: string }> {
   let ph = r.ph, photo = !!r.ph;
   if (opts.photo) {
     try {
@@ -57,15 +58,28 @@ export async function saveReceipt(r: Receipt, opts: { id?: string; photo?: strin
   const data: Receipt = { ...r, ...(ph ? { ph } : {}) };
   if (!ph) delete data.ph;
   const id = await put(RCPT_KIND, data, opts.id ? { id: opts.id } : {});
-  return { id, photo };
+  return { id, photo, ...(ph ? { ph } : {}) };
 }
 
-/** Removes a receipt and its photo. */
+const orphans = (): string[] => { try { return parseOrphans(localStorage.getItem(ORPHAN_KEY)); } catch { return []; } };
+const setOrphans = (l: string[]) => { try { localStorage.setItem(ORPHAN_KEY, JSON.stringify(l)); } catch { /* storage off */ } };
+/** Deletes one sealed photo; when that fails it is remembered on this device and tried again at the next delete or start. */
+async function dropPhoto(ph: string): Promise<void> {
+  try { await deleteBlob(ph); setOrphans(dropOrphan(orphans(), ph)); }
+  catch { setOrphans(addOrphan(orphans(), ph)); }
+}
+/** Tries the photos whose delete failed before (a few at a time). Nothing polls: called when a receipt is deleted and when Purchases opens. */
+export async function flushOrphans(): Promise<void> {
+  for (const ph of orphans().slice(0, 5)) await dropPhoto(ph);
+}
+
+/** Removes a receipt and its photo (the photo is queued for later when it cannot be deleted now). */
 export async function removeReceipt(id: string): Promise<void> {
   const d = doc(id);
   const ph = d && d.kind === RCPT_KIND ? cleanReceipt(d.data)?.ph : undefined;
   await remove(id);
-  if (ph) { try { await deleteBlob(ph); } catch { /* the sealed file is orphaned at worst: it holds nothing readable */ } }
+  if (ph) await dropPhoto(ph);
+  void flushOrphans();
 }
 
 /** The photo of one receipt as a picture address, fetched only now (null when there is none or it cannot be fetched). */

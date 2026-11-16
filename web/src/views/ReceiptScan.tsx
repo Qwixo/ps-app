@@ -20,7 +20,7 @@ export const RS_WORDS = {
   noCamera: "No camera found. You can type the receipt instead.", failed: "That did not work. Try again, a little closer and in good light.",
   tooLong: "That took too long. Try again.", model: "The receipt reader could not start. You can type the receipt instead.",
   shop: "Shop", date: "Date", total: "Total", currency: "Currency", note: "Note", items: "Items", item: "Item", qty: "Qty", price: "Price",
-  addItem: "Add item", remove: "Remove", save: "Save", saving: "Saving", noPhoto: "The photo could not be saved. The receipt was.",
+  addItem: "Add item", remove: "Remove", save: "Save", saving: "Saving", noPhoto: "The receipt is saved, but its photo is not. Tap Save to try the photo again, or Cancel to keep the receipt without it.",
   photoOf: "Photo of the receipt", noPic: "No photo", loadingPic: "Loading the photo", gonePic: "The photo opens on the website and the phone.",
   del: "Delete receipt", sure: "Delete this receipt and its photo? This cannot be undone.", doDel: "Delete it", keep: "Keep it",
   readNote: "Read from the photo. Check every line before you save.",
@@ -48,8 +48,8 @@ export function useCloseKeys(on: boolean, close: () => void) {
 export const warnText = (w: string): string => (w === "no-total" ? RS_WORDS.w_total : w === "no-date" ? RS_WORDS.w_date : w === "total-guessed" ? RS_WORDS.w_guess : w === "sum-differs" ? RS_WORDS.w_sum : w === "no-items" ? RS_WORDS.w_none : "");
 
 // ---------- the check screen ----------
-export function ReceiptCheck({ start, photo, photoId, id, from, warns, onClose, onSaved }: {
-  start: RcDraft; photo?: string; photoId?: string; id?: string; from: "scan" | "typed"; warns?: string[]; onClose: () => void; onSaved?: () => void;
+export function ReceiptCheck({ start, photo, photoId, id, from, warns, at, onClose, onSaved }: {
+  start: RcDraft; photo?: string; photoId?: string; id?: string; at?: string; from: "scan" | "typed"; warns?: string[]; onClose: () => void; onSaved?: () => void;
 }) {
   const [d, setD] = useState<RcDraft>(start);
   const [bad, setBad] = useState<string[]>([]);
@@ -58,6 +58,7 @@ export function ReceiptCheck({ start, photo, photoId, id, from, warns, onClose, 
   const [pic, setPic] = useState<string | null>(photo ?? null);
   const [picState, setPicState] = useState<"none" | "loading" | "ok" | "gone">(photo ? "ok" : photoId ? "loading" : "none");
   const [sure, setSure] = useState(false);
+  const done = useRef<{ id?: string; ph?: string }>({});   // what the first Save wrote: a second Save changes that receipt, it never adds another
   useCloseKeys(true, onClose);
   useEffect(() => {
     if (!photoId || photo) return;
@@ -68,15 +69,18 @@ export function ReceiptCheck({ start, photo, photoId, id, from, warns, onClose, 
   const set = (p: Partial<RcDraft>) => setD((x) => ({ ...x, ...p }));
   const setItem = (i: number, p: Partial<RcDraft["items"][number]>) => setD((x) => ({ ...x, items: x.items.map((it, k) => (k === i ? { ...it, ...p } : it)) }));
   const save = async () => {
-    const r = receiptOfDraft(d, new Date(), from, photoId);
+    const keep = at && !Number.isNaN(Date.parse(at)) ? new Date(at) : new Date();   // a corrected receipt keeps its first save time
+    const r = receiptOfDraft(d, keep, from, photoId ?? done.current.ph);
     if ("bad" in r) { setBad(r.bad); return; }
     setBad([]); setBusy(true); setErr("");
     try {
-      const out = await saveReceipt(r.ok, { id, photo: photo });
-      if (photo && !out.photo) setErr(RS_WORDS.noPhoto);
+      const out = await saveReceipt(r.ok, { id: id ?? done.current.id, photo: done.current.ph ? undefined : photo });
+      done.current = { id: out.id, ph: out.ph };
+      const lost = !!photo && !out.photo;
+      if (lost) setErr(RS_WORDS.noPhoto);
       haptic("drop");
       onSaved?.();
-      if (!(photo && !out.photo)) onClose();
+      if (!lost) onClose();
     } catch (e) { setErr(e instanceof Error ? e.message : RS_WORDS.failed); }
     finally { setBusy(false); }
   };

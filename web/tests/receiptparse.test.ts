@@ -190,6 +190,43 @@ await ok("more real life shapes: dot leaders, lari sign on prices, weight lines,
   assert.equal(d.total, 1705); assert.equal(d.date, "2026-11-12"); assert.equal(d.items.length, 3);
 });
 
+await ok("a total or skip word is matched as a whole word: sulguni, Martini, Dates, Cashew and other food are items", () => {
+  const a = P.parseReceipt("NIKORA\n17.11.2026\nპური 2.50\nსულგუნი 12.50\nრძე 3.20\nსულ 18.20", { today: TODAY });
+  assert.deepEqual(a.items.map((i) => i.n), ["პური", "სულგუნი", "რძე"]); assert.equal(a.total, 1820); assert.ok(!a.warn.includes("sum-differs"));
+  const foods = ["Martini Bianco 14.00", "Dates 8.40", "Cashew nuts 11.90", "Cardamom 3.00", "Cashmere soap 6.00", "Taxi snack 2.00", "картофель 4.20", "ხაჭაპური 7.00", "ჩურჩხელა 5.00", "ხურმა 4.00", "ბონბონი 3.00", "ტკბილეული 2.50", "სულგუნის ყველი 9.00", "ჯემი ბალის 4.40"];
+  for (const f of foods) {
+    const r = P.parseReceipt(`Shop\n17.11.2026\nBread 2.00\n${f}\nTotal ${(200 + Math.round(parseFloat(f.match(/[\d.]+$/)![0]) * 100)) / 100}`, { today: TODAY });
+    assert.ok(r.items.some((i) => f.startsWith(i.n)), `item kept: ${f}`);
+  }
+  const b = P.parseReceipt("Shop\n17.11.2026\nGeorgian wine 20.00\nსულ 20.00", { today: TODAY });
+  assert.equal(b.total, 2000);
+  assert.equal(P.parseReceipt("Shop\n17.11.2026\nTea 5.00\nTIN 123456789\nTel: 555 12 12 12\nVAT 0.90\nCash 10.00\nTotal 5.00", { today: TODAY }).items.length, 1, "real skip words still skip");
+});
+
+await ok("the lari sign and code are found, one stray dollar or euro never turns a lari receipt into dollars", () => {
+  assert.equal(P.currencyIn("Shop\nსულ 12.50 ლ"), "GEL");
+  assert.equal(P.currencyIn("ჯამი 12.50 ლ."), "GEL");
+  assert.equal(P.currencyIn("Total 12.50 GEL"), "GEL");
+  assert.equal(P.currencyIn("Total 12.50 ₾"), "GEL");
+  assert.equal(P.parseReceipt("Shop\n17.11.2026\nპური 3.$0\nრძე 4.00\nსულ 12.50 ლ", { today: TODAY, currency: "EUR" }).cur, "GEL");
+  assert.equal(P.parseReceipt("ნიკორა\n17.11.2026\nპური 3.50 €\nრძე 4.00\nსულ 7.50", { today: TODAY }).cur, "GEL", "one stray sign on a Georgian receipt is not believed");
+  assert.equal(P.currencyIn("Shop\nTea $3.00\nCoffee $4.00\nTotal $7.00"), "USD", "a real dollar receipt is still dollars");
+  assert.equal(P.currencyIn("Shop\nTotal USD 7.00"), "USD");
+  assert.equal(P.currencyIn("Shop\nTea 3.00 TL"), "TRY");
+  assert.equal(P.currencyIn("Shop\nTea 3.00"), null);
+  assert.equal(P.currencyIn("Shop ლ 7.00 $"), "GEL");
+});
+
+await ok("a month is a whole word: Market is not March, real month names and short forms still work", () => {
+  assert.equal(P.datesIn("12 Market 24").length, 0);
+  assert.deepEqual(P.datesIn("12 Mar 2026"), ["2026-03-12"]);
+  assert.deepEqual(P.datesIn("12 March 2026"), ["2026-03-12"]);
+  assert.deepEqual(P.datesIn("Sept 3, 2026"), ["2026-09-03"]);
+  assert.deepEqual(P.datesIn("17 ნოემბერი 2026"), ["2026-11-17"]);
+  assert.deepEqual(P.datesIn("5 января 2026"), ["2026-01-05"]);
+  assert.equal(P.datesIn("3 Decor 2026").length, 0);
+});
+
 await ok("no dashes in the receipt parser or its test", () => {
   for (const p of ["../src/core/receiptparse.ts", "./receiptparse.test.ts"]) assert.doesNotMatch(readFileSync(new URL(p, import.meta.url), "utf8"), /[\u2013\u2014]/);
 });

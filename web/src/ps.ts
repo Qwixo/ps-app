@@ -7,6 +7,7 @@
 //   shell -> page:  window.__ps.apply(msg)  (main window)  /  window.__psOverlay.load(state)  (overlay)
 import { cleanCurrency } from "./core/receiptparse";
 import { RCPT_KIND, cleanReceipt } from "./core/receipts";
+import { removeReceipt } from "./receipts";
 import { useSyncExternalStore } from "react";
 import { localKeyMessage } from "./core/localholders";
 import { localMirrorOut, localOp, localSubscribe, setLocalMirror } from "./localfirst";
@@ -222,7 +223,7 @@ async function runFitOp(o: unknown) {
   if (w.op === "put" && typeof w.kind === "string" && TAB_KINDS.has(w.kind) && w.data && typeof w.data === "object" && (!have || have.kind === w.kind)) {
     const data = w.kind === RCPT_KIND ? cleanReceipt(w.data) : w.data;
     if (data) await put(w.kind as Doc["kind"], data, { id: w.id, ws: null });
-  } else if (w.op === "remove" && have && TAB_KINDS.has(have.kind)) await remove(w.id);
+  } else if (w.op === "remove" && have && TAB_KINDS.has(have.kind)) { if (have.kind === RCPT_KIND) await removeReceipt(w.id); else await remove(w.id); }   // a receipt takes its sealed photo with it
 }
 /** People on the Time zones screen (core/tzpeople.ts), added, renamed, moved or taken off in the Tab list: checked
  *  again here, and only ever a tzperson record is written or removed. */

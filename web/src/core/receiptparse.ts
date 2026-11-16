@@ -99,15 +99,30 @@ function amountsIn(line: string): Amt[] {
 }
 
 // ---------- words, by language ----------
-const has = (s: string, list: readonly string[]) => { const l = s.toLowerCase(); return list.some((w) => l.includes(w)); };
+// A word from the lists matches only as a whole word: never inside a longer one ("სულ" is in "სულგუნი", "tin" in "Martini", "date" in
+// "Dates", "cash" in "Cashew", "карт" in "картофель"). A word ending in * is a stem: it may be followed by more letters
+// (Georgian words change their ends: "ბარათ*" is ბარათი, ბარათით). A word that starts or ends with a sign ("ქ.", "id:", "@") needs no edge there.
+const wordRes = new Map<string, RegExp>();
+function wordRe(w: string): RegExp {
+  let re = wordRes.get(w);
+  if (!re) {
+    const stem = w.endsWith("*");
+    const t = stem ? w.slice(0, -1) : w;
+    const esc = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    re = new RegExp(`${/^\p{L}/u.test(t) ? "(?<!\\p{L})" : ""}${esc}${!stem && /\p{L}$/u.test(t) ? "(?!\\p{L})" : ""}`, "u");
+    wordRes.set(w, re);
+  }
+  return re;
+}
+const has = (s: string, list: readonly string[]) => { const l = s.toLowerCase(); return list.some((w) => wordRe(w).test(l)); };
 
 /** A line that gives the amount to pay. Stronger words first. */
 const TOTAL_STRONG = ["გადასახდელი", "გადასახდელი თანხა", "ჯამური თანხა", "სულ გადასახდელი", "grand total", "amount due", "total due", "to pay", "balance due", "zu zahlen", "к оплате", "k úhradě", "do zapłaty", "a pagar", "total a pagar", "à payer", "amount to pay"];
 const TOTAL_WORDS = ["სულ", "ჯამი", "ჯამურად", "ჯამ.", "სულ თანხა", "მთლიანი", "total", "totale", "totaal", "summe", "gesamt", "итого", "итог", "всего", "celkem", "razem", "suma", "importe", "toplam", "yekun"];
 /** A line that has an amount but is not the total. */
-const NOT_TOTAL = ["ქვეჯამი", "ქვე ჯამი", "subtotal", "sub total", "sub-total", "zwischensumme", "промежуточный", "დღგ", "vat", "tax", "mwst", "ндс", "ხურდა", "change", "rückgeld", "сдача", "resto", "ნაღდი", "cash", "наличн", "მიღებული", "tendered", "received", "ბარათი", "card", "visa", "mastercard", "kartenzahlung", "карт", "ფასდაკლება", "discount", "rabatt", "скидка", "ბონუსი", "bonus", "points", "ქულა", "ფასი ზეგავლენა", "akcia"];
-const SHOP_SKIP = ["ქვითარი", "ჩეკი", "ჩეკის", "ფისკალური", "receipt", "invoice", "tax invoice", "kassenbon", "quittung", "чек", "кассовый", "ს/კ", "საიდენტ", "tin", "vat", "id:", "tel", "phone", "ტელ", "www", "http", "@", "მისამართი", "address", "ქ.", "ქუჩა", "street", "str.", "გამზ", "ave", "thank", "მადლობა", "welcome", "მოგესალმებით", "კასა", "cashier", "მოლარე", "cassa", "kasse", "სალარო", "date", "თარიღი", "ფის", "no.", "№", "nr.", "order", "table"];
-const NOT_ITEM = ["ს/კ", "საიდენტ", "tin", "ქვითარი", "ჩეკი", "receipt", "invoice", "kassenbon", "чек", "მოლარე", "cashier", "კასა", "სალარო", "tel", "ტელ", "www", "http", "@", "თარიღი", "date", "datum", "дата", "მადლობა", "thank", "danke", "спасибо", "დაბეჭდ", "ფისკალ", "fiscal", "bonus", "ბონუს", "points", "ქულ", "ნომერი", "number", "card no", "ბარათის", "terminal", "ტერმინალ", "rrn", "auth", "stan", "approval"];
+const NOT_TOTAL = ["ქვეჯამი", "ქვე ჯამი", "subtotal", "sub total", "sub-total", "zwischensumme", "промежуточный", "დღგ*", "vat", "tax", "taxes", "mwst", "ндс", "ხურდა*", "change", "rückgeld", "сдача", "resto", "ნაღდ*", "cash", "наличн*", "მიღებული", "tendered", "received", "ბარათ*", "card", "visa", "mastercard", "kartenzahlung", "карта", "карты", "картой", "карте", "ფასდაკლებ*", "discount*", "rabatt*", "скидк*", "ბონუს*", "bonus", "points", "ქულ*", "ფასი ზეგავლენა", "akcia"];
+const SHOP_SKIP = ["ქვითარ*", "ჩეკი", "ჩეკის", "ფისკალ*", "receipt*", "invoice*", "tax invoice", "kassenbon", "quittung", "чек", "чека", "чеки", "кассовый", "ს/კ", "საიდენტ*", "tin", "vat", "id:", "tel", "phone", "ტელ", "ტელეფონი", "ტელეფონის", "www", "http*", "@", "მისამართი", "address", "ქ.", "ქუჩა", "street", "str.", "გამზ*", "ave", "thank*", "მადლობა*", "welcome", "მოგესალმებით", "კასა", "cashier", "მოლარე", "cassa", "kasse", "სალარო", "date", "თარიღი", "ფის", "no.", "№", "nr.", "order", "table"];
+const NOT_ITEM = ["ს/კ", "საიდენტ*", "tin", "ქვითარ*", "ჩეკი", "ჩეკის", "receipt*", "invoice*", "kassenbon", "чек", "чека", "чеки", "მოლარე", "cashier", "კასა", "სალარო", "tel", "ტელ", "ტელეფონი", "ტელეფონის", "www", "http*", "@", "თარიღი", "date", "datum", "дата", "მადლობა*", "thank*", "danke", "спасибо", "დაბეჭდ*", "ფისკალ*", "fiscal", "bonus", "ბონუს*", "points", "ქულ*", "ნომერი", "number", "card no", "ბარათ*", "terminal", "ტერმინალ*", "rrn", "auth", "stan", "approval"];
 const KNOWN_SHOPS: [string, string][] = [
   ["carrefour", "Carrefour"], ["კარფური", "Carrefour"], ["nikora", "Nikora"], ["ნიკორა", "Nikora"], ["spar", "Spar"], ["სპარი", "Spar"],
   ["goodwill", "Goodwill"], ["გუდვილი", "Goodwill"], ["agrohub", "Agrohub"], ["აგროჰაბი", "Agrohub"], ["fresco", "Fresco"], ["ფრესკო", "Fresco"],
@@ -117,33 +132,66 @@ const KNOWN_SHOPS: [string, string][] = [
 ];
 
 // ---------- currency ----------
-const CUR_MARK: [RegExp, string][] = [
-  [/₾|\bGEL\b|\blari\b|ლარი|\bლ\.|\bლ\b/i, "GEL"], [/\$|\bUSD\b|\bdollar/i, "USD"], [/€|\bEUR\b|\beuro/i, "EUR"], [/£|\bGBP\b/i, "GBP"],
-  [/₺|\bTRY\b|\bTL\b/i, "TRY"], [/₽|\bRUB\b|руб/i, "RUB"], [/₴|\bUAH\b|грн/i, "UAH"], [/\bKč\b|\bCZK\b/i, "CZK"], [/\bzł\b|\bPLN\b/i, "PLN"], [/֏|\bAMD\b/i, "AMD"],
-  [/₼|\bAZN\b/i, "AZN"], [/\bCHF\b/i, "CHF"], [/\bAED\b/i, "AED"],
+// Each currency has strong marks (a code or the word) and weak ones (a lone sign, which a reader easily makes up from a smudge).
+const CUR_MARK: [string, RegExp, RegExp | null][] = [
+  ["GEL", /₾|(?<![\p{L}])GEL(?![\p{L}])|(?<![\p{L}])lari(?![\p{L}])|ლარი/giu, /(?<![\p{L}])ლ\.?(?![\p{L}])/gu],
+  ["USD", /(?<![\p{L}])USD(?![\p{L}])|(?<![\p{L}])dollar/giu, /\$/g], ["EUR", /(?<![\p{L}])EUR(?![\p{L}])|(?<![\p{L}])euro/giu, /€/g],
+  ["GBP", /(?<![\p{L}])GBP(?![\p{L}])/giu, /£/g], ["TRY", /(?<![\p{L}])TRY(?![\p{L}])/giu, /₺|(?<![\p{L}])TL(?![\p{L}])/gu],
+  ["RUB", /(?<![\p{L}])RUB(?![\p{L}])|руб/giu, /₽/g], ["UAH", /(?<![\p{L}])UAH(?![\p{L}])|грн/giu, /₴/g],
+  ["CZK", /(?<![\p{L}])CZK(?![\p{L}])|(?<![\p{L}])Kč(?![\p{L}])/giu, null], ["PLN", /(?<![\p{L}])PLN(?![\p{L}])|(?<![\p{L}])zł(?![\p{L}])/giu, null],
+  ["AMD", /(?<![\p{L}])AMD(?![\p{L}])/giu, /֏/g], ["AZN", /(?<![\p{L}])AZN(?![\p{L}])/giu, /₼/g],
+  ["CHF", /(?<![\p{L}])CHF(?![\p{L}])/giu, null], ["AED", /(?<![\p{L}])AED(?![\p{L}])/giu, null],
 ];
-/** The currency a receipt names (a sign or a code next to the numbers), or null. */
+/** The currency a receipt names (a code, a word or a sign next to the numbers), or null.
+ *  A word or code counts 2, a lone sign 1. A currency that has only signs, fewer than two of them, loses to lari and is
+ *  ignored on a Georgian receipt: one stray "$" from a smudge never turns a lari receipt into dollars. */
 export function currencyIn(text: string): string | null {
-  const counts = new Map<string, number>();
-  for (const [re, code] of CUR_MARK) {
-    const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
-    const n = [...text.matchAll(g)].length;
-    if (n) counts.set(code, n);
+  const letters = (text.match(/\p{L}/gu) ?? []).length;
+  const georgian = (text.match(/[\u10A0-\u10FF]/g) ?? []).length;
+  const mostlyGeorgian = letters > 0 && georgian / letters >= 0.3;
+  const score = new Map<string, { s: number; w: number }>();
+  for (const [code, strong, weak] of CUR_MARK) {
+    const s = [...text.matchAll(strong)].length, w = weak ? [...text.matchAll(weak)].length : 0;
+    if (s || w) score.set(code, { s, w });
   }
-  // A lone "ლ" is easy to read by mistake: it counts only when nothing else is named.
+  const gel = score.get("GEL");
   let best: string | null = null, bn = 0;
-  for (const [c, n] of counts) if (n > bn) { best = c; bn = n; }
+  for (const [c, { s, w }] of score) {
+    if (c !== "GEL" && s === 0 && w < 2 && (gel || mostlyGeorgian)) continue;   // a lone sign is not believed against lari
+    const n = s * 2 + w;
+    if (n > bn || (n === bn && c === "GEL")) { best = c; bn = n; }
+  }
   return best;
 }
 export const cleanCurrency = (v: unknown, fallback = DEFAULT_CURRENCY): string => (typeof v === "string" && /^[A-Z]{3}$/.test(v.trim().toUpperCase()) ? v.trim().toUpperCase() : fallback);
 
 // ---------- dates ----------
-const MONTHS: [RegExp, number][] = [
-  [/^(jan|janu|janv|ene|янв|იანვ)/i, 1], [/^(feb|febr|fév|fev|февр|თებერ)/i, 2], [/^(mar|mär|mär|мар|მარტ)/i, 3], [/^(apr|avr|abr|апр|აპრ)/i, 4],
-  [/^(may|mai|mayo|мая|май|მაის)/i, 5], [/^(jun|juin|июн|ივნ)/i, 6], [/^(jul|juil|июл|ივლ)/i, 7], [/^(aug|août|ago|авг|აგვ)/i, 8],
-  [/^(sep|sept|сент|სექტ)/i, 9], [/^(oct|okt|окт|ოქტ)/i, 10], [/^(nov|ноя|ნოემ)/i, 11], [/^(dec|dez|dic|déc|дек|დეკ)/i, 12],
+// English, German, Spanish and French months are whole words ("Market" is not March); Russian and Georgian months are matched by their start.
+const MONTH_WORDS: string[][] = [
+  ["jan", "janu", "janv", "january", "janvier", "januar", "januari", "ene", "enero", "jänner"],
+  ["feb", "febr", "february", "fév", "fev", "février", "fevrier", "februar", "febrero"],
+  ["mar", "mär", "march", "mars", "märz", "marz", "marzo", "maart"],
+  ["apr", "april", "avr", "avril", "abr", "abril"],
+  ["may", "mai", "mayo"],
+  ["jun", "june", "juin", "junio", "juni"],
+  ["jul", "july", "juil", "juillet", "julio", "juli"],
+  ["aug", "august", "août", "aout", "ago", "agosto"],
+  ["sep", "sept", "september", "septembre", "septiembre"],
+  ["oct", "october", "octobre", "octubre", "okt", "oktober"],
+  ["nov", "november", "novembre", "noviembre"],
+  ["dec", "december", "décembre", "decembre", "déc", "dez", "dezember", "dic", "diciembre"],
 ];
-const monthOf = (w: string): number => { for (const [re, n] of MONTHS) if (re.test(w)) return n; return 0; };
+const MONTH_START: [RegExp, number][] = [
+  [/^(янв|იანვ)/i, 1], [/^(февр|თებერ)/i, 2], [/^(мар|მარტ)/i, 3], [/^(апр|აპრ)/i, 4], [/^(мая|май|მაის)/i, 5], [/^(июн|ივნ)/i, 6],
+  [/^(июл|ივლ)/i, 7], [/^(авг|აგვ)/i, 8], [/^(сент|სექტ)/i, 9], [/^(окт|ოქტ)/i, 10], [/^(ноя|ნოემ)/i, 11], [/^(дек|დეკ)/i, 12],
+];
+const monthOf = (w: string): number => {
+  const l = w.toLowerCase();
+  const i = MONTH_WORDS.findIndex((list) => list.includes(l));
+  if (i >= 0) return i + 1;
+  for (const [re, n] of MONTH_START) if (re.test(l)) return n;
+  return 0;
+};
 const pad = (n: number) => String(n).padStart(2, "0");
 function validDate(y: number, m: number, d: number): string {
   if (m < 1 || m > 12 || d < 1 || d > 31) return "";

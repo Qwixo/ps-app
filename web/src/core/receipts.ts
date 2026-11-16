@@ -115,3 +115,14 @@ export function fmtMoney(minor: number, cur: string): string {
   const whole = String(Math.floor(a / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   return `${neg ? "-" : ""}${whole}.${String(a % 100).padStart(2, "0")} ${cur}`;
 }
+
+// ---------- photos waiting to be deleted ----------
+/** Photo files whose delete did not go through (offline, a local only vault): kept in this device's own storage, tried again later. */
+export const ORPHAN_KEY = "ps.receipt.orphans";
+export function parseOrphans(raw: unknown): string[] {
+  let v: unknown = raw;
+  if (typeof raw === "string") { try { v = JSON.parse(raw); } catch { v = []; } }
+  return Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && /^[A-Za-z0-9_-]{6,64}$/.test(x)))].slice(0, 200) : [];
+}
+export const addOrphan = (list: string[], id: string): string[] => parseOrphans([...list, id]);
+export const dropOrphan = (list: string[], id: string): string[] => list.filter((x) => x !== id);

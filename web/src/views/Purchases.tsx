@@ -11,7 +11,7 @@ import { toISODate } from "../ui/kit";
 import { receiptScan } from "../gos/receiptscan";
 import { fmtMoney, type Receipt } from "../core/receipts";
 import { byMonth, byShop, clickSort, defaultQuery, leftOut, mainCurrency, monthCompare, recent, shopsOf, tableRows, topItems, type Rc, type SortKey, type TableQuery } from "../core/purchases";
-import { useReceiptCurrency, useReceipts, useReceiptsOn } from "../receipts";
+import { flushOrphans, useReceiptCurrency, useReceipts, useReceiptsOn } from "../receipts";
 import { ReceiptCheck, ReceiptScan, ReceiptTyped, useCloseKeys } from "./ReceiptScan";
 import { draftOf } from "../core/receipts";
 import "./purchases.css";
@@ -125,6 +125,7 @@ export function PurchasesScreen({ onClose }: { onClose: () => void }) {
   const out = leftOut(list, cur);
   const byId = (id: string) => list.find((x) => x.id === id);
   const phone = GOS && receiptScan.available();
+  useEffect(() => { void flushOrphans(); }, []);   // a photo whose delete failed before is tried again now
   useEffect(() => { document.body.classList.add("pc-open"); return () => document.body.classList.remove("pc-open"); }, []);
   return createPortal(
     <div className="pc-layer" role="dialog" aria-modal="true" aria-label={PW.title} onMouseDown={(e) => e.stopPropagation()}>
@@ -200,6 +201,6 @@ export function PurchasesScreen({ onClose }: { onClose: () => void }) {
       </div>
       {sub === "scan" && <ReceiptScan onClose={() => setSub(null)} />}
       {sub === "type" && <ReceiptTyped onClose={() => setSub(null)} />}
-      {sub && typeof sub === "object" && <ReceiptCheck id={sub.id} from={sub.r.src} start={draftOf({ ...sub.r, total: sub.r.total }, sub.r.note ?? "")} photoId={sub.r.ph} onClose={() => setSub(null)} />}
+      {sub && typeof sub === "object" && <ReceiptCheck id={sub.id} at={sub.r.at} from={sub.r.src} start={draftOf({ ...sub.r, total: sub.r.total }, sub.r.note ?? "")} photoId={sub.r.ph} onClose={() => setSub(null)} />}
     </div>, document.body);
 }
