@@ -27,6 +27,11 @@ import { HubError } from "./hub";
 import { gifApi, type GifApi } from "./gifhub";
 import { foldReactions } from "./chatreact";
 import { gifMemory, parseGifMessage } from "./chatgif";
+import { DmSession } from "./dmflows";
+import { dmApi } from "./dmhub";
+import { buildConvs, sendRoute, SQUAD_CONV, type ConvInput } from "./dmview";
+import type { HubMember } from "../core/squadrec";
+import type { ReactEvent } from "./chatreact";
 import { EMPTY_CHAT, EMPTY_GIF, type GifView, type ChatJump, type ChatLine, type ChatOp, type ChatView, type ChatVoteView, type QuoteView } from "./chatview";
 
 const TICK_MS = 2 * 60_000, OPEN_PULL_MS = 5_000, PAGE = 150;
@@ -41,7 +46,14 @@ let view: ChatView = { ...EMPTY_CHAT };
 let open = false, limit = PAGE, error: string | null = null;
 let tickTimer: number | undefined, pullTimer: number | undefined;
 let ticking = false, pulling = false;
-const pending = new Map<string, { t: string; a?: ChatMsg["a"]; q?: ChatMsg["q"]; failed: boolean; at: string }>();
+const pending = new Map<string, { t: string; a?: ChatMsg["a"]; q?: ChatMsg["q"]; failed: boolean; at: string; conv: string }>();
+// PS 1.65 (G Squad v3): DMs, group chats and pictures (squad/dmflows.ts). "squad" is the main chat above, exactly as before.
+// With the hub's `dm` function missing (404) or the feature off, `dm.available` is not true and none of it shows or runs.
+const DM_FEATURE = "gsquad-dm";
+const GONE_NOTE = "A message was not sent because that chat is gone.";
+let dm = null as DmSession | null, active = SQUAD_CONV;
+const dmOn = () => !!dm && dm.available === true && feature(DM_FEATURE);
+const avStore = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage off */ } } };
 let jump: ChatJump | null = null, jumpN = 0, seeking = false;   // PS 1.64: the last "go to the original" and its answer
 const cards = new Map<string, string>();       // vote cards on screen (Mac): card id to its JSON
 const listeners = new Set<() => void>();
@@ -106,30 +118,39 @@ async function gifSearch(q: string, more: boolean) {
 }
 
 // ---------- the view ----------
+interface Src { msgs: Map<string, ChatMsg>; gone: Set<string>; done: boolean; list: ChatMsg[]; reacts: Map<string, ReactEvent> }
+/** The messages of the conversation on screen: the squad chat, or a DM or group when one is open and the hub has them. */
+function src(): Src | null {
+  if (!s) return null;
+  const c = active !== SQUAD_CONV && dmOn() ? dm!.convs.get(active) : null;
+  if (c) return { msgs: c.msgs, gone: c.gone, done: c.loaded && !c.more, list: dm!.list(active, limit), reacts: c.reacts };
+  return { msgs: s.msgs, gone: s.gone, done: s.loaded && !s.more, list: s.list(limit), reacts: s.reacts };
+}
 function lines(): ChatLine[] {
-  if (!s) return [];
+  const c = src();
+  if (!s || !c) return [];
   const me = s.rec.memberId;
-  const msgs = s.list(limit);
+  const msgs = c.list;
   const shown = new Set(msgs.map((m) => m.id));
-  const pills = foldReactions([...s.reacts.values()], (id) => shown.has(id), me, (id) => s!.people.get(id)?.name ?? "Someone");
+  const pills = foldReactions([...c.reacts.values()], (id) => shown.has(id), me, (id) => s!.people.get(id)?.name ?? "Someone");
   const out: ChatLine[] = msgs.map((m) => {
     const p = s!.people.get(m.from);
-    const q = m.q ? quoteOf(m.q) : null;
+    const q = m.q ? quoteOf(m.q, c) : null;
     return { id: m.id, from: m.from, name: m.from === me ? "You" : p?.name ?? "Someone", mine: m.from === me, t: m.t,
       ...(m.a ? { a: m.a } : {}), ...(q ? { q } : {}), at: m.at, edited: m.edited, left: !!p?.left, ...(pills.get(m.id) ? { r: pills.get(m.id) } : {}) };
   });
-  for (const [id, p] of pending) if (!s.msgs.has(id)) { const q = p.q ? quoteOf(p.q) : null; out.push({ id, from: me, name: "You", mine: true, t: p.t, ...(p.a ? { a: p.a } : {}), ...(q ? { q } : {}), at: p.at, edited: false, left: false, ...(p.failed ? { failed: true } : { sending: true }) }); }
+  for (const [id, p] of pending) if (p.conv === active && !c.msgs.has(id)) { const q = p.q ? quoteOf(p.q, c) : null; out.push({ id, from: me, name: "You", mine: true, t: p.t, ...(p.a ? { a: p.a } : {}), ...(q ? { q } : {}), at: p.at, edited: false, left: false, ...(p.failed ? { failed: true } : { sending: true }) }); }
   return out;
 }
 /** PS 1.64: the quote above a reply. The original's words as they are now when it is here (an edit shows); the line the
  *  reply carried while the original is further up; "not available" once it is known deleted or not there for you. */
-function quoteOf(q: NonNullable<ChatMsg["q"]>): QuoteView {
+function quoteOf(q: NonNullable<ChatMsg["q"]>, c: Src): QuoteView {
   const cur = s!;
   const me = cur.rec.memberId;
-  const orig = cur.msgs.get(q.id);
+  const orig = c.msgs.get(q.id);
   const name = q.w === me ? "You" : cur.people.get(q.w)?.name ?? "Someone";
   if (orig) return { id: q.id, name, from: q.w, s: quoteLine(orig.t), gone: false };
-  const gone = cur.gone.has(q.id) || (cur.loaded && !cur.more);
+  const gone = c.gone.has(q.id) || c.done;
   return { id: q.id, name, from: q.w, s: gone ? "" : q.s, gone };
 }
 function votes(): ChatVoteView[] {
@@ -142,13 +163,33 @@ function votes(): ChatVoteView[] {
     return { id: v.id, joiner: v.j, name, stage, mine: v.mine, n: v.n, k: v.k, ...w };
   });
 }
+/** The conversation list and the members with their pictures (PS 1.65). Messages are only decoded for the one on screen. */
+function convList(): ConvInput[] {
+  if (!s) return [];
+  const me = s.rec.memberId, name = (id: string) => (id === me ? "You" : s!.people.get(id)?.name ?? "Someone");
+  const all = [...s.people.values()].filter((p) => !p.left).map((p) => p.id);
+  const lastSquad = s.list(1)[0];
+  const out: ConvInput[] = [{ id: SQUAD_CONV, kind: "squad", title: "G Squad", memberIds: all, unread: open && active === SQUAD_CONV ? 0 : s.status?.u ?? 0,
+    ...(lastSquad ? { last: { text: quoteLine(lastSquad.t), at: lastSquad.at, from: name(lastSquad.from) } } : {}) }];
+  if (!dmOn()) return out;
+  for (const c of dm!.convs.values()) {
+    const l = dm!.list(c.id, 1)[0];
+    const peer = c.people.find((p) => p !== me);
+    out.push({ id: c.id, kind: c.kind, title: c.kind === "dm" ? (peer ? name(peer) : "Chat") : c.title ?? "Group", memberIds: c.people, unread: open && active === c.id ? 0 : c.status.u,
+      ...(l ? { last: { text: quoteLine(l.t), at: l.at, from: name(l.from) } } : {}), ...(c.kind === "dm" && peer ? { avatar: peer } : {}) });
+  }
+  return out;
+}
 function rebuild() {
+  if (active !== SQUAD_CONV && (!dmOn() || !dm!.convs.has(active))) active = SQUAD_CONV;   // removed from it, or the hub lost DMs
   const st = s?.status;
   const mine = s?.myVote();
   view = {
-    in: !!s, ready: !!s && !!st && !st.rot && s.keys.has(st.epoch), open, unread: open ? 0 : st?.u ?? 0,
+    in: !!s, ready: !!s && !!st && !st.rot && s.keys.has(st.epoch), open, unread: open ? 0 : (st?.u ?? 0) + (dmOn() ? [...dm!.convs.values()].reduce((n, c) => n + c.status.u, 0) : 0),
     lines: open ? lines() : [], more: !!s?.more, votes: votes(), note: s ? joinerLine(mine, s.hasHistory()) : null,
     sound: settings().squadChatSound === true, notify: feature(NOTIFY_FEATURE), notifyOn: settings().squadNotify !== false, noteSound: settings().squadNotifySound !== false, islandOk: PS_PAGE && feature(ISLAND_FEATURE), noteIsland: settings().squadNoteIsland !== false, sending: [...pending.values()].filter((p) => !p.failed).length, error, loaded: !!s?.loaded, gif: gifView(),
+    convs: buildConvs(convList()), activeConv: active, dm: dmOn(),
+    members: open && s ? [...s.people.values()].filter((p) => !p.left).map((p) => ({ id: p.id, name: p.me ? "You" : p.name, me: p.me, left: false, ...(dm?.pics.get(p.id) ? { pic: dm.pics.get(p.id)! } : {}) })) : [],
   };
   emit();
   showCards();
@@ -313,6 +354,7 @@ async function tick() {
     else if (needNames) await cur.pull();
     else if (!open && st.u > 0 && st.last && st.last !== before?.last && noteEnabled() && getSince()) await cur.pull();   // a new message: read it to show the card
     if (before && !open && st.u > before.u && !noteEnabled()) chime();   // with notifications on the card has its own sound
+    try { await dmTick(cur); } catch { /* DMs are extra: the squad chat above is never held up by them */ }
     if (cur === s) { error = null; rebuild(); refreshNotes(); }
   } catch (e) { if (!gone(e) && cur === s) { error = say(e); rebuild(); } }
   finally { ticking = false; }
@@ -322,6 +364,13 @@ async function pull() {
   pulling = true;
   const cur = s;
   try {
+    if (inDm()) {
+      // A DM or group is on screen: only its change is read (the squad chat's unread count still comes from the 2 minute tick).
+      await dm!.pull(active);
+      if (open && (PS_PAGE || document.visibilityState === "visible")) await dm!.markRead(active);
+      if (cur === s) { error = null; rebuild(); }
+      return;
+    }
     await cur.pull();
     if (cur.status?.rot) await cur.rotateIfDue();
     if (cur.status?.give.length) await cur.giveIfDue();
@@ -353,6 +402,49 @@ function setOpen(on: boolean) {
   refreshNotes(false);   // the chat opened: its cards are done with
 }
 
+// ---------- DMs, groups and pictures (PS 1.65) ----------
+const inDm = () => active !== SQUAD_CONV && dmOn() && !!dm!.convs.get(active);
+const DM_OPS = new Set(["openConv", "newDm", "newGroup", "setAvatar", "clearAvatar", "groupAdd", "groupRemove", "leaveConv"]);
+const isDmOp = (o: ChatOp): o is Extract<ChatOp, { op: "openConv" | "newDm" | "newGroup" | "setAvatar" | "clearAvatar" | "groupAdd" | "groupRemove" | "leaveConv" }> => DM_OPS.has(o.op);
+const members = () => (s ? ([...s.rows.values()] as HubMember[]) : []);
+async function runDmOp(cur: ChatSession, o: Extract<ChatOp, { op: "openConv" | "newDm" | "newGroup" | "setAvatar" | "clearAvatar" | "groupAdd" | "groupRemove" | "leaveConv" }>) {
+  if (!dmOn()) return;   // the hub has no DMs (or the switch is off): nothing happens, nothing is said
+  const d = dm!;
+  try {
+    if (!cur.rows.size) await cur.pull();   // the members' keys come from the chat's own pull
+    switch (o.op) {
+      case "openConv":
+        if (o.id !== SQUAD_CONV && !d.convs.has(o.id)) return;
+        active = o.id; limit = PAGE; rebuild();
+        if (o.id !== SQUAD_CONV) { await d.pull(o.id); await d.markRead(o.id); }
+        else void pull();
+        break;
+      case "newDm": { active = await d.newDm(o.memberId); limit = PAGE; rebuild(); await d.pull(active); break; }
+      case "newGroup": { active = await d.newGroup(o.title, o.memberIds); limit = PAGE; break; }
+      case "groupAdd": await d.addMembers(o.id, o.memberIds); break;
+      case "groupRemove": await d.removeMember(o.id, o.memberId); break;
+      case "leaveConv": await d.leave(o.id); if (active === o.id) active = SQUAD_CONV; break;
+      case "setAvatar": await d.setAvatar(o.dataUrl); break;
+      case "clearAvatar": await d.clearAvatar(); break;
+    }
+    error = null;
+  } catch (e) {
+    error = e instanceof HubError ? say(e) : e instanceof Error && e.message ? e.message.slice(0, 160) : "Something went wrong. Try again.";
+  }
+  rebuild();
+}
+/** One cheap look at the DMs and groups (rides on the chat's own 2 minute tick): only changed conversations are pulled,
+ *  and only a few at a time. Quiet when the hub has no `dm` function. */
+async function dmTick(cur: ChatSession) {
+  if (!dm || !feature(DM_FEATURE) || (!PS_PAGE && document.visibilityState === "hidden")) return;
+  const changed = await dm.tick();
+  if (!dm.available || !changed.length) return;
+  if (!cur.rows.size) await cur.pull();
+  const want = changed.filter((id) => id === active || dm!.convs.get(id)!.status.u > 0 || !dm!.convs.get(id)!.loaded).slice(0, 8);
+  for (const id of want) { try { await dm.pull(id); if (open && id === active) await dm.markRead(id); } catch (e) { if (e instanceof HubError && e.status === 429) break; } }
+  for (const c of dm.convs.values()) if (c.kind === "group" && c.status.rot) { try { await dm.rotateIfDue(c.id); } catch { /* next tick */ } }
+}
+
 // ---------- what the chat asks for ----------
 export async function runChatOp(o: ChatOp): Promise<void> {
   const st = vaultStore.get();
@@ -366,11 +458,12 @@ export async function runChatOp(o: ChatOp): Promise<void> {
   if (o.op === "gifs") { await gifSearch(o.q, o.more === true); return; }
   const cur = s;
   if (!cur) return;
+  if (isDmOp(o)) { await runDmOp(cur, o); return; }
   try {
     switch (o.op) {
       case "send": {
         const id = globalThis.crypto.randomUUID();
-        pending.set(id, { t: o.text, ...(o.a ? { a: o.a } : {}), ...(o.q ? { q: o.q } : {}), failed: false, at: new Date().toISOString() });
+        pending.set(id, { t: o.text, ...(o.a ? { a: o.a } : {}), ...(o.q ? { q: o.q } : {}), failed: false, at: new Date().toISOString(), conv: active });
         rewindNote("squadSent");   // Rewind (PS 1.64): a count only, never the words (src/rewind.ts)
         rebuild();
         await send(cur, id);
@@ -379,14 +472,19 @@ export async function runChatOp(o: ChatOp): Promise<void> {
       case "retry":
         for (const id of [...pending.keys()]) { const p = pending.get(id)!; if (p.failed) { pending.set(id, { ...p, failed: false }); rebuild(); await send(cur, id); } }
         return;
-      case "react": await cur.react(o.to, o.e, rebuild); break;
-      case "edit": await cur.edit(o.id, o.text); break;
-      case "del": await cur.del(o.id); break;
-      case "older": limit += PAGE; if (cur.list(limit).length < limit && cur.more) await cur.older(); break;
+      case "react": if (inDm()) await dm!.react(active, o.to, o.e, rebuild); else await cur.react(o.to, o.e, rebuild); break;
+      case "edit": if (inDm()) await dm!.edit(active, o.id, o.text); else await cur.edit(o.id, o.text); break;
+      case "del": if (inDm()) await dm!.del(active, o.id); else await cur.del(o.id); break;
+      case "older": {
+        limit += PAGE;
+        if (inDm()) { const c = dm!.convs.get(active)!; if (dm!.list(active, limit).length < limit && c.more) await dm!.older(active); }
+        else if (cur.list(limit).length < limit && cur.more) await cur.older();
+        break;
+      }
       case "seek": {
         // A reply's quote was clicked and its original is not on screen: older pages until it is here (one request a
         // page, only on this click), then the screen scrolls to it, or says it is not available.
-        if (seeking) return;
+        if (seeking || inDm()) return;   // replies in a DM or group quote what is loaded (no history search there)
         seeking = true; rebuild();
         let found = false;
         try { found = await cur.seek(o.id); } finally { seeking = false; }
@@ -408,14 +506,20 @@ export async function runChatOp(o: ChatOp): Promise<void> {
 async function send(cur: ChatSession, id: string) {
   const p = pending.get(id);
   if (!p) return;
+  // A private message is never rerouted: if its conversation is gone (removed, left, a 403, the feature off) it is dropped with a note.
+  const route = sendRoute(p.conv, dmOn() && dm!.convs.has(p.conv));
+  if (route === "gone") { pending.delete(id); error = GONE_NOTE; rebuild(); return; }
+  const conv = route === "dm" ? p.conv : null;
+  const body = { t: p.t, ...(p.a ? { a: p.a } : {}), ...(p.q ? { q: p.q } : {}) };
   try {
-    await cur.send({ t: p.t, ...(p.a ? { a: p.a } : {}), ...(p.q ? { q: p.q } : {}) }, id);
+    if (conv) await dm!.send(conv, body, id); else await cur.send(body, id);
     pending.delete(id);
     error = null;
   } catch (e) {
     // A send whose answer was lost may have landed: look before calling it failed.
-    try { await cur.pull(); } catch { /* offline */ }
-    if (cur.msgs.has(id)) pending.delete(id);
+    try { if (conv) await dm!.pull(conv); else await cur.pull(); } catch { /* offline */ }
+    if (conv && !dm!.convs.has(conv)) { pending.delete(id); error = GONE_NOTE; }
+    else if (conv ? dm!.convs.get(conv)?.msgs.has(id) : cur.msgs.has(id)) pending.delete(id);
     else { pending.set(id, { ...p, failed: true }); if (!gone(e)) error = e instanceof Error && /key is not here/.test(e.message) ? "The chat is getting its new key. Try again in a moment." : say(e); }
   }
   rebuild();
@@ -427,7 +531,7 @@ function readRec(): SquadRec | null {
   return list[0] ?? null;
 }
 function stop() {
-  s = null; who = ""; pending.clear(); error = null; jump = null; seeking = false;
+  s = null; who = ""; pending.clear(); error = null; jump = null; seeking = false; dm = null; active = SQUAD_CONV;
   gifOn = null; gifApiNow = null; gifState = EMPTY_GIF; gifAsk++;
   if (tickTimer !== undefined) window.clearInterval(tickTimer);
   if (pullTimer !== undefined) window.clearInterval(pullTimer);
@@ -448,6 +552,10 @@ function sync() {
   if (!rec) return;
   s = new ChatSession(rec); who = next;
   gifSetup(s);
+  if (feature(DM_FEATURE)) {
+    dm = new DmSession(rec, members, dmApi({ member: rec.memberId, priv: rec.sign.priv }), avStore);
+    void dm.loadCache().then(rebuild);
+  }
   rebuild();
   tickTimer = window.setInterval(() => void tick(), TICK_MS);
   void tick();

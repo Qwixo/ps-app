@@ -20,6 +20,7 @@ import { settingsData } from "../core/select";
 import { dndActive } from "../core/dnd";
 import { CHK_FEATURE } from "../core/chkremind";
 import { feature } from "../core/features";
+import { chatStore } from "../squad/chatengine";
 import { RCPT_FEATURE, receiptsOn } from "../core/receipts";
 import { posturePrefs } from "../core/posture";
 import { mailCan } from "../core/mailswitch";
@@ -114,6 +115,8 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   "checklist-165": async () => (feature(CHK_FEATURE) ? "open" : "unknown"),
   // PS 1.65 stacked notifications: only on the Mac, and only while its switch is on.
   "notif-stack-165": async () => (PS && feature("notif-stack") ? "open" : "unknown"),
+  // PS 1.65 G Squad DMs, groups and pictures: only once the hub answers for them (until Red deploys it, it just waits), for people in a squad.
+  "gsquad-dm": async () => (feature("gsquad-dm") && squadStore.get().in && chatStore.get().dm === true ? "open" : "unknown"),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault
