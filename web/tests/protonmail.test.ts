@@ -93,7 +93,7 @@ ok("a reply's answer is kept per email, cleaned, and can be cleared", () => {
   assert.ok(!("h2" in P.protonMirror.get().sent));
 });
 ok("every problem code has plain words, and the cert one asks the person to decide", () => {
-  for (const c of ["bridgeDown", "badPassword", "certChanged", "notLoopback", "badInput", "timeout", "protocol", "keychain", "noLink", "gone"]) assert.ok(P.protonProblemWords(c).length > 10, c);
+  for (const c of ["bridgeDown", "badPassword", "certChanged", "notLoopback", "badInput", "timeout", "protocol", "keychain", "noLink", "gone", "maybeSent"]) assert.ok(P.protonProblemWords(c).length > 10, c);
   assert.equal(P.protonProblemWords("nope"), ""); assert.equal(P.protonProblemWords(null), "");
   assert.match(P.protonProblemWords("certChanged"), /Trust the new one/);
 });

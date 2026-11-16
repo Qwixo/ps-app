@@ -30,10 +30,32 @@ if mode == "imap" {
     _ = try ProtonImap.unread(try LoopbackTransport(host: "127.0.0.1", port: port, timeout: 10), config: bad)
     check("wrong password", false)
   } catch let e as ProtonError { check("wrong password says so", e == .badPassword) } catch { check("wrong password", false, "\(error)") }
+} else if mode == "silent" || mode == "silenttls" {
+  // The server accepts and then says nothing: the read must give up by itself, and the next check must work again.
+  let t0 = Date()
+  do {
+    _ = try ProtonImap.unread(try LoopbackTransport(host: "127.0.0.1", port: port, timeout: 2), config: cfg)
+    check("\(mode): a silent server times out", false)
+  } catch let e as ProtonError { check("\(mode): a silent server gives .timeout", e == .timeout, "\(e)") } catch { check("\(mode) timeout", false, "\(error)") }
+  let took = Date().timeIntervalSince(t0)
+  check("\(mode): it gave up in about the timeout, not a minute", took >= 1.5 && took < 8, "\(took)s")
+  // A second silent connection straight after: no stuck state left behind.
+  let t1 = Date()
+  do { _ = try ProtonImap.unread(try LoopbackTransport(host: "127.0.0.1", port: port, timeout: 1), config: cfg); check("\(mode): again", false) }
+  catch let e as ProtonError { check("\(mode): times out again at once", e == .timeout && Date().timeIntervalSince(t1) < 6, "\(e)") } catch { check("again", false) }
 } else {
   do {
     let r = ProtonReply.from(["to": "alex@client.example", "subject": "Fake plan", "text": "Tuesday works.", "inReplyTo": "fake1@client.example"])!
-    let id = try ProtonSmtp.send(try LoopbackTransport(host: "127.0.0.1", port: port, timeout: 10), config: cfg, reply: r, id: "t1")
+    // No pin yet: SMTP refuses and sends nothing.
+    do { _ = try ProtonSmtp.send(try LoopbackTransport(host: "127.0.0.1", port: port, timeout: 10), config: cfg, reply: r, id: "t0"); check("smtp refuses with no pin", false) }
+    catch let e as ProtonError { check("smtp refuses with no pin (certChanged, no AUTH sent)", e == .certChanged, "\(e)") }
+    // Learn the pin the way a check does (SMTP side of the same fake certificate), then send.
+    let probe = try LoopbackTransport(host: "127.0.0.1", port: port, timeout: 10)
+    _ = try probe.readLine(); try probe.send(Data("EHLO x\r\n".utf8)); _ = try probe.readLine(); _ = try probe.readLine()
+    try probe.send(Data("STARTTLS\r\n".utf8)); _ = try probe.readLine(); try probe.startTLS()
+    try probe.send(Data("EHLO x\r\n".utf8)); _ = try probe.readLine()
+    var pinned = cfg; pinned.fingerprint = probe.peerFingerprint(); probe.close()
+    let id = try ProtonSmtp.send(try LoopbackTransport(host: "127.0.0.1", port: port, timeout: 10), config: pinned, reply: r, id: "t1")
     check("real transport: SMTP reply goes", id == "t1")
   } catch { check("smtp", false, "\(error)") }
 }

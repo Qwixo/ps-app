@@ -55,6 +55,8 @@ final class ProtonBridge: NSObject {
   private var generation = 0          // a new link or an unlink makes an older timer do nothing
   private var linking: String?        // the last problem of a link attempt, in words' code
   private var started = false
+  private lazy var timer = ProtonSingleTimer(queue: q)   // the ONE pending check
+  private var lastStart: Double = 0                      // when the last check began (ms)
   private var replying = Set<String>()
 
   private func nowMs() -> Double { Date().timeIntervalSince1970 * 1000 }
@@ -80,7 +82,9 @@ final class ProtonBridge: NSObject {
       if config != nil { schedule(after: 5) }
     }
     NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: nil) { [weak self] _ in
-      self?.q.asyncAfter(deadline: .now() + 5) { self?.checkNow() }   // the network and Bridge need a moment after a wake
+      // The network and Bridge need a moment after a wake. Several wakes close together are still one check, and the
+      // check restarts the single timer, so there is never more than one check a minute.
+      self?.q.asyncAfter(deadline: .now() + 5) { guard let s = self, ProtonSchedule.wakeDue(lastStart: s.lastStart, now: s.nowMs()) else { return }; s.checkNow() }
     }
   }
 
@@ -125,9 +129,10 @@ final class ProtonBridge: NSObject {
   private func tryLink(_ c: ProtonConfig) {
     loadIfNeeded()
     var cfg = c
+    cfg.fingerprint = config?.fingerprint   // a re link keeps the old pin; only "Trust the new one" drops it
     do {
-      let r = try ProtonImap.unread(try LoopbackTransport(host: c.host, port: c.port), config: c)
-      cfg.fingerprint = r.pinned
+      let r = try ProtonImap.unread(try LoopbackTransport(host: cfg.host, port: cfg.port), config: cfg)
+      cfg.fingerprint = cfg.fingerprint ?? r.pinned
       let ok = ProtonKeychain.write(cfg)
       psLog("PS proton: linked (Keychain \(ok ? "saved" : "said no"), \(r.rows.count) unread)")
       guard ok else { linking = "keychain"; publish(); return }
@@ -167,7 +172,7 @@ final class ProtonBridge: NSObject {
   private func schedule(after s: TimeInterval) {
     guard s > 0 else { return }
     let g = generation
-    q.asyncAfter(deadline: .now() + s) { [self] in
+    timer.schedule(after: s) { [self] in   // replaces any check already waiting: never two chains
       guard g == generation else { return }
       checkNow()
     }
@@ -175,10 +180,11 @@ final class ProtonBridge: NSObject {
   /// One check, on q. Never two at once.
   private func checkNow() {
     guard !test, let c = config, !checking else { return }
-    guard featureOn else { publish(); schedule(after: 300); return }   // switched off: nothing runs, look again later in case it is switched on
+    guard featureOn, Features.on("client-emails") else { publish(); schedule(after: 300); return }   // switched off: nothing runs, look again later in case it is switched on
     if case .certChanged? = failure { return }
     if case .badPassword? = failure { return }
     checking = true
+    lastStart = nowMs()
     let g = generation
     do {
       let r = try ProtonImap.unread(try LoopbackTransport(host: c.host, port: c.port), config: c)

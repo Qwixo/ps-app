@@ -218,6 +218,7 @@ check("message body is base64 of the text", {
   let b64 = parts[1].replacingOccurrences(of: "\r\n", with: "")
   return String(decoding: Data(base64Encoded: b64) ?? Data(), as: UTF8.self) == "Yes, Tuesday works.\n.\nBye"
 }())
+var scfg = cfg; scfg.fingerprint = "aa11"   // SMTP only sends to a certificate that is already pinned
 func smtpServer(authCode: Int = 235, rcpt: Int = 250, fingerprint: String = "aa11") -> FakeBridge {
   var inData = false
   let b = FakeBridge(greeting: "220 127.0.0.1 ESMTP Bridge\r\n") { line, me in
@@ -236,14 +237,14 @@ func smtpServer(authCode: Int = 235, rcpt: Int = 250, fingerprint: String = "aa1
 }
 do {
   let b = smtpServer()
-  let id = try ProtonSmtp.send(b, config: cfg, reply: rep, id: "id1")
+  let id = try ProtonSmtp.send(b, config: scfg, reply: rep, id: "id1")
   check("smtp sends", id == "id1" && b.closed)
   check("smtp order", b.sent.firstIndex(of: "STARTTLS")! < b.sent.firstIndex(where: { $0.hasPrefix("AUTH PLAIN") })! && b.sent.contains("RCPT TO:<alex@client.example>") && b.sent.contains("MAIL FROM:<jane@example.com>"))
   check("smtp ends with one lone dot", b.sent.filter { $0 == "." }.count == 1)
   check("smtp auth is plain base64", b.sent.contains("AUTH PLAIN " + Data("\0jane@example.com\0bridge-pass".utf8).base64EncodedString()))
 } catch { check("smtp sends", false, "\(error)") }
-do { _ = try ProtonSmtp.send(smtpServer(authCode: 535), config: cfg, reply: rep); check("smtp wrong password", false) } catch let e as ProtonError { check("smtp wrong password", e == .badPassword) } catch { check("smtp wrong password", false) }
-do { _ = try ProtonSmtp.send(smtpServer(rcpt: 550), config: cfg, reply: rep); check("smtp refused recipient", false) } catch let e as ProtonError { check("smtp refused recipient", e.code == "protocol") } catch { check("smtp refused recipient", false) }
+do { _ = try ProtonSmtp.send(smtpServer(authCode: 535), config: scfg, reply: rep); check("smtp wrong password", false) } catch let e as ProtonError { check("smtp wrong password", e == .badPassword) } catch { check("smtp wrong password", false) }
+do { _ = try ProtonSmtp.send(smtpServer(rcpt: 550), config: scfg, reply: rep); check("smtp refused recipient", false) } catch let e as ProtonError { check("smtp refused recipient", e.code == "protocol") } catch { check("smtp refused recipient", false) }
 do {
   var pinned = cfg; pinned.fingerprint = "aa11"
   let b = smtpServer(fingerprint: "ffff")
@@ -258,11 +259,72 @@ do {
 }
 do {
   let b = smtpServer(); b.dead = true
-  _ = try ProtonSmtp.send(b, config: cfg, reply: rep)
+  _ = try ProtonSmtp.send(b, config: scfg, reply: rep)
   check("smtp bridge down", false)
 } catch let e as ProtonError { check("smtp bridge down", e == .bridgeDown || e == .timeout) } catch { check("smtp bridge down", false) }
 
+do {
+  let b = smtpServer()
+  _ = try ProtonSmtp.send(b, config: cfg, reply: rep)
+  check("smtp with no pin refuses", false)
+} catch let e as ProtonError { check("smtp with no pin refuses before AUTH", e == .certChanged) } catch { check("smtp no pin", false) }
+// A lost answer after the final dot: "may have gone", not "Not sent".
+do {
+  var seenDot = false
+  let lost = FakeBridge(greeting: "220 127.0.0.1 ESMTP Bridge\r\n") { line, me in
+    if seenDot { return "" }
+    if line.hasPrefix("EHLO") { return "250-127.0.0.1\r\n250-STARTTLS\r\n250 AUTH PLAIN\r\n" }
+    if line == "STARTTLS" { return "220 go\r\n" }
+    if line.hasPrefix("AUTH PLAIN") { return "235 ok\r\n" }
+    if line.hasPrefix("MAIL FROM") || line.hasPrefix("RCPT TO") { return "250 ok\r\n" }
+    if line == "DATA" { return "354 go\r\n" }
+    if line == "." { seenDot = true; return "" }
+    return ""
+  }
+  lost.fingerprint = "aa11"
+  _ = try ProtonSmtp.send(lost, config: scfg, reply: rep)
+  check("lost answer after the dot", false)
+} catch let e as ProtonError { check("lost answer after the dot is maybeSent", e == .maybeSent && e.code == "maybeSent", "\(e)") } catch { check("maybeSent", false) }
 check("dot stuffing", ProtonSmtp.stuff("a\r\n.b\r\n.\r\nc") == "a\r\n..b\r\n..\r\nc" && ProtonSmtp.stuff(".x") == "..x")
+
+// ---------- review fixes ----------
+check("key with UIDVALIDITY differs per validity", ProtonParse.key(msgId: nil, uid: 5, validity: 11) == "u11-5" && ProtonParse.key(msgId: nil, uid: 5, validity: 12) != ProtonParse.key(msgId: nil, uid: 5, validity: 11))
+check("uidvalidity parsed", ProtonParse.uidValidity(["* 12 EXISTS", "* OK [UIDVALIDITY 3857529045] UIDs valid"]) == 3857529045 && ProtonParse.uidValidity(["* 1 EXISTS"]) == 0)
+let longRefs = (1...40).map { "<id\($0)@client.example>" }.joined(separator: " ") + " <caf\u{e9}@client.example> bad"
+let cl = ProtonReply.cleanRefs(longRefs)!
+check("references: ASCII ids only, last five", cl.split(separator: " ").count == 5 && cl.utf8.allSatisfy { $0 < 128 } && cl.hasSuffix("<id40@client.example>") && cl.count < 400)
+check("references: none left is nil", ProtonReply.cleanRefs("garbage") == nil && ProtonReply.cleanRefs(nil) == nil)
+do {   // an oversize literal stops the check instead of reading its bytes as lines
+  let big = FakeBridge(greeting: "* OK Bridge\r\n") { line, me in
+    let tag = line.split(separator: " ").first.map(String.init) ?? ""
+    let cmd = String(line.dropFirst(tag.count + 1))
+    if cmd == "STARTTLS" { return "\(tag) OK go\r\n" }
+    if cmd == "CAPABILITY" { return "\(tag) OK\r\n" }
+    if cmd.hasPrefix("LOGIN") { return "\(tag) OK\r\n" }
+    if cmd.hasPrefix("EXAMINE") { return "* 1 EXISTS\r\n\(tag) OK\r\n" }
+    if cmd.hasPrefix("UID SEARCH") { return "* SEARCH 4\r\n\(tag) OK\r\n" }
+    if cmd.hasPrefix("UID FETCH") { return "* 1 FETCH (UID 4 BODY[TEXT]<0> {9000000}\r\n" }
+    return "\(tag) OK\r\n"
+  }
+  big.fingerprint = "aa11"
+  _ = try ProtonImap.unread(big, config: scfg)
+  check("oversize literal stops the check", false)
+} catch let e as ProtonError { check("oversize literal stops the check", e == .protocolError("literal too big"), "\(e)") } catch { check("oversize literal", false, "\(error)") }
+// One pending check only: ten wakes and a Check now never add a second chain.
+do {
+  let tq = DispatchQueue(label: "t.timer")
+  let tm = ProtonSingleTimer(queue: tq)
+  var fired = 0
+  let lockT = NSLock()
+  func check_() { lockT.lock(); fired += 1; lockT.unlock(); tm.schedule(after: 0.25, check_) }   // a check always schedules its next one
+  tq.async { for _ in 0..<10 { check_() } }   // ten wakes, each starts a check
+  Thread.sleep(forTimeInterval: 1.1)
+  tq.sync { tm.cancel() }
+  lockT.lock(); let n = fired; lockT.unlock()
+  // 10 immediate runs of check_ count 10, then one chain: ~4 more fires in 1.1s (not 10 per interval).
+  check("ten wakes still mean one chain a tick", n <= 10 + 5 && n >= 10 + 3, "\(n)")
+}
+check("wake gap: a wake right after a check does nothing", !ProtonSchedule.wakeDue(lastStart: 1_000_000, now: 1_005_000) && ProtonSchedule.wakeDue(lastStart: 1_000_000, now: 1_040_000))
 
 // ---------- Done list and schedule ----------
 var dis = ProtonDismissed()

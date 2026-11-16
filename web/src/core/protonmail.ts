@@ -84,6 +84,7 @@ export const PROTON_PROBLEMS: Record<string, string> = {
   protocol: "Bridge answered something PS did not expect. PS tries again by itself.",
   keychain: "The Mac would not keep the password in the Keychain. Try again.",
   noLink: "Proton Mail is not linked.",
+  maybeSent: "Bridge took the reply but its answer never came. It may have gone. Check the Sent folder in Proton before you send it again.",
   gone: "That email is no longer in the inbox.",
 };
 export const protonProblemWords = (code: string | null | undefined): string => (code && PROTON_PROBLEMS[code]) || "";

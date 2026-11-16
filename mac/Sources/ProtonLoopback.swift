@@ -13,9 +13,17 @@ final class LoopbackTransport: ProtonTransport {
   private var buf = Data()
   private var tlsOn = false
   private var fd: Int32 = -1
+  private let timeout: TimeInterval
+  private let lock = NSLock()
+  private var timedOut = false
+  private var closed = false
+  private let wd = DispatchQueue(label: "ps.proton.watchdog", qos: .utility)
+  private let opEnd: Date             // the whole connection may not take longer than this, however slowly the other end trickles
 
   init(host: String, port: Int, timeout: TimeInterval = 15) throws {
     guard let h = ProtonGuard.loopback(host), ProtonGuard.validPort(port) else { throw ProtonError.notLoopback }
+    self.timeout = timeout
+    opEnd = Date().addingTimeInterval(max(timeout * 4, 20))
     var r: Unmanaged<CFReadStream>?, w: Unmanaged<CFWriteStream>?
     CFStreamCreatePairWithSocketToHost(nil, h as CFString, UInt32(port), &r, &w)
     guard let read = r?.takeRetainedValue(), let write = w?.takeRetainedValue() else { throw ProtonError.bridgeDown }
@@ -36,18 +44,38 @@ final class LoopbackTransport: ProtonTransport {
     }
   }
 
+  /// SO_RCVTIMEO is not honoured by every CFStream read, so a watchdog does the real timing: when a read or write has waited
+  /// too long it shuts the socket and closes the streams, which wakes the blocked call. Returns the cancel handle.
+  private func arm() -> DispatchWorkItem {
+    let left = max(0.05, min(timeout, opEnd.timeIntervalSinceNow))
+    let w = DispatchWorkItem { [weak self] in
+      guard let self else { return }
+      self.lock.lock(); self.timedOut = true; self.lock.unlock()
+      // Shutting the socket wakes a blocked read or write at once (closing a stream another thread is blocked in can deadlock).
+      if self.fd >= 0 { shutdown(self.fd, SHUT_RDWR) } else { self.input.close(); self.output.close() }
+    }
+    wd.asyncAfter(deadline: .now() + left, execute: w)
+    return w
+  }
+  private var didTimeOut: Bool { lock.lock(); defer { lock.unlock() }; return timedOut }
+
   func send(_ data: Data) throws {
+    if didTimeOut { throw ProtonError.timeout }
+    let w = arm(); defer { w.cancel() }
     var sent = 0
     let all = [UInt8](data)
     while sent < all.count {
       let n = all[sent...].withUnsafeBufferPointer { output.write($0.baseAddress!, maxLength: $0.count) }
-      if n <= 0 { throw output.streamError != nil || n < 0 ? ProtonError.timeout : ProtonError.bridgeDown }
+      if n <= 0 { throw didTimeOut || output.streamError != nil || n < 0 ? ProtonError.timeout : ProtonError.bridgeDown }
       sent += n
     }
   }
   private func fill() throws {
+    if didTimeOut { throw ProtonError.timeout }
     var chunk = [UInt8](repeating: 0, count: 16384)
+    let w = arm(); defer { w.cancel() }
     let n = input.read(&chunk, maxLength: chunk.count)
+    if didTimeOut { throw ProtonError.timeout }       // the watchdog woke us: Bridge accepted and then said nothing
     if n == 0 { throw ProtonError.bridgeDown }       // the other end closed
     if n < 0 { throw ProtonError.timeout }
     buf.append(contentsOf: chunk[0..<n])
@@ -80,14 +108,24 @@ final class LoopbackTransport: ProtonTransport {
     tlsOn = true
     buf.removeAll()
   }
+  /// TLS 1.2 or newer: a lower version is treated like an unknown certificate (the check stops before any password is sent).
+  private func tlsAtLeast12() -> Bool {
+    guard let any = CFReadStreamCopyProperty(rs, CFStreamPropertyKey(rawValue: kCFStreamPropertySSLContext)), CFGetTypeID(any) == SSLContextGetTypeID() else { return true }   // cannot read it: the pin still decides
+    var v = SSLProtocol.sslProtocolUnknown
+    guard SSLGetNegotiatedProtocolVersion(any as! SSLContext, &v) == errSecSuccess else { return true }
+    return v == .tlsProtocol12 || v == .tlsProtocol13
+  }
   func peerFingerprint() -> String? {
-    guard tlsOn, let any = CFReadStreamCopyProperty(rs, CFStreamPropertyKey(rawValue: kCFStreamPropertySSLPeerTrust)), CFGetTypeID(any) == SecTrustGetTypeID() else { return nil }
+    guard tlsOn, tlsAtLeast12(), let any = CFReadStreamCopyProperty(rs, CFStreamPropertyKey(rawValue: kCFStreamPropertySSLPeerTrust)), CFGetTypeID(any) == SecTrustGetTypeID() else { return nil }
     let trust = any as! SecTrust
     let cert: SecCertificate?
     if #available(macOS 12.0, *) { cert = (SecTrustCopyCertificateChain(trust) as? [SecCertificate])?.first } else { cert = SecTrustGetCertificateAtIndex(trust, 0) }
     guard let c = cert else { return nil }
     return ProtonPin.fingerprint(SecCertificateCopyData(c) as Data)
   }
-  func close() { input.close(); output.close() }
+  func close() {
+    lock.lock(); let was = closed; closed = true; lock.unlock()
+    if !was { input.close(); output.close() }
+  }
 }
 

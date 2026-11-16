@@ -2,7 +2,7 @@
 # A fake mail server for tests/proton-transport-test.sh. Listens on 127.0.0.1 only, on a free port, speaks just enough IMAP
 # (STARTTLS, LOGIN, EXAMINE, SEARCH, FETCH) or SMTP to exercise PS's connection code, with a throwaway self signed certificate.
 # It is not a real mail server and nothing in it is a real account. Usage: proton-fake-server.py imap|smtp CERT KEY PORTFILE
-import socket, ssl, sys, threading
+import socket, ssl, sys, threading, time
 
 mode, cert, key, portfile = sys.argv[1:5]
 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -26,6 +26,14 @@ def lines(c):
 
 def serve(c):
     try:
+        if mode == "silent":
+            time.sleep(60); return           # Bridge during its first sync: accepts and says nothing
+        if mode == "silenttls":
+            c.sendall(b"* OK fake imap ready\r\n")
+            for l in lines(c):
+                tag, _, cmd = l.partition(" ")
+                if cmd == "STARTTLS":
+                    c.sendall(f"{tag} OK go\r\n".encode()); c = ctx.wrap_socket(c, server_side=True); time.sleep(60); return
         if mode == "imap":
             c.sendall(b"* OK fake imap ready\r\n")
             for l in lines(c):

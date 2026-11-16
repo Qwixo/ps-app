@@ -12,7 +12,7 @@ swiftc -Onone -target arm64-apple-macos13 "$HERE/Sources/ProtonBridgeCore.swift"
 # a port nothing listens on
 DEAD=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
 PIDS=""
-for mode in imap smtp; do
+for mode in imap smtp silent silenttls; do
   python3 "$HERE/tests/proton-fake-server.py" $mode "$OUT/c.pem" "$OUT/k.pem" "$OUT/$mode.port" & PIDS="$PIDS $!"
   for i in $(seq 1 50); do [ -s "$OUT/$mode.port" ] && break; sleep 0.1; done
   timeout 60 "$OUT/t" $mode "$(cat "$OUT/$mode.port")" "$DEAD"

@@ -67,6 +67,7 @@ enum ProtonError: Error, Equatable {
   case certChanged           // Bridge's certificate is not the one pinned at the first link
   case protocolError(String)
   case timeout
+  case maybeSent             // the mail was handed to Bridge but its answer was lost: it may have gone, check Sent
 
   /// A short code the page turns into words (web core/protonmail.ts PROTON_WORDS). Never carries a password or an address.
   var code: String {
@@ -77,6 +78,7 @@ enum ProtonError: Error, Equatable {
     case .certChanged: return "certChanged"
     case .protocolError: return "protocol"
     case .timeout: return "timeout"
+    case .maybeSent: return "maybeSent"
     }
   }
 }
@@ -293,14 +295,24 @@ enum ProtonParse {
     return out.count <= max ? out : String(out.prefix(max)).trimmingCharacters(in: .whitespaces) + "..."
   }
 
+  /// The UIDVALIDITY number from the EXAMINE answer lines ("* OK [UIDVALIDITY 1234] ..."), 0 when absent.
+  static func uidValidity(_ lines: [String]) -> Int {
+    for l in lines {
+      if let r = l.range(of: #"\[UIDVALIDITY (\d{1,12})\]"#, options: [.regularExpression, .caseInsensitive]) {
+        return Int(l[r].dropFirst(13).dropLast()) ?? 0
+      }
+    }
+    return 0
+  }
+
   /// A short stable key for one email: its Message-ID hashed, else the uid.
-  static func key(msgId: String?, uid: Int) -> String {
+  static func key(msgId: String?, uid: Int, validity: Int = 0) -> String {
     let base = (msgId ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "<> ")).lowercased()
-    if base.isEmpty { return "u\(uid)" }
+    if base.isEmpty { return validity > 0 ? "u\(validity)-\(uid)" : "u\(uid)" }   // a uid alone can be reused after a UIDVALIDITY change
     #if canImport(CryptoKit)
     return "h" + SHA256.hash(data: Data(base.utf8)).prefix(10).map { String(format: "%02x", $0) }.joined()
     #else
-    return "u\(uid)"
+    return validity > 0 ? "u\(validity)-\(uid)" : "u\(uid)"
     #endif
   }
 
@@ -379,14 +391,14 @@ enum ProtonParse {
     return out
   }
 
-  static func row(_ f: Fetched, now: Date = Date()) -> ProtonRow? {
+  static func row(_ f: Fetched, now: Date = Date(), validity: Int = 0) -> ProtonRow? {
     let h = headers(f.header)
     let from = address(h["from"] ?? "")
     guard let email = from.email, ProtonText.validEmail(email) else { return nil }
     let msgId = h["message-id"].map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "<> ")) }.flatMap { $0.isEmpty ? nil : $0 }
     let iso = h["date"].flatMap { date($0) } ?? ISO8601DateFormatter().string(from: now)
     let subj = ProtonText.collapse(ProtonText.decodeWords(h["subject"] ?? ""))
-    return ProtonRow(key: key(msgId: msgId, uid: f.uid), uid: f.uid, from: email, fromName: from.name.map { ProtonText.collapse($0) }.flatMap { $0.isEmpty ? nil : String($0.prefix(120)) },
+    return ProtonRow(key: key(msgId: msgId, uid: f.uid, validity: validity), uid: f.uid, from: email, fromName: from.name.map { ProtonText.collapse($0) }.flatMap { $0.isEmpty ? nil : String($0.prefix(120)) },
                      subject: String((subj.isEmpty ? "(no subject)" : subj).prefix(300)), snippet: snippet(headers: h, body: f.body),
                      date: iso, msgId: msgId, refs: h["references"])
   }
@@ -411,8 +423,11 @@ enum ProtonImap {
       while true {
         var line = try t.readLine()
         raw.append(Data((line + "\r\n").utf8))
+        guard raw.count <= 8_000_000 else { throw ProtonError.protocolError("answer too big") }
         // A literal: {n} at the end of a line, then n bytes, then the rest of the line.
-        while let r = line.range(of: #"\{(\d+)\}$"#, options: .regularExpression), let size = Int(line[r].dropFirst().dropLast()), size <= 4_000_000 {
+        while let r = line.range(of: #"\{(\d+)\}$"#, options: .regularExpression), let size = Int(line[r].dropFirst().dropLast()) {
+          // A literal that is not read would be read as lines afterwards (out of step): stop instead.
+          guard size <= 4_000_000, raw.count + size <= 8_000_000 else { throw ProtonError.protocolError("literal too big") }
           raw.append(try t.readBytes(size))
           line = try t.readLine()
           raw.append(Data((line + "\r\n").utf8))
@@ -440,6 +455,7 @@ enum ProtonImap {
     guard login.status.hasPrefix("OK") else { throw ProtonError.badPassword }
     let ex = try command("EXAMINE INBOX")
     guard ex.status.hasPrefix("OK") else { throw ProtonError.protocolError("inbox") }
+    let validity = ProtonParse.uidValidity(ex.lines)
     let se = try command("UID SEARCH UNSEEN")
     guard se.status.hasPrefix("OK") else { throw ProtonError.protocolError("search") }
     let uids = Array(ProtonParse.searchUids(se.lines).sorted().suffix(max(1, min(limit, 100))))
@@ -448,7 +464,7 @@ enum ProtonImap {
       let set = uids.map(String.init).joined(separator: ",")
       let f = try command("UID FETCH \(set) (UID BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE MESSAGE-ID REFERENCES CONTENT-TYPE CONTENT-TRANSFER-ENCODING)] BODY.PEEK[TEXT]<0.4000>)")
       guard f.status.hasPrefix("OK") else { throw ProtonError.protocolError("fetch") }
-      rows = ProtonParse.fetches(f.raw).compactMap { ProtonParse.row($0) }
+      rows = ProtonParse.fetches(f.raw).compactMap { ProtonParse.row($0, validity: validity) }
     }
     _ = try? command("LOGOUT")
     return Result(rows: rows.sorted { $0.date > $1.date }, pinned: pinned)
@@ -470,7 +486,14 @@ struct ProtonReply: Equatable {
           let text = o["text"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.count <= 60_000 else { return nil }
     let subj = ProtonText.oneLine((o["subject"] as? String) ?? "")
     func id(_ k: String) -> String? { (o[k] as? String).map { ProtonText.oneLine($0).trimmingCharacters(in: CharacterSet(charactersIn: "<> ")) }.flatMap { $0.isEmpty || $0.contains(" ") || $0.count > 200 ? nil : $0 } }
-    return ProtonReply(to: to, subject: String(subj.prefix(300)), text: text, inReplyTo: id("inReplyTo"), references: (o["references"] as? String).map { ProtonText.oneLine($0) }.map { String($0.prefix(900)) })
+    return ProtonReply(to: to, subject: String(subj.prefix(300)), text: text, inReplyTo: id("inReplyTo"), references: ProtonReply.cleanRefs(o["references"] as? String))
+  }
+  /// Message ids only: ASCII, no spaces inside an id, the last few kept, so the header line stays far under 998 characters.
+  static func cleanRefs(_ raw: String?) -> String? {
+    guard let raw else { return nil }
+    let ids = ProtonText.oneLine(raw).split(separator: " ").map(String.init).filter { $0.hasPrefix("<") && $0.hasSuffix(">") && $0.count <= 200 && $0.utf8.allSatisfy { $0 > 32 && $0 < 127 } }
+    let last = ids.suffix(5)
+    return last.isEmpty ? nil : last.joined(separator: " ")
   }
   var replySubject: String { subject.lowercased().hasPrefix("re:") ? subject : "Re: \(subject.isEmpty ? "(no subject)" : subject)" }
 
@@ -512,7 +535,7 @@ enum ProtonSmtp {
     try t.startTLS()
     try say("EHLO ps.local"); guard try answer().code == 250 else { throw ProtonError.protocolError("ehlo") }   // finishes the handshake, nothing secret in it
     guard let seen = t.peerFingerprint() else { throw ProtonError.certChanged }
-    guard ProtonPin.decide(stored: c.fingerprint, seen: seen) != .changed else { throw ProtonError.certChanged }
+    guard c.fingerprint != nil, ProtonPin.decide(stored: c.fingerprint, seen: seen) == .ok else { throw ProtonError.certChanged }   // no pin yet: an IMAP check pins first, nothing is sent to an unknown certificate
     let auth = Data(("\0" + c.user + "\0" + c.password).utf8).base64EncodedString()
     try say("AUTH PLAIN " + auth)
     let a = try answer()
@@ -524,7 +547,9 @@ enum ProtonSmtp {
     // Dot stuffing: a line that starts with "." gets a second one.
     let stuffed = stuff(body)
     try t.send(Data((stuffed + (stuffed.hasSuffix("\r\n") ? "" : "\r\n") + ".\r\n").utf8))
-    guard try answer().code == 250 else { throw ProtonError.protocolError("not accepted") }
+    let fin: (code: Int, text: String)
+    do { fin = try answer() } catch { throw ProtonError.maybeSent }   // the mail was handed over, the answer never came: it may have gone
+    guard fin.code == 250 else { throw ProtonError.protocolError("not accepted") }
     _ = try? say("QUIT")
     return id
   }
@@ -545,7 +570,26 @@ struct ProtonDismissed: Codable, Equatable {
 
 // MARK: - how often to look
 
+/// The ONE pending check. Every schedule() call replaces the one before, so wakes, "Check now" and "Trust the new one" can
+/// never add a second polling chain. Use it on one queue only.
+final class ProtonSingleTimer {
+  private let q: DispatchQueue
+  private var token = 0
+  init(queue: DispatchQueue) { q = queue }
+  func schedule(after s: TimeInterval, _ fire: @escaping () -> Void) {
+    token += 1
+    let t = token
+    q.asyncAfter(deadline: .now() + s) { [weak self] in
+      guard let self, t == self.token else { return }
+      fire()
+    }
+  }
+  func cancel() { token += 1 }
+}
+
 enum ProtonSchedule {
+  /// A wake only triggers a check when the last one began a while ago (ten wakes in a row are one check).
+  static func wakeDue(lastStart: Double, now: Double, minGapMs: Double = 30_000) -> Bool { now - lastStart >= minGapMs }
   /// Seconds until the next check: a minute while all is well (the panel's own pace), longer while Bridge is down or the
   /// password or certificate is wrong (asking again every minute cannot fix those), and never while the page says stop.
   static func next(after failure: ProtonError?, failures: Int) -> TimeInterval {
