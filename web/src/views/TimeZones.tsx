@@ -32,6 +32,7 @@ import { calendarDocs, remindRec, settingsData, todos } from "../core/select";
 import { meetingEvents } from "../core/calpick";
 import { FREE_LENGTHS, FREE_LEN_DEF, calendarCovers, checkFree, clashName, eventBlocks, lenShort, lenWords, taskBlocks, type Busy, type FreeLen } from "../core/tzfree";
 import type { PersonEntry } from "../core/tzpeople";
+import { panelMountsStill } from "../core/tzpinned";
 import "./tz.css";
 import "./tz-people.css";
 import "./tz-zones.css";
@@ -67,11 +68,19 @@ export function TimeZones({ scale, slider }: { scale: number; slider: React.Reac
   useEffect(() => { setPinNow(null); }, [savedPin]);
   const pinned = pinNow ?? savedPin;
   const open = hover || (pinned && shown);
+  // V1.65 (the developer's friend: "I don't want that weird animation where you swipe to a different page and then the time
+  // zones expand in front of you. It should already be expanded."): the loop out plays only when YOU open it (hover, the
+  // pin click, Find). A kept open panel that comes with its page is drawn open from its first frame (core/tzpinned.ts).
+  const youOpened = useRef(false);
+  const [calm, setCalm] = useState(() => pinned);   // came with the page already kept open: its pin does not pop in either
+  if (!open) youOpened.current = false;
+  const instant = panelMountsStill(pinned, youOpened.current);
   const pinnedRef = useRef(pinned);
   pinnedRef.current = pinned;
   const togglePin = () => {
     const next = !pinned;
     sfx.click();
+    youOpened.current = true; setCalm(false);
     setPinNow(next);
     if (save) save({ open: next }); else setOwnPin(next);
     if (next) setOpen(true);
@@ -80,7 +89,7 @@ export function TimeZones({ scale, slider }: { scale: number; slider: React.Reac
   const box = useRef<HTMLDivElement>(null);
   const timer = useRef(0);
   const inside = useRef(false);
-  const enter = () => { inside.current = true; window.clearTimeout(timer.current); setOpen(true); };
+  const enter = () => { inside.current = true; youOpened.current = true; window.clearTimeout(timer.current); setOpen(true); };
   const leave = () => {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
@@ -103,6 +112,7 @@ export function TimeZones({ scale, slider }: { scale: number; slider: React.Reac
       if (a && !box.current?.contains(a) && (a.isContentEditable || a.tagName === "TEXTAREA" || a.closest(".nt-win, [role='dialog']:not(.tm-overlay), .scrim, .sm-overlay"))) return;
       e.preventDefault(); e.stopPropagation();
       sfx.hover();
+      youOpened.current = true;
       window.clearTimeout(timer.current);
       setOpen(true);
       setFindReq((n) => n + 1);
@@ -111,10 +121,10 @@ export function TimeZones({ scale, slider }: { scale: number; slider: React.Reac
     return () => window.removeEventListener("keydown", key, true);
   }, []);
   return (
-    <div ref={box} className={`tm-ckdock${open ? " open" : ""}${pinned ? " pinned" : ""}`} onMouseEnter={enter} onMouseLeave={() => { inside.current = false; leave(); }}
+    <div ref={box} className={`tm-ckdock${open ? " open" : ""}${pinned ? " pinned" : ""}${calm ? " calm" : ""}`} onMouseEnter={enter} onMouseLeave={() => { inside.current = false; leave(); }}
       onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node)) leave(); }} onMouseDown={(e) => e.stopPropagation()}>
       <ClockPill pinned={pinned} onToggle={togglePin} />
-      {open && <Panel scale={scale} slider={slider} findReq={findReq} pinned={pinned} onTogglePin={togglePin} />}
+      {open && <Panel scale={scale} slider={slider} findReq={findReq} pinned={pinned} onTogglePin={togglePin} instant={instant} />}
     </div>
   );
 }
@@ -149,7 +159,8 @@ function ClockPill({ pinned, onToggle }: { pinned: boolean; onToggle: () => void
 }
 
 type Spot = { p: Found; at: number };
-function Panel({ scale, slider, findReq, pinned, onTogglePin }: { scale: number; slider: React.ReactNode; findReq: number; pinned: boolean; onTogglePin: () => void }) {
+function Panel({ scale, slider, findReq, pinned, onTogglePin, instant }: { scale: number; slider: React.ReactNode; findReq: number; pinned: boolean; onTogglePin: () => void; instant: boolean }) {
+  const [still] = useState(instant);   // decided when the panel is first drawn, never changes while it stays
   const now = useNow();
   const home = homeTz();
   const mine = offsetMin(now, home);
@@ -381,7 +392,7 @@ function Panel({ scale, slider, findReq, pinned, onTogglePin }: { scale: number;
   const spotOff = spot?.p.tz && landed ? offsetMin(now, spot.p.tz) : null;
   return (
     <>
-      <aside ref={aside} className="tm-clocks" style={{ ["--ck" as string]: scale / 100 }} aria-label="Time zones">
+      <aside ref={aside} className={`tm-clocks${still ? " still" : ""}`} style={{ ["--ck" as string]: scale / 100 }} aria-label="Time zones">
         <div className="tm-ck-head">
           <span className="tm-panel-h">Time zones</span>
           <span className="tz-head-b">
