@@ -192,6 +192,7 @@ enum UpdateHandoff {
       ProtonBridge.handoffSave(proton)
       if TaskApi.handoffSave(taskapi) { psLog("PS update: AI task API key handed over") }
       AssistService.handoffSave(assist)
+      Outsource.handoffSave(o["outsource"] as? String)   // Outsource work to your other computer: the pairing key (PS 1.65)
       if let c = o["srcloud"] as? [String: String] { ScreenRecCloud.handoffSave(c) }   // screen recorder cloud: logins and the sealing key (PS 1.60)
     }
     _ = writeLine(fd, #"{"saved":true}"#)
@@ -243,6 +244,7 @@ enum UpdateHandoff {
       if let p = ProtonBridge.handoffCollect() { o["proton"] = p }   // Proton Mail through Bridge: the link, so it keeps reading after the update
       if let k = TaskApi.handoffCollect() { o["taskapi"] = k }   // AI task API: the key, so AI tools keep working after the update
       if let a = AssistService.handoffCollect() { o["assist"] = a }   // Settings assistant: the API keys, so they survive the update
+      if let k = Outsource.handoffCollect() { o["outsource"] = k }   // Outsource work to your other computer: the pairing key, so it never pairs again
       let src = ScreenRecCloud.handoffCollect()   // screen recorder cloud: logins and the sealing key, so sealed recordings still open after the update
       if !src.isEmpty { o["srcloud"] = src }
     }

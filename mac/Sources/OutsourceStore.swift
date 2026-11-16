@@ -1,79 +1,91 @@
 // Outsource work to your other computer (PS 1.65), what this Mac keeps on disk. Foundation and Security only.
-// - OutKeep: the page's pairing record. The private half (a blob the page already sealed, opaque here) goes in the
-//   Keychain under a FIXED service and account (never the app version, never the build), with a 0600 copy in the PS
-//   folder as the way back: a self signed build cannot always read an older build's Keychain item without macOS
-//   asking, so a read that fails quietly falls back to the file and puts the item back. Pairing is never lost
-//   across updates or restarts. The rest of the record is a plain file (public keys, names, ids).
+// - OutKeep: the page's pairing record. The private half lives ONLY in the Keychain: this build's own item (named after the build,
+//   like the sign in, Remember.swift) is handed to the next build at every update (UpdateHandoff.swift, "outsource"), so an update
+//   never asks for a password and never asks to pair again. A copy under one fixed name is the second way back (a build that
+//   was installed by hand, with no hand over); it is read quietly and only ever fails quietly. Never a file: an AI working on
+//   this computer as the same person could read a file. The rest of the record (ids, names, public keys, the replay list,
+//   the phones allowed to restart it) is a plain 0600 file in the PS folder: nothing in it is secret.
 // - OutLanding: a result bundle arriving in pieces on the main computer. Each piece is checked in order, the whole is
 //   checked against its size and SHA-256, and only then does it get its real name. Nothing is ever merged or applied.
 import Foundation
 import Security
 
-final class OutKeep {
-  static let service = "com.cincee.ps.outsource"     // stable on purpose
-  static let account = "pairing-private"
-  let dir: String
-  let useKeychain: Bool
-  private let fm = FileManager.default
-  init(dir: String, useKeychain: Bool = true) { self.dir = dir; self.useKeychain = useKeychain }
+/// The Keychain side, kept apart so tests use a folder instead (never the real Keychain).
+protocol OutSecretStore { func read() -> String?; @discardableResult func write(_ s: String) -> Bool; func delete() }
 
-  private var recordPath: String { dir + "/keep.json" }
-  private var privPath: String { dir + "/keep.priv" }
-
-  private var kcBase: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: Self.service, kSecAttrAccount as String: Self.account] }
-
-  private func kcRead() -> String? {
-    guard useKeychain else { return nil }
-    var q = KeychainQuiet.never(kcBase); q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
+final class OutKeychain: OutSecretStore {
+  static let service = "com.cincee.ps.outsource"     // fixed on purpose
+  static let fixedAccount = "pairing"
+  let account: String
+  init(build: String) { account = "pairing-" + build }
+  private func base(_ acct: String) -> [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: Self.service, kSecAttrAccount as String: acct] }
+  private func readOne(_ acct: String) -> String? {
+    var q = KeychainQuiet.never(base(acct)); q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
     var out: CFTypeRef?
-    guard KeychainQuiet.run({ SecItemCopyMatching(q as CFDictionary, &out) }) == errSecSuccess, let d = out as? Data else { return nil }
-    return String(data: d, encoding: .utf8)
+    guard KeychainQuiet.run({ SecItemCopyMatching(q as CFDictionary, &out) }) == errSecSuccess, let d = out as? Data, let s = String(data: d, encoding: .utf8), !s.isEmpty else { return nil }
+    return s
   }
-  @discardableResult private func kcWrite(_ s: String) -> Bool {
-    guard useKeychain else { return false }
+  private func writeOne(_ acct: String, _ s: String) -> Bool {
     let d = Data(s.utf8)
-    if KeychainQuiet.run({ SecItemUpdate(KeychainQuiet.never(kcBase) as CFDictionary, [kSecValueData as String: d] as CFDictionary) }) == errSecSuccess { return true }
-    var q = KeychainQuiet.never(kcBase)
+    if KeychainQuiet.run({ SecItemUpdate(KeychainQuiet.never(base(acct)) as CFDictionary, [kSecValueData as String: d] as CFDictionary) }) == errSecSuccess { return true }
+    var q = KeychainQuiet.never(base(acct))
     q[kSecValueData as String] = d
     q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
     q[kSecAttrSynchronizable as String] = false
-    q[kSecAttrLabel as String] = "PS outsource pairing (sealed, this Mac only)"
+    q[kSecAttrLabel as String] = "PS outsource pairing key (this Mac only)"
     return KeychainQuiet.run { SecItemAdd(q as CFDictionary, nil) } == errSecSuccess
   }
-  private func kcDelete() { if useKeychain { _ = KeychainQuiet.run { SecItemDelete(KeychainQuiet.never(kcBase) as CFDictionary) } } }
+  /// This build's item first, then the fixed one (put back as this build's own when found).
+  func read() -> String? {
+    if let s = readOne(account) { return s }
+    if let s = readOne(Self.fixedAccount) { _ = writeOne(account, s); return s }
+    return nil
+  }
+  @discardableResult func write(_ s: String) -> Bool { let a = writeOne(account, s); _ = writeOne(Self.fixedAccount, s); return a }
+  func delete() { for a in [account, Self.fixedAccount] { _ = KeychainQuiet.run { SecItemDelete(KeychainQuiet.never(base(a)) as CFDictionary) } } }
+}
 
-  /// Saves the record. False when the record is not a JSON object or the disk refuses.
+/// Tests only: a 0600 file in a temp folder stands in for the Keychain.
+final class OutFileSecret: OutSecretStore {
+  let path: String
+  init(path: String) { self.path = path }
+  func read() -> String? { (try? String(contentsOfFile: path, encoding: .utf8)).flatMap { $0.isEmpty ? nil : $0 } }
+  @discardableResult func write(_ s: String) -> Bool { (try? s.write(toFile: path, atomically: true, encoding: .utf8)) != nil && chmod(path, 0o600) == 0 }
+  func delete() { try? FileManager.default.removeItem(atPath: path) }
+}
+
+final class OutKeep {
+  let dir: String
+  let secret: OutSecretStore
+  private let fm = FileManager.default
+  init(dir: String, secret: OutSecretStore) { self.dir = dir; self.secret = secret }
+  private var recordPath: String { dir + "/keep.json" }
+
+  /// Saves the record: the private half to the Keychain only, the rest to a file. False when it is not a record or the disk refuses.
   @discardableResult func save(_ record: [String: Any]) -> Bool {
     var rec = record
     let priv = (rec.removeValue(forKey: "priv") as? String) ?? ""
-    guard priv.utf8.count <= 20_000, let d = try? JSONSerialization.data(withJSONObject: rec, options: [.sortedKeys]) else { return false }
+    guard priv.utf8.count <= 20_000, rec["device"] is String, let d = try? JSONSerialization.data(withJSONObject: rec, options: [.sortedKeys]), d.count <= 400_000 else { return false }
     do {
       try fm.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
       try d.write(to: URL(fileURLWithPath: recordPath), options: .atomic)
       chmod(recordPath, 0o600)
-      if !priv.isEmpty {
-        try priv.write(toFile: privPath, atomically: true, encoding: .utf8); chmod(privPath, 0o600)
-        kcWrite(priv)
-      }
-      return true
     } catch { return false }
+    if !priv.isEmpty, secret.read() != priv { return secret.write(priv) }
+    return true
   }
 
-  /// The record with its private blob put back, or nil when never paired. Reads the Keychain without any question.
+  /// The record with its private half put back ("" when the Keychain would not give it without asking), or nil when never paired.
   func load() -> [String: Any]? {
     guard let d = fm.contents(atPath: recordPath), var rec = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else { return nil }
-    var priv = kcRead()
-    if priv == nil, let f = try? String(contentsOfFile: privPath, encoding: .utf8), !f.isEmpty {
-      priv = f
-      kcWrite(f)   // the way back: put the Keychain item back for the next read
-    }
-    rec["priv"] = priv ?? ""
+    rec["priv"] = secret.read() ?? ""
     return rec
   }
+  func forget() { try? fm.removeItem(atPath: recordPath); secret.delete() }
 
-  func forget() {
-    try? fm.removeItem(atPath: recordPath); try? fm.removeItem(atPath: privPath); kcDelete()
-  }
+  /// The update hand over (UpdateHandoff.swift): the private half only; the file stays where it is.
+  func handoffCollect() -> String? { secret.read() }
+  @discardableResult func handoffSave(_ s: String?) -> Bool { guard let s, !s.isEmpty, s.utf8.count <= 20_000 else { return false }; return secret.write(s) }
 }
 
 final class OutLanding {
@@ -82,7 +94,7 @@ final class OutLanding {
   private var plans: [String: Plan] = [:]
   private let fm = FileManager.default
   init(root: String) { self.root = root }
-  static let maxBytes = OutRunner.maxBundle
+  static let maxBytes = 24 * 1024 * 1024   // web BUNDLE_MAX
 
   func folder(_ id: String) -> String { root + "/results/" + id }
 
@@ -136,11 +148,5 @@ final class OutLanding {
     return .failed(why)
   }
 
-  static func sha256(_ path: String) -> String? {
-    let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/shasum"); p.arguments = ["-a", "256", path]
-    let pipe = Pipe(); p.standardOutput = pipe; p.standardError = FileHandle.nullDevice
-    do { try p.run() } catch { return nil }
-    let d = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
-    return String(data: d, encoding: .utf8)?.split(separator: " ").first.map(String.init)
-  }
+  static func sha256(_ path: String) -> String? { OutHash.sha256(path) }
 }

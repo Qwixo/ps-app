@@ -1,10 +1,11 @@
 // Outsource work to your other computer (PS 1.65), the runner that does the job on the OTHER computer.
 // Foundation only (no app, no page): tests run it with a fake `claude` script and a temp git repo.
 // One job at a time on its own serial queue (nothing on the main thread). Every child process starts in its own
-// session so a timeout or a cancel ends the whole tree, not just the first process. The AI works in a git worktree of
-// PS's OWN clone under the PS folder (never the person's own repository), on a fresh branch at the base commit.
-// Walls against pushing: the tool's own deny flags (OutPolicy), a pre-push hook that always fails, a push URL that goes
-// nowhere, refusing stand ins for gh and deploy tools first on PATH, and tokens dropped from the environment.
+// session so a timeout or a cancel ends the whole tree, not just the first process. The AI works in its own copy for the job
+// (a shared clone of PS's OWN cached clone under the PS folder, never the person's own repository), on a fresh branch at the
+// base commit. The whole copy, .git included, sits inside the job folder, so the tool's sandbox (writes only there) still lets
+// it commit. Walls against pushing: OutPolicy (the tool's own sandbox and deny rules, git kept to local folders, a pre-push
+// hook that always fails, a push URL that goes nowhere, refusing stand ins first on PATH, tokens dropped).
 import Foundation
 
 struct OutDone {
@@ -159,6 +160,8 @@ final class OutRunner {
     let t0 = Date()
     let dir = jobDir(job.id), work = dir + "/work"
     prune()
+    // The second wall against a replay (the page keeps the first): a job id that already ran here never runs again.
+    if fm.fileExists(atPath: dir + "/report.json") { return OutDone(id: job.id, state: "failed", report: OutReport(id: job.id, title: job.title, state: "failed", tool: job.tool, branch: "", base: "", head: "", commits: 0, files: [], summary: "", log: "", exit: -1, seconds: 0, note: "This job already ran on this computer."), bundlePath: nil, bundleSha: nil, bundleSize: 0, shotPaths: []) }
     try? fm.removeItem(atPath: dir)
     do { try fm.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]) } catch { return finish(job, state: "failed", note: "Could not make the job folder.", started: t0) }
     func fail(_ note: String) -> OutDone { finish(job, state: "failed", note: note, started: t0) }
@@ -190,9 +193,6 @@ final class OutRunner {
     _ = git(["config", "core.hooksPath", hooks], cwd: clone)
     _ = git(["config", "remote.origin.pushurl", OutPolicy.noPushURL], cwd: clone)
     _ = git(["config", "push.default", "nothing"], cwd: clone)
-    let exclude = clone + "/.git/info/exclude"
-    if let cur = try? String(contentsOfFile: exclude, encoding: .utf8), !cur.contains(".ps-outsource/") { try? (cur + "\n.ps-outsource/\n").write(toFile: exclude, atomically: true, encoding: .utf8) }
-    else if !fm.fileExists(atPath: exclude) { try? fm.createDirectory(atPath: clone + "/.git/info", withIntermediateDirectories: true); try? ".ps-outsource/\n".write(toFile: exclude, atomically: true, encoding: .utf8) }
 
     // 3. The base commit and a fresh branch.
     var sha = ""
@@ -202,10 +202,13 @@ final class OutRunner {
     }
     if sha.isEmpty { return fail("The base commit \(job.base) is not in this computer's copy of the code.") }
     let branch = "outsource/" + job.id
-    _ = git(["worktree", "prune"], cwd: clone)
-    _ = git(["branch", "-D", branch], cwd: clone)
-    let (wc, wt) = git(["worktree", "add", "-b", branch, work, sha], cwd: clone)
+    let (cc, ct) = git(["-c", "protocol.ext.allow=never", "clone", "--shared", "--no-checkout", "--quiet", "--", clone, work], cwd: dir)
+    if cc != 0 { return fail("Could not make the job's copy: " + OutSecrets.tail(ct, 300)) }
+    let (wc, wt) = git(["checkout", "-q", "-b", branch, sha], cwd: work)
     if wc != 0 { return fail("Could not start a branch: " + OutSecrets.tail(wt, 300)) }
+    for (k, v) in [("core.hooksPath", hooks), ("remote.origin.pushurl", OutPolicy.noPushURL), ("push.default", "nothing"), ("user.name", OutPolicy.author), ("user.email", OutPolicy.authorEmail)] { _ = git(["config", k, v], cwd: work) }
+    try? fm.createDirectory(atPath: work + "/.git/info", withIntermediateDirectories: true)
+    try? ".ps-outsource/\n".write(toFile: work + "/.git/info/exclude", atomically: true, encoding: .utf8)
     try? fm.createDirectory(atPath: work + "/.ps-outsource/shots", withIntermediateDirectories: true)
 
     // 4. The AI, with a time limit.
@@ -230,18 +233,23 @@ final class OutRunner {
     let (_, head) = git(["rev-parse", "HEAD"], cwd: work)
     let commits = Int(git(["rev-list", "--count", "\(sha)..HEAD"], cwd: work).1) ?? 0
     let stat = git(["diff", "--stat=100", "\(sha)..HEAD"], cwd: work).1.split(separator: "\n").prefix(30).map { String($0.prefix(120)) }
+    let changed = git(["diff", "--name-only", "\(sha)..HEAD"], cwd: work).1.split(separator: "\n").map(String.init)
+    let secretFiles = changed.filter(OutSecretPaths.isSecret)
 
     var state = res.cancelled ? "cancelled" : res.timedOut ? "timeout" : res.exit == 0 ? "done" : "failed"
     var note = ""
     if res.timedOut { note = "Stopped after \(job.minutes) minutes." } else if res.cancelled { note = "Cancelled from the main computer." } else if res.exit != 0 { note = "\(job.tool) ended with an error (exit \(res.exit))." }
 
     var bundlePath: String?, bundleSha: String?, bundleSize = 0
-    if job.bundle, commits > 0 {
+    if job.bundle, commits > 0, !secretFiles.isEmpty {
+      note += " The result was not sent back: it changes files that look like they hold secrets (\(secretFiles.prefix(3).joined(separator: ", ")))."
+      if state == "done" { state = "failed" }
+    } else if job.bundle, commits > 0 {
       let b = dir + "/result.bundle"
-      let (bc, bt) = git(["bundle", "create", b, branch, "^" + sha], cwd: clone)
-      if bc == 0, git(["bundle", "verify", b], cwd: clone).0 == 0,
+      let (bc, bt) = git(["bundle", "create", b, branch, "^" + sha], cwd: work)
+      if bc == 0, git(["bundle", "verify", b], cwd: work).0 == 0,
          let size = (try? fm.attributesOfItem(atPath: b))?[.size] as? Int {
-        if size <= OutRunner.maxBundle { bundlePath = b; bundleSize = size; bundleSha = OutLanding.sha256(b) }
+        if size <= OutRunner.maxBundle { bundlePath = b; bundleSize = size; bundleSha = OutHash.sha256(b) }
         else { note += " The result is too big to send back (\(size / 1_000_000) MB)."; if state == "done" { state = "failed" } }
       } else { note += " Could not pack the result: " + OutSecrets.tail(bt, 200); if state == "done" { state = "failed" } }
     }
@@ -259,8 +267,7 @@ final class OutRunner {
       }
     }
 
-    // 6. Clean up: the working folder goes, the branch stays in PS's clone, the bundle waits for the page.
-    _ = git(["worktree", "remove", "--force", work], cwd: clone)
+    // 6. Clean up: the job's copy goes, the bundle and the report wait for the page (two days).
     try? fm.removeItem(atPath: work)
 
     let report = OutReport(id: job.id, title: job.title, state: state, tool: job.tool, branch: branch, base: sha, head: head, commits: commits,
@@ -270,7 +277,7 @@ final class OutRunner {
     return OutDone(id: job.id, state: state, report: report, bundlePath: bundlePath, bundleSha: bundleSha, bundleSize: bundleSize, shotPaths: shots)
   }
 
-  static let maxBundle = 64 * 1024 * 1024
+  static let maxBundle = 24 * 1024 * 1024   // web BUNDLE_MAX
   static func cleanName(_ n: String) -> String {
     let s = String(n.unicodeScalars.filter { $0.value > 32 && $0.value < 127 && $0 != "/" && $0 != "\\" }.map(Character.init)).prefix(80)
     return s.isEmpty || s.hasPrefix(".") ? "shot.png" : String(s)

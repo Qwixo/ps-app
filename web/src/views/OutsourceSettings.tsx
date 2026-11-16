@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { sfx } from "../ui/sfx";
 import { fmtSize, seenText, STATE_WORD, jobRunning } from "../core/second";
 import { setOutsourceOn, useOutsource, outsourceFeature } from "../outsourcerun";
-import type { JobRowView, View } from "../core/outsource";
+import type { Engine, JobRowView, View } from "../core/outsource";
 import "./outsource.css";
 
 export const OUTSOURCE_WORDS = {
@@ -34,14 +34,19 @@ function statusPill(v: View): { t: string; c: string } {
 }
 
 export function OutsourceSettings() {
-  const { view: v, engine, on } = useOutsource();
+  const { view, engine, on } = useOutsource();
+  if (!outsourceFeature()) return <p className="os-soft">This is switched off in this build: Settings, G Squad, From the squad.</p>;
+  return <OutsourcePanel v={view} engine={engine} on={on} onSwitch={(x) => void setOutsourceOn(x)} />;
+}
+
+/** The tab itself, drawn from a view and an engine (no vault in here, so it can be shown with a fake engine too). */
+export function OutsourcePanel({ v, engine, on, onSwitch }: { v: View; engine: Engine; on: boolean; onSwitch: (on: boolean) => void }) {
   const [sure, ask] = useSure();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [, setNow] = useState(0);
   useEffect(() => { if (!v.code) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [v.code]);   // the code's countdown, only while one shows
 
-  if (!outsourceFeature()) return <p className="os-soft">This is switched off in this build: Settings, G Squad, From the squad.</p>;
   if (!v.ready) return <p className="os-soft">Loading...</p>;
   const pill = statusPill(v);
   const act = async (f: () => Promise<{ ok: boolean; why: string } | unknown>) => {
@@ -55,7 +60,7 @@ export function OutsourceSettings() {
     <div className="os-wrap">
       <p className="os-intro">{OUTSOURCE_WORDS.intro}</p>
       <div className="os-top">
-        <button type="button" role="switch" aria-checked={on} className={`os-sw big${on ? " on" : ""}`} onClick={() => { sfx.click(); void setOutsourceOn(!on); }}>
+        <button type="button" role="switch" aria-checked={on} className={`os-sw big${on ? " on" : ""}`} onClick={() => { sfx.click(); onSwitch(!on); }}>
           <i aria-hidden="true" /><span>{on ? OUTSOURCE_WORDS.on : OUTSOURCE_WORDS.off}</span>
         </button>
         {on ? <span className={`os-pill ${pill.c}`} role="status">{pill.t}</span> : null}

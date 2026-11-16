@@ -1,6 +1,6 @@
 // Outsource work to your other computer (PS 1.65), the Mac side. The PAGE (web core/second.ts, secondbridge.ts) holds the
 // vault, does all the crypto and checks every signature and expiry; this file only
-//  - keeps the pairing record (OutKeep, fixed Keychain name, survives updates and restarts),
+//  - keeps the pairing record (OutKeep: the private half in the Keychain only, handed to the next build at an update),
 //  - on the OTHER computer: runs a checked job (OutRunner) and gives the result back in pieces for the page to seal,
 //  - on the MAIN computer: lands a verified bundle in a folder (OutLanding) and serves the command line the person's AI
 //    calls (a Unix socket only this person can open, tools/ps-outsource), and
@@ -21,7 +21,11 @@ final class Outsource {
     (ProcessInfo.processInfo.environment["PS_SELFTEST"].map { $0 + "/outsource" })
       ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("PS/outsource", isDirectory: true).path
   }
-  private let keep = OutKeep(dir: Outsource.root, useKeychain: !Outsource.test)
+  private let keep = OutKeep(dir: Outsource.root, secret: Outsource.test ? OutFileSecret(path: Outsource.root + "/test-secret") as OutSecretStore : OutKeychain(build: Remember.account))
+  static var on: Bool { Features.on("second-computer") }
+  /// The update hand over (UpdateHandoff.swift): the pairing's private half, so the next build stays paired with no question.
+  static func handoffCollect() -> String? { test ? nil : shared.keep.handoffCollect() }
+  static func handoffSave(_ s: String?) { if !test, shared.keep.handoffSave(s) { psLog("PS update: outsource pairing handed over") } }
   private let landing = OutLanding(root: Outsource.root)
   private lazy var runner = OutRunner(root: Outsource.root, tools: OutTools.find())
   private let work = DispatchQueue(label: "ps.outsource", qos: .utility)
@@ -39,6 +43,8 @@ final class Outsource {
   /// A page message with type "outsource" (main page only). Called on the main thread.
   func handle(_ msg: [String: Any]) {
     guard let op = msg["op"] as? String else { return }
+    // Switched off in this build: the pairing is kept and handed back, nothing runs, lands or restarts.
+    if !Outsource.on && !["hello", "status", "keep", "forget"].contains(op) { return }
     switch op {
     case "hello":
       pageReady = true
@@ -71,7 +77,7 @@ final class Outsource {
     case "chunk":
       chunk(msg)
     case "restart":
-      restart(msg["kind"] as? String ?? "")
+      restart(msg["kind"] as? String ?? "", id: msg["id"] as? String ?? "", at: (msg["at"] as? NSNumber)?.doubleValue, from: msg["from"] as? String ?? "")
     case "cli-answer":
       if let r = msg["req"] as? String { answerCli(r, ok: (msg["ok"] as? Bool) ?? false, text: (msg["text"] as? String) ?? "", id: msg["id"] as? String) }
     case "island":
@@ -132,7 +138,8 @@ final class Outsource {
     let id = (j["id"] as? String) ?? ""
     func refuse(_ why: String) {
       guard OutSafe.idOk(id) else { return }
-      send(["op": "done", "id": id, "state": "failed", "report": "{\"id\":\"\(id)\",\"state\":\"failed\",\"note\":\"\(why)\"}", "exit": -1])
+      let rep = (try? JSONSerialization.data(withJSONObject: ["id": id, "state": "failed", "note": why])).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+      send(["op": "done", "id": id, "state": "failed", "report": rep, "exit": -1])
     }
     guard role == "other" else { return refuse("This computer is not set up as the other computer.") }
     if Outsource.test { return refuse("A test copy runs no jobs.") }
@@ -191,9 +198,11 @@ final class Outsource {
 
   // MARK: restart through the existing helper (a signed, fresh command the page already checked)
 
-  private func restart(_ kind: String) {
-    guard role == "other", kind == "restart" || kind == "shutdown" else { return }
-    RemoteCommand.shared.run(action: kind, id: "outsource-" + String(Int(Date().timeIntervalSince1970)), from: peerName) { ok, why in
+  /// `at` (epoch ms) is the signed command's own time: the helper refuses one sent before this Mac last started, so an old
+  /// command can never restart it twice. The person sees the usual 10 second Cancel card when someone is using this Mac.
+  private func restart(_ kind: String, id: String, at: Double?, from: String) {
+    guard role == "other", kind == "restart" || kind == "shutdown", OutSafe.idOk(id), let at, at > 0 else { return }
+    RemoteCommand.shared.run(action: kind, id: "outsource-" + id, from: from.isEmpty ? peerName : from, at: at) { ok, why in
       if !ok { psLog("outsource: restart not done: \(why ?? "no reason")") }
     }
   }
@@ -203,7 +212,16 @@ final class Outsource {
   private var socketPath: String { Outsource.root + "/cli.sock" }
 
   private func applyRole() {
-    if role == "main" && !Outsource.test { startCli() } else { stopCli() }
+    if role == "main" && !Outsource.test && Outsource.on { startCli(); installCli() } else { stopCli() }
+  }
+  /// The command line for the person's AI, at <PS folder>/bin/ps-outsource (written only when it changed).
+  private func installCli() {
+    work.async {
+      let dir = Outsource.root + "/bin", path = dir + "/ps-outsource"
+      if (try? String(contentsOfFile: path, encoding: .utf8)) == OutCli.script { return }
+      try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+      if (try? OutCli.script.write(toFile: path, atomically: true, encoding: .utf8)) != nil { chmod(path, 0o755) }
+    }
   }
 
   private static func addr(_ path: String) -> sockaddr_un? {

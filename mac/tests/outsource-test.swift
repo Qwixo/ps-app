@@ -31,7 +31,7 @@ check(OutsourceJob.parse(jobDict(), now: now).0 != nil, "a good job parses")
 check(OutsourceJob.parse(jobDict(["expiresAt": now - 1]), now: now).1 == "expired", "an expired job is refused")
 check(OutsourceJob.parse(jobDict(["id": "../x"]), now: now).1 == "bad id", "a path as id refused")
 check(OutsourceJob.parse(jobDict(["tool": "bash"]), now: now).1 == "bad tool", "an unknown tool refused")
-check(OutsourceJob.parse(jobDict(["minutes": 9999]), now: now).0?.minutes == 120, "minutes capped at 120")
+check(OutsourceJob.parse(jobDict(["minutes": 9999]), now: now).0?.minutes == 240, "minutes capped at 240")
 check(OutsourceJob.parse(jobDict(["minutes": 0]), now: now).0?.minutes == 1, "minutes at least 1")
 check(OutsourceJob.parse(jobDict(["prompt": "use sk-abcdefghijklmnopqrstuvwx to call"]), now: now).1 == "secret in job", "a key in the prompt refused")
 check(OutsourceJob.parse(jobDict(["prompt": ""]), now: now).1 == "bad prompt", "an empty prompt refused")
@@ -59,17 +59,28 @@ check(OutSecrets.tail(String(repeating: "line\n", count: 5000), 100).count <= 10
 
 // Policy
 let ca = OutPolicy.claudeArgs(prompt: "P")
-check(ca.contains("--disallowedTools") && ca.contains("Bash(git push:*)") && ca.contains("Bash(gh:*)") && ca.contains("WebFetch"), "claude deny flags")
+check(ca.contains("--disallowedTools") && ca.contains("Bash(git push:*)") && ca.contains("Bash(gh:*)") && ca.contains("WebSearch"), "claude deny flags")
+check(ca.contains("--strict-mcp-config") && ca.contains("--setting-sources") && ca.contains("--settings"), "no MCP servers, none of the person's own settings, our settings")
+let cs = (try? JSONSerialization.jsonObject(with: Data(OutPolicy.claudeSettings().utf8))) as? [String: Any] ?? [:]
+let sbx = cs["sandbox"] as? [String: Any] ?? [:]
+check(sbx["enabled"] as? Bool == true && sbx["allowUnsandboxedCommands"] as? Bool == false, "claude runs its commands in its sandbox, no way out")
+check(cs["disableAllHooks"] as? Bool == true, "no hooks run")
+let deny = (cs["permissions"] as? [String: Any])?["deny"] as? [String] ?? []
+check(deny.contains("Read(~/.ssh/**)") && deny.contains("Bash(git push:*)") && deny.contains("Bash(curl:*)"), "deny rules in the settings too")
+check(!ca.contains("--dangerously-skip-permissions") && !ca.contains("bypassPermissions"), "never skips permissions")
 check(ca.first == "-p" && ca[1] == "P", "claude headless prompt")
 let xa = OutPolicy.codexArgs(prompt: "P", dir: "/d", lastMessage: "/m")
 check(xa.contains("workspace-write") && !xa.contains("danger-full-access") && !xa.contains("--dangerously-bypass-approvals-and-sandbox"), "codex stays in the workspace sandbox")
+check(xa.contains("sandbox_workspace_write.network_access=false") && xa.contains("mcp_servers={}"), "codex: network off, no MCP servers")
 let env = OutPolicy.env(base: ["PATH": "/usr/bin", "GH_TOKEN": "x", "GITHUB_TOKEN": "y", "SSH_AUTH_SOCK": "z", "GIT_DIR": "/q", "FOO": "bar"], shimDir: "/s", hooksDir: "/h", home: "/home/x")
 check(env["GH_TOKEN"] == nil && env["GITHUB_TOKEN"] == nil && env["SSH_AUTH_SOCK"] == nil && env["GIT_DIR"] == nil && env["FOO"] == "bar", "tokens dropped from the env")
 check(env["PATH"]!.hasPrefix("/s:"), "stand ins first on PATH")
+check(env["GIT_ALLOW_PROTOCOL"] == "ps-none" && env["GIT_CONFIG_NOSYSTEM"] == "1" && env["GIT_CONFIG_GLOBAL"] == "/dev/null" && env["GIT_SSH_COMMAND"] == "/s/ssh", "git: no transport, no saved passwords, ssh refused")
+check(OutPolicy.env(base: ["MY_SERVICE_TOKEN": "x", "DB_PASSWORD": "y", "PATH": "/b"], shimDir: "/s", hooksDir: "/h", home: "/x")["MY_SERVICE_TOKEN"] == nil, "any *_TOKEN or *_PASSWORD dropped")
 
 // CLI wire format
 check(OutCli.parse(#"{"cmd":"status"}"#) != nil, "cli status")
-check(OutCli.parse(#"{"cmd":"rm"}"#) == nil, "cli unknown command refused")
+check(OutCli.parse(#"{"cmd":"rm"}"#) == nil && OutCli.parse(#"{"cmd":"restart"}"#) == nil, "cli unknown command and restart refused")
 check(OutCli.parse("garbage") == nil, "cli garbage refused")
 check(OutCli.parse(#"{"cmd":"send","title":"t","repo":"demo","base":"main","prompt":"p","minutes":10,"tool":"codex"}"#)?["tool"] as? String == "codex", "cli send")
 check(OutCli.parse(#"{"cmd":"send","title":"t","repo":"https://u:p@example.com/a","base":"main","prompt":"p"}"#) == nil, "cli send with credentials refused")
@@ -93,6 +104,8 @@ case "$prompt" in
     gh pr create > gh-result.txt 2>&1; echo "gh exit $?" >> gh-result.txt
     echo "tok=$GH_TOKEN$GITHUB_TOKEN" > env-result.txt
     git push --no-verify origin HEAD:refs/heads/pushed2 > push2-result.txt 2>&1; echo "push2 exit $?" >> push2-result.txt
+    git push --no-verify "$(cat "$HOME/src-path")" HEAD:refs/heads/pushed3 > push3-result.txt 2>&1; echo "push3 exit $?" >> push3-result.txt
+    env -u GIT_CONFIG_COUNT git -c core.hooksPath=/dev/null push --no-verify "$(cat "$HOME/src-path")" HEAD:refs/heads/pushed4 > push4-result.txt 2>&1; echo "push4 exit $?" >> push4-result.txt
     ;;
   *FAIL*) echo "boom"; exit 3;;
   *SHOT*) printf 'PNGDATA' > .ps-outsource/shots/a.png;;
@@ -109,6 +122,7 @@ let src = srcDir + "/demo"
 try! fm.createDirectory(atPath: src, withIntermediateDirectories: true)
 _ = sh("git init -q -b main . && git config user.email t@localhost && git config user.name t && echo one > a.txt && git add a.txt && git commit -q -m first && echo two >> a.txt && git commit -qam second", cwd: src)
 let baseSha = sh("git rev-parse HEAD", cwd: src).1
+try! src.write(toFile: home + "/src-path", atomically: true, encoding: .utf8)
 let branchesBefore = sh("git branch -a", cwd: src).1
 
 var benv = ProcessInfo.processInfo.environment
@@ -153,6 +167,8 @@ if let b = r1?.bundlePath {
 } else { check(false, "bundle made") }
 check(sh("git branch -a", cwd: src).1 == branchesBefore, "the person's own repo is untouched")
 check(!fm.fileExists(atPath: root + "/jobs/job-run1/work"), "working folder cleaned up")
+let (rDup, _) = runJob(["id": "job-run1", "base": baseSha, "prompt": "Add work"])
+check(rDup?.state == "failed" && rDup?.report.note.contains("already ran") == true, "the same job id never runs twice here")
 check(sh("git config core.hooksPath", cwd: root + "/repos/demo").1 == root + "/hooks", "hooks path points at the refusing hook")
 
 // 2. Push refusal (hook, no-verify, push URL, gh stand in, token drop)
@@ -160,7 +176,7 @@ let (r2, _) = runJob(["id": "job-push", "base": baseSha, "prompt": "PUSH please"
 check(r2?.state == "done", "push job still ends")
 let pdir = root + "/repos/demo"
 let pushed = sh("git ls-remote --heads \(src)").1
-check(!pushed.contains("pushed"), "nothing was pushed to the source")
+check(!pushed.contains("pushed"), "nothing was pushed to the source, not even straight to its folder: \(pushed)")
 check(sh("git for-each-ref refs/heads/pushed refs/heads/pushed2", cwd: pdir).1.isEmpty, "no pushed ref in the clone")
 let jobDirPush = root + "/jobs/job-push"
 check(r2?.report.log.contains("sk-") == false, "no secret in push log")
@@ -176,6 +192,7 @@ if let b = r2?.bundlePath {
   func show(_ f: String) -> String { sh("git show review/p:\(f)", cwd: tmp + "/review3").1 }
   check(show("push-result.txt").contains("refused") && !show("push-result.txt").contains("push exit 0"), "the AI's git push was refused: \(show("push-result.txt").prefix(90))")
   check(!show("push2-result.txt").contains("push2 exit 0"), "git push --no-verify still goes nowhere: \(show("push2-result.txt").prefix(90))")
+  check(!show("push3-result.txt").contains("push3 exit 0") && !show("push4-result.txt").contains("push4 exit 0"), "a push straight to a folder, hooks off, is refused too: \(show("push4-result.txt").prefix(90))")
   check(show("gh-result.txt").contains("gh exit 126") && show("gh-result.txt").contains("refused"), "gh refused for the AI")
   check(show("env-result.txt") == "tok=", "tokens not in the AI's env")
 } else { check(false, "push job bundle") }
@@ -289,17 +306,71 @@ try! fm.setAttributes([.modificationDate: Date().addingTimeInterval(-72 * 3600)]
 runner.prune()
 check(!fm.fileExists(atPath: oldDir), "a three day old result is pruned")
 
-// 11. The command line tool refuses without a socket, never hangs
-let cli = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : ""
-if fm.fileExists(atPath: cli) {
-  let (c, o) = sh("PS_OUTSOURCE_SOCKET=\(tmp)/none.sock perl \(cli) status 2>&1; echo exit $?")
-  check(o.contains("PS is not running") && o.contains("exit 1"), "cli says PS is not running: \(o.prefix(80))")
-  let (c2, o2) = sh("PS_OUTSOURCE_SOCKET=\(tmp)/none.sock perl \(cli) send --title t --repo 'https://u:p@example.com/a' --base main --prompt x 2>&1; echo exit $?")
-  _ = (c, c2)
-  check(o2.contains("exit 2") || o2.contains("credentials"), "cli refuses a repo with credentials: \(o2.prefix(80))")
-  let (_, o3) = sh("perl \(cli) 2>&1; echo exit $?")
-  check(o3.contains("exit 2") && o3.lowercased().contains("usage"), "cli usage")
-}
+// 11. A commit that touches a secret looking file is not sent back
+let secretFake = tmp + "/bin/claude-secret"
+try! "#!/bin/sh\necho 'X=1' > .env.local\ngit add -f .env.local && git commit -q -m env\necho done\n".write(toFile: secretFake, atomically: true, encoding: .utf8); chmod(secretFake, 0o755)
+runner.tools = OutTools(claude: secretFake, codex: fakeCodex, git: "/usr/bin/git")
+let (rs, _) = runJob(["id": "job-secret1", "base": baseSha, "prompt": "x"])
+check(rs?.bundlePath == nil && rs?.state == "failed" && rs?.report.note.contains("secrets") == true, "a result with a secret looking file stays here: \(rs?.report.note ?? "")")
+runner.tools = tools
+check(OutSecretPaths.isSecret(".env") && OutSecretPaths.isSecret("a/b/id_ed25519") && OutSecretPaths.isSecret("k.pem") && !OutSecretPaths.isSecret("src/environment.ts"), "secret paths")
+
+// 12. The pairing kept: the private half never in the file, back after a restart, handed over at an update, forgotten on unpair
+let kdir = tmp + "/keep", ksec = tmp + "/keep-secret"
+let keep = OutKeep(dir: kdir, secret: OutFileSecret(path: ksec))
+check(keep.load() == nil, "never paired: nothing")
+check(keep.save(["device": "dev1", "name": "Old M1", "role": "other", "pub": "P", "encPub": "E", "priv": "PRIVATE-HALF", "seen": ["a": 1]]), "saved")
+check(!(String(data: fm.contents(atPath: kdir + "/keep.json") ?? Data(), encoding: .utf8) ?? "").contains("PRIVATE-HALF"), "the private half is not in the file")
+check(((try? fm.attributesOfItem(atPath: kdir + "/keep.json"))?[.posixPermissions] as? Int) == 0o600, "the file is 0600")
+let again = OutKeep(dir: kdir, secret: OutFileSecret(path: ksec)).load()
+check(again?["priv"] as? String == "PRIVATE-HALF" && again?["device"] as? String == "dev1" && (again?["seen"] as? [String: Any])?["a"] != nil, "back after a restart")
+let next = OutKeep(dir: kdir, secret: OutFileSecret(path: tmp + "/keep-secret-next"))
+check(next.load()?["priv"] as? String == "", "a new build without the hand over gets no private half (and asks to pair again)")
+check(next.handoffSave(keep.handoffCollect()) && next.load()?["priv"] as? String == "PRIVATE-HALF", "the update hand over keeps it paired")
+check(!keep.save(["name": "no device"]), "a record without a device is refused")
+keep.forget()
+check(keep.load() == nil && !fm.fileExists(atPath: ksec), "unpair forgets both")
+
+// 13. Landing a bundle on the main computer: in order, checked, nothing merged
+let land = OutLanding(root: tmp + "/land")
+let payload = Data((0..<(OutChunks.size + 1000)).map { UInt8($0 % 251) })
+try! payload.write(to: URL(fileURLWithPath: tmp + "/payload.bin"))
+let psha = OutHash.sha256(tmp + "/payload.bin")!
+check(psha.count == 64 && psha == sh("shasum -a 256 \(tmp)/payload.bin | cut -d' ' -f1").1, "sha256 matches shasum")
+check(land.start(id: "job-land1", report: "{}", bundle: ["n": 2, "size": payload.count, "sha256": psha, "name": "x.bundle"], shots: []) != nil, "landing starts")
+check(land.chunk(id: "job-land1", i: 1, data: payload.subdata(in: OutChunks.size..<payload.count)) != .more, "a piece out of order is refused")
+_ = land.start(id: "job-land1", report: "{}", bundle: ["n": 2, "size": payload.count, "sha256": psha, "name": "x.bundle"], shots: [])
+check(land.chunk(id: "job-land1", i: 0, data: payload.subdata(in: 0..<OutChunks.size)) == .more, "first piece")
+if case .landed(let path) = land.chunk(id: "job-land1", i: 1, data: payload.subdata(in: OutChunks.size..<payload.count)) { check(fm.contents(atPath: path) == payload, "landed whole") } else { check(false, "landed") }
+_ = land.start(id: "job-land2", report: "{}", bundle: ["n": 1, "size": 3, "sha256": String(repeating: "0", count: 64), "name": "y.bundle"], shots: [])
+check(land.chunk(id: "job-land2", i: 0, data: Data([1, 2, 3])) == .failed("the result did not match its checksum"), "a wrong checksum is refused")
+check(land.start(id: "../x", report: "{}", bundle: nil, shots: []) == nil, "a path as id refused")
+
+// 14. The command line script (written by PS to <PS folder>/bin/ps-outsource) refuses without a socket and never hangs
+let cli = tmp + "/ps/outsource/bin/ps-outsource"
+try? fm.createDirectory(atPath: tmp + "/ps/outsource/bin", withIntermediateDirectories: true)
+try! OutCli.script.write(toFile: cli, atomically: true, encoding: .utf8); chmod(cli, 0o755)
+let (_, o1) = sh("\(cli) status 2>&1; echo exit $?")
+check(o1.contains("PS is not running") && o1.contains("exit 1"), "cli says PS is not running: \(o1.prefix(80))")
+let (_, o2) = sh("\(cli) send --title t --repo 'https://u:p@example.com/a' --base main --prompt x 2>&1; echo exit $?")
+check(o2.contains("exit 2"), "cli refuses a repo with credentials: \(o2.prefix(80))")
+let (_, o3) = sh("\(cli) 2>&1; echo exit $?")
+check(o3.contains("exit 2") && o3.lowercased().contains("usage"), "cli usage")
+let (_, o4) = sh("\(cli) restart 2>&1; echo exit $?")
+check(o4.contains("exit 2"), "cli has no restart")
+let (_, o5) = sh("\(cli) send --title t --repo demo --base main --prompt 'key sk-abcdefghijklmnopqrstu' 2>&1; echo exit $?")
+check(o5.contains("secret") && o5.contains("exit 2"), "cli refuses a prompt with a key")
+// a fake PS on the socket: the request arrives as one JSON line, the answer is printed
+let sockPath = tmp + "/ps/outsource/cli.sock"
+let fakePs = "use IO::Socket::UNIX; unlink '\(sockPath)'; my $s = IO::Socket::UNIX->new(Local => '\(sockPath)', Type => SOCK_STREAM, Listen => 1) or die; my $c = $s->accept; my $l = <$c>; open(my $f, '>', '\(tmp)/req.json'); print $f $l; close $f; print $c '{\"ok\":true,\"text\":\"Sent. Job abc123\",\"id\":\"abc123\"}' . \"\\n\"; close $c;"
+try! fakePs.write(toFile: tmp + "/fakeps.pl", atomically: true, encoding: .utf8)
+let srv = Process(); srv.executableURL = URL(fileURLWithPath: "/usr/bin/perl"); srv.arguments = [tmp + "/fakeps.pl"]; try! srv.run()
+usleep(400_000)
+let (_, o6) = sh("echo 'Make the sort stable' | \(cli) send --title 'Sort' --repo demo --base main --prompt - --tool codex 2>&1; echo exit $?")
+srv.waitUntilExit()
+let req = (try? JSONSerialization.jsonObject(with: fm.contents(atPath: tmp + "/req.json") ?? Data())) as? [String: Any] ?? [:]
+check(o6.contains("Sent. Job abc123") && o6.contains("exit 0"), "cli prints the answer: \(o6.prefix(80))")
+check(req["cmd"] as? String == "send" && req["tool"] as? String == "codex" && (req["prompt"] as? String ?? "").contains("sort stable") && OutCli.parse(String(data: try! JSONSerialization.data(withJSONObject: req), encoding: .utf8)!) != nil, "the request is what PS expects")
 
 print("outsource: \(checks) checks, \(fails) failed")
 exit(fails == 0 ? 0 : 1)

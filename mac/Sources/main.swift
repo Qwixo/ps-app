@@ -463,7 +463,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // the device key and the trust store, checks and signs, runs allowlisted jobs and lands files.
     Second.shared.toPage = { [weak self] j in if self?.vaultUnlocked == true { self?.sendToMain(j) } }
     // Outsource work to your other computer (Outsource.swift): the page checks and seals, this side runs and lands.
-    Outsource.shared.toPage = { [weak self] j in self?.main.callAsyncJavaScript("window.__psOutsource && window.__psOutsource(m)", arguments: ["m": j], in: nil, in: .page, completionHandler: nil) }
+    Outsource.shared.toPage = { [weak self] j in self?.sendToMain(j) }   // window.__ps.apply, handled by web src/outsourcerun.ts
     Second.shared.openWindow = { [weak self] tab in self?.secondWin.open(tab) }
     Second.shared.beforePanel = { [weak self] in if self?.shown == true { self?.hideOverlay(force: true, giveBack: false) } }
     Backgrounds.shared.beforePanel = { [weak self] in if self?.shown == true { self?.hideOverlay(force: true, giveBack: false) } }

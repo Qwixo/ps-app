@@ -1,7 +1,8 @@
 // Outsource work to your other computer (PS 1.65), the rules that need no app: what a job may be, the AI tool's own
-// allow and deny flags, secrets stripped from logs, the pre-push hook, the command line's wire format and the pieces
-// a bundle is sent in. Foundation only, so mac/tests/outsource-test.sh compiles this file alone.
+// allow and deny flags and sandbox, secrets stripped from logs, the pre-push hook, the command line's wire format and its
+// script, and the pieces a bundle is sent in. Foundation and CryptoKit only, so mac/tests/outsource-test.sh compiles it alone.
 // The page (web core/second.ts) already checked signatures and expiry. Everything here is a second look, never the first.
+import CryptoKit
 import Foundation
 
 /// A job as the page hands it over (web core/secondbridge.ts PlainJob).
@@ -20,7 +21,7 @@ struct OutsourceJob: Equatable {
   var expiresAt: Double     // epoch ms
 
   static let maxPrompt = 60_000
-  static let maxMinutes = 120
+  static let maxMinutes = 240   // web OJOB_MAX_MINUTES
 
   /// Why the job is refused, or nil when it may run. `now` is epoch ms.
   static func parse(_ o: [String: Any], now: Double) -> (OutsourceJob?, String?) {
@@ -119,45 +120,80 @@ enum OutSecrets {
   }
 }
 
-/// What the AI tool may and may not do. The flags are each CLI's own; the pre-push hook, a push URL that goes nowhere
-/// and a PATH with refusing stand ins are the second and third wall.
+/// What the AI tool may and may not do. Four walls, each enough on its own for the usual case:
+///  1. the CLI's own rules: Claude Code runs its commands in its sandbox (writes only in the job folder, no network but the
+///     package registries, no way out of the sandbox), with deny rules for push, deploy and send tools and no MCP servers,
+///     plugins' hooks or the person's own settings; Codex runs `workspace-write` with the network off and no MCP servers;
+///  2. git itself: no transport at all (GIT_ALLOW_PROTOCOL names none), no system or global config (so no saved passwords), ssh
+///     replaced by a stand in that refuses, a push URL that goes nowhere and push.default nothing;
+///  3. a pre-push hook that always refuses;
+///  4. refusing stand ins for gh and deploy tools first on PATH, and tokens dropped from the environment.
 enum OutPolicy {
-  static let denyBash = ["git push", "git remote", "gh", "hub", "vercel", "netlify", "wrangler", "firebase", "fly", "flyctl", "heroku",
+  static let denyBash = ["git push", "git remote", "git config", "git credential", "gh", "hub", "vercel", "netlify", "wrangler", "firebase", "fly", "flyctl", "heroku",
                          "railway", "supabase", "aws", "gcloud", "az", "kubectl", "terraform", "pulumi", "scp", "rsync", "sftp",
-                         "curl", "wget", "ssh", "sudo", "npm publish", "pnpm publish", "yarn publish", "twine", "docker push",
-                         "security", "osascript", "open"]
+                         "curl", "wget", "ssh", "sudo", "npm publish", "pnpm publish", "yarn publish", "twine", "docker push", "cargo publish", "gem push",
+                         "security", "osascript", "open", "mail", "sendmail", "say"]
   /// Names a refusing stand in is made for (they sit first on the PATH the AI runs with).
   static let shimmed = ["gh", "hub", "vercel", "netlify", "wrangler", "firebase", "fly", "flyctl", "heroku", "railway", "supabase",
-                        "aws", "gcloud", "kubectl", "terraform", "pulumi", "scp", "sftp", "ssh", "sudo", "security", "osascript", "twine"]
-  static let envDrop = ["GH_TOKEN", "GITHUB_TOKEN", "GITHUB_PAT", "NPM_TOKEN", "NODE_AUTH_TOKEN", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+                        "aws", "gcloud", "kubectl", "terraform", "pulumi", "scp", "sftp", "ssh", "sudo", "security", "osascript", "twine", "sendmail", "mail"]
+  static let envDrop = ["GH_TOKEN", "GITHUB_TOKEN", "GITHUB_PAT", "GH_ENTERPRISE_TOKEN", "NPM_TOKEN", "NODE_AUTH_TOKEN", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
                         "AWS_SESSION_TOKEN", "VERCEL_TOKEN", "NETLIFY_AUTH_TOKEN", "CLOUDFLARE_API_TOKEN", "FLY_API_TOKEN", "SSH_AUTH_SOCK",
-                        "SUPABASE_ACCESS_TOKEN", "GOOGLE_APPLICATION_CREDENTIALS", "HEROKU_API_KEY", "DOCKER_CONFIG", "GIT_ASKPASS", "SSH_ASKPASS"]
+                        "SUPABASE_ACCESS_TOKEN", "GOOGLE_APPLICATION_CREDENTIALS", "HEROKU_API_KEY", "DOCKER_CONFIG", "GIT_ASKPASS", "SSH_ASKPASS",
+                        "TWINE_PASSWORD", "CARGO_REGISTRY_TOKEN", "PYPI_TOKEN", "SENTRY_AUTH_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
+  /// The package registries a job may still download from (builds and tests need them). Publishing needs a token, and none is passed.
+  static let registries = ["registry.npmjs.org", "registry.yarnpkg.com", "pypi.org", "files.pythonhosted.org"]
+  /// Files the AI may not even read (the sandbox enforces Read deny rules for its commands too).
+  static let noRead = ["~/.ssh/**", "~/.aws/**", "~/.gnupg/**", "~/.netrc", "~/.npmrc", "~/.pypirc", "~/.docker/**", "~/.kube/**", "~/.config/gh/**",
+                       "~/.git-credentials", "~/Library/Keychains/**", "~/Library/Application Support/PS/**", "~/Library/Group Containers/**"]
 
+  /// Claude Code's own settings for the run (passed with --settings, so they hold whatever the person's own settings say).
+  static func claudeSettings() -> String {
+    var deny = noRead.map { "Read(\($0))" } + noRead.map { "Edit(\($0))" }
+    deny += denyBash.map { "Bash(\($0):*)" } + ["WebSearch"]
+    let o: [String: Any] = [
+      "sandbox": ["enabled": true, "autoAllowBashIfSandboxed": true, "allowUnsandboxedCommands": false],
+      "permissions": ["deny": deny, "allow": registries.map { "WebFetch(domain:\($0))" }, "disableBypassPermissionsMode": "disable"],
+      "disableAllHooks": true, "enableAllProjectMcpServers": false,
+    ]
+    let d = (try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys])) ?? Data("{}".utf8)
+    return String(data: d, encoding: .utf8) ?? "{}"
+  }
   static func claudeArgs(prompt: String) -> [String] {
     var a = ["-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "text",
+             "--setting-sources", "local", "--settings", claudeSettings(),
+             "--strict-mcp-config", "--mcp-config", #"{"mcpServers":{}}"#,
              "--allowedTools", "Read", "Edit", "Write", "Glob", "Grep", "Bash"]
     a.append("--disallowedTools")
     for d in denyBash { a.append("Bash(\(d):*)") }
-    a += ["WebFetch", "WebSearch"]
+    a += ["WebSearch"]
     return a
   }
-  /// Codex: workspace-write keeps the network off and the writes inside the folder; never asks, never the full access mode.
+  /// Codex: workspace-write keeps the writes inside the folder; the network is off for its commands; no MCP servers; never the full access mode.
   static func codexArgs(prompt: String, dir: String, lastMessage: String) -> [String] {
-    ["exec", "-C", dir, "-s", "workspace-write", "-o", lastMessage, prompt]
+    ["exec", "-C", dir, "-s", "workspace-write", "-c", "sandbox_workspace_write.network_access=false", "-c", "mcp_servers={}",
+     "-c", "approval_policy=\"never\"", "-o", lastMessage, prompt]
   }
   static let prePushHook = "#!/bin/sh\necho \"PS: pushing is refused on this computer (outsourced work never pushes).\" >&2\nexit 1\n"
   static func shim(_ name: String) -> String { "#!/bin/sh\necho \"PS: \(name) is refused on this computer (outsourced work only edits and tests).\" >&2\nexit 126\n" }
   static let noPushURL = "refused://this-computer-never-pushes"
+  static let author = "PS outsourced job", authorEmail = "ps-outsource@localhost"
 
-  /// The environment the AI runs with: this computer's own, minus tokens, with the stand ins first on PATH.
+  /// The environment the AI runs with: this computer's own, minus tokens, with the stand ins first on PATH and git kept local.
   static func env(base: [String: String], shimDir: String, hooksDir: String, home: String) -> [String: String] {
     var e = base
     for k in envDrop { e.removeValue(forKey: k) }
-    for k in e.keys where k.hasPrefix("GIT_CONFIG") || k == "GIT_DIR" || k == "GIT_WORK_TREE" { e.removeValue(forKey: k) }
+    for k in e.keys where k.hasPrefix("GIT_") { e.removeValue(forKey: k) }
+    for k in e.keys where k.hasSuffix("_TOKEN") || k.hasSuffix("_SECRET") || k.hasSuffix("_PASSWORD") || k.hasSuffix("_API_KEY") { e.removeValue(forKey: k) }
     let path = e["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
     e["PATH"] = shimDir + ":" + path
     e["HOME"] = home
     e["GIT_TERMINAL_PROMPT"] = "0"
+    e["GIT_CONFIG_NOSYSTEM"] = "1"                // no system config: no saved password helper
+    e["GIT_CONFIG_GLOBAL"] = "/dev/null"          // nor the person's own
+    e["GIT_ALLOW_PROTOCOL"] = "ps-none"           // no transport at all, not even a folder: the AI commits, it never pushes or fetches
+    e["GIT_SSH_COMMAND"] = shimDir + "/ssh"
+    e["GIT_AUTHOR_NAME"] = author; e["GIT_COMMITTER_NAME"] = author
+    e["GIT_AUTHOR_EMAIL"] = authorEmail; e["GIT_COMMITTER_EMAIL"] = authorEmail
     e["GIT_CONFIG_COUNT"] = "2"
     e["GIT_CONFIG_KEY_0"] = "core.hooksPath"; e["GIT_CONFIG_VALUE_0"] = hooksDir
     e["GIT_CONFIG_KEY_1"] = "push.default"; e["GIT_CONFIG_VALUE_1"] = "nothing"
@@ -170,6 +206,31 @@ enum OutPolicy {
     var p = j.prompt + "\n\n---\nRules of this computer: work only inside this folder, commit your work on the current branch with clear messages, never push, deploy or send anything, and finish with a short summary of what you changed and which tests you ran."
     if j.screenshots { p += " Save any screenshots as PNG files in .ps-outsource/shots/." }
     return p
+  }
+}
+
+/// Changed files that look like they hold secrets: a bundle that carries one is not sent back.
+enum OutSecretPaths {
+  private static let re = try? NSRegularExpression(pattern: #"(^|/)(\.env(\..*)?|\.ssh|\.aws|\.gnupg|\.netrc|\.npmrc|\.pypirc|\.docker|\.kube|id_(rsa|ed25519|ecdsa)[^/]*|credentials(\.json)?|secrets?(\.[a-z]+)?|keychains?)(/|$)|\.(pem|p12|pfx|key|keystore|kdbx)$"#, options: [.caseInsensitive])
+  static func isSecret(_ path: String) -> Bool {
+    guard let re else { return true }
+    return re.firstMatch(in: path, range: NSRange(path.startIndex..., in: path)) != nil
+  }
+}
+
+/// SHA-256 of a file, read in pieces (never the whole bundle in memory at once).
+enum OutHash {
+  static func sha256(_ path: String) -> String? {
+    guard let h = FileHandle(forReadingAtPath: path) else { return nil }
+    defer { try? h.close() }
+    var hasher = SHA256()
+    while true {
+      let d: Data?
+      do { d = try h.read(upToCount: 1 << 20) } catch { return nil }
+      guard let d, !d.isEmpty else { break }   // nil or empty: the end of the file
+      hasher.update(data: d)
+    }
+    return hasher.finalize().map { String(format: "%02x", $0) }.joined()
   }
 }
 
@@ -200,7 +261,7 @@ struct OutReport {
 /// The command line's wire format: one JSON line in, one JSON line out, over a socket only this person can open.
 enum OutCli {
   static let maxLine = 200_000
-  static let cmds = ["status", "send", "list", "result", "cancel", "restart"]
+  static let cmds = ["status", "send", "list", "result", "cancel"]   // never restart: an AI never restarts a computer
   /// A request line to the cmd the page expects (web CliRequest), or nil.
   static func parse(_ line: String) -> [String: Any]? {
     guard line.utf8.count <= maxLine, let d = line.data(using: .utf8), let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
@@ -231,4 +292,72 @@ enum OutCli {
 enum OutChunks {
   static let size = 192 * 1024   // web BRIDGE_CHUNK
   static func count(_ bytes: Int) -> Int { max(1, (bytes + size - 1) / size) }
+}
+
+extension OutCli {
+  /// The command line the person's own AI calls on the MAIN computer. PS writes it to <PS folder>/bin/ps-outsource (0755) when this
+  /// Mac is the main computer, and Copy for AI in the tab says where. It talks only to this Mac's PS over a socket only this
+  /// person can open. Perl, because every Mac has it.
+  static let script = #"""
+#!/usr/bin/perl
+# ps-outsource: the command line a person's own AI uses to send a job to their other computer through PS.
+# Talks only to this Mac's PS over a socket only this person can open. Nothing merges: a result is a git bundle
+# in a folder, to be fetched into a review branch.
+#   ps-outsource status
+#   ps-outsource send --title T --repo R --base B (--prompt TEXT | --prompt-file FILE | --prompt -) [--tool claude|codex] [--minutes N] [--no-bundle] [--screenshots]
+#   ps-outsource list | result ID | cancel ID
+use strict; use warnings;
+use IO::Socket::UNIX; use JSON::PP; use POSIX qw(strftime);
+
+use File::Basename qw(dirname);
+my $sock = $ENV{PS_OUTSOURCE_SOCKET} // (dirname(dirname($0)) . "/cli.sock");   # this script sits in <PS folder>/bin
+sub usage { print STDERR "Usage: ps-outsource status | list | result ID | cancel ID\n       ps-outsource send --title T --repo R --base B (--prompt TEXT | --prompt-file FILE | --prompt -) [--tool claude|codex] [--minutes N] [--no-bundle] [--screenshots]\n"; exit 2; }
+sub die2 { print STDERR "ps-outsource: $_[0]\n"; exit 2; }
+
+my $cmd = shift @ARGV or usage();
+my %req = (cmd => $cmd);
+if ($cmd eq "send") {
+  my %o; my $bundle = 1;
+  while (@ARGV) {
+    my $a = shift @ARGV;
+    if ($a =~ /^--(title|repo|base|prompt|prompt-file|tool|minutes)$/) { $o{$1} = shift @ARGV // die2("$a needs a value"); }
+    elsif ($a eq "--no-bundle") { $bundle = 0 }
+    elsif ($a eq "--screenshots") { $o{shots} = 1 }
+    else { die2("unknown option $a") }
+  }
+  if (defined $o{"prompt-file"}) { open(my $f, "<", $o{"prompt-file"}) or die2("cannot read the prompt file"); local $/; $o{prompt} = <$f>; close $f; }
+  elsif (defined $o{prompt} && $o{prompt} eq "-") { local $/; $o{prompt} = <STDIN>; }
+  for my $k (qw(title repo base prompt)) { die2("--$k is required") unless defined $o{$k} && length $o{$k}; }
+  die2("a repo must be a folder name or a git URL without a password or token")
+    if $o{repo} =~ m{\@} && $o{repo} !~ m{^(git\@[^@]+|ssh://git\@[^@]+)$} || $o{repo} =~ m{^(file:|ext:)} || $o{repo} =~ /\s/;
+  die2("--tool must be claude or codex") if defined $o{tool} && $o{tool} !~ /^(claude|codex)$/;
+  die2("--minutes must be 1 to 240") if defined $o{minutes} && ($o{minutes} !~ /^\d+$/ || $o{minutes} < 1 || $o{minutes} > 240);
+  die2("the prompt looks like it holds a secret (a key, token or password): take it out") if $o{prompt} =~ /\bsk-[A-Za-z0-9_-]{16,}|\bgh[pousr]_[A-Za-z0-9]{20,}|github_pat_|\bAKIA[0-9A-Z]{12,}|BEGIN [A-Z ]*PRIVATE KEY|(?i:password|api[_-]?key|secret|token)\s*[=:]\s*\S{6,}/;
+  %req = (cmd => "send", title => $o{title}, repo => $o{repo}, base => $o{base}, prompt => $o{prompt}, bundle => $bundle ? JSON::PP::true : JSON::PP::false);
+  $req{screenshots} = JSON::PP::true if $o{shots};
+  $req{minutes} = $o{minutes} + 0 if defined $o{minutes};
+  $req{tool} = $o{tool} if defined $o{tool};
+} elsif ($cmd eq "result" || $cmd eq "cancel") {
+  my $id = shift @ARGV // die2("$cmd needs a job id");
+  die2("that is not a job id") unless $id =~ /^[A-Za-z0-9_-]{4,64}$/;
+  $req{id} = $id; usage() if @ARGV;
+} elsif ($cmd =~ /^(status|list)$/) { usage() if @ARGV; }
+else { usage(); }
+
+my $s = IO::Socket::UNIX->new(Peer => $sock, Type => SOCK_STREAM, Timeout => 5);
+unless ($s) { print STDERR "ps-outsource: PS is not running on this Mac, or Outsource is switched off in PS Settings.\n"; exit 1; }
+print $s encode_json(\%req) . "\n"; $s->flush;
+my $line = eval { local $SIG{ALRM} = sub { die "timeout\n" }; alarm 45; my $l = <$s>; alarm 0; $l };
+unless (defined $line && length $line) { print STDERR "ps-outsource: no answer from PS (is it locked? the vault must be open).\n"; exit 1; }
+my $ans = eval { decode_json($line) };
+unless (ref $ans eq "HASH") { print STDERR "ps-outsource: PS gave an answer this tool cannot read.\n"; exit 1; }
+my $text = $ans->{text} // "";
+print "$text\n";
+print "Job id: $ans->{id}\n" if $ans->{id} && $text !~ /\Q$ans->{id}\E/;
+if ($ans->{ok} && $cmd eq "result" && $text =~ /^Bundle:\s*(.+?)\s*$/m) {
+  my $b = $1; my $id = $req{id};
+  print -f $b ? "Review it in the repository it belongs to, nothing is merged:\n  git bundle verify '$b' && git fetch '$b' 'outsource/$id:review/$id'\n" : "The bundle is not in its folder (yet).\n";
+}
+exit($ans->{ok} ? 0 : 1);
+"""#
 }
