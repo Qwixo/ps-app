@@ -9,6 +9,7 @@ import { cleanAnchor, cleanVersion, cmpVersion, type IslandAnchor } from "./what
 import { SR_INTRO } from "./screenrecmeet.ts";
 import { PROTON_WORDS } from "./protonmail.ts";
 import { TOUR_FOLDS, TOUR_ID, TOUR_WORDS } from "./tour.ts";
+import { APPROVE_INTRO, APPROVE_PICKS } from "./autoapprove.ts";
 
 // The rules (all in nextIntro):
 //  - Not right after an update: only after about 1 minute of ACTIVE use of the to do list on this version (idle time does not
@@ -30,7 +31,7 @@ export interface IntroDef {
   show: string;
   later?: string;
   /** Which picture swoops in (views/FeatureIntro.tsx MARKS). */
-  mark: "whatsapp" | "spark" | "record" | "logo";
+  mark: "whatsapp" | "spark" | "record" | "logo" | "shield";
   /** V1.62: a one button notice ("Ok"): no question, no Later, no guide. Ok (or Esc, or Back) ends it for good, and it is saved
    *  with the person's settings (introsDone), so it shows once per person, not once per device. */
   ack?: true;
@@ -44,6 +45,9 @@ export interface IntroDef {
    *  not held back by the one day gap, comes back until it is finished (Done, or Esc, which ends it for good) and is saved with the
    *  person's settings (introsDone), so it shows once per person. Its steps are drawn by views/FeatureIntro.tsx. */
   tour?: true;
+  /** PS 1.65: small switches on a `choice` card the person can untick before answering (id and label each). "Keep it on" keeps the
+   *  ticked ones and "Turn off" turns every one off (views/FeatureIntro.tsx CHOICES gets the kept ids). Never take focus. */
+  picks?: { id: string; label: string }[];
   /** What "Show me" opens (views/FeatureIntro.tsx GUIDES). Without one, `steps` are shown in a small generic guide. */
   guide?: "wa-link";
   /** A few plain steps for the generic guide (one short sentence each). */
@@ -175,6 +179,20 @@ export const INTROS: IntroDef[] = [
     show: "Ok",
     mark: "spark",
     choice: true,
+  },
+  {
+    // PS 1.65 Auto approve on by default (the developer's friend, 17 Nov 2026; words wait for the owner's approval). About a minute in, one
+    // calm notice on each Mac says what Auto approve now does, with a switch for AI mode and Sleep mode. Keep it on keeps the ticked
+    // switches, Turn off turns them off on every one of the person's Macs (synced approveOff). The defaults count on a Mac only once
+    // it was shown there. Only while a switch still has no choice on that Mac (views/FeatureIntro.tsx DONE_PROBES, PICKS_NOW).
+    id: APPROVE_INTRO.id,
+    headline: APPROVE_INTRO.headline,
+    ask: APPROVE_INTRO.ask,
+    show: APPROVE_INTRO.show,
+    later: APPROVE_INTRO.later,
+    mark: "shield",
+    choice: true,
+    picks: [...APPROVE_PICKS],
   },
   {
     // PS 1.65 Proton Mail through Bridge (core/protonmail.ts PROTON_WORDS.intro). Mac only: the probe in views/FeatureIntro.tsx never lets it

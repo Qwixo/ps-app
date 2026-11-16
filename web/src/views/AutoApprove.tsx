@@ -1,5 +1,5 @@
-// Settings, Sentry mode, Auto approve (the developer's friend, 12 Nov 2026). Three switches, all off by default: in AI mode
-// (Sentry mode), in Sleep mode, and always. PS on the Mac does the work (ps-mac Sources/AutoApprove.swift) and sends
+// Settings, Sentry mode, Auto approve (the developer's friend, 12 Nov 2026). Three switches: in AI mode (Sentry mode), in Sleep
+// mode, and always. PS 1.65: AI mode and Sleep mode are on until chosen (once the notice was shown on that Mac), Always is off. PS on the Mac does the work (ps-mac Sources/AutoApprove.swift) and sends
 // its state in psSettings.autoApprove; rules and words in core/autoapprove.ts. Click only, like every setting.
 import { psPost } from "../ps";
 import { sfx } from "../ui/sfx";

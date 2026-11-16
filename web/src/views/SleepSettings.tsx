@@ -9,7 +9,7 @@
 // Opened by the Sleep button's pencil (or a right click on it), and from Settings, Sleep mode (whose search lands on
 // one setting here, lit up). Esc and Back step out one layer at a time: a preview or warning first, then the search,
 // then a page (narrow), then the screen.
-import { SentryRestartSleepSetting } from "./Sentry";
+import { SentryRestartSleepSetting, SentrySleepAutoSetting } from "./Sentry";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import "./macsettings.css";
@@ -314,6 +314,7 @@ function control(id: string, { p, look, change }: Ctl, onGo: () => void): { righ
   switch (id) {
     case "reset": return { right: <button type="button" className="tm-pill-btn" onClick={() => { sfx.click(); change(LOOK_DEF); }}>Back to the usual look</button> };
     // V1.52 (the developer): the same synced value as Settings, Sentry mode (core/sentry.ts restartSleepH).
+    case "sentry-auto": return { right: <SentrySleepAutoSetting /> };
     case "sentry-restart": return { body: <SentryRestartSleepSetting /> };
     case "alarms": return { body: <AlarmList p={p} /> };
     case "ring-always": return {

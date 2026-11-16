@@ -3,11 +3,13 @@
 // Foundation only, no AppKit, so tests/autoapprove-test.sh can build it alone. AutoApprove.swift runs it.
 //
 // When it is on (ApproveCore.active): in AI mode (Sentry mode) with its switch on, in Sleep mode with its switch on, or
-// always with "Always auto approve" on. Every switch starts off.
+// always with "Always auto approve" on. PS 1.65 (the developer's friend, 17 Nov 2026): "In AI mode" and "In Sleep mode" start ON
+// for a person who never chose them, "Always" stays off; a saved choice (on or off) is never changed (ApproveCore.resolve).
 //
 // Two routes, in this order:
-// 1. The AI tool's own hook, no keys pressed. While any switch is on, PS keeps one line in ~/.claude/settings.json
-//    (hooks.PermissionRequest) and, when Codex is on this Mac, in ~/.codex/hooks.json, that runs
+// 1. The AI tool's own hook, no keys pressed. PS keeps one line in ~/.claude/settings.json (hooks.PermissionRequest) and,
+//    when Codex is on this Mac, in ~/.codex/hooks.json: from launch while a switch is saved On, and for a switch that is
+//    only on by its 1.65 default just while Auto approve is on (ApproveCore.hookWanted). The line runs
 //    ~/Library/PS/auto-approve/hook.sh. The script answers "allow" only while PS holds a fresh lease
 //    (~/Library/PS/auto-approve/active, an end time PS moves on every 30 seconds while Auto approve is on). No lease,
 //    or an old one (the mode ended, PS closed or crashed): the script says nothing and the prompt shows as usual.
@@ -19,7 +21,9 @@
 // 2. Keys, for prompts the hook cannot reach (a chat started before the line was added, another tool): PS reads the
 //    text of terminal windows, and only when it is clearly a yes or no permission prompt with Yes selected, presses
 //    Return in that window (classify below). A question, a free text answer, or text PS cannot read: nothing.
-// Off (every switch off) takes out exactly the lines PS added (found by the script's path), the script and the lease.
+// Off takes out exactly the lines PS added (found by the script's path), the script and the lease.
+// PS 1.65: adding and taking out edit the file's text in place (JSONEdit below): only PS's own entry changes, every other byte
+// (order, spacing, escapes) stays as it was, and the result is checked against the parsed edit before it is written.
 // Before every change a copy of the file as it was is kept beside it (<file>.ps-auto-approve-backup), the write is
 // atomic, and a file PS cannot read (comments, a typo) is never rewritten.
 import Foundation
@@ -48,13 +52,38 @@ enum ApproveCore {
 
   // MARK: - when it is on
 
-  /// The three switches in Settings (all off by default).
+  /// The three switches in Settings. PS 1.65: AI mode and Sleep mode are on until the person chooses, Always is off.
   struct Switches: Equatable {
     var ai = false, sleep = false, always = false
     var any: Bool { ai || sleep || always }
   }
+  /// The defaults for a switch the person never chose (never both "Always" and nothing: it stays off).
+  static let defaultAi = true, defaultSleep = true, defaultAlways = false
+  /// What is saved on this Mac for each switch (nil: never chosen). A saved on or off always wins.
+  struct Saved: Equatable { var ai: Bool?, sleep: Bool?, always: Bool? }
+  /// `defaults` false: an unset switch is off, as before 1.65. AutoApprove.swift passes true only with the feature switch
+  /// "auto-approve-defaults" on AND the 1.65 notice already shown on this Mac (defaultsLive): until a person has seen it, the
+  /// defaults act as off.
+  static func resolve(_ s: Saved, defaults: Bool = true) -> Switches {
+    Switches(ai: s.ai ?? (defaults && defaultAi), sleep: s.sleep ?? (defaults && defaultSleep), always: s.always ?? defaultAlways)
+  }
+  /// The defaults count only with the feature on and once the notice was shown on this Mac.
+  static func defaultsLive(feature: Bool, noticeSeen: Bool) -> Bool { feature && noticeSeen }
+  /// A default is still standing for AI mode or Sleep mode (the 1.65 notice asks about these).
+  static func defaulted(_ s: Saved) -> Bool { s.ai == nil || s.sleep == nil }
+  /// The notice's switches the person never chose on this Mac ("ai", "sleep"), for the page (the notice and the synced Turn off).
+  static func unset(_ s: Saved) -> [String] { (s.ai == nil ? ["ai"] : []) + (s.sleep == nil ? ["sleep"] : []) }
+  /// A switch the person saved On themselves. Only these keep PS's hook line in the tools' settings while no mode runs.
+  static func savedOn(_ s: Saved) -> Bool { s.ai == true || s.sleep == true || s.always == true }
+  /// PS 1.65 (security review 17 Nov 2026): when PS's line belongs in ~/.claude/settings.json and ~/.codex/hooks.json. A saved
+  /// On keeps it in from launch (as before 1.65). A switch that is only on by its default never writes at launch: the line goes
+  /// in when Auto approve actually turns on (a mode starts) and comes out when it turns off (Claude Code reads hook edits live).
+  static func hookWanted(_ s: Saved, active: Bool) -> Bool { savedOn(s) || active }
   /// What the Mac is doing now.
   struct Modes: Equatable { var ai = false, sleep = false }
+  /// Sleep mode for Auto approve: the sleep screen is up for a real Sleep mode. An alarm alone (Sleep mode off, the person is
+  /// likely at the Mac) is not Sleep mode.
+  static func sleepMode(screenUp: Bool, alarmOnly: Bool) -> Bool { screenUp && !alarmOnly }
 
   /// Why Auto approve is on right now, or nil when it is off.
   static func why(_ s: Switches, _ m: Modes) -> String? {
@@ -64,8 +93,8 @@ enum ApproveCore {
     return nil
   }
   static func active(_ s: Switches, _ m: Modes) -> Bool { why(s, m) != nil }
-  /// The hook line stays in the tools' settings while any switch is on, so a chat started now is covered the moment a
-  /// mode begins (the lease, not the line, says yes or no).
+  /// Any switch is on (saved or by default): PS picks up the hook's drops and watches for a mode. Where the hook line sits is
+  /// hookWanted above (the lease, not the line, says yes or no).
   static func armed(_ s: Switches) -> Bool { s.any }
 
   /// How long a lease lasts, and how often PS moves it on while Auto approve is on.
@@ -156,9 +185,10 @@ enum ApproveCore {
     return o
   }
 
-  /// The settings with every line PS's Auto approve added taken out (only those, in any event). A group or event list
-  /// left empty by that goes too, and "hooks" when nothing is left in it.
-  static func removing(_ o: [String: Any]) -> [String: Any] {
+  /// The settings with every line PS's Auto approve added taken out (only those, in any event). A group left empty by that
+  /// goes too. PS 1.65 `upTo` (what PS itself made when it added its line, Made below): an event list left empty goes only
+  /// when PS made it (1 or more), "hooks" left empty only when PS made it (2). Unknown (a line from before 1.65): 2.
+  static func removing(_ o: [String: Any], upTo: Int = 2) -> [String: Any] {
     guard var hooks = o["hooks"] as? [String: Any] else { return o }
     var changed = false
     for (ev, v) in hooks {
@@ -179,12 +209,35 @@ enum ApproveCore {
       }
       guard touched else { continue }
       changed = true
-      if out.isEmpty { hooks.removeValue(forKey: ev) } else { hooks[ev] = out }
+      if out.isEmpty && upTo >= 1 { hooks.removeValue(forKey: ev) } else { hooks[ev] = out }
     }
     guard changed else { return o }
     var o = o
-    if hooks.isEmpty { o.removeValue(forKey: "hooks") } else { o["hooks"] = hooks }
+    if hooks.isEmpty && upTo >= 2 { o.removeValue(forKey: "hooks") } else { o["hooks"] = hooks }
     return o
+  }
+
+  /// PS 1.65: the file's new text with PS's line added, only that entry changed (JSONEdit). A missing or empty file gets a
+  /// fresh one. Nil when the text is odd or the edit would not give exactly `adding`: the file is then left alone.
+  static func addedText(_ text: String?, tool: String, _ p: ApprovePaths) -> String? {
+    guard let o = parseObject(text) else { return nil }
+    let want = adding(o, tool: tool, p)
+    guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return render(want) }
+    guard let out = JSONEdit.adding(text, event: event, item: ["hooks": [entry(tool, p)]]),
+          let got = parseObject(out), NSDictionary(dictionary: got).isEqual(to: want) else { return nil }
+    return out
+  }
+  /// PS 1.65: the file's new text with every line PS added taken out, only those entries changed. Nil: left alone.
+  static func removedText(_ text: String, upTo: Int = 2) -> String? {
+    guard let o = parseObject(text), let out = JSONEdit.removing(text, ours: isOurs, upTo: upTo),
+          let got = parseObject(out), NSDictionary(dictionary: got).isEqual(to: removing(o, upTo: upTo)) else { return nil }
+    return out
+  }
+  /// PS 1.65: what adding PS's line will make besides its own group: 0 nothing (PermissionRequest was there), 1 the
+  /// PermissionRequest list, 2 "hooks" too. Kept per file so taking the line out leaves the person's own empty lists.
+  static func made(_ o: [String: Any]) -> Int {
+    guard let hooks = o["hooks"] as? [String: Any] else { return 2 }
+    return hooks[event] is [Any] ? 0 : 1
   }
 
   // MARK: - what the script left for the log
@@ -373,6 +426,174 @@ enum ApproveCore {
   }
 }
 
+/// PS 1.65 (security review 17 Nov 2026): edits a settings file's TEXT so that only PS's own entry changes. Every other byte
+/// (key order, spacing, line ends, escapes, numbers as written) stays exactly as it was. Nil: the text is not what PS expects
+/// ("hooks" not an object, an event not a list, odd JSON): PS then leaves the file alone. Callers check the result parses to the
+/// same object ApproveCore.adding or removing would give.
+enum JSONEdit {
+  /// One value's place in the text (byte offsets, end exclusive). An object keeps its keys and where each key starts.
+  struct Node {
+    enum Kind { case object, array, scalar }
+    var kind: Kind
+    var start: Int, end: Int
+    var keys: [String] = [], keyStarts: [Int] = [], kids: [Node] = []
+    /// Where child i's text starts (its key for an object).
+    func lead(_ i: Int) -> Int { kind == .object ? keyStarts[i] : kids[i].start }
+    /// The last child with this key (JSONSerialization keeps the last of a repeated key too; the final check catches any doubt).
+    func index(_ key: String) -> Int? { keys.lastIndex(of: key) }
+  }
+
+  private struct Scan {
+    let b: [UInt8]
+    var i = 0
+    var depth = 0
+    init(_ b: [UInt8]) { self.b = b }
+    mutating func ws() { while i < b.count, b[i] == 0x20 || b[i] == 0x09 || b[i] == 0x0A || b[i] == 0x0D { i += 1 } }
+    mutating func string() -> String? {
+      guard i < b.count, b[i] == 0x22 else { return nil }
+      let s = i; i += 1
+      while i < b.count {
+        if b[i] == 0x5C { i += 2; continue }
+        if b[i] == 0x22 {
+          i += 1
+          let raw = Data(b[s..<i])
+          return (try? JSONSerialization.jsonObject(with: raw, options: .fragmentsAllowed)) as? String
+        }
+        i += 1
+      }
+      return nil
+    }
+    mutating func value() -> Node? {
+      ws()
+      guard i < b.count, depth < 200 else { return nil }
+      let s = i
+      switch b[i] {
+      case 0x7B, 0x5B:   // { or [
+        let obj = b[i] == 0x7B, close: UInt8 = obj ? 0x7D : 0x5D
+        var n = Node(kind: obj ? .object : .array, start: s, end: s)
+        i += 1; depth += 1; defer { depth -= 1 }
+        ws()
+        if i < b.count, b[i] == close { i += 1; n.end = i; return n }
+        while true {
+          ws()
+          if obj {
+            let ks = i
+            guard let k = string() else { return nil }
+            ws()
+            guard i < b.count, b[i] == 0x3A else { return nil }
+            i += 1
+            n.keys.append(k); n.keyStarts.append(ks)
+          }
+          guard let v = value() else { return nil }
+          n.kids.append(v)
+          ws()
+          guard i < b.count else { return nil }
+          if b[i] == 0x2C { i += 1; continue }
+          if b[i] == close { i += 1; n.end = i; return n }
+          return nil
+        }
+      case 0x22:
+        guard string() != nil else { return nil }
+        return Node(kind: .scalar, start: s, end: i)
+      default:
+        while i < b.count, ![0x2C, 0x5D, 0x7D, 0x20, 0x09, 0x0A, 0x0D].contains(b[i]) { i += 1 }
+        return i > s ? Node(kind: .scalar, start: s, end: i) : nil
+      }
+    }
+  }
+
+  /// The whole text as one object (a UTF-8 byte order mark in front is kept and skipped). Nil: not one JSON object.
+  static func parse(_ b: [UInt8]) -> Node? {
+    var sc = Scan(b)
+    if b.starts(with: [0xEF, 0xBB, 0xBF]) { sc.i = 3 }
+    guard let n = sc.value(), n.kind == .object else { return nil }
+    sc.ws()
+    return sc.i == b.count ? n : nil
+  }
+  static func json(_ v: Any) -> String? {
+    guard let d = try? JSONSerialization.data(withJSONObject: v, options: [.sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]) else { return nil }
+    return String(decoding: d, as: UTF8.self)
+  }
+  private static func value(_ b: [UInt8], _ n: Node) -> Any? { try? JSONSerialization.jsonObject(with: Data(b[n.start..<n.end]), options: .fragmentsAllowed) }
+
+  /// The bytes to cut to take child i out of container n: its separator goes with it, the rest stays.
+  static func cut(_ n: Node, _ i: Int) -> Range<Int> {
+    if n.kids.count == 1 { return n.lead(0)..<n.kids[0].end }   // the only one: the container is left empty, its spacing as it was
+    if i > 0 { return n.kids[i - 1].end..<n.kids[i].end }          // ", <space>child"
+    return n.lead(0)..<n.lead(1)                                    // "child, <space>" before the next one
+  }
+  /// Where and what to insert to add `piece` (a member text for an object, an item for a list) at the end of container n,
+  /// spaced like the children already there.
+  static func append(_ b: [UInt8], _ n: Node, _ piece: String) -> (at: Int, text: String) {
+    guard let last = n.kids.last else { return (n.start + 1, piece) }
+    let c = n.kids.count
+    let sep: String
+    if c >= 2 { sep = String(decoding: b[n.kids[c - 2].end..<n.lead(c - 1)], as: UTF8.self) }
+    else { let lead = String(decoding: b[(n.start + 1)..<n.lead(0)], as: UTF8.self); sep = "," + (lead.isEmpty ? " " : lead) }
+    return (last.end, sep + piece)
+  }
+  private static func splice(_ b: [UInt8], _ r: Range<Int>, _ text: String) -> [UInt8] {
+    var out = b; out.replaceSubrange(r, with: Array(text.utf8)); return out
+  }
+
+  /// The text with `item` added at the end of hooks[event] (made when missing). Nil: the text cannot take it as it is.
+  static func adding(_ text: String, event: String, item: Any) -> String? {
+    let b = Array(text.utf8)
+    guard let top = parse(b), let itemText = json(item) else { return nil }
+    guard let hi = top.index("hooks") else {
+      guard let ev = json(event) else { return nil }
+      let a = append(b, top, "\"hooks\": {\(ev): [\(itemText)]}")
+      return String(decoding: splice(b, a.at..<a.at, a.text), as: UTF8.self)
+    }
+    let hooks = top.kids[hi]
+    guard hooks.kind == .object else { return nil }
+    guard let ei = hooks.index(event) else {
+      guard let ev = json(event) else { return nil }
+      let a = append(b, hooks, "\(ev): [\(itemText)]")
+      return String(decoding: splice(b, a.at..<a.at, a.text), as: UTF8.self)
+    }
+    let list = hooks.kids[ei]
+    guard list.kind == .array else { return nil }
+    let a = append(b, list, itemText)
+    return String(decoding: splice(b, a.at..<a.at, a.text), as: UTF8.self)
+  }
+
+  /// The text with every entry `ours` matches taken out of every hooks event, the same shape ApproveCore.removing gives:
+  /// a group left with no hooks goes, an event left empty goes (upTo 1 or more), "hooks" left empty goes (upTo 2). Nil: odd text.
+  static func removing(_ text: String, ours: (Any) -> Bool, upTo: Int = 2) -> String? {
+    var b = Array(text.utf8)
+    for _ in 0..<200 {
+      guard let top = parse(b) else { return nil }
+      guard let hi = top.index("hooks") else { return String(decoding: b, as: UTF8.self) }
+      let hooks = top.kids[hi]
+      guard hooks.kind == .object else { return String(decoding: b, as: UTF8.self) }
+      var cutAt: Range<Int>?
+      search: for (ei, list) in hooks.kids.enumerated() where list.kind == .array {
+        for (gi, item) in list.kids.enumerated() {
+          var r: Range<Int>?
+          if let v = value(b, item), ours(v) { r = nil }
+          else if item.kind == .object, let ii = item.index("hooks"), item.kids[ii].kind == .array {
+            let inner = item.kids[ii]
+            guard let k = inner.kids.firstIndex(where: { value(b, $0).map(ours) == true }) else { continue }
+            if inner.kids.count > 1 { r = cut(inner, k) }
+          } else { continue }
+          // The entry (or a group left empty) goes; an empty event list and an empty "hooks" go with it.
+          if r == nil {
+            if list.kids.count > 1 || upTo < 1 { r = cut(list, gi) }
+            else if hooks.kids.count > 1 || upTo < 2 { r = cut(hooks, ei) }
+            else { r = cut(top, hi) }
+          }
+          cutAt = r
+          break search
+        }
+      }
+      guard let r = cutAt else { return String(decoding: b, as: UTF8.self) }
+      b.replaceSubrange(r, with: [])
+    }
+    return nil
+  }
+}
+
 /// Puts PS's line into the tools' settings and takes it out again. Every change keeps a backup and is atomic.
 struct ApproveInstaller {
   let p: ApprovePaths
@@ -394,7 +615,23 @@ struct ApproveInstaller {
     saveState(s)
   }
 
-  func read(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+  /// PS 1.65: what PS made in a file besides its own group when it added the line (ApproveCore.made). Unknown: 2, as before.
+  private func made(_ url: URL) -> Int { ((state()["made"] as? [String: Any])?[url.path] as? NSNumber)?.intValue ?? 2 }
+  private func setMade(_ url: URL, _ level: Int?) {
+    var s = state()
+    var m = s["made"] as? [String: Any] ?? [:]
+    m[url.path] = level
+    s["made"] = m.isEmpty ? nil : m
+    saveState(s)
+  }
+
+  /// A file's text exactly as it is (a byte order mark kept). Nil: no file. A file that is not UTF-8 reads as text no JSON
+  /// parser takes, so it is refused and never treated as missing (that would write over it).
+  func read(_ url: URL) -> String? {
+    guard let d = try? Data(contentsOf: url) else { return nil }
+    guard String(data: d, encoding: .utf8) != nil else { return "\u{0}not UTF-8" }
+    return String(decoding: d, as: UTF8.self)
+  }
   /// Writes a settings file: a copy of it as it was first (<file>.ps-auto-approve-backup), then the new text in one
   /// atomic step, with the same permissions as before.
   private func write(_ text: String, to url: URL) throws {
@@ -440,7 +677,8 @@ struct ApproveInstaller {
     guard found else { return .missing }
     guard let o = ApproveCore.parseObject(read(url)) else { return .refused("PS could not read \(display(url)), so it left it alone.") }
     if ApproveCore.hasOurs(o) { return .done }
-    do { try write(ApproveCore.render(ApproveCore.adding(o, tool: tool, p)), to: url); return .done }
+    guard let text = ApproveCore.addedText(read(url), tool: tool, p) else { return .refused("PS could not read \(display(url)), so it left it alone.") }
+    do { try write(text, to: url); setMade(url, ApproveCore.made(o)); return .done }
     catch { return .refused("PS could not change \(display(url)). Nothing was changed.") }
   }
 
@@ -450,15 +688,18 @@ struct ApproveInstaller {
     for url in [p.claudeSettings, p.codexHooks] {
       guard let text = read(url) else { continue }
       guard let o = ApproveCore.parseObject(text) else { notes.append("PS could not read \(display(url)), so it left it alone."); continue }
-      let out = ApproveCore.removing(o)
+      let out = ApproveCore.removing(o, upTo: made(url))
       guard !NSDictionary(dictionary: out).isEqual(to: o) else { continue }
-      if created(url) && out.isEmpty { try? fm.removeItem(at: url); setCreated(url, false) }
-      else { do { try write(ApproveCore.render(out), to: url) } catch { notes.append("PS could not change \(display(url)).") } }
+      if created(url) && ApproveCore.removing(o).isEmpty { try? fm.removeItem(at: url); setCreated(url, false); setMade(url, nil) }
+      else if let t = ApproveCore.removedText(text, upTo: made(url)) {
+        do { try write(t, to: url); setMade(url, nil) } catch { notes.append("PS could not change \(display(url)).") }
+      }
+      else { notes.append("PS could not read \(display(url)), so it left it alone.") }
     }
     try? fm.removeItem(at: p.lease)
     try? fm.removeItem(at: p.hook)
     if ((try? fm.contentsOfDirectory(atPath: p.inbox.path)) ?? []).isEmpty { try? fm.removeItem(at: p.inbox) }
-    if (state()["created"] as? [String] ?? []).isEmpty { try? fm.removeItem(at: p.state) }
+    if (state()["created"] as? [String] ?? []).isEmpty && state()["made"] == nil { try? fm.removeItem(at: p.state) }
     if ((try? fm.contentsOfDirectory(atPath: p.dir.path)) ?? ["x"]).isEmpty { try? fm.removeItem(at: p.dir) }
     let ps = p.dir.deletingLastPathComponent()
     if ((try? fm.contentsOfDirectory(atPath: ps.path)) ?? ["x"]).isEmpty { try? fm.removeItem(at: ps) }

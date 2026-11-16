@@ -1,16 +1,21 @@
 // Auto approve, PS's side. The rules, the hook script and the file work are in AutoApproveCore.swift; this runs them:
-// - Settings, Sentry mode, Auto approve (web views/AutoApprove.tsx): three switches, all off by default,
-//   kept on this Mac (UserDefaults), shown in psSettings.autoApprove; a click comes in as
-//   {type:"autoApprove:set", key: "ai"|"sleep"|"always", on}. The log clears with {type:"autoApprove:clearLog"}.
+// - Settings, Sentry mode, Auto approve (web views/AutoApprove.tsx): three switches kept on this Mac (UserDefaults), shown
+//   in psSettings.autoApprove; a click comes in as {type:"autoApprove:set", key: "ai"|"sleep"|"always", on, quiet?}. The log
+//   clears with {type:"autoApprove:clearLog"}. PS 1.65 (feature "auto-approve-defaults"): "In AI mode" and "In Sleep mode" are
+//   on until the person chooses, "Always" is off; but only once the 1.65 notice was shown on this Mac ({type:
+//   "autoApprove:noticed"}), until then an unset switch is off. A saved On or Off is never changed by a default.
 // - Every second (main thread) it looks at what the Mac is doing: AI mode is Sentry mode engaged (Sentry.shared),
-//   Sleep mode is the sleep screen up (SleepScreen.shared). When Auto approve turns on or off it says so in the log
+//   Sleep mode is the sleep screen up for a real Sleep mode (not an alarm alone). When Auto approve turns on or off it says so in the log
 //   file and moves the lease; while it is on the lease is moved on every 30 seconds.
-// - Route 1, the hook: while any switch is on, PS's line sits in Claude Code's (and Codex's) settings. The script it
+// - Route 1, the hook: PS's line sits in Claude Code's (and Codex's) settings from launch while a switch is SAVED On; a switch
+//   that is only on by its default puts the line in when Auto approve turns on and takes it out when it turns off
+//   (ApproveCore.hookWanted). Only PS's own entry changes, every other byte of the file stays (JSONEdit). The script it
 //   runs leaves a small drop per approval in ~/Library/PS/auto-approve/inbox; PS turns each into a log line (the
 //   command shortened, secrets out, the folder's name only) and deletes it.
 // - Route 2, keys, for prompts the hook cannot reach. Every 2.5 seconds while on:
 //   * Terminal and iTerm2: their text through AppleScript (every window and tab, on any desktop, minimised too).
-//     Needs the Mac's Automation permission for that app, asked when a switch is turned on, never during a mode.
+//     Needs the Mac's Automation permission for that app, asked when a switch is turned on in Settings, never during a
+//     mode and never from the notice or a synced answer (quiet).
 //   * Warp, VS Code, Cursor: their Accessibility text, on the current desktop only. Usually none for a terminal
 //     drawn on the GPU (Warp, VS Code's terminal): then PS sees no prompt and does nothing. It never guesses.
 //   A window counts only when ApproveCore.classify says it is a yes or no permission prompt with Yes chosen, the same
@@ -40,6 +45,9 @@ final class AutoApprove {
   // Main thread.
   private var sw = ApproveCore.Switches()
   private var why: String?
+  /// PS's line is in the tools' settings (or on its way in), as far as the main thread asked.
+  private var hookIn = false
+  private var watchingFeatures = false
   private var tick: Timer?
   private var lastLease = Date.distantPast
   private var lastScan = Date.distantPast
@@ -57,6 +65,8 @@ final class AutoApprove {
   private var told: Set<String> = []
 
   static let keyAi = "autoApprove.ai", keySleep = "autoApprove.sleep", keyAlways = "autoApprove.always", keyLog = "autoApprove.log"
+  /// PS 1.65: the notice about the defaults was shown on this Mac (the defaults act as off until then).
+  static let keyNoticed = "autoApprove.noticeSeen"
   static let logMax = 60
   static let scanEvery: TimeInterval = 2.5
 
@@ -71,45 +81,77 @@ final class AutoApprove {
     ("com.todesktop.230313mzl4w4u92", "Cursor", .ax),
   ]
 
+  /// What this Mac has saved for each switch: nil when the person never chose it.
+  private func saved() -> ApproveCore.Saved {
+    let d = UserDefaults.standard
+    let g = { (k: String) -> Bool? in d.object(forKey: k) == nil ? nil : d.bool(forKey: k) }
+    return ApproveCore.Saved(ai: g(Self.keyAi), sleep: g(Self.keySleep), always: g(Self.keyAlways))
+  }
+
+  /// PS 1.65: the defaults count with the feature on and the notice shown on this Mac.
+  private var defaultsLive: Bool { ApproveCore.defaultsLive(feature: Features.on("auto-approve-defaults"), noticeSeen: UserDefaults.standard.bool(forKey: Self.keyNoticed)) }
+  private func resolveNow() { sw = ApproveCore.resolve(saved(), defaults: defaultsLive) }
+
   // MARK: start and stop
 
   func start(testDir: String?) {
     test = testDir != nil
     guard !test else { return }
     let d = UserDefaults.standard
-    sw = ApproveCore.Switches(ai: d.bool(forKey: Self.keyAi), sleep: d.bool(forKey: Self.keySleep), always: d.bool(forKey: Self.keyAlways))
+    // PS 1.65: a switch the person never chose takes its default (AI mode and Sleep mode on, Always off); a saved one stands.
+    resolveNow()
     log = (d.array(forKey: Self.keyLog) as? [[String: Any]]) ?? []
-    let armed = ApproveCore.armed(sw)
+    // At launch only a SAVED On puts the line in; a default never writes another tool's settings before a mode starts.
+    let keep = ApproveCore.hookWanted(saved(), active: false)
+    hookIn = keep
+    let waiting = ApproveCore.armed(sw)
     q.async { [self] in
       installer.setLease(false)                    // never a lease left from before (a crash): the mode decides again
-      if armed { applyHook(true) }
-      else if installer.claudeOn() || installer.codexOn() || FileManager.default.fileExists(atPath: paths.hook.path) { applyHook(false) }
+      if keep { applyHook(true) }
+      else if installer.claudeOn() || installer.codexOn() || FileManager.default.fileExists(atPath: paths.hook.path) { applyHook(false, waiting: waiting) }
+      else if waiting { applyHook(false, waiting: true) }
       refreshKeysLine(ask: false)
     }
+    // The feature switch turned in Settings applies at once, no restart.
+    if !watchingFeatures { watchingFeatures = true; Features.observers.append { [weak self] in self?.recheck() } }
     tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.tickMain() }
     tick?.tolerance = 0.2
   }
 
-  /// PS is quitting: no lease left behind (the script says nothing without one).
+  /// PS is quitting: no lease left behind (the script says nothing without one). PS 1.65: a line that is in only because a mode
+  /// ran with a default switch comes out now too (a few small file reads and writes, once, at quit), so nothing of PS's stays in
+  /// another tool's settings while PS is closed. A saved On keeps its line, as before.
   func stop() {
     guard !test else { return }
     installer.setLease(false)
+    if hookIn && !ApproveCore.savedOn(saved()) { hookIn = false; q.sync { _ = installer.uninstall() } }
   }
 
   // MARK: Settings
 
   func settingsJSON() -> [String: Any] {
     mu.lock(); defer { mu.unlock() }
+    let sv = saved(), feat = Features.on("auto-approve-defaults")
     var out: [String: Any] = ["ai": sw.ai, "sleep": sw.sleep, "always": sw.always, "on": why != nil, "keys": keysLine,
+                              "defaulted": feat && ApproveCore.defaulted(sv), "unset": feat ? ApproveCore.unset(sv) : [],
+                              "noticed": UserDefaults.standard.bool(forKey: Self.keyNoticed),
                               "log": Array(log.suffix(30).reversed())]
     if let why { out["why"] = why }
     out["hooks"] = hookLines
     return out
   }
 
-  /// From the page: {type:"autoApprove:set", key, on} or {type:"autoApprove:clearLog"}. Click only.
+  /// From the page: {type:"autoApprove:set", key, on, quiet?}, {type:"autoApprove:clearLog"} or {type:"autoApprove:noticed"}.
+  /// A click, the notice's answer, or the person's Turn off from the notice on another Mac (quiet: never asks macOS anything).
   func handle(_ msg: [String: Any]) {
     guard !test else { return }
+    if (msg["type"] as? String) == "autoApprove:noticed" {
+      guard !UserDefaults.standard.bool(forKey: Self.keyNoticed) else { return }
+      UserDefaults.standard.set(true, forKey: Self.keyNoticed)
+      psLog("PS auto approve: the 1.65 notice was shown, the defaults count from now")
+      recheck()
+      return
+    }
     if (msg["type"] as? String) == "autoApprove:clearLog" {
       mu.lock(); log = []; mu.unlock()
       UserDefaults.standard.removeObject(forKey: Self.keyLog)
@@ -117,26 +159,51 @@ final class AutoApprove {
       return
     }
     guard let key = msg["key"] as? String, let on = msg["on"] as? Bool else { return }
-    let was = ApproveCore.armed(sw)
+    let quiet = msg["quiet"] as? Bool == true
     switch key {
     case "ai": sw.ai = on; UserDefaults.standard.set(on, forKey: Self.keyAi)
     case "sleep": sw.sleep = on; UserDefaults.standard.set(on, forKey: Self.keySleep)
     case "always": sw.always = on; UserDefaults.standard.set(on, forKey: Self.keyAlways)
     default: return
     }
-    psLog("PS auto approve: \(key) switched \(on ? "on" : "off")")
-    let armed = ApproveCore.armed(sw)
+    psLog("PS auto approve: \(key) switched \(on ? "on" : "off")\(quiet ? " (quietly)" : "")")
+    resolveNow()
+    let want = hookWanted()
+    let waiting = ApproveCore.armed(sw)
+    hookIn = want
     q.async { [self] in
-      if armed != was || armed { applyHook(armed) }
-      // The person is at the Mac now: the one moment macOS may ask to let PS read Terminal and iTerm2.
-      refreshKeysLine(ask: on)
+      applyHook(want, waiting: waiting)   // an On click writes the line again (its rows say how it went)
+      // A click in Settings: the person is at the Mac, the one moment macOS may ask to let PS read Terminal and iTerm2.
+      // Never from the notice or a synced answer (quiet): those must not pop up a system prompt.
+      refreshKeysLine(ask: on && !quiet)
       DispatchQueue.main.async { [weak self] in self?.tickMain(); self?.onChange?() }
     }
     onChange?()
   }
 
-  /// q: the hook line in or out, and the rows that say so.
-  private func applyHook(_ on: Bool) {
+  /// Main: the switches again (the feature switch changed, the notice was shown), then the hook and the state.
+  private func recheck() {
+    guard !test else { return }
+    let before = sw
+    resolveNow()
+    tickMain()
+    syncHook()
+    if sw != before { psLog("PS auto approve: switches now ai \(sw.ai), sleep \(sw.sleep), always \(sw.always)") }
+    onChange?()
+  }
+  private func hookWanted() -> Bool { ApproveCore.hookWanted(saved(), active: ApproveCore.why(sw, modes()) != nil) }
+  /// Main: the line in or out when what is wanted changed (a mode began or ended, a switch moved).
+  private func syncHook() {
+    let want = hookWanted()
+    guard want != hookIn else { return }
+    hookIn = want
+    let waiting = ApproveCore.armed(sw)
+    q.async { [self] in applyHook(want, waiting: waiting) }
+  }
+
+  /// q: the hook line in or out, and the rows that say so. `waiting`: out, but a switch is on by its default (it goes in
+  /// when Auto approve turns on).
+  private func applyHook(_ on: Bool, waiting: Bool = false) {
     let i = installer
     var lines: [String: String] = [:]
     if on {
@@ -146,13 +213,15 @@ final class AutoApprove {
       psLog("PS auto approve: hook line in (claude \(r.claude == .done ? "done" : "not"), codex \(r.codex == .done ? "done" : "not"))")
     } else {
       let notes = i.uninstall()
-      lines["claude"] = notes.first(where: { $0.contains(".claude") }) ?? "Off."
-      lines["codex"] = notes.first(where: { $0.contains(".codex") }) ?? "Off."
+      lines["claude"] = notes.first(where: { $0.contains(".claude") }) ?? (waiting ? Self.waitLine : "Off.")
+      lines["codex"] = notes.first(where: { $0.contains(".codex") }) ?? (waiting ? Self.waitLine : "Off.")
       psLog("PS auto approve: hook line out\(notes.isEmpty ? "" : " (with a note)")")
     }
     mu.lock(); hookLines = lines; mu.unlock()
     DispatchQueue.main.async { [weak self] in self?.onChange?() }
   }
+  /// PS 1.65: a switch on by its default, no mode running: nothing is written yet.
+  static let waitLine = "PS adds its line when Auto approve turns on and takes it out after."
   private static func line(_ o: ApproveInstaller.Outcome, name: String, on: String) -> String {
     switch o { case .done: return on; case .missing: return "\(name) is not on this Mac."; case .refused(let why): return why }
   }
@@ -174,7 +243,9 @@ final class AutoApprove {
 
   // MARK: every second
 
-  private func modes() -> ApproveCore.Modes { .init(ai: Sentry.shared.engaged, sleep: SleepScreen.shared.isUp) }
+  private func modes() -> ApproveCore.Modes {
+    .init(ai: Sentry.shared.engaged, sleep: ApproveCore.sleepMode(screenUp: SleepScreen.shared.isUp, alarmOnly: SleepScreen.shared.plan?.alarmOnly == true))
+  }
 
   private func tickMain() {
     let now = Date()
@@ -184,6 +255,7 @@ final class AutoApprove {
       lastLease = now
       psLog("PS auto approve: \(w.map { "on (\($0))" } ?? "off")")
       q.async { [self] in installer.setLease(w != nil); firstSeen = [:]; tries = [:]; told = [] }
+      syncHook()   // a default only switch: the line goes in as the mode starts and out as it ends
       onChange?()
     } else if w != nil && now.timeIntervalSince(lastLease) >= ApproveCore.leaseEvery {
       lastLease = now

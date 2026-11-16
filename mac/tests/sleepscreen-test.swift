@@ -3,6 +3,7 @@
 import Foundation
 import LocalAuthentication
 import CryptoKit
+import AppKit
 
 var n = 0
 func ok(_ name: String, _ f: () -> Bool) { if f() { n += 1; print("ok - \(name)") } else { print("FAIL - \(name)"); exit(1) } }
@@ -353,5 +354,60 @@ ok("V1.52 the plan's sentry part is kept for the button, never on an alarm with 
   return SleepPlanN.parse(["since": 1000, "sentry": part] as [String: Any])?.sentry != nil
     && SleepPlanN.parse(["since": 1000, "sentry": part, "alarmOnly": true] as [String: Any])?.sentry == nil
     && SleepPlanN.parse(["since": 1000] as [String: Any])?.sentry == nil
+}
+
+// ---------- PS 1.65: the clock is centred on every screen and never touches the AI Sentry mode button ----------
+_ = NSApplication.shared
+/// The clock drawn the way the screen draws it (a centred label, the clock's own attributed string), and where its ink lies.
+func clockInk(width W: Double, size: Double, sides: Double, time: String = "19:05", ampm: String? = nil, font: NSFont? = nil) -> (min: Double, max: Double, points: Double) {
+  let pts = SleepRules.clockPoints(width: W, size: size, chars: time.count + (ampm == nil ? 0 : 2), sides: sides)
+  let f = font ?? NSFont.monospacedDigitSystemFont(ofSize: CGFloat(pts), weight: .light)
+  let l = NSTextField(labelWithString: "")
+  l.alignment = .center; l.isSelectable = false; l.drawsBackground = false; l.isBordered = false; l.lineBreakMode = .byTruncatingTail
+  l.frame = NSRect(x: 0, y: 0, width: W, height: pts * 1.25)
+  l.attributedStringValue = SleepRules.clockString(time: time, ampm: ampm, font: f, ink: .white, kern: 0)
+  let v = NSView(frame: l.frame); v.addSubview(l)
+  let r = v.bitmapImageRepForCachingDisplay(in: v.bounds)!; v.cacheDisplay(in: v.bounds, to: r)
+  var lo = Int.max, hi = -1
+  for x in 0..<r.pixelsWide { for y in 0..<r.pixelsHigh where (r.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.3 { lo = min(lo, x); hi = max(hi, x) } }
+  let k = Double(r.pixelsWide) / W
+  return (Double(lo) / k, Double(hi) / k, pts)
+}
+for (W, name) in [(1710.0, "15 inch MacBook Air"), (1440.0, "13 inch"), (1512.0, "14 inch Pro"), (2560.0, "external"), (1280.0, "small")] {
+  for size in [50.0, 100.0, 200.0, 300.0] {
+    ok("\(name) \(Int(W)) wide, clock \(Int(size))%: centred, inside the screen, clear of the button's room") {
+      let c = clockInk(width: W, size: size, sides: SleepRules.sentrySide)
+      let mid = (c.min + c.max) / 2
+      print("   ink \(Int(c.min))...\(Int(c.max)) at \(Int(c.points)) pt, middle \(Int(mid)) of \(Int(W / 2))")
+      return abs(mid - W / 2) <= max(8, c.points * 0.06) && c.min >= SleepRules.sentrySide - 8 && c.max <= W - SleepRules.sentrySide + 8
+    }
+  }
+}
+ok("the old string (no paragraph style) really sat at the left, so the fix is the style") {
+  let f = NSFont.monospacedDigitSystemFont(ofSize: 240, weight: .light)
+  let l = NSTextField(labelWithString: ""); l.alignment = .center; l.isBordered = false; l.drawsBackground = false
+  l.frame = NSRect(x: 0, y: 0, width: 1710, height: 300)
+  l.attributedStringValue = NSAttributedString(string: "19:05", attributes: [.font: f, .foregroundColor: NSColor.white])
+  let v = NSView(frame: l.frame); v.addSubview(l)
+  let r = v.bitmapImageRepForCachingDisplay(in: v.bounds)!; v.cacheDisplay(in: v.bounds, to: r)
+  var hi = -1
+  for x in 0..<r.pixelsWide { for y in 0..<r.pixelsHigh where (r.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.3 { hi = max(hi, x) } }
+  return Double(hi) / (Double(r.pixelsWide) / 1710) < 1000
+}
+ok("with AM or PM the clock is still centred as a whole") {
+  let c = clockInk(width: 1710, size: 100, sides: SleepRules.sentrySide, time: "7:05", ampm: "PM")
+  return abs((c.min + c.max) / 2 - 855) <= 40
+}
+ok("the button's room: kept on both sides, nothing with no button, the clock shrinks only when it would touch") {
+  let W = 1710.0
+  let with = SleepRules.clockPoints(width: W, size: 300, chars: 5, sides: SleepRules.sentrySide)
+  let without = SleepRules.clockPoints(width: W, size: 300, chars: 5)
+  return with < without && with * 5 * 0.6 <= W - 2 * SleepRules.sentrySide + 0.01
+    && SleepRules.clockPoints(width: W, size: 100, chars: 5, sides: SleepRules.sentrySide) == SleepRules.clockPoints(width: W, size: 100, chars: 5)
+}
+ok("the analogue face keeps the room too") {
+  let W = 1710.0, H = 1112.0
+  return SleepRules.dialPoints(width: W, height: H, size: 300, sides: SleepRules.sentrySide) <= W - 2 * SleepRules.sentrySide
+    && SleepRules.dialPoints(width: W, height: H, size: 100) == SleepRules.dialPoints(width: W, height: H, size: 100, sides: SleepRules.sentrySide)
 }
 print("\n\(n) passed")

@@ -14,7 +14,7 @@ func tempHome() -> ApprovePaths {
   return ApprovePaths(home: u)
 }
 func put(_ url: URL, _ text: String) { try! fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true); try! text.write(to: url, atomically: true, encoding: .utf8) }
-func get(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+func get(_ url: URL) -> String? { (try? Data(contentsOf: url)).map { String(decoding: $0, as: UTF8.self) } }   // the bytes as they are (a BOM kept)
 func obj(_ url: URL) -> NSDictionary? { (try? JSONSerialization.jsonObject(with: Data(contentsOf: url))) as? NSDictionary }
 func same(_ a: NSDictionary?, _ b: NSDictionary?) -> Bool { a != nil && b != nil && a!.isEqual(to: b! as! [AnyHashable: Any]) }
 func isApprove(_ v: ApproveCore.Verdict) -> Bool { if case .approve = v { return true }; return false }
@@ -37,6 +37,20 @@ do {
   ok("an old lease is not", !ApproveCore.leaseLive(lease, now: now.addingTimeInterval(121)))
   ok("no lease or junk is not live", !ApproveCore.leaseLive(nil, now: now) && !ApproveCore.leaseLive("soon", now: now) && !ApproveCore.leaseLive("", now: now))
   ok("the lease is moved on well inside its life", ApproveCore.leaseEvery * 3 < ApproveCore.leaseSeconds)
+}
+
+// ---------- PS 1.65 defaults: AI mode and Sleep mode on until chosen, Always off ----------
+do {
+  typealias S = ApproveCore.Switches; typealias M = ApproveCore.Modes; typealias V = ApproveCore.Saved
+  let fresh = ApproveCore.resolve(V())
+  ok("never chosen: AI mode and Sleep mode on, Always off", fresh == S(ai: true, sleep: true, always: false))
+  ok("a saved Off stays off", ApproveCore.resolve(V(ai: false, sleep: false, always: false)) == S())
+  ok("a saved Off on one switch leaves the other default", ApproveCore.resolve(V(ai: false)) == S(ai: false, sleep: true, always: false))
+  ok("a saved On for Always stays on", ApproveCore.resolve(V(always: true)).always)
+  ok("feature switch off: unset switches stay off as before 1.65", ApproveCore.resolve(V(), defaults: false) == S() && ApproveCore.resolve(V(ai: true), defaults: false) == S(ai: true))
+  ok("Always is never turned on by the default", !ApproveCore.resolve(V(ai: true, sleep: true)).always)
+  ok("default on is only in AI mode or Sleep mode, never all the time", !ApproveCore.active(fresh, M()) && ApproveCore.why(fresh, M(ai: true)) == "AI mode" && ApproveCore.why(fresh, M(sleep: true)) == "Sleep mode")
+  ok("a default stands until the person chooses (notice asks)", ApproveCore.defaulted(V()) && ApproveCore.defaulted(V(ai: true)) && !ApproveCore.defaulted(V(ai: false, sleep: true)))
 }
 
 // ---------- the classifier: permission prompts ----------
@@ -297,6 +311,84 @@ do {
   let pr = ((out["hooks"] as! [String: Any])["PermissionRequest"] as! [[String: Any]])[0]["hooks"] as! [[String: Any]]
   ok("a group shared with the person's own hook keeps theirs", pr.count == 1 && (pr[0]["command"] as? String) == "/x/theirs")
   ok("AI chat cards' Stop line is not PS Auto approve's", (out["hooks"] as! [String: Any])["Stop"] != nil)
+}
+
+// ---------- PS 1.65: only PS's own entry changes, every other byte stays (JSONEdit) ----------
+/// True when `after` is `before` with exactly one stretch of text put in (nothing else moved or rewritten).
+func oneInsert(_ before: String, _ after: String) -> Bool {
+  let a = Array(before.utf8), b = Array(after.utf8)
+  guard b.count > a.count else { return false }
+  var pre = 0; while pre < a.count, a[pre] == b[pre] { pre += 1 }
+  var suf = 0; while suf < a.count - pre, a[a.count - 1 - suf] == b[b.count - 1 - suf] { suf += 1 }
+  return pre + suf == a.count
+}
+func roundTrip(_ name: String, _ text: String) {
+  let p = tempHome(), i = ApproveInstaller(p: p)
+  put(p.claudeSettings, text)
+  let r = i.install()
+  let mid = get(p.claudeSettings) ?? ""
+  ok("\(name): PS's line goes in", r.claude == .done && i.claudeOn(), "\(r)")
+  ok("\(name): every other byte stays (one insertion only)", oneInsert(text, mid), mid)
+  i.uninstall()
+  ok("\(name): off gives back the very same bytes", get(p.claudeSettings) == text, get(p.claudeSettings) ?? "nil")
+}
+do {
+  roundTrip("the usual pretty file", claudeOwn)
+  roundTrip("compact, keys out of order, escaped slashes, odd numbers",
+            #"{"zeta":1.50,"hooks":{"Stop":[],"PermissionRequest":[{"matcher":"Bash","hooks":[{"command":"\/usr\/bin\/x","type":"command"}]}]},"alpha":"a\"b\\c","n":1e2}"#)
+  roundTrip("tabs, CRLF line ends, spaces before colons", "{\r\n\t\"b\" : 2 ,\r\n\t\"a\"\t:\t[ 1 , 2 ]\r\n}\r\n")
+  roundTrip("no hooks yet", "{ \"model\": \"opus\",   \"theme\": \"dark\" }\n")
+  roundTrip("an empty object", "{}")
+  roundTrip("hooks with no PermissionRequest", "{\n    \"hooks\": {\n        \"Stop\": [ ]\n    }\n}\n")
+  roundTrip("an empty PermissionRequest list", "{\"hooks\": {\"PermissionRequest\": [   ]}}\n")
+  roundTrip("a byte order mark and unicode", "\u{FEFF}{\"name\": \"Zo\u{00EB} \u{1F600}\", \"x\": \"\\u00e9\"}\n")
+}
+do {
+  // Taking out works wherever PS's lines are, keeps the person's own entries byte for byte.
+  let cmd = "/bin/sh '/h/Library/PS/auto-approve/hook.sh' claude"
+  let theirs = "{ \"type\":\"command\",  \"command\":\"/x/theirs\" }"
+  let text = "{\n  \"hooks\": {\n    \"PermissionRequest\": [\n      { \"hooks\": [ {\"type\": \"command\", \"command\": \"\(cmd)\"}, \(theirs) ] },\n      {\"hooks\": [{\"command\": \"\(cmd)\"}]}\n    ],\n    \"PreToolUse\": [ {\"command\": \"\(cmd)\"} ],\n    \"Stop\": [1]\n  },\n  \"keep\": true\n}\n"
+  let out = ApproveCore.removedText(text) ?? ""
+  ok("every PS line goes, in any event and group", !out.contains("auto-approve/hook.sh"), out)
+  ok("the person's own entry is kept byte for byte", out.contains(theirs))
+  ok("an event left empty goes, the others stay as written", !out.contains("PreToolUse") && out.contains("\"Stop\": [1]") && out.contains("\"keep\": true"))
+  ok("the result is what the parsed edit gives", same(ApproveCore.parseObject(out).map { $0 as NSDictionary }, ApproveCore.removing(ApproveCore.parseObject(text)!) as NSDictionary))
+  let only = "{\"a\": 1, \"hooks\": {\"PermissionRequest\": [{\"hooks\": [{\"command\": \"\(cmd)\"}]}]}}"
+  ok("hooks left empty goes with its comma", ApproveCore.removedText(only) == "{\"a\": 1}")
+}
+do {
+  // Shapes PS does not expect: left alone (before 1.65 a non-object "hooks" was replaced, losing what was in it).
+  for (name, text) in [("hooks is a list", "{\"hooks\": [1, 2]}"), ("a repeated key (unclear which counts)", "{\"hooks\": 5, \"hooks\": {}}"), ("PermissionRequest is an object", "{\"hooks\": {\"PermissionRequest\": {\"a\": 1}}}")] {
+    let p = tempHome(), i = ApproveInstaller(p: p)
+    put(p.claudeSettings, text)
+    let r = i.install()
+    if case .refused = r.claude { ok("\(name): refused", true) } else { ok("\(name): refused", false, "\(r)") }
+    ok("\(name): the file is exactly as it was, no backup", get(p.claudeSettings) == text && !fm.fileExists(atPath: p.claudeSettings.path + ApproveCore.backupSuffix))
+  }
+  do {
+    let p = tempHome(), i = ApproveInstaller(p: p)
+    let bad = Data([0x7B, 0x22, 0x61, 0x22, 0x3A, 0x22, 0xFF, 0xFE, 0x22, 0x7D])
+    try! fm.createDirectory(at: p.claudeDir, withIntermediateDirectories: true)
+    try! bad.write(to: p.claudeSettings)
+    let r = i.install()
+    if case .refused = r.claude { ok("a file that is not UTF-8 is refused, never taken as missing", (try? Data(contentsOf: p.claudeSettings)) == bad) } else { ok("a file that is not UTF-8 is refused", false, "\(r)") }
+  }
+  ok("JSONEdit refuses text that is not one object", JSONEdit.parse(Array("[1]".utf8)) == nil && JSONEdit.parse(Array("{} x".utf8)) == nil && JSONEdit.parse(Array("{\"a\":}".utf8)) == nil)
+  ok("deep nesting is refused, never a crash", JSONEdit.parse(Array(("{\"a\":" + String(repeating: "[", count: 5000) + String(repeating: "]", count: 5000) + "}").utf8)) == nil)
+}
+
+// ---------- PS 1.65: when the line belongs in another tool's settings ----------
+do {
+  typealias V = ApproveCore.Saved
+  ok("never chosen and no mode: nothing is written at launch", !ApproveCore.hookWanted(V(), active: false))
+  ok("never chosen, a mode runs with Auto approve on: the line goes in", ApproveCore.hookWanted(V(), active: true))
+  ok("a saved On keeps the line in from launch, as before 1.65", ApproveCore.hookWanted(V(sleep: true), active: false) && ApproveCore.hookWanted(V(always: true), active: false))
+  ok("saved Off everywhere and no mode: no line", !ApproveCore.hookWanted(V(ai: false, sleep: false, always: false), active: false))
+  ok("the defaults count only with the feature on and the notice seen here", ApproveCore.defaultsLive(feature: true, noticeSeen: true)
+     && !ApproveCore.defaultsLive(feature: true, noticeSeen: false) && !ApproveCore.defaultsLive(feature: false, noticeSeen: true))
+  ok("before the notice an unset switch is off", ApproveCore.resolve(V(), defaults: ApproveCore.defaultsLive(feature: true, noticeSeen: false)) == ApproveCore.Switches())
+  ok("the switches still open on this Mac", ApproveCore.unset(V()) == ["ai", "sleep"] && ApproveCore.unset(V(ai: false)) == ["sleep"] && ApproveCore.unset(V(ai: true, sleep: false)).isEmpty)
+  ok("an alarm alone is not Sleep mode", !ApproveCore.sleepMode(screenUp: true, alarmOnly: true) && ApproveCore.sleepMode(screenUp: true, alarmOnly: false) && !ApproveCore.sleepMode(screenUp: false, alarmOnly: false))
 }
 
 // ---------- the real script, in a temp home ----------
