@@ -365,7 +365,7 @@ await ok("looksSecret: real looking secrets are caught, normal words are not", (
 
 await ok("repoOk and checkJob: no credentials in links, no paths that climb out, limits", () => {
   for (const r of ["ps-app", "https://github.com/example/ps-app.git", "git@github.com:example/ps-app.git", "ssh://git@example.com/x.git"]) assert.equal(S.repoOk(r), "", r);
-  for (const r of ["../etc", "/srv/repo", "~/repo", "file:///tmp/x", "ext::sh -c x", "https://tok@github.com/x", "a b"]) assert.notEqual(S.repoOk(r), "", r);
+  for (const r of ["../etc", "/srv/repo", "~/repo", "file:///tmp/x", "ext::sh -c x", "https://tok@example.com/x", "a b"]) assert.notEqual(S.repoOk(r), "", r);
   const base = { v: 1, t: "job", id: "abcdef12", from: "a", to: "b", at: 1000, exp: 1000 + HOUR, type: "claude", args };
   assert.equal(S.checkJob(base, 2000), "");
   assert.match(S.checkJob({ ...base, exp: 1000 + 30 * HOUR }, 2000), /too long/);
