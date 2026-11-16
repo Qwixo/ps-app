@@ -418,6 +418,7 @@ export interface Settings {
   psPresence?: boolean;            // Settings, Privacy and sharing, "Tell the website PS app is open": false = no ps-presence channel (src/ps.ts; missing = on)
   tipsShow?: boolean;              // Settings, About and updates, "Show first use tips": false = no tip cards (views/Tips.tsx; missing = on)
   replyInPanel?: boolean;          // Settings, Notifications, "Reply in the email panel" (V1.59, core/inlinereply.ts; missing = on)
+  assistant?: { on?: boolean; pop?: boolean };   // Settings, Settings assistant (PS 1.65, core/assist.ts): the bot on (missing = on) and pop out when Settings opens (missing = on)
   chkRemind?: { on: boolean; every: number; sound: boolean };   // Settings, Checklist Reminder (PS 1.65, core/chkremind.ts): on (missing = on), minutes between pop-ups (30 to 720, missing = 120), a soft chime (missing = on)
   swipeInvert?: boolean;           // Settings, Controls, "Invert swipe" (V1.57): true flips every page swipe (core/lists.ts swipeSign; missing = off)
   autoLockMin: number;

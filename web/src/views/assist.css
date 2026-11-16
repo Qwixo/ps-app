@@ -1,0 +1,79 @@
+/* The Settings assistant (PS 1.65, views/Assistant.tsx): a thin calm card, the bot button and the walk's spotlight. Look tokens only. */
+.as-card { --as-line: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent); --as-soft: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(62% * var(--k-ia, 1))), transparent);
+  box-sizing: border-box; max-width: calc(900px * var(--k-dn, 1)); margin: 0 0 calc(18px * var(--k-dn, 1)); padding: calc(12px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: calc(16px * var(--k-rd, 1));
+  border: 1px solid var(--as-line); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(4% * var(--k-ia, 1))), transparent); display: grid; gap: calc(10px * var(--k-dn, 1));
+  animation: as-in .42s cubic-bezier(.34, 1.4, .5, 1) both; }
+.as-card.busy { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); }
+.as-top { display: flex; align-items: center; gap: calc(12px * var(--k-dn, 1)); }
+.as-ic { flex: none; display: grid; place-items: center; width: calc(38px * var(--k-dn, 1)); height: calc(38px * var(--k-dn, 1)); border-radius: 999px; color: var(--k-acc-t, #F49BBE);
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 16%, transparent); }
+.as-bot.swoop { animation: as-swoop .7s cubic-bezier(.34, 1.5, .5, 1) both; }
+.as-eyes { transform-origin: 12px 12px; animation: as-blink 4.2s infinite; }
+.as-form { flex: 1; min-width: 0; display: flex; gap: calc(8px * var(--k-dn, 1)); }
+.as-in { all: unset; box-sizing: border-box; flex: 1; min-width: 0; height: calc(38px * var(--k-dn, 1)); padding: 0 calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); font-size: calc(14.5px * var(--k-fs, 1)); font-weight: 550; color: var(--k-fg, #FFFFFF);
+  border: 1px solid var(--as-line); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); cursor: text; }
+.as-in::placeholder { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.as-in:focus { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); }
+.as-send, .as-go, .as-sec, .as-next { all: unset; box-sizing: border-box; cursor: pointer; font-size: calc(13.5px * var(--k-fs, 1)); font-weight: 700; padding: 0 calc(14px * var(--k-dn, 1)); height: calc(34px * var(--k-dn, 1)); display: inline-flex; align-items: center; border-radius: 999px; transition: background .16s ease, transform .16s ease; }
+.as-send, .as-go { background: var(--k-acc, #EC4E86); color: #fff; }
+.as-send:disabled { opacity: .4; cursor: default; }
+.as-send:not(:disabled):hover, .as-go:hover { transform: translateY(-1px); }
+.as-sec { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); color: var(--k-fg, #FFFFFF); }
+.as-sec:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(17% * var(--k-ia, 1))), transparent); }
+.as-sec.quiet { background: transparent; color: var(--as-soft); }
+.as-next { height: auto; padding: calc(4px * var(--k-dn, 1)) 0; color: var(--k-acc-t, #F49BBE); text-decoration: underline; text-underline-offset: 3px; }
+.as-go:focus-visible, .as-sec:focus-visible, .as-send:focus-visible, .as-next:focus-visible, .as-btn:focus-visible, .as-match:focus-visible, .as-closest:focus-visible { outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 2px; }
+.as-body { display: grid; gap: calc(8px * var(--k-dn, 1)); } .as-body:empty { display: none; }
+.as-say { margin: 0; font-size: calc(14.5px * var(--k-fs, 1)); line-height: 1.45; color: var(--k-fg, #FFFFFF); }
+.as-wait, .as-note { font-size: calc(12.5px * var(--k-fs, 1)); color: var(--as-soft); margin: 0; line-height: 1.4; }
+.as-step { margin: 0; font-size: calc(14px * var(--k-fs, 1)); line-height: 1.45; } .as-step b { color: var(--k-acc-t, #F49BBE); margin-right: 6px; }
+.as-acts { display: flex; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); align-items: center; }
+.as-think { margin: 0; display: flex; align-items: center; gap: 4px; font-size: calc(14px * var(--k-fs, 1)); color: var(--as-soft); }
+.as-think span { margin-right: 4px; }
+.as-think i { width: 6px; height: 6px; border-radius: 99px; background: var(--k-acc-t, #F49BBE); animation: as-dot 1s infinite ease-in-out; } .as-think i:nth-of-type(2) { animation-delay: .15s; } .as-think i:nth-of-type(3) { animation-delay: .3s; }
+.as-matches, .as-closest { display: grid; gap: calc(6px * var(--k-dn, 1)); }
+.as-match, .as-closest { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 2px; padding: calc(9px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); border: 1px solid var(--as-line); }
+.as-match:hover, .as-closest:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); }
+.as-match b, .as-closest b { font-size: calc(14px * var(--k-fs, 1)); } .as-match em, .as-closest em { font-style: normal; font-size: calc(12.5px * var(--k-fs, 1)); color: var(--as-soft); }
+.as-btn { all: unset; display: grid; place-items: center; width: calc(34px * var(--k-dn, 1)); height: calc(34px * var(--k-dn, 1)); border-radius: 999px; cursor: pointer; align-self: center; color: var(--k-acc-t, #F49BBE);
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 14%, transparent); transition: transform .2s cubic-bezier(.34, 1.5, .5, 1); }
+.as-btn:hover { transform: scale(1.1) rotate(-6deg); }
+/* the walk: a soft hole of light around the tab, section or control, gliding from step to step */
+.as-spot { position: fixed; z-index: 2147483000; pointer-events: none; border-radius: calc(14px * var(--k-rd, 1)); box-shadow: 0 0 0 9999px rgba(0, 0, 0, .38), 0 0 0 2px var(--k-acc, #EC4E86), 0 0 22px 2px color-mix(in srgb, var(--k-acc, #EC4E86) 60%, transparent);
+  transition: left .45s cubic-bezier(.34, 1.2, .5, 1), top .45s cubic-bezier(.34, 1.2, .5, 1), width .45s cubic-bezier(.34, 1.2, .5, 1), height .45s cubic-bezier(.34, 1.2, .5, 1); }
+.as-spot.ctl { animation: as-glow 1.4s ease-in-out infinite; }
+.as-spot.plain { transition: none; animation: none; }
+@keyframes as-in { from { opacity: 0; transform: translateY(-8px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes as-swoop { from { transform: translate(-30px, -14px) rotate(-30deg) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes as-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes as-dot { 0%, 80%, 100% { transform: translateY(0); opacity: .5; } 40% { transform: translateY(-4px); opacity: 1; } }
+@keyframes as-glow { 0%, 100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, .38), 0 0 0 2px var(--k-acc, #EC4E86), 0 0 14px 1px color-mix(in srgb, var(--k-acc, #EC4E86) 45%, transparent); } 50% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, .38), 0 0 0 2px var(--k-acc, #EC4E86), 0 0 30px 5px color-mix(in srgb, var(--k-acc, #EC4E86) 75%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .as-card, .as-bot.swoop, .as-eyes, .as-think i, .as-spot, .as-spot.ctl, .as-btn { animation: none; transition: none; } .as-spot { box-shadow: 0 0 0 9999px rgba(0, 0, 0, .3), 0 0 0 3px var(--k-acc, #EC4E86); } }
+/* the AI choice rows in Settings */
+.as-ai { display: grid; gap: calc(10px * var(--k-dn, 1)); width: 100%; }
+.as-prov { display: grid; gap: calc(6px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); border: 1px solid var(--as-line, rgba(255,255,255,.12)); }
+.as-prov.on { border-color: color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); }
+.as-prov-h { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); flex-wrap: wrap; } .as-prov-h b { flex: 1; font-size: calc(14px * var(--k-fs, 1)); }
+.as-pill { font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); }
+.as-pill.ok { background: color-mix(in srgb, #3DDC84 22%, transparent); }
+.as-key { display: flex; gap: calc(8px * var(--k-dn, 1)); flex-wrap: wrap; } .as-key .as-in { height: calc(32px * var(--k-dn, 1)); min-width: 180px; }
+.as-req { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; } .as-req li { font-size: calc(13px * var(--k-fs, 1)); display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+/* the bot button's place in Settings' header grid */
+.gs-win .gs-head { grid-template-columns: auto auto minmax(0, 1fr) auto auto; grid-template-areas: "min title search bot hint"; }
+.gs-head .as-btn { grid-area: bot; }
+.gs-win.gs-narrow .gs-head { grid-template-columns: auto minmax(0, 1fr) auto !important; grid-template-areas: "min title bot" "search search search" !important; }
+/* thinking: the bot bobs; done: a small happy hop; the changed row glows once after Do it */
+.as-ic.think .as-bot { animation: as-bob .9s ease-in-out infinite; }
+.as-ic.happy .as-bot { animation: as-hop .5s cubic-bezier(.34, 1.8, .5, 1) both; }
+.as-note.ok { color: color-mix(in srgb, #3DDC84 80%, var(--k-fg, #FFFFFF)); }
+.gs-set.as-glow { animation: as-row 1.8s ease-out both; border-radius: calc(12px * var(--k-rd, 1)); }
+.as-card.inline { margin: calc(10px * var(--k-dn, 1)) 0 0; }
+@keyframes as-bob { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-2px) rotate(-6deg); } }
+@keyframes as-hop { 0% { transform: scale(1); } 40% { transform: translateY(-3px) scale(1.12); } 100% { transform: scale(1); } }
+@keyframes as-row { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--k-acc, #EC4E86) 0%, transparent); background: color-mix(in srgb, var(--k-acc, #EC4E86) 0%, transparent); }
+  25% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-acc, #EC4E86) 70%, transparent), 0 0 24px 2px color-mix(in srgb, var(--k-acc, #EC4E86) 40%, transparent); background: color-mix(in srgb, var(--k-acc, #EC4E86) 12%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .as-ic.think .as-bot, .as-ic.happy .as-bot { animation: none; } .gs-set.as-glow { animation: none; outline: 2px solid var(--k-acc, #EC4E86); outline-offset: 2px; } }
+.as-reqs { display: grid; gap: calc(8px * var(--k-dn, 1)); width: 100%; } .as-req.squad li span { flex: 1; }
+/* during a walk the card stays in view at the top of the page, so the path and "click the glowing control" can be read */
+.as-card.walking { position: sticky; top: calc(6px * var(--k-dn, 1)); z-index: 6; background: color-mix(in srgb, var(--k-bg, #1A1020) 88%, var(--k-acc, #EC4E86)); }

@@ -17,7 +17,7 @@ export { norm, stem };
 
 /** Where PS is running: on a Mac (the Tab list), the website, or the phone (PS GOS and the iPhone web app). */
 export type Where = "mac" | "web" | "phone";
-export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "chkremind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "posture" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
+export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "chkremind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "posture" | "sleep" | "sentry" | "gsquad" | "phone" | "about" | "assistant";
 /** What a setting opens instead of a row in Settings: a screen of its own. */
 export type Go = "fitness" | "security" | "dnd" | "gsquad" | "sleepSettings" | "phone" | "vault" | "macApp";
 
@@ -75,6 +75,8 @@ export const GROUPS: SetGroup[] = [
   { id: "list", label: "Your list", line: "Ticking, Completed, task size and sounds", icon: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" },
   // V1.57 (the developer, 13 Nov 2026: "make an option in settings, in another tab in the settings menu, to make it inverted").
   { id: "controls", label: "Controls", line: "How swipes move your pages", icon: "M8 7l-5 5 5 5M16 7l5 5-5 5M3 12h18" },
+  // PS 1.65 Settings assistant (request of the developer's AI, 17 Nov 2026): the bot's own switches. Words wait for the owner's approval.
+  { id: "assistant", label: "Settings assistant", line: "A bot that finds and changes settings for you", icon: "M12 3v3M8 6h8a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3zM9 12h.01M15 12h.01M9.5 15.5h5" },
   { id: "looks", label: "Appearance", line: "Look, colours, background and rain", icon: "M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1.5-1.6 0-1-.9-1.4-.9-2.4 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.6 17 3 12 3zM7.5 10.5h.01M12 7.5h.01M16.5 10.5h.01" },
   { id: "notify", label: "Notifications and Do Not Disturb", line: "Pop-ups, meetings, focus modes, reminders", icon: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" },
   // The developer, 10 Nov 2026: "Add a dedicated settings menu to this ... in it's own settings tab called 'Annoying 15 min reminder'".
@@ -114,6 +116,11 @@ const MAC: Where[] = ["mac"], WEB: Where[] = ["web"], PHONE: Where[] = ["phone"]
 const GOS_ONLY = { on: PHONE, shell: "gos" as const }, MWEB_ONLY = { on: PHONE, shell: "mweb" as const };
 
 export const SETTINGS: SetEntry[] = [
+  // ---------- Settings assistant (PS 1.65) ----------
+  { id: "assist-on", group: "assistant", name: "Settings assistant", line: "A small bot that finds a setting, shows where it lives and can change it for you.", words: ["assistant", "bot", "help", "ai", "ask", "find a setting", "settings help", "chat"] },
+  { id: "assist-pop", group: "assistant", name: "Pop out when Settings opens", line: "The bot comes out of the island when you open Settings.", on: MAC, words: ["assistant", "bot", "island", "pop out", "pop up", "open settings"] },
+  { id: "assist-ai", group: "assistant", name: "Settings assistant AI", line: "Who thinks about your request: Apple, Claude or ChatGPT. Each shows if it is ready.", on: MAC, words: ["assistant", "bot", "ai", "apple", "claude", "chatgpt", "openai", "anthropic", "codex", "key", "keychain", "model"] },
+
   // ---------- Add friend ----------
   { id: "add-friend", group: "friend", name: "Add friend", line: "Show this QR code. Any phone camera opens PS app and joins your G Squad.", words: ["qr", "qr code", "scan", "invite", "friend", "add", "add friend", "join", "share", "camera", "squad", "g squad", "meet", "business card", "link"] },
 
@@ -367,6 +374,7 @@ export const SETTINGS: SetEntry[] = [
   // V1.58 multiple developers (views/FromTheSquad.tsx, core/features.ts): other people's shared features, each with a switch.
   { id: "squad-features", group: "gsquad", name: "From the squad", line: "Features your friends made and shared. Switch each one on or off.", words: ["squad", "g squad", "friends", "features", "shared", "from the squad", "switch", "extras", "add ons", "made by", "developers", "turn on", "turn off"] },
   { id: "gs-money", group: "gsquad", name: "Money you made", line: "Add last month's amount at the top of the Leaderboard. No pop-up asks for it.", go: "gsquad", words: ["money", "income", "earnings", "made", "amount", "last month", "revenue", "leaderboard"] },
+  { id: "assist-requests", group: "gsquad", name: "Feature requests", line: "What you asked the assistant for that PS cannot do yet. Only your words go.", words: ["feature", "request", "idea", "suggest", "wish", "assistant", "bot", "squad"] },
   { id: "gs-open", group: "gsquad", name: "Open G Squad", line: "Your squad, the board and the chat.", go: "gsquad", words: ["squad", "friends", "leaderboard", "chat", "board", "rename", "squad name", "my name", "members"] },
 
   // ---------- This phone (V1.47: real rows, no more sheet) ----------

@@ -16,7 +16,7 @@ export const TOUR_ID = "tour-165";
 /** The tour's own switch (features.json). */
 export const TOUR_FEATURE = "whats-new-tour";
 /** The intros the tour replaces (core/featureintro.ts INTROS ids): marked done when the tour runs. */
-export const TOUR_FOLDS: readonly string[] = ["receipts", "posture-165", "checklist-165", "notif-stack-165", "gsquad-v3-165", "gsquad-pieces-165", "gsquad-dm", "proton-bridge-165"];
+export const TOUR_FOLDS: readonly string[] = ["receipts", "posture-165", "checklist-165", "notif-stack-165", "gsquad-v3-165", "gsquad-pieces-165", "gsquad-dm", "proton-bridge-165", "settings-assistant-165"];
 
 export interface TourStep {
   /** Which feature ids show this step: ANY one on is enough (a feature can have a few, for example G Squad's look and its messages). */
@@ -42,6 +42,7 @@ export const TOUR_STEPS: TourStep[] = [
   { ids: ["receipts"], title: "Receipts and Purchases", line: "Scan receipts with your phone and see what you spend.", where: "The Purchases button (Tab list on a Mac, menu on a phone). Switch: Settings, Your list, Receipts and Purchases", owner: true },
   { ids: ["notif-stack"], title: "Stacked notifications", line: "With many waiting you see the newest and a +number. Point at the +number to open the rest.", where: "On the island. Switch: Settings, G Squad, From the squad", on: ["mac"] },
   { ids: ["proton-bridge"], title: "Proton Mail", line: "Read your clients' Proton Mail in the email panel.", where: "Settings, Client emails, Link Proton Mail", on: ["mac"], mail: true },
+  { ids: ["settings-assistant"], title: "Settings assistant", line: "Tell a little bot what you want and it finds the setting and takes you there.", where: "The bot at the top of Settings. Switch: Settings, Settings assistant" },
   { ids: ["fuller-history"], title: "Fuller history", line: "A private record of tasks you missed, added or deleted.", where: "Settings, Privacy and sharing, Fuller task history" },
   { ids: ["gsquad-v3", "gsquad-dm"], title: "G Squad, new look", line: "A new look with direct messages and group chats.", where: "Open G Squad. Your picture: Squad settings, Your name and picture" },
   { ids: ["gsquad-pieces"], title: "G Squad on your pages", line: "Put the squad chat, the leaderboard or who is working on any page.", where: "Edit mode, Add, the G Squad pieces" },

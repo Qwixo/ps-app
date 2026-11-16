@@ -78,6 +78,7 @@ import { SharingList, openGSquad } from "./GSquad";
 import { FromTheSquad } from "./FromTheSquad";
 import { AddFriendPanel } from "./AddFriend";
 import { PomoSetting } from "./Pomodoro";
+import { AssistAiRow, AssistOnRow, AssistPopRow, AssistRequestsRow } from "./AssistSettings";
 import { PostureSetting } from "./PostureSettings";
 import { MeetBubbleSetting, StandSetting, WelcomeBackSetting, WorkoutMacSetting } from "./IslandTimersSettings";
 import { LinkIphoneRow } from "./LinkIphone";
@@ -188,6 +189,8 @@ const looks = (part: Parameters<typeof Looks>[0]["part"]) => (p: RowProps) => <L
 
 // ---------- every row ----------
 export const CONTROLS: Controls = {
+  // PS 1.65 Settings assistant (views/AssistSettings.tsx)
+  "assist-on": AssistOnRow, "assist-pop": AssistPopRow, "assist-ai": AssistAiRow, "assist-requests": AssistRequestsRow,
   // The phone's own rows (V1.47): GrapheneOS app and iPhone web app, gos/PhoneRows.tsx.
   ...PHONE_CONTROLS,
   // Your list

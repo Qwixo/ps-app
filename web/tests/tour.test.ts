@@ -87,7 +87,7 @@ ok("Show the tour again: with its record gone it is eligible again", (() => { co
 
 // ---- the four old intros are folded in
 const s2 = retireFolded(markShown(active(), TOUR_ID, T0), T0);
-ok("running the tour marks all eight 1.65 intros done", TOUR_FOLDS.every((id) => s2.recs[id]?.closed === true) && TOUR_FOLDS.length === 8);
+ok("running the tour marks all nine 1.65 intros done (the Settings assistant joined)", TOUR_FOLDS.every((id) => s2.recs[id]?.closed === true) && TOUR_FOLDS.length === 9);
 ok("none of them can show on its own after that", INTROS.filter((d) => TOUR_FOLDS.includes(d.id)).every((d) => !eligible(d, s2, facts(), T0 + 90 * GAP_MS)));
 ok("other intros are left alone", !s2.recs["whatsapp"] && !s2.recs["squad-p1"]);
 ok("folding is safe twice", JSON.stringify(retireFolded(s2, T0 + 5)) === JSON.stringify(s2) || TOUR_FOLDS.every((id) => retireFolded(s2, T0 + 5).recs[id]?.closed));
