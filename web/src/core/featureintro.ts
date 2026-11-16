@@ -8,6 +8,7 @@
 import { cleanAnchor, cleanVersion, cmpVersion, type IslandAnchor } from "./whatsnew.ts";
 import { SR_INTRO } from "./screenrecmeet.ts";
 import { PROTON_WORDS } from "./protonmail.ts";
+import { ASSIST_WORDS } from "./assist.ts";
 import { TOUR_FOLDS, TOUR_ID, TOUR_WORDS } from "./tour.ts";
 import { APPROVE_INTRO, APPROVE_PICKS } from "./autoapprove.ts";
 
@@ -216,6 +217,16 @@ export const INTROS: IntroDef[] = [
     mark: "record",
     steps: [...SR_INTRO.steps],
     settings: SR_INTRO.settings,
+  },
+  {
+    // PS 1.65 Settings assistant (words for the owner to approve): one Ok ends it for good (a `choice` with one button: nothing opens).
+    // Shown only while the assistant is on (views/FeatureIntro.tsx DONE_PROBES).
+    id: "settings-assistant-165",
+    headline: ASSIST_WORDS.introHead,
+    ask: ASSIST_WORDS.introAsk,
+    show: "Ok",
+    mark: "spark",
+    choice: true,
   },
 ];
 

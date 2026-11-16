@@ -28,6 +28,8 @@ import { PART_SHOWN, type LooksPart } from "../core/looksoptions";
 import { setPeekPart, usePeek } from "../looks/peek";
 import "../looks/peek.css";
 import { GROUPS, groupById, groupsFor, landingOf, rowsOf, searchSettings, settingById, type Ctx, type Go, type GroupId, type SetEntry } from "../core/settingsindex";
+import { AssistBotButton, AssistCard, AssistSpot } from "./Assistant";
+import { assistCtx, assistEsc, installBridge, settingsOpened } from "../assist";
 import { LOOKS_PREVIEW_MS, LOOKS_PREVIEW_NOTE_MS } from "../core/lookspreview";
 
 /** The old tab names (V1.32 to V1.42), still accepted: General is Your list now, Mac settings is Mac. */
@@ -164,6 +166,10 @@ export function SettingsScreen({ owner, ctx, controls, onGo, phone = false }: {
   const endPeek = useRef<() => void>(() => {});
   const pv = usePeek();
   const timer = useRef(0);
+  // PS 1.65 Settings assistant: who is looking (its list), the Mac's way in (window.__psAssist), and the island pop out when Settings opens.
+  assistCtx(ctx);
+  useEffect(() => installBridge(), []);
+  useEffect(() => { if (mine && phase === "open") { settingsOpened(true); return () => settingsOpened(false); } }, [!!mine && phase === "open"]); // eslint-disable-line react-hooks/exhaustive-deps
   const preview: Preview = (label, set, clear, part = "look") => {
     endPeek.current();
     setPeekPart(part); set(); sfx.click(); setPeek(label);
@@ -260,7 +266,8 @@ export function SettingsScreen({ owner, ctx, controls, onGo, phone = false }: {
   backRef.current = back;
   useEffect(() => {
     if (phase !== "open") return;
-    const escape = () => { backRef.current(true); return true; };
+    // PS 1.65: the Settings assistant steps back first (a walk ends, then its answer clears), then Settings closes as before.
+    const escape = () => { if (assistEsc()) return true; backRef.current(true); return true; };
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); escape(); return; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopImmediatePropagation(); setInside(false); window.setTimeout(() => search.current?.focus(), 0); }
@@ -316,6 +323,7 @@ export function SettingsScreen({ owner, ctx, controls, onGo, phone = false }: {
                 : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" /></svg>}
             </button>
             <div className="cs-title"><h2>{title}</h2></div>
+            <AssistBotButton />
             {!narrow && version}
             {(!narrow || !inside || searching) && (
               <label className="gs-search">
@@ -345,6 +353,7 @@ export function SettingsScreen({ owner, ctx, controls, onGo, phone = false }: {
             )}
             <div ref={scroll} className="cs-scroll gs-scroll">
               <RowContext.Provider value={rowCtx}>
+                {!searching && (showList || !narrow || inside) && <AssistCard />}
                 {searching ? (
                   <Results q={q} hits={hits.map((h) => h.e)} onPick={jump} />
                 ) : showList ? (
@@ -368,6 +377,7 @@ export function SettingsScreen({ owner, ctx, controls, onGo, phone = false }: {
           </div>
         </div>
       </section>
+      <AssistSpot />
       {peek && (
         <div className="ms-catch" onMouseDown={(e) => { e.stopPropagation(); endPeek.current(); }}>
           <div className={`ms-peek-chip${pv.note ? " has-note" : ""}`} role="status">

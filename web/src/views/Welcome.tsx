@@ -30,6 +30,7 @@ import {
 } from "../core/welcome";
 import { taskMapActions } from "./TaskMap";
 import { openSettings, settingsWanted } from "./SettingsScreen";
+import { SetupAssist } from "./Assistant";
 import { useMixerPermission } from "./Mixer";
 import { feature } from "../core/features";
 import { SR_FEATURE } from "../core/screenrec";
@@ -322,6 +323,7 @@ function WelcomePanel({ update, onDone }: { update: boolean; onDone: () => void 
                     </div>
                   )}
                   {card.note && <p className="wt-note">{f(card.note)}</p>}
+                  <SetupAssist />
                   {showPerm && <PermBox id={card.perm!} onUsed={() => { if (card.permWhen === "on") setTouched((t) => ({ ...t, [card.id]: true })); }} />}
                   {perms.map((id) => <PermBox key={id} id={id} compact onUsed={() => {}} />)}
                   {choices[card.id] === true && (card.permsOn ?? []).map((id) => <PermBox key={id} id={id} onUsed={() => {}} />)}

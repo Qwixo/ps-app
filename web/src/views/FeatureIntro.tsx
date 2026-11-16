@@ -16,6 +16,7 @@ import { PS, onPsSettings, psPost, psSettingsNow, useOverlayShown } from "../ps"
 import { askScreenRec, screenRecNow } from "../screenrec";
 import { introAudience } from "../core/screenrecmeet";
 import { useVault } from "../ui/kit";
+import { assistPrefs } from "../core/assist";
 import { settingsData } from "../core/select";
 import { dndActive } from "../core/dnd";
 import { CHK_FEATURE } from "../core/chkremind";
@@ -162,6 +163,8 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   // PS 1.65 Auto approve defaults: only on a Mac with the feature on, and while one of its switches still has no choice on THIS Mac
   // (each Mac shows it once; a Turn off given on another Mac reaches this one through approveOff and retires it). Saves nothing.
   [APPROVE_INTRO.id]: async (_can, s) => (!PS || !feature(APPROVE_FEATURE) ? "unknown" : approveIntroProbe(macApprove(), settingsData(s).approveOff)),
+  // PS 1.65 Settings assistant: while the feature and its switch are on; Ok ends it for good.
+  "settings-assistant-165": foldedUnlessTour(async (_can, s) => (feature("settings-assistant") && s.status === "unlocked" && assistPrefs(settingsData(s).assistant).on ? "open" : "unknown")),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault

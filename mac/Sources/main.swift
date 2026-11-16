@@ -1354,6 +1354,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     }
     if type.hasPrefix("torch:") && !MINECRAFT_ENABLED { return }   // Minecraft mode is off (MinecraftSwitch.swift): no torch
     if (fromMain || fromOverlay) && TorchLight.shared.handle(type, msg, from: message.webView) { return }   // torch:* (Torch.swift)
+    if (fromMain || fromOverlay) && type.hasPrefix("assist:") && AssistService.shared.handle(type, msg, from: message.webView) { return }   // PS 1.65 Settings assistant (AssistProviders.swift)
     if (fromMain || fromOverlay) && SleepSound.shared.handle(type, msg) { return }
     if (fromMain || fromOverlay) && AlarmListStore.shared.handle(type, msg) { return }   // V1.47 alarm playlists
     if (fromMain || fromOverlay) && type.hasPrefix("rem:") && Reminders.shared.handle(type, msg) { return }    // reminders: own sounds, Test (Reminders.swift)    // V1.44 alarm sound: own sound, Test (SleepSound.swift)
@@ -1665,7 +1666,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     case "dnd" where fromMain:                  // Do Not Disturb: what is muted right now (src/dnd.ts, DND.swift)
       if let st = msg["state"] as? [String: Any] { DND.shared.fromPage(st) }
     case "island" where fromMain:               // the Dynamic Island's state (src/island.ts, Island.swift)
-      if let st = msg["state"] as? [String: Any] { Island.shared.fromPage(st); SetupIsland.shared.islandState(st) }
+      if let st = msg["state"] as? [String: Any] { Island.shared.fromPage(st); SetupIsland.shared.islandState(st); AssistIsland.shared.islandState(st) }
     case "setupIsland" where fromMain || fromOverlay:   // the setup menu opened or closed (views/Welcome.tsx, SetupIsland.swift)
       SetupIsland.shared.menu(open: msg["menu"] as? Bool ?? false)
     case "island:intro" where fromOverlay:               // PS 1.60: a "Did you know?" intro asks to come out of the island (views/FeatureIntro.tsx)

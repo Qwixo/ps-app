@@ -213,3 +213,12 @@ export function thunder(name: string, vol: number) {
   }
   thunderUntil = t0 + spec.dur;
 }
+
+// PS 1.65 Settings assistant (website and phone, and a Mac with the island off; on a Mac with the island the Mac plays its own): a gentle
+// two note chime when it answers, three tiny notes going up when a setting is done. Short and quiet, at PS's own volume; `on` false (the
+// Tab list's mute) keeps it silent. Original tones made here, no file.
+export function assistSound(kind: "chime" | "happy", on: boolean) {
+  if (!on || volume <= 0) return;
+  if (kind === "chime") { tone(880, 0.16, 0.07, "sine", 0); tone(1318, 0.28, 0.06, "sine", 0.09); return; }
+  tone(988, 0.07, 0.07, "sine", 0); tone(1318, 0.07, 0.07, "sine", 0.07); tone(1760, 0.14, 0.06, "sine", 0.14);
+}
