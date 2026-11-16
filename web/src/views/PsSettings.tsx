@@ -12,6 +12,7 @@ import { MiddleClickSettings } from "./MiddleClickSettings";
 import { RemindSettings } from "./RemindSettings";
 import { MailPeople } from "./MailPeople";
 import { ClientEmailsSettings } from "./ClientEmailsSettings";
+import { ProtonBridgeSettings } from "./ProtonBridgeSettings";
 import { WhatsAppSettings } from "./WhatsAppSettings";
 import { mailOnSnap } from "../core/mailsnap";
 import { mailCan } from "../core/mailswitch";
@@ -72,6 +73,7 @@ export function PsSettingsView({ onBack, overlay }: { onBack?: () => void; overl
         <RemindSettings />
       </section>
       {mailCan(s) && <ClientEmailsSettings compact />}
+      <ProtonBridgeSettings />
       {mailCan(s) && <WhatsAppSettings />}
       {mailOnSnap(s) && (
         <section className="panel stack" aria-labelledby="gm-ps-h">

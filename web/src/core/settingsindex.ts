@@ -175,6 +175,9 @@ export const SETTINGS: SetEntry[] = [
   // V1.59 (the developer, 14 Nov 2026: "make it so you can click to reply IN the email panel, same thing on the desktop too").
   { id: "client-emails", group: "notify", name: "Client emails", line: "Client emails and Instantly replies as cards and in the email panel. Needs your own Supabase project.", mailCan: true,
     words: ["client", "emails", "email", "gmail", "instantly", "replies", "inbox", "cards", "mail", "oauth", "google cloud", "connect"] },
+  // PS 1.65 Proton Mail through Proton Mail Bridge (views/ProtonBridgeSettings.tsx, core/protonmail.ts): Mac only.
+  { id: "proton-bridge", group: "notify", name: "Link Proton Mail (Proton Bridge)", line: "Read your clients' Proton Mail in the email panel, through Proton Mail Bridge on this Mac.", on: MAC,
+    words: ["proton", "proton mail", "bridge", "protonmail", "email", "mail", "imap", "link", "client emails", "keychain", "password"] },
   // PS 1.60 WhatsApp replies: the "WhatsApp settings" tab (status, Link WhatsApp, switches, quick replies, who messages me).
   { id: "whatsapp", group: "notify", name: "WhatsApp settings", line: "Reply to WhatsApp messages from PS. Link your number, then messages show as cards and in the email panel.", mailCan: true,
     words: ["whatsapp", "wa", "messages", "message", "chat", "link", "number", "meta", "cloud api", "reply", "quick replies", "mute"] },

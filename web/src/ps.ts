@@ -45,6 +45,7 @@ import { liveForMirror, liveStore, refreshCampaignsLive, setLiveAsker, setLiveMi
 import { cleanTgPrefs } from "./core/tgbot";
 import { cleanSentry } from "./core/sentry";
 import { startTgBot, tgShellMessage } from "./tgbot";
+import { protonShellMessage } from "./core/protonmail";
 import { aiDoneMessage } from "./aidone";
 import { apiMessage, apiOverlayMessage } from "./taskapi";
 import { cleanPairOp } from "./core/pairengine";
@@ -510,6 +511,7 @@ export function startPsOverlay() {
     bgListeners.forEach((l) => l());
   };
   psPost({ type: "bg:get" });
+  psPost({ type: "proton:get" });   // PS 1.65 Proton Mail through Bridge: the unread rows and the link's status (core/protonmail.ts)
   // Cincee Campaigns live: the panel's refresh asks the main page, which has the keys.
   if (CAMPAIGNS_ON) setLiveAsker(() => psPost({ type: "looks", patch: { campLive: true } }));   // off (core/features.ts): nothing asks
   // Screen fit (V1.40): PS describes the screen the list opens on and the zoom it set (core/screenfit.ts).
@@ -543,6 +545,7 @@ export function startPsOverlay() {
   // The overlay also needs the Tab switch and "remembered" for its top right buttons.
   (window as W).__ps = {
     apply(m) {
+      if (protonShellMessage(m as { type?: string })) return;   // PS 1.65 Proton Mail through Bridge: the unread rows, a reply's answer (core/protonmail.ts)
       if (apiOverlayMessage(m as { type?: string })) return;   // Settings, AI task API: the key, shown when asked (src/taskapi.ts)
       if (m.type === "tab") { tabState = { enabled: m.enabled, trusted: m.trusted }; settingsListeners.forEach((l) => l()); }
       else if (m.type === "mailOpen") requestMailOpen((m as { via?: unknown }).via);   // PS 1.61: the island's envelope or reply arrow: the email panel opens its newest email (core/mailopen.ts)
@@ -624,9 +627,11 @@ const bgShell = new Set<(m: Record<string, unknown>) => void>();
 export function startPsBridge() {
   if (!PS || bridged) return;
   bridged = true;
+  psPost({ type: "proton:get" });   // PS 1.65: the main window needs the status too (Settings)
   (window as W).__ps = {
     apply(m) {
       if (localKeyMessage(m as { type?: string })) return;   // local first: the Keychain's answer for the local vault key (src/core/localholders.ts)
+      if (protonShellMessage(m as { type?: string })) return;   // PS 1.65 Proton Mail through Bridge (core/protonmail.ts)
       if (tgShellMessage(m as { type?: string })) return;   // Add Telegram Bot: Telegram's answers through PS, the Tab list's buttons (src/tgbot.ts)
       const bgType = (m as { type?: string }).type;   // The developer's vault videos (src/core/bgvault.ts)
       if (bgType === "bg:have" || bgType === "bg:piece") { bgShell.forEach((f) => f(m as unknown as Record<string, unknown>)); return; }

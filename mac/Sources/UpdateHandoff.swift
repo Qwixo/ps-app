@@ -166,6 +166,7 @@ enum UpdateHandoff {
     let tgbot = o["tgbot"] as? String                      // Add Telegram Bot: the bot key (V1.47)
     let taskapi = o["taskapi"] as? String                  // AI task API: its key
     var tgSaved = false
+    let proton = o["proton"] as? String                    // Proton Mail through Bridge: the link (PS 1.65)
     var mailSaved = 0
     var secondSaved = 0
     if UpdatePaths.test {
@@ -187,6 +188,7 @@ enum UpdateHandoff {
       if let k = (o["localkey"] as? String).flatMap({ Data(base64Encoded: $0) }), k.count == 32 { LocalKey.saveOwn(k) }
       mailSaved = MailSend.handoffSave(mail)
       tgSaved = TelegramBot.handoffSave(tgbot)
+      ProtonBridge.handoffSave(proton)
       if TaskApi.handoffSave(taskapi) { psLog("PS update: AI task API key handed over") }
       if let c = o["srcloud"] as? [String: String] { ScreenRecCloud.handoffSave(c) }   // screen recorder cloud: logins and the sealing key (PS 1.60)
     }
@@ -236,6 +238,7 @@ enum UpdateHandoff {
       let mail = MailSend.handoffCollect()   // Reply from PS: sign ins and the queue, so a scheduled reply survives the update
       if !mail.isEmpty { o["mail"] = mail }
       if let t = TelegramBot.handoffCollect() { o["tgbot"] = t }   // Add Telegram Bot: the bot key, so it keeps reading after the update
+      if let p = ProtonBridge.handoffCollect() { o["proton"] = p }   // Proton Mail through Bridge: the link, so it keeps reading after the update
       if let k = TaskApi.handoffCollect() { o["taskapi"] = k }   // AI task API: the key, so AI tools keep working after the update
       let src = ScreenRecCloud.handoffCollect()   // screen recorder cloud: logins and the sealing key, so sealed recordings still open after the update
       if !src.isEmpty { o["srcloud"] = src }

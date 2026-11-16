@@ -12,7 +12,7 @@ import type { LeadCard } from "./leadcards";
 export interface MailRow {
   /** The pop up card id for the same email: "m:<reply record id>" (Gmail) or "n:<Instantly email id>". */
   cardId: string;
-  via: "gmail" | "instantly";
+  via: "gmail" | "instantly" | "proton";
   /** Gmail: the reply record, for Done (marks it handled). */
   replyId?: string;
   who: string;

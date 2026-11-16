@@ -99,6 +99,7 @@ The developer's signing certificate. PS V1.56 and older still ask cincee.com unt
 Other services, only when you use them: Telegram, if you add your own Telegram bot; YouTube's no cookie player
 (`youtube-nocookie.com`), when you open a video in Goals; Apple's speed test servers, when you press Speed test in
 the network monitor; and Supabase's own website (`api.supabase.com`), when you connect your own Supabase.
+Proton Mail, if you link Proton Mail Bridge: PS on your Mac talks only to the Bridge app on the same Mac (127.0.0.1) and refuses any other address. Your Proton mail is never sent to any server of ours or anyone else's.
 
 cincee.com is hosted on Netlify behind Cloudflare. Both show the developer the IP address of people who open the website or
 download PS from it: Netlify for every request in the last 24 hours, Cloudflare for a sample of requests over 31

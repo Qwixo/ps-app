@@ -23,6 +23,7 @@ import { feature } from "../core/features";
 import { chatStore } from "../squad/chatengine";
 import { RCPT_FEATURE, receiptsOn } from "../core/receipts";
 import { posturePrefs } from "../core/posture";
+import { PROTON_FEATURE, protonMirror } from "../core/protonmail";
 import { mailCan } from "../core/mailswitch";
 import { attachedLayout, ISLAND_ASK_MS, ISLAND_QUEUED_MS, type IslandAnchor } from "../core/whatsnew";
 import { addActive, answer, CARD_W, cleanDone, LOGO_MOMENT, logoChime, cleanState, INTROS, introReply, markShown, nextIntro, recheckMs, retire, updaterAnswer, type IntroDef, type IntroState } from "../core/featureintro";
@@ -117,6 +118,8 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   "notif-stack-165": async () => (PS && feature("notif-stack") ? "open" : "unknown"),
   // PS 1.65 G Squad DMs, groups and pictures: only once the hub answers for them (until Red deploys it, it just waits), for people in a squad.
   "gsquad-dm": async () => (feature("gsquad-dm") && squadStore.get().in && chatStore.get().dm === true ? "open" : "unknown"),
+  // PS 1.65 Proton Mail through Bridge: only on a Mac with the feature on, and only until Bridge is linked (a link retires it for good).
+  "proton-bridge-165": async () => (!PS || !feature(PROTON_FEATURE) ? "unknown" : protonMirror.get().status.linked ? "done" : "open"),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault
