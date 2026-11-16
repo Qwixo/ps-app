@@ -158,7 +158,7 @@ await ok("the feature is registered, has an intro, and the window and chat use t
   assert.match(src("core/featureintro.ts"), /id: "gsquad-v3-165"/);
   assert.match(src("views/FeatureIntro.tsx"), /"gsquad-v3-165"/);
   const w = src("views/GSquadWindow.tsx");
-  for (const k of ["useConvs", "ConvRow", "clampWin", "dragWin", "saveWin", "newDm"]) assert.ok(w.includes(k), k);
+  for (const k of ["useConvs", "ConvRow", "clampWin", "dragWin", "saveWin", "newDm", "GroupCard", "NewGroupCard"]) assert.ok(w.includes(k), k);
   assert.match(src("views/GSquadChat.tsx"), /MsgText/);
   assert.match(src("views/GSquadSettings.tsx"), /PictureEdit/);
   const css = src("views/gssignal3.css");
@@ -170,5 +170,50 @@ await ok("the feature is registered, has an intro, and the window and chat use t
     assert.ok(!/[–—]/.test(src(f2)), f2);
     assert.ok(!/RTCPeerConnection|getUserMedia|\bcall(s|ing)?\b.*(button|start)/i.test(src(f2).replace(/\/\/.*|\/\*[\s\S]*?\*\//g, "")) || f2.endsWith(".css"), f2);
   }
+});
+
+// ---------- integration with the data side (jan/gsquad-dm, merged as #30) ----------
+const CV = await import("../src/squad/chatview.ts");
+const DV = await import("../src/squad/dmview.ts");
+const GR = await import("../src/core/gsgroup.ts");
+const U1 = "00000000-0000-4000-8000-0000000000a1", U2 = "00000000-0000-4000-8000-0000000000a2", U3 = "00000000-0000-4000-8000-0000000000a3";
+await ok("the real view keeps convs, activeConv, dm and the member pictures, and the list is built from them", () => {
+  const pic = "data:image/jpeg;base64,/9j/AAAA";
+  const view = CV.cleanChatView({ ...CV.EMPTY_CHAT, in: true, dm: true, activeConv: "d1",
+    convs: [{ id: "squad", kind: "squad", title: "G Squad", memberIds: [U1], unread: 0 }, { id: "d1", kind: "dm", title: "Sam", memberIds: [U1, U2], unread: 3, avatar: U2, last: { text: "hi", at: "2026-11-17T09:00:00Z", from: "Sam" } }],
+    members: [{ id: U2, name: "Sam", me: false, left: false, pic }] });
+  assert.equal(view.convs?.length, 2); assert.equal(view.activeConv, "d1"); assert.equal(view.dm, true); assert.equal(view.members?.[0].pic, pic);
+  const list = C.convsFor({ convs: view.convs }, { name: "G Squad", memberIds: [], unread: 0 });
+  assert.deepEqual(list.map((c) => c.id), ["d1", "squad"]);   // newest first
+  assert.equal(C.activeOf(list, view.activeConv), "d1");
+  assert.equal(C.activeOf(list, "gone-chat"), "squad");        // a chat that left the list falls back to the squad
+  assert.equal(CV.EMPTY_CHAT.dm, false);                       // a hub without dm: false, the screen shows no DM or group button
+});
+await ok("the ops the screen sends are the ones the data side accepts, and bad ones are dropped", () => {
+  assert.deepEqual(DV.cleanDmOp({ op: "newDm", memberId: U2 }), { op: "newDm", memberId: U2 });
+  assert.deepEqual(DV.cleanDmOp({ op: "newGroup", title: " Gym crew ", memberIds: [U2, U3] }), { op: "newGroup", title: "Gym crew", memberIds: [U2, U3] });
+  assert.equal(DV.cleanDmOp({ op: "newGroup", title: "Solo", memberIds: [U2] }), null);   // two or more other people
+  assert.deepEqual(DV.cleanDmOp({ op: "groupAdd", id: U3, memberIds: [U1] }), { op: "groupAdd", id: U3, memberIds: [U1] });
+  assert.deepEqual(DV.cleanDmOp({ op: "groupRemove", id: U3, memberId: U1 }), { op: "groupRemove", id: U3, memberId: U1 });
+  assert.deepEqual(DV.cleanDmOp({ op: "leaveConv", id: U3 }), { op: "leaveConv", id: U3 });
+  assert.deepEqual(CV.cleanChatOp({ op: "clearAvatar" }), { op: "clearAvatar" });
+  assert.equal(GR.groupTitleOk("   "), false); assert.equal(GR.groupTitleOk("Gym crew"), true);
+  assert.equal(GR.GROUP_MIN_OTHERS, 2); assert.equal(GR.GROUP_MAX_OTHERS, 23);
+});
+await ok("the chat words fit the conversation and the two notes show in the new look", () => {
+  assert.match(C.convWords("dm").foot, /two of you/); assert.match(C.convWords("group").empty, /group/); assert.match(C.convWords("squad").foot, /squad/);
+  const src = (f: string) => readFileSync(new URL(`../src/${f}`, import.meta.url), "utf8");
+  // the notes are the chat's own error line (a hub or engine note), drawn by the chat panel in every look
+  assert.match(src("views/GSquadChat.tsx"), /v\.error && <p className="gs-err"/);
+  assert.match(src("squad/chatengine.ts"), /A message was not sent because that chat is gone\./);
+  assert.match(src("squad/dmflows.ts"), /You cannot leave a private message\./);
+});
+await ok("DMs and groups are hidden while the hub has no dm function", () => {
+  const src = (f: string) => readFileSync(new URL(`../src/${f}`, import.meta.url), "utf8");
+  const w = src("views/GSquadWindow.tsx");
+  assert.match(w, /v3 && conv\.dm \? \(m\)/);                    // the Message button on a member
+  assert.match(w, /conv\.dm && v\.members\.length > 2/);    // New group
+  assert.match(src("views/GSquadV3.tsx"), /dm: chat\.dm === true/);
+  assert.match(w, /chatConv\.kind === "group" && <button/);       // the group card only for a group
 });
 console.log(`${n} passed`);

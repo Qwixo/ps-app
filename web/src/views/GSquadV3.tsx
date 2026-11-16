@@ -2,14 +2,14 @@
 // conversation list rows, Read more, the picture settings. The rules are in core/gsmsg.ts, gsconv.ts, gsavatar.ts.
 // The data (convs, activeConv, newDm, openConv, setAvatar) belongs to the other branch (jan/gsquad-dm); until it is merged
 // the list is built from today's one squad chat (core/gsconv.ts convsFor), so everything works with one conversation.
-import { useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { feature } from "../core/features";
 import { readMoreCut, moreShown, READ_MORE } from "../core/gsmsg";
 import { activeOf, convsFor, previewLine, SQUAD_ID, type Conv } from "../core/gsconv";
 import { AVATAR_PX, fitPicture, squareCrop, squareOut } from "../core/gsavatar";
 import { THE_SQUAD } from "../squad/single";
 import { useChat, chatOp } from "../squad/chatmirror";
-import type { ChatOp } from "../squad/chatview";
+import type { DmOp } from "../squad/dmview";
 import type { SquadView } from "../squad/view";
 import { listTime, unreadText } from "../squad/chatgroups";
 import { sfx } from "../ui/sfx";
@@ -19,33 +19,24 @@ export const V3_FEATURE = "gsquad-v3";
 /** True when the Signal style window (look, motion, conversation list) is on in this build for this person. */
 export const v3On = (): boolean => { try { return feature(V3_FEATURE); } catch { return false; } };
 
-// ---------- the ops the other branch answers (one place, so the way they travel can change in one line) ----------
-export type V3Op = { op: "openConv"; id: string } | { op: "newDm"; memberId: string } | { op: "setAvatar"; dataUrl: string } | { op: "clearAvatar" };
-export function v3Op(o: V3Op) { chatOp(o as unknown as ChatOp); }
+// ---------- the ops the data side answers (squad/dmview.ts DmOp, all run by the chat engine, so they go through chatOp) ----------
+export type V3Op = DmOp;
+export function v3Op(o: V3Op) { chatOp(o); }
+export const openConv = (id: string) => v3Op({ op: "openConv", id });
 
-// ---------- which conversation is open ----------
-let activeNow: string = SQUAD_ID;
-let devConvs: Conv[] | null = null;      // the dev pictures only (src/dev/gsquad-fake.ts)
-const subs = new Set<() => void>();
-const sub = (l: () => void) => { subs.add(l); return () => { subs.delete(l); }; };
-export function openConv(id: string) { if (id !== activeNow) { activeNow = id; subs.forEach((l) => l()); } v3Op({ op: "openConv", id }); }
-export function setDevConvs(c: Conv[] | null) { devConvs = c; subs.forEach((l) => l()); }
-const useActiveLocal = () => useSyncExternalStore(sub, () => activeNow);
-const useDev = () => useSyncExternalStore(sub, () => devConvs);
-
-/** The list of conversations and the open one. */
-export function useConvs(v: SquadView): { list: Conv[]; active: string; cur: Conv } {
+/** The list of conversations and the open one. The view (squad/chatview.ts convs, activeConv, dm) is the truth: the open one is
+ *  whatever the view says, so the screen never shows a chat the engine is not on. While the hub has no `dm` function the list
+ *  is the squad chat alone and `dm` is false (the screen then shows no DM or group button). */
+export function useConvs(v: SquadView): { list: Conv[]; active: string; cur: Conv; dm: boolean } {
   const chat = useChat();
-  const local = useActiveLocal();
-  const dev = useDev();
-  const view = chat as unknown as { convs?: unknown; activeConv?: unknown };
   const newest = chat.lines.at(-1);
-  const list = useMemo(() => convsFor({ convs: dev ?? view.convs }, {
-    name: v.name || THE_SQUAD, memberIds: v.members.map((m) => m.id), unread: chat.unread,
+  const squadName = v.name || THE_SQUAD;
+  const list = useMemo(() => convsFor({ convs: chat.convs }, {
+    name: squadName, memberIds: v.members.map((m) => m.id), unread: chat.unread,
     ...(newest ? { last: { text: newest.t, at: newest.at, from: newest.mine ? v.meName : newest.name } } : {}),
-  }), [dev, view.convs, v.name, v.members, v.meName, chat.unread, newest?.id, newest?.t]); // eslint-disable-line react-hooks/exhaustive-deps
-  const active = activeOf(list, typeof view.activeConv === "string" ? view.activeConv : local);
-  return { list, active, cur: list.find((c) => c.id === active) ?? list[0] };
+  }).map((c) => (c.id === SQUAD_ID ? { ...c, title: squadName } : c)), [chat.convs, squadName, v.members, v.meName, chat.unread, newest?.id, newest?.t]); // eslint-disable-line react-hooks/exhaustive-deps
+  const active = activeOf(list, chat.activeConv);
+  return { list, active, cur: list.find((c) => c.id === active) ?? list[0], dm: chat.dm === true };
 }
 
 // ---------- pictures ----------
@@ -107,8 +98,10 @@ const encodeOn = (img: CanvasImageSource, crop: { x: number; y: number; side: nu
   }, "image/jpeg", q);
 });
 export function PictureEdit({ v }: { v: SquadView }) {
+  const chat = useChat();
+  const chatErr = chat.error && /picture/i.test(chat.error) ? chat.error : null;   // the data side says why a picture was refused ("That picture is too big or not a jpeg or webp.")
   const me = v.members.find((m) => m.me);
-  const pic = (me as { pic?: string } | undefined)?.pic;
+  const pic = chat.members?.find((m) => m.me)?.pic ?? (me as { pic?: string } | undefined)?.pic;
   const file = useRef<HTMLInputElement>(null);
   const [note, setNote] = useState<string | null>(null);
   const pick = async (f: File | undefined) => {
@@ -134,7 +127,7 @@ export function PictureEdit({ v }: { v: SquadView }) {
         </div>
       </div>
       <input ref={file} type="file" accept="image/*" hidden onChange={(e) => void pick(e.target.files?.[0])} />
-      <p className="gs-note" role="status">{note ?? `The picture is made square, ${AVATAR_PX} pixels and small before it is sent. Only the squad sees it.`}</p>
+      <p className="gs-note" role="status">{chatErr && note !== "Picture removed." ? chatErr : note ?? `The picture is made square, ${AVATAR_PX} pixels and small before it is sent. Only the squad sees it.`}</p>
     </div>
   );
 }

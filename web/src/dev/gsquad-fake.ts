@@ -9,7 +9,6 @@ import { setChatMirror } from "../squad/chatmirror";
 import { setGymMirror } from "../squad/gymview";
 import { gymStore } from "../squad/gym";
 import { loadGymFake } from "./gym-fake";
-import { setDevConvs } from "../views/GSquadV3";
 
 const ME = "00000000-0000-4000-8000-000000000001";
 const SAM = "00000000-0000-4000-8000-0000000000a1", KIT = "00000000-0000-4000-8000-0000000000a2", ANA = "00000000-0000-4000-8000-0000000000a3";
@@ -94,13 +93,25 @@ export function loadGSquadFake() {
       t: "Here is how my week went, in case it helps anyone. Monday I wrote the whole landing page draft and sent it to the client for a first look. Tuesday was calls all day, four of them, and I still got the pricing table done between two of them. Wednesday I fixed the checkout flow with Sam and we tested it on three phones. Thursday was the big one: the new onboarding emails went out to the whole list and the first replies came in within an hour. Friday I wrote up what worked and what did not, so the next block starts clean. " + "The part I would copy is the order. First the thing the client is waiting on, then the thing that makes money, then the thing that makes the next week easier. Everything else waits until after lunch. It sounds boring, but it is why I have 92 tasks done this month. If you want my template for the Friday write up, say so and I will share it here, it is one page and takes ten minutes. " + "One more thing, because people ask: I do not answer messages before 11. That is the whole trick. The first three hours are only for the work that cannot be done by anyone else, and I protect them like a meeting. Try it for one week and tell me what changes." },
     { id: id(13), from: ME, name: "Alex", mine: true, t: "Send the template please, and thanks for writing this up", at: day(0, 9, 41), edited: false, left: false },
   ];
-  setDevConvs([
-    { id: "squad", kind: "squad", title: "The G Squad", memberIds: [ME, SAM, KIT, ANA], last: { text: "Send the template please, and thanks for writing this up", at: day(0, 9, 41), from: "Alex" }, unread: 2 },
+  const convs = [
+    { id: "squad", kind: "squad", title: "G Squad", memberIds: [ME, SAM, KIT, ANA], last: { text: "Send the template please, and thanks for writing this up", at: day(0, 9, 41), from: "You" }, unread: 2 },
     { id: "g1", kind: "group", title: "Gym crew", memberIds: [ME, SAM, KIT], last: { text: "Leg day at 18:00?", at: day(0, 8, 5), from: "Kit" }, unread: 0 },
     { id: "d1", kind: "dm", title: "Sam Rivera", memberIds: [ME, SAM], last: { text: "Can you check the pricing page before 3?", at: day(1, 17, 20), from: "Sam Rivera" }, unread: 1, avatar: SAM },
-    { id: "d2", kind: "dm", title: "Ana Petrova", memberIds: [ME, ANA], last: { text: "Thanks!", at: day(4, 12, 0), from: "Alex" }, unread: 0, avatar: ANA },
-  ]);
-  const chat = { in: !["none", "joining", "left", "removed", "full", "error"].includes(mode), ready: true, open: true, unread: 2, lines, more: false, votes: [], note: null, sound: false, notify: true, notifyOn: true, noteSound: true, sending: 0, error: null, loaded: true, gif: { on: true, q: "", items: [], next: null, busy: false, failed: false } };
+    { id: "d2", kind: "dm", title: "Ana Petrova", memberIds: [ME, ANA], last: { text: "Thanks!", at: day(4, 12, 0), from: "You" }, unread: 0, avatar: ANA },
+  ];
+  // &conv=d1 opens that conversation (the real view gives `lines` of the open one only); &nodm shows a hub without DMs; &note=gone or &note=leave shows the two chat notes.
+  const qq = new URLSearchParams(location.search);
+  const conv = convs.some((c) => c.id === qq.get("conv")) ? qq.get("conv")! : "squad";
+  const dmLines = conv === "d1" ? [
+    { id: id(81), from: SAM, name: "Sam Rivera", mine: false, t: "Hey, got a minute?", at: day(1, 17, 10), edited: false, left: false },
+    { id: id(82), from: ME, name: "Alex", mine: true, t: "Sure, what is up?", at: day(1, 17, 12), edited: false, left: false },
+    { id: id(83), from: SAM, name: "Sam Rivera", mine: false, t: "Can you check the pricing page before 3?", at: day(1, 17, 20), edited: false, left: false },
+  ] : conv === "g1" ? [
+    { id: id(91), from: KIT, name: "Kit", mine: false, t: "Leg day at 18:00?", at: day(0, 8, 5), edited: false, left: false },
+  ] : conv === "d2" ? [{ id: id(95), from: ME, name: "Alex", mine: true, t: "Thanks!", at: day(4, 12, 0), edited: false, left: false }] : lines;
+  const hasDm = !qq.has("nodm");
+  const noteText = qq.get("chatnote") === "gone" ? "A message was not sent because that chat is gone." : qq.get("chatnote") === "leave" ? "You cannot leave a private message." : null;
+  const chat = { convs: hasDm ? convs : [convs[0]], activeConv: hasDm ? conv : "squad", dm: hasDm, members: members.map((m) => ({ id: m.id, name: m.me ? "You" : m.name, me: m.me, left: false, ...((m as { pic?: string }).pic ? { pic: (m as { pic?: string }).pic } : {}) })), in: !["none", "joining", "left", "removed", "full", "error"].includes(mode), ready: true, open: true, unread: 2, lines: hasDm ? dmLines : lines, more: false, votes: [], note: null, sound: false, notify: true, notifyOn: true, noteSound: true, sending: 0, error: noteText, loaded: true, gif: { on: true, q: "", items: [], next: null, busy: false, failed: false } };
 
   setTimeout(() => {
     setSquadMirror(squad);

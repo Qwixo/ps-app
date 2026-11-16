@@ -45,3 +45,9 @@ export function previewLine(c: Conv, meName: string, nameOf: (id: string) => str
   const text = c.last.text.replace(/\s+/g, " ").trim();
   return mine ? `You: ${text}` : c.kind === "dm" ? text : `${nameOf(c.last.from)}: ${text}`;
 }
+/** The two lines of the chat that name who is in it: right for the squad, a group and a private message. */
+export function convWords(kind: ConvKind | undefined): { empty: string; foot: string; box: string } {
+  if (kind === "dm") return { empty: "No messages yet. Say hi.", foot: "End to end encrypted. Only the two of you can read these messages.", box: "Message" };
+  if (kind === "group") return { empty: "No messages yet. Say hi to the group.", foot: "End to end encrypted. Only the people in this group can read these messages.", box: "Message the group" };
+  return { empty: "No messages yet. Say hi to the squad.", foot: "End to end encrypted. Only the squad can read these messages.", box: "Message the squad" };
+}
