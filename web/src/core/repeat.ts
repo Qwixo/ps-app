@@ -11,7 +11,10 @@
 // reset after today.
 
 export type RepeatUnit = "day" | "week" | "month" | "year";
-export interface Repeat { every: number; unit: RepeatUnit; from: string }
+/** `days` (PS 1.65, typed dates in plain words, core/nldates.ts): a weekly rule on several days of the week, 0 Sunday to
+ *  6 Saturday ("every weekday" is [1, 2, 3, 4, 5]). Only with unit "week"; `from` is then the first of those days. A PS
+ *  that does not know `days` reads the rule as every week (or every N weeks) on `from`'s day, which is the closest it has. */
+export interface Repeat { every: number; unit: RepeatUnit; from: string; days?: number[] }
 
 /** The fields this file reads and writes on a to-do. */
 export interface RepeatTask {
@@ -47,8 +50,31 @@ export function occurrence(r: Repeat, k: number) {
   return r.unit === "day" ? plusDays(r.from, n) : r.unit === "week" ? plusDays(r.from, n * 7)
     : r.unit === "month" ? plusMonths(r.from, n) : plusMonths(r.from, n * 12);
 }
+const dow = (iso: string) => { const [y, m, d] = parts(iso); return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); };
+const dayNo = (iso: string) => { const [y, m, d] = parts(iso); return Math.round(Date.UTC(y, m - 1, d) / 86400000); };
+/** The Monday that starts the week `iso` is in (weeks for "every other week" start on Monday). */
+const mondayOf = (iso: string) => plusDays(iso, -((dow(iso) + 6) % 7));
+/** A weekly rule on several days: the first of its days strictly after `after`, on a week that counts (every N weeks
+ *  from the week of `from`), never before `from`. */
+function nextOnDays(r: Repeat, days: number[], after: string) {
+  const base = dayNo(mondayOf(r.from));
+  let d = after < r.from ? plusDays(r.from, -1) : after;
+  for (let i = 0; i < 7 * r.every + 7; i++) {
+    d = plusDays(d, 1);
+    const wk = Math.floor((dayNo(d) - base) / 7);
+    if (days.includes(dow(d)) && wk % r.every === 0) return d;
+  }
+  return plusDays(after, 1);   // unreachable with a clean rule
+}
+/** The days of a weekly rule on several days, or null for an ordinary rule. */
+export function ruleDays(r: Pick<Repeat, "unit" | "days"> | null | undefined): number[] | null {
+  return r && r.unit === "week" && Array.isArray(r.days) && r.days.length ? r.days : null;
+}
+
 /** The first occurrence strictly after `after`. */
 export function nextAfter(r: Repeat, after: string) {
+  const days = ruleDays(r);
+  if (days) return nextOnDays(r, days, after);
   // Jump close first, then step: keeps a ten year old "every day" rule fast.
   const [fy, fm] = parts(r.from), [ay, am] = parts(after);
   const spanDays = (Date.UTC(ay, am - 1, parts(after)[2]) - Date.UTC(fy, fm - 1, parts(r.from)[2])) / 86400000;
@@ -72,9 +98,29 @@ export function isDueNow(t: RepeatTask, today: string) {
 /** "Every day", "Every other day", "Every 3 days", "Every week", "Every 2 weeks", "Every month", "Every year". */
 export function repeatLabel(r?: Repeat | null) {
   if (!r || (r.unit === "day" && r.every === 1)) return "Every day";
+  const days = ruleDays(r);
+  if (days) return daysLabel(days, r.every);
   if (r.every === 1) return `Every ${r.unit}`;
   if (r.every === 2 && r.unit === "day") return "Every other day";
   return `Every ${r.every} ${r.unit}s`;
+}
+
+const WD3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** "Every weekday", "Every weekend", "Every Mon and Thu", "Every other week: Mon, Wed and Fri", "Every 3 weeks: Tue". */
+export function daysLabel(days: number[], every = 1) {
+  const key = [...days].sort().join("");
+  const head = every === 1 ? "Every" : every === 2 ? "Every other week:" : `Every ${every} weeks:`;
+  if (key === "12345") return every === 1 ? "Every weekday" : `${head} weekdays`;
+  if (key === "06") return every === 1 ? "Every weekend" : `${head} weekends`;
+  const names = [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => WD3[d]);
+  const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+  return `${head} ${list}`;
+}
+/** Clean days of the week: whole numbers 0 to 6, each once, in order. Null when none are left. */
+export function cleanDays(v: unknown): number[] | null {
+  if (!Array.isArray(v)) return null;
+  const out = [...new Set(v.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6) as number[])].sort();
+  return out.length ? out : null;
 }
 
 /** Clean a rule from anywhere (the Tab list, a package). Null means every day. */
@@ -85,7 +131,12 @@ export function cleanRepeat(r: unknown, fallbackFrom: string): Repeat | null {
   const every = Math.round(Number(o.every));
   if (!unit || !Number.isFinite(every) || every < 1 || every > 365) return null;
   if (unit === "day" && every === 1) return null;
-  return { every, unit, from: isISO(o.from) ? o.from : fallbackFrom };
+  const from = isISO(o.from) ? o.from : fallbackFrom;
+  const days = unit === "week" ? cleanDays(o.days) : null;
+  // One day only is an ordinary weekly rule, kept on that day; several days start on the first of them from `from`.
+  if (days && days.length === 1) return { every, unit, from: dow(from) === days[0] ? from : nextOnDays({ every, unit, from }, days, plusDays(from, -1)) };
+  if (days) { const first = days.includes(dow(from)) ? from : nextOnDays({ every, unit, from }, days, plusDays(from, -1)); return { every, unit, from: first, days }; }
+  return { every, unit, from };
 }
 
 /** The changes to make when the task is ticked or unticked. */

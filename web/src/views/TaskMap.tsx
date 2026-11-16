@@ -30,6 +30,8 @@ import { dndMutes, type DndOp } from "../core/dnd";
 import { addDraft, addGate, addShape, cleanTitle, enterAction, quickDefaults, revealBy, type AddOpts } from "../core/quickadd";
 import { typedEdit, typedOrder } from "../core/typedprio";
 import { PrioInput, useTypedPrio } from "./TypedPrio";
+import { useNlDates } from "./NlDates";
+import { nlAddOpts, nlRule } from "../core/nldates";
 import { addTodo, approveSuggestion, awareDone, awareToList, awareUndone, suggestionToAware, suggestionToDimx, resetTodos, deleteTodo, noteDimxMove, dismissSuggestion, saveSettings, setReplyHandled, setTodoOrder, setWorkingOn, subtaskOp, toggleTodo, setTodoDone, setTodosDone, clearTodos, reviveTodos, buryTodos, restoreTodo, updateTodo, moveTasks, ungroupTasks, setDnd, setJournal } from "../core/actions";
 import { accepts, cleanGroups, dropAbovePrioIsP1, groupKey, hitSection, mergeOrder, newGroupId, sectionOrder, tabLists, type TabLists, type TaskMove } from "../core/groups";
 import { fmtDate, todayISO, useVault } from "../ui/kit";
@@ -1885,13 +1887,19 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
   const typed = useRef(title);   // what is in the field now, kept as the draft if it closes before Add
   const [adv, setAdv] = useState(false);
   const [o, setO] = useState<AddOpts>(() => quickDefaults(todayISO()));
-  const set = (p: Partial<AddOpts>) => setO((x) => ({ ...x, ...p }));
-  // P1, P2 or P3 typed in the name sets the priority (core/typedprio.ts, V1.40). A priority clicked in Advanced after
-  // typing wins over it.
-  const tp = useTypedPrio(title, o.kind === "once");
-  const pick = (p: Partial<AddOpts>) => { tp.picked(); set(p); };
+  // PS 1.65: a date or repeat typed in plain words (core/nldates.ts, views/NlDates.tsx) fills in How often, When and Repeats.
+  // A click on one of those in Advanced after typing wins over the words (they then stay in the title).
+  const nl = useNlDates(title);
   const freshRule = (): RepeatDraft => ({ kind: "repeat", every: 1, unit: "week", from: todayISO() });
   const [rule, setRule] = useState<RepeatDraft>(freshRule);
+  const shown = nl.offer ? nlAddOpts(o, nl.offer) : o;
+  const shownRule = nl.offer ? nlRule(nl.offer) ?? rule : rule;
+  const set = (p: Partial<AddOpts>) => setO((x) => ({ ...x, ...p }));
+  const setWhen = (p: Partial<AddOpts>) => { if (nl.offer) { nl.picked(); setO({ ...shown, ...p }); setRule(shownRule); } else set(p); };
+  // P1, P2 or P3 typed in the name sets the priority (core/typedprio.ts, V1.40). A priority clicked in Advanced after
+  // typing wins over it.
+  const tp = useTypedPrio(title, shown.kind === "once");
+  const pick = (p: Partial<AddOpts>) => { tp.picked(); set(p); };
   const ranked = prio.filter((d) => !d.data.unranked);
   const max = ranked.length + 1;
   const [added, setAdded] = useState<{ n: number; last: string } | null>(null);
@@ -1942,13 +1950,15 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
   const add = () => {
     const el = titleRef.current;
     const raw = el?.value ?? typed.current;
-    const typedP = tp.take(raw);   // null for Every day and repeating tasks: they have no priority
-    const v = cleanTitle(typedP ? typedP.title : raw);
+    const typedN = nl.take(raw);   // the date, repeat and title from plain words, or null
+    const base = typedN ? typedN.title : raw;
+    const typedP = typedN && typedN.kind !== "once" ? null : tp.take(base);   // null for Every day and repeating tasks: they have no priority
+    const v = cleanTitle(typedP ? typedP.title : base);
     if (!v) { el?.focus({ preventScroll: true }); win.current?.animate([{ transform: "translateX(0)" }, { transform: "translateX(-8px)" }, { transform: "translateX(8px)" }, { transform: "translateX(0)" }], { duration: 240 }); return; }
     if (!gate(v, Date.now())) return;   // the same task twice in a blink: one press, one task
-    const sh = addShape(o);
-    const r = sh.repeat ? patchOf(rule, todayISO()) : null;
-    const due = sh.repeat ? r?.due ?? null : sh.due === "today" ? iso(0) : sh.due === "tomorrow" ? iso(1) : sh.due === "date" ? o.date || null : null;
+    const sh = addShape(typedN ? nlAddOpts(o, typedN) : o);
+    const r = typedN ? (typedN.kind === "repeat" ? { repeat: typedN.repeat, due: typedN.due } : null) : sh.repeat ? patchOf(rule, todayISO()) : null;
+    const due = typedN ? (typedN.kind === "daily" ? null : typedN.due) : sh.repeat ? r?.due ?? null : sh.due === "today" ? iso(0) : sh.due === "tomorrow" ? iso(1) : sh.due === "date" ? o.date || null : null;
     const groupSize = prio.filter((d) => d.data.p1).length;
     const at = typedP ? typedOrder(prio.map((d) => d.data), typedP.prio) : null;
     const id = taskMapActions.add({
@@ -1963,9 +1973,9 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
     // Clear at once and keep the keyboard: the next one can be typed straight away. Advanced was for this task only.
     type("");
     if (el) { el.value = ""; if (document.activeElement !== el) el.focus({ preventScroll: true }); el.setSelectionRange(0, 0); }
-    setO(quickDefaults(todayISO())); setRule(freshRule()); setAdv(false); tp.reset(); setSq({ sqOn: false });
+    setO(quickDefaults(todayISO())); setRule(freshRule()); setAdv(false); tp.reset(); nl.reset(); setSq({ sqOn: false });
     setAdded((a) => ({ n: (a?.n ?? 0) + 1, last: v }));
-    void Promise.resolve(id).then((x) => { if (typeof x === "string") showRow(x); }).catch(() => {});
+    void Promise.resolve(id).then((x) => { if (typeof x === "string") { showRow(x); if (typedN?.time) nl.remind(x, typedN); } }).catch(() => {});
   };
   const keys = (e: React.KeyboardEvent) => {
     const t = e.target as HTMLElement;
@@ -2004,7 +2014,7 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
           )}
           <button type="button" className="tm-add-x" onMouseDown={keep} onClick={onClose} aria-label="Close" title="Close (Esc)">×</button>
         </div>
-        <PrioInput ref={titleRef} prio={tp} className="tm-add-title" value={title} onChange={(e) => type(e.target.value)} placeholder="What needs doing?" aria-label="Task" maxLength={500}
+        <PrioInput ref={titleRef} prio={tp} nl={nl} className="tm-add-title" value={title} onChange={(e) => type(e.target.value)} placeholder="What needs doing?" aria-label="Task" maxLength={500}
           enterKeyHint="go" autoComplete="off" autoCapitalize="sentences" spellCheck />
         <SquadAddRow title={title} clientId={o.clientId} value={sq} onChange={setSq} />
         {adv && (
@@ -2013,14 +2023,14 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
             <div className="tm-add-grid">
               <span className="tm-add-l">How often</span>
               <div className="tm-add-row" role="radiogroup">
-                {chip(o.kind === "once", "One-off", () => set({ kind: "once" }))}{chip(o.kind === "daily", "Every day", () => set({ kind: "daily" }))}{chip(o.kind === "repeat", "Repeat", () => set({ kind: "repeat" }))}
+                {chip(shown.kind === "once", "One-off", () => setWhen({ kind: "once" }))}{chip(shown.kind === "daily", "Every day", () => setWhen({ kind: "daily" }))}{chip(shown.kind === "repeat", "Repeat", () => setWhen({ kind: "repeat" }))}
               </div>
-              {o.kind === "once" && <>
+              {shown.kind === "once" && <>
                 <span className="tm-add-l">When</span>
                 <div className="tm-add-row" role="radiogroup">
-                  {chip(o.when === "today", "Today", () => set({ when: "today" }))}{chip(o.when === "tomorrow", "Tomorrow", () => set({ when: "tomorrow" }))}
-                  {chip(o.when === "none", "No date", () => set({ when: "none" }))}{chip(o.when === "date", "Pick a date", () => set({ when: "date" }))}
-                  {o.when === "date" && <input type="date" className="tm-ed-date" value={o.date} onChange={(e) => set({ date: e.target.value })} aria-label="Date" />}
+                  {chip(shown.when === "today", "Today", () => setWhen({ when: "today" }))}{chip(shown.when === "tomorrow", "Tomorrow", () => setWhen({ when: "tomorrow" }))}
+                  {chip(shown.when === "none", "No date", () => setWhen({ when: "none" }))}{chip(shown.when === "date", "Pick a date", () => setWhen({ when: "date" }))}
+                  {shown.when === "date" && <input type="date" className="tm-ed-date" value={shown.date} onChange={(e) => setWhen({ date: e.target.value })} aria-label="Date" />}
                 </div>
                 <span className="tm-add-l">Priority</span>
                 <div className="tm-add-row">
@@ -2033,9 +2043,9 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
                       <button type="button" className="tm-add-chip" onClick={() => { sfx.hover(); pick({ place: null }); }} title="No priority: it waits below the numbered tasks">No priority</button></>)}
                 </div>
               </>}
-              {o.kind === "repeat" && <>
+              {shown.kind === "repeat" && <>
                 <span className="tm-add-l">Repeats</span>
-                <div className="tm-add-row"><RepeatPicker value={rule} onChange={setRule} cls={TM_REPEAT} /></div>
+                <div className="tm-add-row"><RepeatPicker value={shownRule} onChange={(v) => { if (nl.offer) { nl.picked(); setO(shown); } setRule(v); }} cls={TM_REPEAT} /></div>
               </>}
               {clients.length > 0 && <>
                 <span className="tm-add-l">Client</span>
