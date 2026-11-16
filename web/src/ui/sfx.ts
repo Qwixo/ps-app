@@ -4,6 +4,7 @@
 import { nativeTickName, tonesOf, type TickSoundId } from "../core/ticksound";
 import { noteSampleName, noteSoundTones, type NoteSoundId } from "../core/notelook";
 import { ISLAND_TONES } from "../core/islandtimers";
+import { TZ_TONES } from "../core/tzfocus";
 import { EDIT_SOUNDS, editSoundOk, type EditSound, type EditTone } from "../core/editsounds";
 
 let ctx: AudioContext | null = null;
@@ -170,6 +171,11 @@ export const sfx = {
     primeSfx();
     if (viaApp(`island-${kind}`)) return;
     for (const t of ISLAND_TONES[kind]) tone(t.f, t.dur, t.peak, t.wave === 0 ? "sine" : "triangle", t.at, t.to);
+  },
+  /** Time zones (V1.65, core/tzfocus.ts): a soft chime as a zone opens tall, a soft note back, a light tick per 30 minutes. PS plays its own copy. */
+  tz(kind: "open" | "back" | "up" | "down") {
+    if (viaApp(`tz-${kind}`)) return;
+    for (const t of TZ_TONES[kind]) tone(t.f, t.dur, t.peak, t.wave === 0 ? "sine" : "triangle", t.at, t.to);
   },
   /** Settings preview. */
   test() { this.hover(); window.setTimeout(() => this.click(), 160); },

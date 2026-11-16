@@ -224,6 +224,7 @@ export const SETTINGS: SetEntry[] = [
   // ---------- Time and reset ----------
   { id: "home-tz", group: "time", name: "Your time zone", line: "The clocks compare every zone with this one.", words: ["timezone", "time zone", "tz", "zone", "clock", "gmt", "utc", "city", "home"] },
   { id: "tz-names", group: "time", name: "Clock names", line: "Double click a clock's name on Time zones to rename it. Empty brings its own name back.", words: ["rename", "rename clock", "clock name", "zone name", "label", "nickname", "time zones", "clocks"] },
+  { id: "tz-focus", group: "time", name: "Click a time zone to open it", line: "A click opens a zone tall, where the list is. Tiny arrows move a typed time 30 minutes.", words: ["time zones", "click", "open", "tall", "client", "focus", "convert", "30 minutes", "half hour", "arrows", "step"] },
   { id: "auto-reset", group: "time", name: "Reset automatically", line: "Ticked tasks are filed away each day at your reset time.", words: ["reset", "midnight", "end of day", "new day", "daily", "clear", "eod", "reset time", "reset at", "time of reset", "4am", "morning"] },
   { id: "day-ends", group: "time", name: "Your work day ends at", line: "A Reset you press before this time counts for the day before.", more: true, words: ["night shift", "reset", "work day", "end of day", "eod"] },
   { id: "st-hours", group: "time", name: "Screen time timeline", line: "How many hours the timeline under the clocks shows.", words: ["screen time", "screentime", "hours", "timeline"] },

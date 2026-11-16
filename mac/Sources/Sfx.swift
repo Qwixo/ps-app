@@ -62,6 +62,12 @@ final class Sfx {
                     Tone(f: 3135.96, to: nil, dur: 0.3, peak: 0.025, wave: 0, at: 0.25), Tone(f: 392, to: nil, dur: 0.7, peak: 0.04, wave: 0, at: 0.24)],
     "island-start": [Tone(f: 1174.66, to: 1108.73, dur: 0.38, peak: 0.08, wave: 0, at: 0), Tone(f: 880, to: 830.61, dur: 0.55, peak: 0.08, wave: 0, at: 0.13),
                      Tone(f: 440, to: nil, dur: 0.5, peak: 0.03, wave: 0, at: 0.13)],
+    // V1.65 Time zones (web src/core/tzfocus.ts TZ_TONES, the same numbers): a zone opened tall, back to the list, the 30 minute arrows.
+    "tz-open": [Tone(f: 880, to: nil, dur: 0.32, peak: 0.07, wave: 0, at: 0), Tone(f: 1318.51, to: nil, dur: 0.5, peak: 0.06, wave: 0, at: 0.07),
+                Tone(f: 2637.02, to: nil, dur: 0.35, peak: 0.015, wave: 0, at: 0.08)],
+    "tz-back": [Tone(f: 1046.5, to: 784, dur: 0.22, peak: 0.05, wave: 0, at: 0)],
+    "tz-up": [Tone(f: 2200, to: 2600, dur: 0.022, peak: 0.05, wave: 1, at: 0)],
+    "tz-down": [Tone(f: 1900, to: 1500, dur: 0.022, peak: 0.05, wave: 1, at: 0)],
     "edit-reset": [Tone(f: 880, to: 440, dur: 0.3, peak: 0.08, wave: 0, at: 0), Tone(f: 1500, to: 300, dur: 0.28, peak: 0.04, wave: 3, at: 0)],
   ]
 

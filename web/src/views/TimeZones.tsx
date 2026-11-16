@@ -14,6 +14,9 @@
 // V1.43 (every account): rename any clock (the built in ones too): double click its name or the small pencil,
 // type, Enter saves, Esc cancels, an empty name brings its own name back, and Reset name does the same. The new
 // name shows everywhere that zone is named (the pill, the converter, the clock changes, people on that clock).
+// V1.65 (feature "tz-focus"): hover is unchanged, but a CLICK on a zone moves its card into the list's own place, tall
+// instead of wide, so the rest of the screen stays clear (core/tzfocus.ts). Back with the chevron, Esc or a second
+// click. Convert a time gets two tiny arrows next to the typed time: 30 minutes a click, hold to keep going.
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DEVICE_TZ, homeLabel, homeTz, dayShift, fmtDay, fmtTime, gapLabel, isRenamed, nextChange, offsetMin, setZoneList, tagOf, wall, wallAfter, wallBefore, type Change, type Zone } from "../core/tz";
 import { addDays, convertWall, daysBetween, dayTag, dragSteps, newWheel, notchesOf, parseTyped, partAt, stepTyped, todayIn, wheelStep, zoneName, zoneShort, type Hit, type Part, type Ymd } from "../core/tzconvert";
@@ -33,6 +36,8 @@ import { meetingEvents } from "../core/calpick";
 import { FREE_LENGTHS, FREE_LEN_DEF, calendarCovers, checkFree, clashName, eventBlocks, lenShort, lenWords, taskBlocks, type Busy, type FreeLen } from "../core/tzfree";
 import type { PersonEntry } from "../core/tzpeople";
 import { panelMountsStill } from "../core/tzpinned";
+import { feature } from "../core/features";
+import { focusOnMount, focusReduce, isRowClick, morphFrames, relBox, repeatGap, swapDir, tallBox, type Box, type Focus } from "../core/tzfocus";
 import "./tz.css";
 import "./tz-people.css";
 import "./tz-zones.css";
@@ -57,6 +62,8 @@ function useNow() {
  *  zone open all the time. Hover still peeks while it is not kept open. */
 export function TimeZones({ scale, slider }: { scale: number; slider: React.ReactNode }) {
   const [hover, setOpen] = useState(false);
+  // V1.65: a zone clicked open (tall, where the list is) holds the panel open until you go back, pinned or not.
+  const [held, setHeld] = useState(false);
   const [findReq, setFindReq] = useState(0);   // Cmd+F presses since the panel opened (below)
   const inst = useInst();
   const save = useInstSave();
@@ -67,7 +74,7 @@ export function TimeZones({ scale, slider }: { scale: number; slider: React.Reac
   const savedPin = save ? !!inst?.cfg.open : ownPin;
   useEffect(() => { setPinNow(null); }, [savedPin]);
   const pinned = pinNow ?? savedPin;
-  const open = hover || (pinned && shown);
+  const open = hover || ((pinned || held) && shown);
   // V1.65 (the developer's friend: "I don't want that weird animation where you swipe to a different page and then the time
   // zones expand in front of you. It should already be expanded."): the loop out plays only when YOU open it (hover, the
   // pin click, Find). A kept open panel that comes with its page is drawn open from its first frame (core/tzpinned.ts).
@@ -124,7 +131,7 @@ export function TimeZones({ scale, slider }: { scale: number; slider: React.Reac
     <div ref={box} className={`tm-ckdock${open ? " open" : ""}${pinned ? " pinned" : ""}${calm ? " calm" : ""}`} onMouseEnter={enter} onMouseLeave={() => { inside.current = false; leave(); }}
       onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node)) leave(); }} onMouseDown={(e) => e.stopPropagation()}>
       <ClockPill pinned={pinned} onToggle={togglePin} />
-      {open && <Panel scale={scale} slider={slider} findReq={findReq} pinned={pinned} onTogglePin={togglePin} instant={instant} />}
+      {open && <Panel scale={scale} slider={slider} findReq={findReq} pinned={pinned} onTogglePin={togglePin} instant={instant} onHold={setHeld} />}
     </div>
   );
 }
@@ -159,7 +166,10 @@ function ClockPill({ pinned, onToggle }: { pinned: boolean; onToggle: () => void
 }
 
 type Spot = { p: Found; at: number };
-function Panel({ scale, slider, findReq, pinned, onTogglePin, instant }: { scale: number; slider: React.ReactNode; findReq: number; pinned: boolean; onTogglePin: () => void; instant: boolean }) {
+// V1.65: the zone you clicked open, kept while the page lives, so a panel kept open comes back with it (core/tzfocus.ts focusOnMount).
+let keptFocus: Focus | null = null;
+
+function Panel({ scale, slider, findReq, pinned, onTogglePin, instant, onHold }: { scale: number; slider: React.ReactNode; findReq: number; pinned: boolean; onTogglePin: () => void; instant: boolean; onHold: (on: boolean) => void }) {
   const [still] = useState(instant);   // decided when the panel is first drawn, never changes while it stays
   const now = useNow();
   const home = homeTz();
@@ -197,7 +207,103 @@ function Panel({ scale, slider, findReq, pinned, onTogglePin, instant }: { scale
     return changeTzZones(f).finally(() => { if (--pend.current === 0) setLocal(null); });
   };
   const [adding, setAdding] = useState(false);
+  // V1.65: a zone clicked open, tall, where the list is (core/tzfocus.ts). morph: the move playing right now.
+  const fOn = feature("tz-focus");
+  const [focus, setFocus] = useState<Focus | null>(() => (fOn ? focusOnMount(pinned, keptFocus, list.map((z) => z.id)) : null));
+  const [morph, setMorph] = useState<Morph | null>(null);
+  const [landedZ, setLandedZ] = useState<string | null>(null);
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+  const holdRef = useRef(onHold);
+  holdRef.current = onHold;
+  const dockEl = () => aside.current?.closest<HTMLElement>(".tm-ckdock") ?? null;
+  useEffect(() => { if (focusRef.current) holdRef.current(true); return () => holdRef.current(false); }, []);
+  useEffect(() => { keptFocus = pinned ? focus : null; }, [pinned, focus]);
+  const lastDrag = useRef(0);
+  const nameT = useRef(0);
+  useEffect(() => () => window.clearTimeout(nameT.current), []);
+  const openFocus = (tz: string, name: string, row: HTMLElement) => {
+    const d = dockEl();
+    if (!d) return;
+    const dr = d.getBoundingClientRect();
+    // The shared element: the big hover card when it is showing this zone, else the row itself.
+    const cardEl = cmp?.tz === tz ? d.querySelector<HTMLElement>(":scope > .tm-cmp:not(.focus)") : null;
+    const from = relBox((cardEl ?? row).getBoundingClientRect(), dr);
+    let ghost: HTMLElement | null = null;
+    if (cardEl && !reducedMotion()) {
+      ghost = cardEl.cloneNode(true) as HTMLElement;
+      ghost.querySelector(".tm-cmp-sub")?.remove();
+      ghost.className = "tm-cmp tz-f-ghost";
+      ghost.setAttribute("aria-hidden", "true");
+      ghost.style.cssText = `--fit:${cardEl.style.getPropertyValue("--fit") || 1}`;
+      const sub = cardEl.querySelector<HTMLElement>(".tm-cmp-sub");
+      if (sub) fadeAway(sub, d);
+    }
+    window.clearTimeout(t.current);
+    typing.current = { focus: false, text: false };
+    setCmp(null); setSpot(null);
+    const next = focusReduce(focusRef.current, { type: "click", tz, name });
+    setFocus(next);
+    setMorph(next ? { dir: "in", from, ghost, r0: cardEl ? 28 : 12, k: Date.now() } : null);
+    onHold(!!next);
+    if (next && !reducedMotion()) sfx.tz("open");
+  };
+  const rowClick = (e: React.MouseEvent<HTMLLIElement>, z: Zone) => {
+    if (!fOn) return;
+    const tgt = e.target as HTMLElement, row = e.currentTarget;
+    if (!isRowClick(tgt, Date.now() - lastDrag.current, true)) return;
+    window.clearTimeout(nameT.current);
+    if (e.detail > 1) return;   // a double click on the name renames it (V1.43)
+    if (tgt.closest(".tm-ck-n")) nameT.current = window.setTimeout(() => openFocus(z.id, z.label, row), 240);
+    else openFocus(z.id, z.label, row);
+  };
+  const finishBack = useCallback(() => {
+    const tz = focusRef.current?.tz;
+    setFocus(null); setMorph(null);
+    holdRef.current(false);
+    if (tz) { setLandedZ(tz); window.setTimeout(() => setLandedZ((x) => (x === tz ? null : x)), 1100); }
+  }, []);
+  const back = useCallback(() => {
+    if (!focusRef.current) return;
+    if (reducedMotion()) { finishBack(); return; }
+    sfx.tz("back");
+    setMorph({ dir: "out", k: Date.now() });
+  }, [finishBack]);
+  // Out at once, no animation: Find or Add person at the top need the list.
+  const dropFocus = () => { if (focusRef.current) { setFocus(null); setMorph(null); onHold(false); } };
+  const switchTo = (z: Zone) => {
+    const f = focusRef.current;
+    if (!f) return;
+    if (z.id === f.tz) { back(); return; }   // the zone already open: a second click goes back
+    const body = dockEl()?.querySelector<HTMLElement>(".tm-cmp.focus .tz-f-body");
+    const ghost = body && !reducedMotion() ? (body.cloneNode(true) as HTMLElement) : null;
+    sfx.hover();
+    setFocus({ tz: z.id, name: z.label });
+    setMorph({ dir: "swap", d: swapDir(list.map((x) => x.id), f.tz, z.id), ghost, k: Date.now() });
+  };
+  // Esc while a zone is open tall (a box inside answers Esc itself first): back to the list.
+  useEffect(() => {
+    if (!focus) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const a = document.activeElement as HTMLElement | null;
+      if (a?.matches("input, textarea, select, [contenteditable='true']")) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      back();
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, [focus, back]);
+  // The open zone taken off the list: back to the list.
+  const ids = list.map((z) => z.id).join(",");
+  useEffect(() => {
+    const f = focusRef.current;
+    if (f && focusReduce(f, { type: "gone", zones: ids.split(",") }) === null) { setFocus(null); setMorph(null); holdRef.current(false); }
+  }, [ids]);
+  // The tall card's converter: Esc on an empty box goes back, the rest is the same as on the hover card.
+  const fconv = useMemo<ConvHooks>(() => ({ kept: kept.current, typing: () => {}, close: () => back() }), [back]);
   const over = (tz: string, name: string, el: HTMLElement, who?: string) => {
+    if (focusRef.current) return;   // V1.65: a zone is open tall: nothing pops out beside it
     if (typing.current.focus && typing.current.text && cmp && cmp.tz !== tz) return;
     // An empty, focused box on the old card: let go of it first, so the list hears the blur.
     if (typing.current.focus && cmp && cmp.tz !== tz) (document.activeElement as HTMLElement | null)?.blur?.();
@@ -253,7 +359,7 @@ function Panel({ scale, slider, findReq, pinned, onTogglePin, instant }: { scale
     close: () => { typing.current = { focus: false, text: false }; window.clearTimeout(t.current); setCmp(null); },
   }), []);
   useEffect(() => () => { window.clearTimeout(t.current); window.clearTimeout(undoT.current); }, []);
-  useEffect(() => { if (findReq) { setFinding(true); setFindKey((k) => k + 1); } }, [findReq]);
+  useEffect(() => { if (findReq) { dropFocus(); setFinding(true); setFindKey((k) => k + 1); } }, [findReq]);
   useEffect(() => { if (!fresh) return; const x = window.setTimeout(() => setFresh(null), 2600); return () => window.clearTimeout(x); }, [fresh]);
 
   const closeFind = useCallback(() => { setFinding(false); setSpot(null); setLanded(0); pickedAt.current = null; }, []);
@@ -355,6 +461,7 @@ function Panel({ scale, slider, findReq, pinned, onTogglePin, instant }: { scale
       window.removeEventListener("pointercancel", up);
       if (!on) return;
       dragging.current = false;
+      lastDrag.current = Date.now();
       const order = ids.filter((x) => x !== id);
       order.splice(to, 0, id);
       // Dropped: the list takes the new order in the same frame the slide stops, so nothing jumps back.
@@ -392,7 +499,7 @@ function Panel({ scale, slider, findReq, pinned, onTogglePin, instant }: { scale
   const spotOff = spot?.p.tz && landed ? offsetMin(now, spot.p.tz) : null;
   return (
     <>
-      <aside ref={aside} className={`tm-clocks${still ? " still" : ""}`} style={{ ["--ck" as string]: scale / 100 }} aria-label="Time zones">
+      <aside ref={aside} className={`tm-clocks${still ? " still" : ""}${focus && morph?.dir !== "out" ? " tz-focused" : ""}`} style={{ ["--ck" as string]: scale / 100 }} aria-label="Time zones">
         <div className="tm-ck-head">
           <span className="tm-panel-h">Time zones</span>
           <span className="tz-head-b">
@@ -403,11 +510,11 @@ function Panel({ scale, slider, findReq, pinned, onTogglePin, instant }: { scale
               <PinIcon on={pinned} />
             </button>
             <button type="button" className={`tz-hbtn${form?.mode === "add" ? " on" : ""}`} title="Add a person and their time zone" aria-label="Add a person"
-              onClick={() => { if (form) { sfx.click(); setForm(null); } else openForm({ mode: "add", tz: home }); }}>
+              onClick={() => { dropFocus(); if (form) { sfx.click(); setForm(null); } else openForm({ mode: "add", tz: home }); }}>
               <AddIcon />
             </button>
             <button type="button" className={`tz-hbtn${finding ? " on" : ""}`} title={`Find a client or person (${FIND_KEY})`} aria-label="Find a client or person" aria-expanded={finding}
-              onClick={() => { sfx.click(); if (finding) closeFind(); else { setFinding(true); setFindKey((k) => k + 1); } }}>
+              onClick={() => { sfx.click(); dropFocus(); if (finding) closeFind(); else { setFinding(true); setFindKey((k) => k + 1); } }}>
               <SearchIcon />
             </button>
           </span>
@@ -428,6 +535,7 @@ function Panel({ scale, slider, findReq, pinned, onTogglePin, instant }: { scale
               onOver={(el) => rowOver(z.id, z.label, el)} onOut={out}
               zone={z.id} isNew={fresh === z.id} lift={drag?.id === z.id} shiftY={shiftOf(i, z.id)}
               onDown={(e) => startDrag(e, z.id)} onRemove={(byMouse) => removeZ(z.id, byMouse)} onMove={(d) => moveBy(z.id, d)}
+              onPick={fOn ? (e) => rowClick(e, z) : undefined} landed={landedZ === z.id}
               renamed={isRenamed(z)} ownName={defaultName(z)} onRename={(name) => renameZ(z.id, name)} onResetName={() => renameZ(z.id, null)} />;
           })}
         </ul>
@@ -452,9 +560,13 @@ function Panel({ scale, slider, findReq, pinned, onTogglePin, instant }: { scale
         )}
         <ClockChanges now={now} mine={mine} list={zones} />
       </aside>
-      {cmp && <Compare key={cmp.tz} ts={now} tz={cmp.tz} name={list.find((z) => z.id === cmp.tz)?.label ?? cmp.name} top={cmp.top} who={cmp.who} onEnter={keep} onLeave={leaveCard} conv={conv}
+      {focus && (
+        <FocusCard ts={now} f={focus} name={list.find((z) => z.id === focus.tz)?.label ?? focus.name} zones={zones} morph={morph} dock={dockEl}
+          onBack={back} onSwitch={switchTo} onOut={finishBack} conv={fconv} people={people} fresh={fresh} onRemove={removeP} onSaved={setFresh} />
+      )}
+      {cmp && !focus && <Compare key={cmp.tz} ts={now} tz={cmp.tz} name={list.find((z) => z.id === cmp.tz)?.label ?? cmp.name} top={cmp.top} who={cmp.who} onEnter={keep} onLeave={leaveCard} conv={conv}
         people={people} fresh={fresh} onRemove={removeP} onSaved={setFresh} />}
-      {spot?.p.tz && !cmp && (
+      {spot?.p.tz && !cmp && !focus && (
         <Spotlight key={`${spot.p.key}${spot.at}`} p={spot.p} tz={spot.p.tz} ts={now} top={(aside.current?.offsetTop ?? 0) + 4}
           onLanded={() => setLanded(Date.now())} onClose={() => { sfx.hover(); setSpot(null); setLanded(0); pickedAt.current = null; }}
           onEdit={spot.p.kind === "person" ? () => { const p = spot.p; setSpot(null); setLanded(0); openForm({ mode: "edit", id: p.id, name: p.name, tz: p.tz! }); } : undefined}
@@ -495,7 +607,7 @@ function Face({ ts, tz, className, numbers }: { ts: number; tz: string; classNam
   );
 }
 
-const ClockRow = memo(function ClockRow({ ts, tz, name, gap, you, active, found, onOver, onOut, zone, isNew, lift, shiftY, onDown, onRemove, onMove, renamed, ownName, onRename, onResetName }: {
+const ClockRow = memo(function ClockRow({ ts, tz, name, gap, you, active, found, onOver, onOut, zone, isNew, lift, shiftY, onDown, onRemove, onMove, renamed, ownName, onRename, onResetName, onPick, landed }: {
   ts: number; tz: string; name: string; gap: string; you?: boolean; active?: boolean;
   /** V1.39: the person just found lives on this row's clock (the time it landed, so each find pulses again). */
   found?: number;
@@ -506,6 +618,8 @@ const ClockRow = memo(function ClockRow({ ts, tz, name, gap, you, active, found,
   /** V1.43: rename this clock (double click the name or the pencil). renamed: it has a name of your own;
    *  ownName: the name Reset name brings back. */
   renamed?: boolean; ownName?: string; onRename?: (name: string) => void; onResetName?: () => void;
+  /** V1.65: a click opens this zone tall (core/tzfocus.ts); landed: it just came back from there (a short glow). */
+  onPick?: (e: React.MouseEvent<HTMLLIElement>) => void; landed?: boolean;
 }) {
   const li = useRef<HTMLLIElement>(null);
   // Renaming: the text being typed (null while not renaming). `ended` stops Enter and the blur after it saving twice.
@@ -521,8 +635,8 @@ const ClockRow = memo(function ClockRow({ ts, tz, name, gap, you, active, found,
   useEffect(() => { if (found) li.current?.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }, [found]);
   useEffect(() => { if (isNew) li.current?.scrollIntoView({ block: "nearest" }); }, [isNew]);
   return (
-    <li ref={li} data-z={zone} className={`tm-ck${you ? " you" : ""}${active ? " active" : ""}${found ? " found" : ""}${zone ? " tz-movable" : ""}${isNew ? " new" : ""}${lift ? " lift" : ""}`}
-      style={shiftY ? { transform: `translate3d(0,${shiftY}px,0)` } : undefined} onPointerDown={onDown}
+    <li ref={li} data-z={zone} className={`tm-ck${you ? " you" : ""}${active ? " active" : ""}${found ? " found" : ""}${zone ? " tz-movable" : ""}${isNew ? " new" : ""}${lift ? " lift" : ""}${onPick ? " tz-pickable" : ""}${landed ? " tz-landed" : ""}`}
+      style={shiftY ? { transform: `translate3d(0,${shiftY}px,0)` } : undefined} onPointerDown={onDown} onClick={onPick}
       onMouseEnter={onOver ? (e) => { onOver(e.currentTarget); sfx.hover(); } : undefined} onMouseLeave={onOut}>
       {!!found && <i key={found} className="tz-ping" aria-hidden="true" />}
       {onRemove && (
@@ -681,6 +795,208 @@ function Compare({ ts, tz, name, top, who, onEnter, onLeave, conv, people, fresh
         )}
       </div>
       <Convert tz={tz} home={home} today={`${w.y}-${w.mo}-${w.d}`} hooks={conv} who={who} onPick={setPicked} />
+    </div>
+  );
+}
+
+// ---------- a zone clicked open, tall, where the list is (V1.65, core/tzfocus.ts) ----------
+// The developer, 17 Nov 2026: "when I CLICK a time zone ... the panel should move into the area where the list of time
+// zones already is: tall instead of wide, covering the list ... the rest of the screen stays clear so I can see my
+// calendar." The card is the same surface as the hover card: it starts from that card (or the row) and springs into
+// the list's own box, its old content fading out while the tall one fades in. Back, Esc or a second click springs it
+// home into its row. Reduced motion: a plain swap, no sounds.
+type Morph = { dir: "in" | "out" | "swap"; from?: Box; ghost?: HTMLElement | null; r0?: number; d?: 1 | -1; k: number };
+
+/** A copy of an element that fades away where it stood (the hover card's clients card, as the card leaves). */
+function fadeAway(el: HTMLElement, dock: HTMLElement) {
+  if (typeof el.animate !== "function") return;
+  const r = relBox(el.getBoundingClientRect(), dock.getBoundingClientRect());
+  const c = el.cloneNode(true) as HTMLElement;
+  c.setAttribute("aria-hidden", "true");
+  c.classList.add("tz-f-fade");
+  Object.assign(c.style, { position: "absolute", left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, margin: "0", pointerEvents: "none" });
+  dock.appendChild(c);
+  c.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-6px) scale(.96)" }], { duration: 180, easing: "ease-in", fill: "forwards" }).finished.then(() => c.remove(), () => c.remove());
+}
+
+const px = (b: Box) => ({ left: `${b.left}px`, top: `${b.top}px`, width: `${b.width}px`, height: `${b.height}px` });
+
+function FocusCard({ ts, f, name, zones, morph, dock, onBack, onSwitch, onOut, conv, people, fresh, onRemove, onSaved }: {
+  ts: number; f: Focus; name: string; zones: Zone[]; morph: Morph | null; dock: () => HTMLElement | null;
+  onBack: () => void; onSwitch: (z: Zone) => void; onOut: () => void; conv: ConvHooks;
+  people: PersonEntry[]; fresh: string | null; onRemove: (id: string) => void; onSaved: (id: string) => void;
+}) {
+  const tz = f.tz;
+  const home = homeTz();
+  const gap = offsetMin(ts, tz) - offsetMin(ts, home);
+  const shift = dayShift(ts, tz);
+  const card = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const now = useRef<Box | null>(null);   // the box the card stands in
+  const [form, setForm] = useState<(FormMode & { k: number }) | null>(null);
+  const [picked, setPicked] = useState<Picked | null>(null);
+  useEffect(() => { setForm(null); setPicked(null); }, [tz]);
+  const formFocus = useCallback(() => {}, []);
+
+  // Where it belongs: the list's own box (from the first clock down to the panel's foot), taller only if it must be.
+  const target = useCallback((): Box | null => {
+    const d = dock(), aside = d?.querySelector<HTMLElement>(":scope > .tm-clocks"), ul = aside?.querySelector<HTMLElement>(".tm-ck-list");
+    if (!d || !aside || !ul || !body.current) return null;
+    const dr = d.getBoundingClientRect(), ar = aside.getBoundingClientRect();
+    const top = Math.max(ar.top, ul.getBoundingClientRect().top - 8);
+    const list = relBox({ left: ar.left, top, width: ar.width, height: ar.bottom - top }, dr);
+    return tallBox(list, body.current.offsetHeight, innerHeight - 12 - top);
+  }, [dock]);
+  const place = (b: Box) => {
+    const el = card.current, inn = inner.current;
+    if (!el || !inn) return;
+    now.current = b;
+    Object.assign(el.style, px(b));
+    inn.style.width = `${b.width}px`;
+  };
+  const glide = (from: Box, to: Box, ms = 260) => {
+    const el = card.current;
+    if (!el || typeof el.animate !== "function" || reducedMotion()) return;
+    el.animate([px(from), px(to)], { duration: ms, easing: "cubic-bezier(.2,.9,.25,1)" });
+  };
+
+  useLayoutEffect(() => {
+    const el = card.current, inn = inner.current;
+    if (!el || !inn) return;
+    const motion = typeof el.animate === "function" && !reducedMotion();
+    if (morph?.dir === "out") {
+      // Home: back into its row, the list fading in around it.
+      const from = now.current;
+      const d = dock(), row = d?.querySelector<HTMLElement>(`li.tm-ck[data-z="${CSS.escape(tz)}"]`);
+      if (!motion || !from || !d || !row) { onOut(); return; }
+      const to = relBox(row.getBoundingClientRect(), d.getBoundingClientRect());
+      const { frames, ms } = morphFrames(from, to, { out: true, r0: 20, r1: 12 });
+      inn.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-6px) scale(.98)" }], { duration: Math.min(160, ms * 0.4), easing: "ease-in", fill: "forwards" });
+      const a = el.animate(frames.map((b) => ({ ...px(b), borderRadius: `${b.radius}px`, offset: b.offset })), { duration: ms, easing: "linear", fill: "forwards" });
+      el.animate([{ opacity: 1, offset: 0 }, { opacity: 1, offset: 0.62 }, { opacity: 0, offset: 1 }], { duration: ms, easing: "linear", fill: "forwards" });
+      let done = false;
+      const end = () => { if (!done) { done = true; onOut(); } };
+      a.finished.then(end, end);
+      return () => { done = true; };
+    }
+    const to = target();
+    if (!to) return;
+    const prev = now.current;
+    place(to);
+    if (!motion) return;
+    if (morph?.dir === "in" && morph.from) {
+      const { frames, ms } = morphFrames(morph.from, to, { r0: morph.r0 ?? 18, r1: 20 });
+      el.animate(frames.map((b) => ({ ...px(b), borderRadius: `${b.radius}px`, offset: b.offset })), { duration: ms, easing: "linear" });
+      inn.animate([{ opacity: 0, transform: "translateY(14px) scale(.97)", offset: 0 }, { opacity: 0, transform: "translateY(14px) scale(.97)", offset: 0.3 }, { opacity: 1, transform: "none", offset: 1 }],
+        { duration: Math.round(ms * 0.85), easing: "cubic-bezier(.2,.8,.2,1)" });
+      const g = morph.ghost;
+      if (g) {
+        el.prepend(g);
+        g.animate([{ opacity: 1, transform: "scale(var(--fit, 1))" }, { opacity: 0, transform: "scale(calc(var(--fit, 1) * .94))" }], { duration: Math.round(ms * 0.24), easing: "ease-out", fill: "forwards" })
+          .finished.then(() => g.remove(), () => g.remove());
+      }
+    } else if (morph?.dir === "swap") {
+      // Another zone: the old face slides out one way, the new one in from the other, the card springs to its new height.
+      const d = morph.d ?? 1, g = morph.ghost;
+      if (g) {
+        g.classList.add("tz-f-swapghost");
+        g.style.top = `${-inn.scrollTop}px`;
+        inn.appendChild(g);
+        g.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translateX(${-d * 28}px)` }], { duration: 200, easing: "ease-in", fill: "forwards" })
+          .finished.then(() => g.remove(), () => g.remove());
+      }
+      inn.scrollTop = 0;
+      body.current?.animate([{ opacity: 0, transform: `translateX(${d * 32}px)` }, { opacity: 1, transform: "none" }], { duration: 340, delay: 60, easing: "cubic-bezier(.18,1.2,.4,1)", fill: "backwards" });
+      if (prev && Math.abs(prev.height - to.height) > 1) {
+        const { frames, ms } = morphFrames(prev, to, { out: true, r0: 20, r1: 20 });
+        el.animate(frames.map((b) => ({ ...px(b), offset: b.offset })), { duration: ms, easing: "linear" });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [morph?.k, tz]);
+
+  // The content grows or shrinks (a converted time, a client added) or the window changes: glide to the new box.
+  useEffect(() => {
+    const re = () => {
+      if (morph?.dir === "out") return;
+      const to = target(), from = now.current;
+      if (!to || !from) return;
+      if (Math.abs(to.height - from.height) < 1 && Math.abs(to.top - from.top) < 1 && Math.abs(to.width - from.width) < 1 && Math.abs(to.left - from.left) < 1) return;
+      place(to); glide(from, to);
+    };
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(re) : null;
+    if (body.current) ro?.observe(body.current);
+    const aside = dock()?.querySelector(":scope > .tm-clocks");
+    if (aside) ro?.observe(aside);
+    window.addEventListener("resize", re);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", re); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [morph?.dir, target]);
+
+  const names = peopleOnClock(people, tz, ts);
+  const w = todayIn(tz, ts);
+  return (
+    <div ref={card} className={`tm-cmp focus${morph?.dir === "out" ? " leaving" : ""}`} role="region" aria-label={`${name} time`}>
+      <div ref={inner} className="tz-f-in">
+        <div className="tz-f-top">
+          <button type="button" className="tz-f-back" onClick={onBack} aria-label="Back to the list" title="Back to the list (Esc)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+          </button>
+          {zones.length > 1 && (
+            <div className="tz-f-zones" onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}>
+              {zones.map((z) => (
+                <button key={z.id} type="button" className={`tz-f-chip${z.id === tz ? " on" : ""}`} aria-pressed={z.id === tz}
+                  title={z.id === tz ? "Back to the list" : `${z.label}: ${fmtTime(ts, z.id)}`} onClick={() => onSwitch(z)}>{z.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div ref={body} key={tz} className="tz-f-body">
+          <div className="tz-f-hero">
+            <span className="tz-f-glow" aria-hidden="true" />
+            <Face ts={ts} tz={tz} className="tm-cmp-face tz-f-face" numbers />
+            <span className="tm-cmp-n">{name}</span>
+            <b className="tz-f-time num">{fmtTime(ts, tz)}</b>
+            <span className="tm-cmp-d num">{fmtDay(ts, tz)}{shift ? ` · ${shift}` : ""}</span>
+          </div>
+          <div className="tz-f-you">
+            <Face ts={ts} tz={home} className="tm-cmp-face tz-f-yface" />
+            <span className="tz-f-yn">You<i>{homeLabel()}</i></span>
+            <span className="tz-f-yt"><b className="num">{fmtTime(ts, home)}</b><i className="num">{gap === 0 ? "same time" : `${Math.abs(gap) / 60}h ${gap < 0 ? "behind you" : "ahead of you"}`}</i></span>
+          </div>
+          <div className="tz-f-clients">
+            <div className="tz-sub-h">
+              <span className="tm-panel-h">Clients on {name} time</span>
+              {!form && (
+                <button type="button" className="tz-add" onClick={() => { sfx.click(); setForm({ mode: "add", tz, k: Date.now() }); }} title={`Add a person on ${name} time`}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                  Add
+                </button>
+              )}
+            </div>
+            {form && <PersonForm key={form.k} form={form} now={ts} onDone={() => setForm(null)} onRemove={onRemove} onSaved={onSaved} onFocusChange={formFocus} />}
+            {names.length ? (
+              <ul>
+                {names.map((p) => (
+                  <li key={p.key} className={`${p.kind}${p.id === fresh ? " new" : ""}`} title={p.kind === "person" ? `Added here (not a client) · ${zoneLine(p.tz!)}` : undefined}>
+                    <span className={`dot ${p.kind}`} aria-hidden="true" />
+                    <span className="tz-li-n">{p.name}</span>
+                    {picked && <EventLink start={picked.ts} tz={picked.tz} who={p.name} small />}
+                    {p.kind === "person" && (
+                      <button type="button" className="tz-edit" aria-label={`Rename, move or remove ${p.name}`} title="Rename, move or remove"
+                        onClick={() => { sfx.click(); setForm({ mode: "edit", id: p.id, name: p.name, tz: p.tz!, k: Date.now() }); }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : !form && <p>No clients in this time zone. <button type="button" className="tz-link" onClick={() => { sfx.click(); setForm({ mode: "add", tz, k: Date.now() }); }}>Add someone</button></p>}
+          </div>
+          <Convert key={tz} tz={tz} home={home} today={`${w.y}-${w.mo}-${w.d}`} hooks={conv} onPick={setPicked} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -868,9 +1184,34 @@ const Convert = memo(function Convert({ tz, home, today: _today, hooks, who, onP
     const r = stepTyped(live.current.text, part, n, { h: w.h, mi: w.mi, h12: twelveHour() });
     if (!r) return;
     live.current = { text: r.text, dayOff: live.current.dayOff + r.days };
-    sfx.hover();
+    if (part === "half") { sfx.tz(n > 0 ? "up" : "down"); bump(n > 0 ? 1 : -1); } else sfx.hover();
     setText(r.text);
     if (r.days) setDayOff((d) => d + r.days);
+  };
+  // V1.65 (feature "tz-focus"): two tiny arrows right next to the typed time, 30 minutes a click; hold one and it keeps
+  // going, quicker and quicker (core/tzfocus.ts repeatGap). The typed time rolls a little the way it moved.
+  const halfOn = feature("tz-focus");
+  const field = useRef<HTMLSpanElement>(null);
+  const bump = (d: 1 | -1) => {
+    const el = field.current;
+    if (!el || typeof el.animate !== "function" || reducedMotion()) return;
+    el.animate([{ transform: `translateY(${d * 7}px)`, opacity: 0.35 }, { transform: "none", opacity: 1 }], { duration: 200, easing: "cubic-bezier(.2,1.3,.4,1)" });
+  };
+  const holdT = useRef(0);
+  const stopHold = useCallback(() => { window.clearTimeout(holdT.current); holdT.current = 0; }, []);
+  useEffect(() => stopHold, [stopHold]);
+  const startHold = (n: 1 | -1, e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();   // the typing box keeps the keyboard and the caret stays put
+    // Held: the time grows wider as it changes and slides the arrows along, so the press stays with this arrow.
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* fine without */ }
+    stopHold();
+    nudgeRef.current("half", n);
+    let i = 0;
+    const next = () => { holdT.current = window.setTimeout(() => { nudgeRef.current("half", n); i++; next(); }, repeatGap(i)); };
+    next();
+    window.addEventListener("pointerup", stopHold, { once: true });
+    window.addEventListener("pointercancel", stopHold, { once: true });
   };
   const nudgeRef = useRef(nudge);
   nudgeRef.current = nudge;
@@ -947,8 +1288,9 @@ const Convert = memo(function Convert({ tz, home, today: _today, hooks, who, onP
     } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && (e.altKey || e.metaKey)) {
       e.preventDefault(); step(e.key === "ArrowUp" ? 1 : -1);  // Option+arrows step the day
     } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      // Arrows step the hour, Shift+arrows a quarter hour (half typed text is left alone).
-      e.preventDefault(); nudge(e.shiftKey ? "min" : "hour", e.key === "ArrowUp" ? 1 : -1);
+      // Arrows step the hour, Shift+arrows a quarter hour (half typed text is left alone). V1.65: the arrows step
+      // 30 minutes, the same as the tiny arrows next to the time.
+      e.preventDefault(); nudge(e.shiftKey ? "min" : halfOn ? "half" : "hour", e.key === "ArrowUp" ? 1 : -1);
     }
   };
   const line = (h: Hit, big?: boolean) => {
@@ -970,13 +1312,27 @@ const Convert = memo(function Convert({ tz, home, today: _today, hooks, who, onP
         <span className="tm-panel-h">Convert a time</span>
         {dayOff !== 0 && <button type="button" className="tm-cv-today" onClick={() => { sfx.hover(); setDayOff(0); }}>Today</button>}
       </div>
-      <label ref={box} className={`tm-cv-in${text && !typed ? " bad" : ""}`}
-        title="Scroll or use the arrow keys: over the hour it moves an hour, over the minutes 15 minutes">
-        <input ref={input} type="text" inputMode="text" autoComplete="off" spellCheck={false} placeholder="2pm" value={text}
-          aria-label={`A time in ${zoneName(tz)}`} maxLength={24}
-          onChange={(e) => setText(e.target.value)} onKeyDown={keys} onKeyUp={(e) => { if (e.key !== "Tab") e.stopPropagation(); }}
-          onFocus={() => { focused.current = true; hooks.typing(true, text.trim() !== ""); }}
-          onBlur={() => { focused.current = false; hooks.typing(false, false); }} />
+      <label ref={box} className={`tm-cv-in${text && !typed ? " bad" : ""}${halfOn ? " fit" : ""}`}
+        title={halfOn ? "Scroll over the hour or the minutes, or use the arrows: 30 minutes a step, Shift 15" : "Scroll or use the arrow keys: over the hour it moves an hour, over the minutes 15 minutes"}>
+        <span ref={field} className="tm-cv-field" data-v={text || "2pm"}>
+          <input ref={input} type="text" inputMode="text" autoComplete="off" spellCheck={false} placeholder="2pm" value={text}
+            aria-label={`A time in ${zoneName(tz)}`} maxLength={24} size={halfOn ? 1 : undefined}
+            onChange={(e) => setText(e.target.value)} onKeyDown={keys} onKeyUp={(e) => { if (e.key !== "Tab") e.stopPropagation(); }}
+            onFocus={() => { focused.current = true; hooks.typing(true, text.trim() !== ""); }}
+            onBlur={() => { focused.current = false; hooks.typing(false, false); }} />
+        </span>
+        {halfOn && (!text.trim() || typed) && (
+          <span className="tm-cv-half">
+            <button type="button" tabIndex={-1} aria-label="30 minutes later" title="30 minutes later (hold to keep going)"
+              onPointerDown={(e) => startHold(1, e)} onPointerUp={stopHold} onPointerCancel={stopHold} onLostPointerCapture={stopHold} onClick={(e) => { if (e.detail === 0) nudge("half", 1); }}>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>
+            </button>
+            <button type="button" tabIndex={-1} aria-label="30 minutes earlier" title="30 minutes earlier (hold to keep going)"
+              onPointerDown={(e) => startHold(-1, e)} onPointerUp={stopHold} onPointerCancel={stopHold} onLostPointerCapture={stopHold} onClick={(e) => { if (e.detail === 0) nudge("half", -1); }}>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+          </span>
+        )}
         <span className="tm-cv-zone">{short || zoneName(from)}</span>
       </label>
       <div className="tm-cv-day">

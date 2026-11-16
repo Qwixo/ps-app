@@ -2,7 +2,7 @@
 // V1.65 Time zones: click a zone (core/tzfocus.ts), and the 30 minute arrows on Convert a time (core/tzconvert.ts).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { focusReduce, isRowClick, tallBox, relBox, springAt, springDuration, springFrames, lerpBox } from "../src/core/tzfocus.ts";
+import { focusReduce, isRowClick, tallBox, relBox, springAt, springDuration, springFrames, lerpBox, morphFrames, repeatGap, swapDir, focusOnMount, TZ_TONES } from "../src/core/tzfocus.ts";
 import { stepTyped, shiftTime, parseTyped, HALF_STEP } from "../src/core/tzconvert.ts";
 
 let n = 0;
@@ -115,7 +115,80 @@ ok("hour and quarter hour steps still work as before", () => {
 // ----- the view uses them -----
 ok("the view wires click, back, Esc, the arrows and the arrow keys", () => {
   const tsx = read("src/views/TimeZones.tsx"), css = read("src/views/tz.css");
-  for (const k of ["focusReduce(", "isRowClick(", "tallBox(", "springFrames(", "tm-cv-half", 'nudge("half"', "Back to the list", "prefers-reduced-motion"]) assert.ok(tsx.includes(k), k);
+  for (const k of ["focusReduce(", "isRowClick(", "tallBox(", "morphFrames(", "repeatGap(", "swapDir(", "focusOnMount(", "tm-cv-half", 'nudge("half"', "Back to the list", "prefers-reduced-motion", 'feature("tz-focus")', 'sfx.tz("open")', 'sfx.tz("back")']) assert.ok(tsx.includes(k), k);
   assert.ok(css.includes(".tm-cmp.focus") && css.includes(".tm-cv-half"));
+  // reduced motion: big motion and sounds become a plain swap
+  assert.ok(/if \(next && !reducedMotion\(\)\) sfx\.tz\("open"\)/.test(tsx), "no chime with reduced motion");
+  assert.ok(/if \(reducedMotion\(\)\) \{ finishBack\(\); return; \}/.test(tsx), "back is a plain swap with reduced motion");
+  assert.ok(css.includes(".tm-cmp.focus::after, .tz-f-glow, .tm-ck.tz-landed, .tm-cv-half { animation: none; }"), "the glow rests with reduced motion");
+  // never takes the keyboard: nothing in the tall card calls focus()
+  const card = tsx.slice(tsx.indexOf("function FocusCard("), tsx.indexOf("// ---------- the person found"));
+  assert.ok(card.length > 1000 && !/\.focus\(\)/.test(card) && !/autoFocus/.test(card));
+  // hover is untouched: the hover card still opens from the row's mouse enter, and only while no zone is open tall
+  assert.ok(tsx.includes("if (focusRef.current) return;   // V1.65") && tsx.includes("{cmp && !focus && <Compare"));
+});
+
+// ----- the morph, the hold, switching, the sounds -----
+const A = { left: 400, top: 120, width: 900, height: 420 }, B = { left: 0, top: 80, width: 300, height: 700 };
+ok("the morph starts on the first box, squeezes a little, springs and ends exactly on the second", () => {
+  const { frames, ms } = morphFrames(A, B, { r0: 28, r1: 20 });
+  assert.deepEqual({ ...frames[0], offset: 0, radius: 28 }, frames[0]);
+  assert.equal(frames[0].left, A.left); assert.equal(frames[0].width, A.width);
+  const sq = frames[1];
+  assert.ok(sq.width < A.width && sq.width > A.width * 0.95 && sq.left > A.left, "a small squeeze around the middle");
+  const last = frames[frames.length - 1];
+  assert.deepEqual([last.left, last.top, last.width, last.height, last.offset, last.radius], [B.left, B.top, B.width, B.height, 1, 20]);
+  for (let i = 1; i < frames.length; i++) assert.ok(frames[i].offset >= frames[i - 1].offset, "offsets only go up");
+  assert.ok(frames.every((f) => f.width >= 0 && f.height >= 0));
+  assert.ok(ms > 300 && ms < 1400, `a calm length (${ms} ms)`);
+  assert.ok(frames.some((f) => f.width < B.width), "the spring overshoots a little");
+});
+ok("back into the row: no squeeze, no wobble under the row, shorter", () => {
+  const row = { left: 18, top: 300, width: 288, height: 64 };
+  const out = morphFrames(B, row, { out: true, r0: 20, r1: 12 }), inn = morphFrames(A, B);
+  assert.equal(out.frames[1].offset > 0.02, true);
+  assert.ok(out.frames.every((f) => f.height >= row.height - 12), "never folds far past the row");
+  assert.ok(out.ms < inn.ms);
+});
+ok("hold an arrow: one step, a pause, then quicker and quicker, never faster than 55 ms", () => {
+  assert.equal(repeatGap(0), 380);
+  assert.ok(repeatGap(1) < repeatGap(0) && repeatGap(5) < repeatGap(1));
+  assert.equal(repeatGap(100), 55);
+  // twenty steps of 30 minutes held from 11pm land 10 hours later, the next day
+  let t = "11pm", days = 0;
+  for (let i = 0; i < 20; i++) { const r = stepTyped(t, "half", 1)!; t = r.text; days += r.days; }
+  assert.deepEqual([t, days], ["9:00am", 1]);   // once it has minutes it keeps them, so the width never jumps while held
+});
+ok("switching zones slides the way the list runs", () => {
+  const ids = ["a", "b", "c"];
+  assert.equal(swapDir(ids, "a", "c"), 1);
+  assert.equal(swapDir(ids, "c", "a"), -1);
+});
+ok("a panel kept open comes back with the open zone, only while it is still on the list", () => {
+  assert.deepEqual(focusOnMount(true, NY, [NY.tz]), NY);
+  assert.equal(focusOnMount(false, NY, [NY.tz]), null);
+  assert.equal(focusOnMount(true, NY, [LA.tz]), null);
+  assert.equal(focusOnMount(true, null, [NY.tz]), null);
+});
+ok("the sounds are soft, and the Mac has the same numbers", () => {
+  for (const k of ["open", "back", "up", "down"] as const) {
+    assert.ok(TZ_TONES[k].length > 0 && TZ_TONES[k].every((t) => t.peak <= 0.08 && t.dur <= 0.6));
+  }
+  assert.ok(TZ_TONES.up[0].dur < 0.05 && TZ_TONES.down[0].dur < 0.05, "the tick is tiny");
+  const swift = readFileSync(new URL("../../mac/Sources/Sfx.swift", import.meta.url), "utf8");
+  for (const k of ["open", "back", "up", "down"] as const) {
+    const line = swift.slice(swift.indexOf(`"tz-${k}": [`), swift.indexOf("],", swift.indexOf(`"tz-${k}": [`)));
+    assert.ok(line.length > 10, `tz-${k} in Sfx.swift`);
+    for (const t of TZ_TONES[k]) assert.ok(line.includes(`f: ${t.f}, to: ${t.to ?? "nil"}, dur: ${t.dur}, peak: ${t.peak}, wave: ${t.wave}, at: ${t.at}`), `tz-${k} ${t.f}`);
+  }
+  assert.ok(read("src/ui/sfx.ts").includes("viaApp(`tz-${kind}`)"));
+});
+ok("registered: features.json, a Settings switch, the tour", () => {
+  const reg = JSON.parse(readFileSync(new URL("../../features.json", import.meta.url), "utf8")).features;
+  const f = reg.find((x: { id: string }) => x.id === "tz-focus");
+  assert.ok(f && f.owner === "jan" && f.scope === "shared" && f.since === "1.65" && f.default === "on");
+  assert.ok(read("src/core/settingsindex.ts").includes('id: "tz-focus", group: "time"'));
+  assert.ok(read("src/views/SettingsGroups.tsx").includes('"tz-focus": function TzFocus'));
+  assert.ok(read("src/core/tour.ts").includes('ids: ["tz-focus"]'));
 });
 console.log(`\n${n} passed`);
