@@ -37,6 +37,9 @@ func page(_ x: [String: Any] = [:]) -> [String: Any] {
 // MARK: the job from the page
 let j = OutJob.from(page(), undo: true, now: now)
 check("job-ok", j != nil && j!.account == "studio@example.com" && j!.undo && j!.state == .queued)
+check("job-proton-ok", OutJob.from(page(["via": "proton", "cardId": "p:k1", "threadId": ""]), undo: true, now: now)?.via == "proton")
+check("job-proton-needs-p-card", OutJob.from(page(["via": "proton", "threadId": ""]), undo: true, now: now) == nil)
+check("job-gmail-cannot-use-p-card", OutJob.from(page(["cardId": "p:k1"]), undo: true, now: now) == nil)
 check("job-bad-to", OutJob.from(page(["to": "not an email"]), undo: false, now: now) == nil)
 check("job-bad-card", OutJob.from(page(["cardId": "x:1"]), undo: false, now: now) == nil)
 check("job-empty-text", OutJob.from(page(["text": "  \n "]), undo: false, now: now) == nil)

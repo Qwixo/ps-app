@@ -60,7 +60,7 @@ export function startReplyWindow() {
 const post = (m: object) => psPost(m);
 const op = (o: MailReplyOp) => post({ type: "looks", patch: { mailReplyOp: o } });
 const newId = () => (crypto.randomUUID?.() || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`).replace(/[^\w-]/g, "").slice(0, 40);
-const viaName = (v: string) => v === "gmail" ? "Gmail" : "Instantly";
+const viaName = (v: string) => v === "gmail" ? "Gmail" : v === "proton" ? "Proton" : "Instantly";
 
 /** A number a wheel notch changes (and a click lets you type). */
 function useWheel(ref: React.RefObject<HTMLElement | null>, step: (dir: number, shift: boolean) => void, deps: unknown[]) {
@@ -131,8 +131,9 @@ function Panel({ open, prefs, status, queue }: { open: Open; prefs: Prefs; statu
   const fill = useMemo(() => fillOf({ first: ctx?.first || "", name: ctx?.name || "", company: ctx?.company || "", to }), [ctx, to]);
 
   const conn = ctx?.via === "gmail" ? status?.gmail.find((g) => g.account.toLowerCase() === ctx.account) : null;
-  const ready = !ctx ? false : ctx.via === "gmail" ? !!conn?.connected : !!status?.instantly.saved;
-  const problem = !ctx ? "" : ctx.via === "gmail" ? conn?.problem : status?.instantly.problem;
+  // Proton: the Mac checks the link itself when the send is due (a problem shows in the waiting list), so Send is open.
+  const ready = !ctx ? false : ctx.via === "proton" ? true : ctx.via === "gmail" ? !!conn?.connected : !!status?.instantly.saved;
+  const problem = !ctx ? "" : ctx.via === "proton" ? "" : ctx.via === "gmail" ? conn?.problem : status?.instantly.problem;
   const dirty = !!ctx && message.trim() !== start.current.message.trim();
   const setupHint = ctx ? sendSetupHint(ctx.via, ready, !!status, problem) : "";
 
@@ -215,7 +216,7 @@ function Panel({ open, prefs, status, queue }: { open: Open; prefs: Prefs; statu
     } catch (e) { setErr((e as Error).message); }
   }
   const waitingN = waiting(queue).length;
-  const subjectChanged = !!ctx && subject.trim() !== reSubject(ctx.subject);
+  const subjectChanged = !!ctx && ctx.via !== "proton" && subject.trim() !== reSubject(ctx.subject);
 
   return (
     <div className={`rw-card rw-wide${closing ? " rw-out" : ""}`} role="dialog" aria-label={ctx ? "Reply" : "Replies"}>
@@ -245,8 +246,8 @@ function Panel({ open, prefs, status, queue }: { open: Open; prefs: Prefs; statu
               {setupHint && <div className="rw-hint rw-hint-row rw-setup" role="note">{setupHint}</div>}
               <label className="rw-row"><span className="rw-k">To</span>
                 {ctx.toName && to === ctx.to && <span className="rw-name">{ctx.toName}</span>}
-                <input className="rw-in" value={to} onChange={(e) => setTo(e.target.value)} spellCheck={false} aria-label="To" /></label>
-              <label className="rw-row"><span className="rw-k">Subject</span><input className="rw-in" value={subject} maxLength={LIMITS.subject} onChange={(e) => setSubject(e.target.value)} aria-label="Subject" /></label>
+                <input className="rw-in" value={to} readOnly={ctx.via === "proton"} onChange={(e) => setTo(e.target.value)} spellCheck={false} aria-label="To" /></label>
+              <label className="rw-row"><span className="rw-k">Subject</span><input className="rw-in" value={subject} maxLength={LIMITS.subject} readOnly={ctx.via === "proton"} onChange={(e) => setSubject(e.target.value)} aria-label="Subject" /></label>
               {subjectChanged && <div className="rw-hint rw-hint-row">{ctx.via === "gmail"
                 ? "A new subject still goes in the same Gmail thread (PS app sends it as a reply to their email). Some mail apps may show it apart."
                 : "Instantly sends it as the reply to their email with your subject. Their mail app may show it apart."}</div>}

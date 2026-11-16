@@ -20,7 +20,7 @@ import { StTimeline } from "./StTimeline";
 import { GoalsWindow } from "./Goals";
 import type { Timeline } from "../ps";
 import { buildMatcher, gmailThreadLink, replierName } from "../core/mail";
-import { cleanReplyCardId, gmailCardId, leadMirror, leadRows, mailRows, replyButtonShows, type MailRow } from "../core/overlaymail";
+import { cleanReplyCardId, gmailCardId, leadMirror, leadRows, mailRows, replyRoute, type MailRow } from "../core/overlaymail";
 import { cleanOut, panelStatus, repliedRows, replyInPanelOn, sinkReplied, startUndoSend, type ReplyOut, type UndoSend } from "../core/inlinereply";
 import { ReplyBox, drafts as replyDrafts } from "./ReplyBox";
 import { leadCards } from "../core/leadcards";
@@ -3700,10 +3700,12 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
       <ul className="tm-mail-list" ref={listEl}>
         {rows.map((r) => {
           const fresh = Date.now() - Date.parse(r.at) < 3600_000;
-          const canProton = r.via === "proton" && protonOn;
-          const canInline = (inline && !!cleanReplyCardId(r.cardId)) || canProton;
+          // PS 1.65: on the Mac, Reply opens the same reply window the email pop up cards open (every Gmail, Instantly and Proton row).
+          // The small box in the row stays for the website only (there is no reply window there).
+          const route = replyRoute({ mode: import.meta.env.MODE, mail, cardId: r.cardId, boxOn: inline, protonOn });
+          const canInline = route === "box";
           const pst = r.via === "proton" ? protonIn.sent[protonKeyOf(r.cardId) ?? ""] : undefined;
-          const canReply = !canInline && replyButtonShows({ mode: import.meta.env.MODE, mail, cardId: r.cardId });
+          const canReply = route === "window";
           const u = undo.get(r.cardId), st = status.get(r.cardId), boxOpen = canInline && openId === r.cardId;
           const busy = !!u || st?.kind === "sending";
           return (

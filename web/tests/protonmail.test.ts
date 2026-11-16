@@ -59,8 +59,10 @@ ok("rows are newest first", () => {
 ok("the card id and its key round trip, and Gmail or Instantly ids are not Proton's", () => {
   assert.equal(P.protonKeyOf(P.protonCardId("h1a2b3")), "h1a2b3");
   assert.equal(P.protonKeyOf("m:abc"), null); assert.equal(P.protonKeyOf("n:abc"), null); assert.equal(P.protonKeyOf("p:"), null); assert.equal(P.protonKeyOf("p:a b"), null);
-  assert.equal(O.cleanReplyCardId("p:h1"), null);   // the Gmail and Instantly reply paths never take a Proton row
-  assert.equal(O.replyButtonShows({ mode: "ps", mail: true, cardId: "p:h1" }), false);
+  // PS 1.65 panel Reply: a Proton row now opens the same reply window, on its own "proton" route (the Mac pairs via "proton"
+  // only with a "p:" card and never sends a "p:" card through Gmail or Instantly: MailSendCore.swift)
+  assert.equal(O.cleanReplyCardId("p:h1"), "p:h1");
+  assert.equal(O.replyRoute({ mode: "ps", mail: true, cardId: "p:h1", boxOn: false, protonOn: false }) === "window" || O.replyRoute({ mode: "ps", mail: true, cardId: "p:h1", boxOn: false, protonOn: true }) === "window", true);
 });
 ok("a Proton row sits in the panel's list with the others, newest first", () => {
   const proton = P.protonMailRows(P.cleanProtonRows([row("h1", "jane@northwindsilk.example", "2026-11-05T08:00:00Z")]), [client], undefined, new Set());
