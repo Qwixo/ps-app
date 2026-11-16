@@ -56,6 +56,8 @@ import { ClientEmailsSettings } from "./ClientEmailsSettings";
 import { WhatsAppSettings } from "./WhatsAppSettings";
 import { ScreenRecSettings } from "./ScreenRec";
 import { feature } from "../core/features";
+import { CHK_FEATURE, CHK_EVERY_CHOICES, chkCardItem, cleanChk, everyLabel } from "../core/chkremind";
+import { chkTest } from "../chkwatch";
 import { SR_FEATURE } from "../core/screenrec";
 import { mailOnSnap } from "../core/mailsnap";
 import { mailCan } from "../core/mailswitch";
@@ -106,7 +108,8 @@ export function SettingsHost({ st, gen, owner }: { st: Settings; gen: GenProps; 
   const mailC = mailCan(v);
   const sr = feature(SR_FEATURE);   // PS 1.60: the Screen recording group shows only where the feature is on in this build
   const pf = feature("posture-reminder");   // PS 1.65: the Posture Reminder group shows only where the feature is on
-  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, pf, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr, pf]);
+  const ck = feature(CHK_FEATURE);   // PS 1.65: the Checklist Reminder group shows only where the feature is on
+  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, pf, ck, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr, pf, ck]);
   return (
     <GenContext.Provider value={{ gen, st }}>
       <SettingsScreen owner={owner} ctx={ctx} controls={CONTROLS} phone={GOS || MWEB} onGo={(go, e, close) => goTo(go, e, close, owner)} />
@@ -256,6 +259,27 @@ export const CONTROLS: Controls = {
   },
   // Annoying 15 min reminder (core/remind.ts): the whole list, always open. The website's Test card sits here too.
   "reminders": function Reminders({ e }) { return <SetRow e={e} body={<><RemindSettings /><RemTestCard /></>} open plain />; },
+  // Checklist Reminder (PS 1.65, core/chkremind.ts, views/ChecklistReminder.tsx): on or off, how often, the chime, and a look at the pop-up.
+  "chk-on": function ChkOn({ e }) {
+    const v = useVault(), c = cleanChk(settingsData(v).chkRemind);
+    return <SetRow e={e} right={<OnOff label={e.name} on={c.on} ready={v.status === "unlocked"} set={(on) => save({ chkRemind: { ...c, on } })} />} />;
+  },
+  "chk-every": function ChkEvery({ e }) {
+    const v = useVault(), c = cleanChk(settingsData(v).chkRemind), ready = v.status === "unlocked";
+    const choices = CHK_EVERY_CHOICES.includes(c.every as never) ? [...CHK_EVERY_CHOICES] : [...CHK_EVERY_CHOICES, c.every].sort((a, b) => a - b);
+    return <SetRow e={e} right={
+      <select className="tm-pop-sel gs-sel" value={c.every} disabled={!ready} aria-label={e.name} onChange={(ev) => { save({ chkRemind: { ...c, every: Number(ev.target.value) } }); ev.target.blur(); }}>
+        {choices.map((m) => <option key={m} value={m}>{everyLabel(m)}</option>)}
+      </select>} />;
+  },
+  "chk-sound": function ChkSound({ e }) {
+    const v = useVault(), c = cleanChk(settingsData(v).chkRemind);
+    return <SetRow e={e} right={<OnOff label={e.name} on={c.sound} ready={v.status === "unlocked"} set={(sound) => save({ chkRemind: { ...c, sound } })} />} />;
+  },
+  "chk-test": function ChkTest({ e }) {
+    const c = cleanChk(settingsData(useVault()).chkRemind);
+    return <SetRow e={e} right={<button type="button" className="btn quiet sm" onClick={() => { sfx.click(); if (PS) psPost({ type: "rem:test", item: chkCardItem(c) }); else chkTest(); }}>Show it now</button>} />;
+  },
   // Sentry mode (V1.48, views/Sentry.tsx): three simple settings.
   "sentry-battery": row(() => <SentryBatterySetting />),
   "sentry-restart": block(() => <SentryRestartSetting />),

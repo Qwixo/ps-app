@@ -18,6 +18,7 @@ import { introAudience } from "../core/screenrecmeet";
 import { useVault } from "../ui/kit";
 import { settingsData } from "../core/select";
 import { dndActive } from "../core/dnd";
+import { CHK_FEATURE } from "../core/chkremind";
 import { feature } from "../core/features";
 import { RCPT_FEATURE, receiptsOn } from "../core/receipts";
 import { posturePrefs } from "../core/posture";
@@ -109,6 +110,8 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   receipts: async (_can, s) => (s.status === "unlocked" && s.role === "owner" && receiptsOn(feature(RCPT_FEATURE), settingsData(s).receipts) ? "open" : "unknown"),
   // PS 1.65 Posture reminder: only while the feature is on and the person has not switched it off; Ok ends it for good.
   "posture-165": async (_can, s) => (feature("posture-reminder") && posturePrefs(settingsData(s).posture).on ? "open" : "unknown"),
+  // PS 1.65 Checklist reminder: shown only while the feature is on; Ok ends it for good.
+  "checklist-165": async () => (feature(CHK_FEATURE) ? "open" : "unknown"),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault

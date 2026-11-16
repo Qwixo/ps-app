@@ -29,11 +29,16 @@ enum RemMath {
     var task = ""
     var date = ""
     var open = ""
+    // PS 1.65 Checklist reminder (web core/chkremind.ts): a card with a few choices instead of Yes and Remind me in. `sure` is
+    // the choice that asks "Are you sure?" and wants `word` typed (-1: none), `ask` is that box's line. Empty `choices` = the usual card.
+    var choices: [String] = []
+    var sure = -1
+    var ask = ""
 
     var json: [String: Any] {
       ["id": id, "on": on, "pill": pill, "text": text, "at": at, "until": until, "days": days, "tz": tz, "snooze": snooze, "later": later,
        "yes": yes, "word": word, "click": click, "bg": bg, "accent": accent, "ink": ink, "sound": sound, "vol": vol, "done": done,
-       "snoozeUntil": snoozeUntil, "stateAt": stateAt, "task": task, "date": date, "open": open]
+       "snoozeUntil": snoozeUntil, "stateAt": stateAt, "task": task, "date": date, "open": open, "choices": choices, "sure": sure, "ask": ask]
     }
   }
 
@@ -109,6 +114,11 @@ enum RemMath {
       i.task = t
       if let d = o["date"] as? String, d.range(of: dayPattern, options: .regularExpression) != nil { i.date = d }
       i.open = line(o["open"], 30)
+    }
+    if let c = o["choices"] as? [Any] {
+      i.choices = Array(c.prefix(3)).compactMap { x -> String? in let t = line(x, 60); return t.isEmpty ? nil : t }
+      if let n = (o["sure"] as? NSNumber)?.intValue, (0..<i.choices.count).contains(n) { i.sure = n }
+      i.ask = line(o["ask"], 60)
     }
     return i
   }

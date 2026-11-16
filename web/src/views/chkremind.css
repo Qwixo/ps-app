@@ -1,0 +1,63 @@
+/* Checklist reminder (PS 1.65, views/ChecklistReminder.tsx): the website's pop-up (the Annoying 15 minute reminder's pink card, rm-card in
+   remind.css) and the two screens inside the Tab list. Thin and calm: one dark panel, one accent, square-ish round corners, motion is
+   opacity and transform only and none with Reduce motion. */
+
+/* ---------- the pop-up (website) ---------- */
+.chk-pop { position: fixed; z-index: 2147483000; top: 14px; left: 50%; width: min(460px, calc(100vw - 24px)); transform: translateX(-50%); }
+.chk-card { position: relative; }
+.chk-x { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; font: inherit; font-size: 17px; line-height: 26px;
+  color: var(--rc-ink); background: color-mix(in srgb, var(--rc-ink) var(--rc-btn), transparent); }
+.chk-choices { display: flex; flex-direction: column; gap: 8px; }
+.chk-b { border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: 13px; color: var(--rc-ink); text-align: left; border-radius: 14px; padding: 11px 16px; }
+.chk-b.main { color: var(--rc-on); }
+.chk-box { cursor: default; }
+.chk-in { flex: 1; min-width: 0; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--rc-acc) 45%, transparent); background: var(--rc-field); color: var(--rc-ink);
+  border-radius: 12px; padding: 9px 12px; font: inherit; font-weight: 600; outline: none; }
+.chk-in:focus { border-color: var(--rc-acc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rc-acc) 22%, transparent); }
+.chk-in::placeholder { color: var(--rc-ph); }
+.chk-in.wrong { animation: chk-shake .35s; }
+.chk-hint { margin: 6px 0 0; font-size: 12px; color: var(--rc-sub); }
+@keyframes chk-shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+/* ---------- the screens in the Tab list ---------- */
+.chk-anchor { display: none; }
+.chk-layer { position: fixed; inset: 0; z-index: 96; display: grid; place-items: center; padding: 3vh 3vw; background: color-mix(in srgb, var(--k-base, #040206) 66%, transparent);
+  animation: chk-fade .22s ease both; }
+.chk-win { position: relative; box-sizing: border-box; width: min(720px, 100%); max-height: 100%; overflow: auto; padding: 34px 34px 26px; border-radius: calc(26px * var(--k-rd, 1));
+  color: var(--k-fg, #FFFFFF); background: var(--k-base, #120A10); border: 1.5px solid color-mix(in srgb, var(--chk-acc, #EC4E86) 55%, transparent);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .6); animation: chk-rise .34s cubic-bezier(.22, 1, .36, 1) both; }
+.chk-close { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border: 0; border-radius: 50%; cursor: pointer; font: inherit; font-size: 19px; line-height: 30px; padding: 0;
+  color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); }
+.chk-close:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent); }
+.chk-big { margin: 0 34px 18px 0; font-size: clamp(22px, 3.4vw, 32px); font-weight: 850; line-height: 1.18; letter-spacing: .005em; text-wrap: balance; }
+.chk-count { display: flex; align-items: center; gap: 12px; margin: 0 0 16px; }
+.chk-count .num { display: inline-block; padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 800; letter-spacing: .02em;
+  background: color-mix(in srgb, var(--chk-acc, #EC4E86) 22%, transparent); color: var(--k-fg, #FFFFFF); }
+.chk-count.reached .num { background: color-mix(in srgb, var(--k-ok, #34D399) 28%, transparent); }
+.chk-done { border: 0; cursor: pointer; font: inherit; font-weight: 750; font-size: 13px; padding: 7px 16px; border-radius: 999px; color: #fff; background: var(--chk-acc, #EC4E86); }
+.chk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.chk-row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 14px; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 6%, transparent); }
+.chk-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 620; }
+.chk-acts, .chk-bands { display: inline-flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.chk-btn { border: 0; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 12%, transparent); transition: background .18s ease, transform .1s ease; }
+.chk-btn:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent); }
+.chk-btn:active { transform: scale(.97); }
+.chk-btn.danger:hover { background: color-mix(in srgb, var(--k-bad, #FF4646) 45%, transparent); }
+.chk-btn.main { color: #fff; background: var(--chk-acc, #EC4E86); }
+.chk-pick { width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; font-weight: 640; padding: 12px 14px; border-radius: 14px; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 7%, transparent); transition: background .18s ease; }
+.chk-pick:hover { background: color-mix(in srgb, var(--chk-acc, #EC4E86) 30%, transparent); }
+.chk-empty { padding: 14px 4px; opacity: .7; }
+.chk-ask { padding: 6px 0 4px; }
+.chk-task { margin: 0 34px 10px 0; font-size: 15px; font-weight: 700; opacity: .75; overflow-wrap: anywhere; }
+.chk-yn { display: flex; gap: 10px; }
+.chk-yn .chk-btn { font-size: 14px; padding: 9px 24px; }
+.chk-undo { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 9px 14px; border-radius: 14px; font-size: 13px;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 14%, var(--k-base, #120A10)); }
+.chk-undo button { border: 0; background: none; cursor: pointer; font: inherit; font-weight: 800; color: var(--chk-acc, #EC4E86); }
+@keyframes chk-fade { from { opacity: 0; } }
+@keyframes chk-rise { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+@media (max-width: 560px) { .chk-win { padding: 28px 18px 20px; } .chk-row { flex-wrap: wrap; } .chk-t { flex-basis: 100%; } }
+@media (prefers-reduced-motion: reduce) { .chk-layer, .chk-win, .chk-in.wrong { animation: none; } }
+.chk-layer.still, .chk-layer.still .chk-win { animation: none; }

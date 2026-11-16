@@ -121,6 +121,7 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (typeof p.receipts === "boolean") o.receipts = p.receipts;   // Settings, Receipts and Purchases (PS 1.65)
   if (typeof p.receiptCur === "string") o.receiptCur = cleanCurrency(p.receiptCur);   // the currency a new receipt starts with
   if (typeof p.replyInPanel === "boolean") o.replyInPanel = p.replyInPanel;   // Settings, Reply in the email panel (V1.59)
+  if (p.chkRemind && typeof p.chkRemind === "object") o.chkRemind = cleanChk(p.chkRemind);   // Settings, Checklist Reminder (PS 1.65, core/chkremind.ts)
   if (typeof p.swipeInvert === "boolean") o.swipeInvert = p.swipeInvert;   // Settings, Controls, Invert swipe (V1.57)
   if (p.squadFeatures && typeof p.squadFeatures === "object") o.squadFeatures = cleanSwitches(p.squadFeatures);   // Settings, From the squad (V1.58, core/features.ts)
   // V1.56 Saved looks: only the device kinds this change names, merged into the vault's newest (core/looksprofiles.ts).
@@ -128,6 +129,7 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (typeof p.editSounds === "boolean") o.editSounds = p.editSounds;   // V1.56 Edit mode sounds (core/editsounds.ts)
   return o;
 }
+import { cleanChk } from "./core/chkremind";
 import { islandMessage, islandNow, islandStandTest, startIsland } from "./island";
 import { runPomoOp, startPomodoro } from "./pomodoro";
 import { cleanOp, pomoPrefs } from "./core/pomodoro";
@@ -195,6 +197,7 @@ import { cleanPhoneLayoutOp } from "./core/phonelayout";
 import { cleanRemindOp, mergeRemind } from "./core/remind";
 import { remShellMessage, remWake, startRemWatch } from "./remwatch";
 import { postureShellMessage, startPostureWatch } from "./posturewatch";
+import { startChkWatch } from "./chkwatch";
 import { cleanSleepMode } from "./core/sleepmode";
 import { dirCardMessage, runSquadOp, squadStore, squadView, startSquad } from "./squad/engine";
 import { boardWake, runBoardOp, startSquadBoard } from "./squad/board";
@@ -997,6 +1000,7 @@ export function startPsBridge() {
   // The Annoying 15 min reminders (src/remwatch.ts, core/remind.ts): the plan for the Mac's cards.
   startRemWatch(psPost);
   startPostureWatch(psPost);   // the Posture reminder (src/posturewatch.ts, core/posture.ts, PS 1.65)
+  startChkWatch(psPost);   // the Checklist reminder's clock: DO YOUR CHECKLIST on the Mac's card (src/chkwatch.ts, core/chkremind.ts, PS 1.65)
   setLocalCalReader((ask) => psPost({ type: "localCal", op: "read", ask }));   // not the developer: this Mac's Calendar (src/calrefresh.ts)
   startCalRefresh();   // asks for the calendar every 2 minutes and on wake; the server reads Google every minute (src/calrefresh.ts)
   startIsland(psPost);   // the Dynamic Island under the notch (src/island.ts)

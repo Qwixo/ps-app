@@ -88,5 +88,13 @@ ok("a readable ink from the plan is kept", RemMath.item(["id": "k", "bg": "#2812
    && RemMath.item(["id": "k", "bg": "#ffffff", "ink": "#17121a"])!.ink == "#17121a")
 ok("the default pink card keeps white words", RemMath.item(["id": "d"])!.ink == "#ffffff")
 
+// PS 1.65 Checklist reminder: a card with three choices
+let chk = RemMath.item(["id": "chk", "text": "DO YOUR CHECKLIST", "choices": ["One", "Two", "Three", "Four"], "sure": 1, "ask": "Are you sure?", "word": "yes"])!
+ok("a checklist card keeps three choices, the typed one and its question", chk.choices == ["One", "Two", "Three"] && chk.sure == 1 && chk.ask == "Are you sure?" && chk.word == "yes")
+ok("a normal reminder has no choices", RemMath.item(["id": "n"])!.choices.isEmpty && RemMath.item(["id": "n"])!.sure == -1)
+ok("a typed choice that is not in the list is dropped", RemMath.item(["id": "n", "choices": ["A", "B"], "sure": 5])!.sure == -1)
+ok("blank choices are left out", RemMath.item(["id": "n", "choices": ["A", "  ", "C"]])!.choices == ["A", "C"])
+ok("the typed yes is checked in any case", RemMath.confirms(chk, " YES ") && !RemMath.confirms(chk, "y") && !RemMath.confirms(chk, "yes please"))
+
 print("\n\(n - bad) of \(n) passed")
 if bad > 0 { exit(1) }

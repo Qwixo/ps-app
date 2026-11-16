@@ -111,6 +111,16 @@ export const INTROS: IntroDef[] = [
     choice: true,
   },
   {
+    // PS 1.65 Checklist reminder (words wait for the developer's approval): one Ok ends it for good (a `choice` with one button).
+    // Only while the feature is on (views/FeatureIntro.tsx DONE_PROBES).
+    id: "checklist-165",
+    headline: "New: Checklist Reminder",
+    ask: "A pop-up nudges you when you have not ticked a task for a while. Change it in Settings, Checklist Reminder.",
+    show: "Ok",
+    mark: "spark",
+    choice: true,
+  },
+  {
     // PS 1.60 (pull request 12b). Only for people who said No or have not answered (views/FeatureIntro.tsx DONE_PROBES, core/screenrecmeet.ts introAudience).
     id: "screenrec",
     headline: SR_INTRO.headline,

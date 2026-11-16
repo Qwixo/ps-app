@@ -7,8 +7,8 @@ import { GROUPS, SETTINGS, groupById, groupsFor, landingOf, norm, rowsOf, search
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
-const RED_MAC: Ctx = { red: true, where: "mac", pf: true }, FRIEND_MAC: Ctx = { red: false, where: "mac", pf: true };
-const FRIEND_WEB: Ctx = { red: false, where: "web", pf: true }, PHONE: Ctx = { red: false, where: "phone", shell: "gos" };
+const RED_MAC: Ctx = { red: true, where: "mac", pf: true, ck: true }, FRIEND_MAC: Ctx = { red: false, where: "mac", pf: true, ck: true };
+const FRIEND_WEB: Ctx = { red: false, where: "web", pf: true, ck: true }, PHONE: Ctx = { red: false, where: "phone", shell: "gos" };
 const ids = (q: string, ctx: Ctx) => searchSettings(q, ctx).map((h) => h.e.id);
 const first = (q: string, ctx: Ctx) => ids(q, ctx)[0];
 
@@ -130,7 +130,7 @@ ok("Mac only settings never show on the website or phone, phone ones only on the
 });
 ok("the side menu has the developer's groups in order, each with something in it", () => {
   const mac = groupsFor(FRIEND_MAC).map((g) => g.id);
-  assert.deepEqual(mac, ["about", "friend", "list", "controls", "looks", "notify", "remind", "telegram", "api", "time", "shortcuts", "keys", "island", "mac", "sync", "privacy", "fitness", "pomodoro", "standup", "posture", "sleep", "sentry", "gsquad"]);   // V1.58: the Dynamic island, Pomodoro timer and Stand-up reminders, tabs of their own
+  assert.deepEqual(mac, ["about", "friend", "list", "controls", "looks", "notify", "remind", "chkremind", "telegram", "api", "time", "shortcuts", "keys", "island", "mac", "sync", "privacy", "fitness", "pomodoro", "standup", "posture", "sleep", "sentry", "gsquad"]);   // V1.58: the Dynamic island, Pomodoro timer and Stand-up reminders, tabs of their own
   for (const ctx of [FRIEND_MAC, FRIEND_WEB, PHONE, RED_MAC]) for (const g of groupsFor(ctx)) {
     const r = rowsOf(g.id, ctx);
     assert.ok(r.main.length > 0, `${ctx.where} ${g.id}: a row before More`);
@@ -141,6 +141,12 @@ ok("the Posture Reminder tab and its rows hide where the feature is off", () => 
   const off: Ctx = { red: false, where: "mac" };
   assert.ok(!groupsFor(off).some((g) => g.id === "posture"));
   assert.ok(!visibleTo(settingById("posture-on")!, off) && visibleTo(settingById("posture-on")!, FRIEND_MAC));
+});
+ok("the Checklist Reminder tab and its rows hide where the feature is off", () => {
+  assert.ok(groupsFor(FRIEND_MAC).some((g) => g.id === "chkremind"));
+  const off: Ctx = { red: false, where: "mac" };
+  assert.ok(!groupsFor(off).some((g) => g.id === "chkremind"));
+  assert.ok(!visibleTo(settingById("chk-on")!, off) && visibleTo(settingById("chk-on")!, FRIEND_MAC));
 });
 ok("Add Telegram Bot (V1.47) is a group of its own for everyone, on every device, and search finds it", () => {
   for (const ctx of [FRIEND_MAC, FRIEND_WEB, PHONE, RED_MAC]) {

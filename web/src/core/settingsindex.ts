@@ -17,7 +17,7 @@ export { norm, stem };
 
 /** Where PS is running: on a Mac (the Tab list), the website, or the phone (PS GOS and the iPhone web app). */
 export type Where = "mac" | "web" | "phone";
-export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "posture" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
+export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "chkremind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "posture" | "sleep" | "sentry" | "gsquad" | "phone" | "about";
 /** What a setting opens instead of a row in Settings: a screen of its own. */
 export type Go = "fitness" | "security" | "dnd" | "gsquad" | "sleepSettings" | "phone" | "vault" | "macApp";
 
@@ -57,12 +57,14 @@ export interface SetEntry {
   sr?: true;
   /** Only where the Posture reminder feature is on in this build (core/features.ts "posture-reminder"). */
   pf?: true;
+  /** Only where the Checklist reminder feature is on in this build (core/features.ts "checklist-reminder"). */
+  ck?: true;
   /** Only in this phone shell: the GrapheneOS app ("gos") or the iPhone web app ("mweb"). V1.47. */
   shell?: Shell;
 }
 /** Which phone shell: the GrapheneOS app (ps-gos, a WebView with the native bridge) or the iPhone web app. */
 export type Shell = "gos" | "mweb";
-export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean }
+export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean; ck?: boolean }
 
 export const GROUPS: SetGroup[] = [
   // V1.51 (the developer, 12 Nov 2026): About and updates is the top item of the Settings menu, above everything else, so the
@@ -77,6 +79,8 @@ export const GROUPS: SetGroup[] = [
   { id: "notify", label: "Notifications and Do Not Disturb", line: "Pop-ups, meetings, focus modes, reminders", icon: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" },
   // The developer, 10 Nov 2026: "Add a dedicated settings menu to this ... in it's own settings tab called 'Annoying 15 min reminder'".
   { id: "remind", label: "Annoying 15 min reminder", line: "Pop-ups that keep coming back until you answer", icon: "M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 9v4l2.5 1.5M5 3L2 6M19 3l3 3" },
+  // PS 1.65 (request of the developer's AI, 17 Nov 2026): "A new Settings tab 'Checklist Reminder': on or off, and how often."
+  { id: "chkremind", label: "Checklist Reminder", line: "A nudge when you have not ticked a task for a while", icon: "M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9", on: ["mac", "web"] },
   // V1.47, the developer 10 Nov 2026: "Make it so other people can add a Telegram bot as well. Add that in the Settings menu as a tab called Add Telegram Bot."
   { id: "telegram", label: "Add Telegram Bot", line: "Text tasks to your own bot and they land on your list", icon: "M21.5 4.5L2.8 11.7c-.9.4-.9 1.6.1 1.9l4.6 1.4 1.8 5.6c.3.8 1.3 1 1.9.4l2.6-2.5 4.8 3.5c.8.6 1.9.1 2.1-.8L23.9 6c.3-1.1-.9-2-2.4-1.5zM9.4 15l9.1-7.6" },
   // Task API (the developer, 12 Nov 2026: "make the API have a dedicated tab in settings and set up the scope with everything changeable via API").
@@ -196,6 +200,11 @@ export const SETTINGS: SetEntry[] = [
   { id: "posture-every", group: "posture", name: "How often", line: "Every 30, 45, 60 or 90 minutes.", on: NOT_PHONE, pf: true, words: ["posture", "interval", "how often", "every", "minutes", "frequency", "30", "45", "60", "90"] },
   { id: "posture-hours", group: "posture", name: "Between these times", line: "It only comes inside these hours. An end time before the start time runs past midnight.", on: NOT_PHONE, pf: true, words: ["posture", "hours", "from", "to", "start", "end", "work hours", "schedule", "time", "midnight"] },
   { id: "posture-test", group: "posture", name: "Try it now", line: "Shows the pop-up right now. Esc closes it.", on: NOT_PHONE, pf: true, words: ["posture", "test", "try", "preview", "demo", "see it"] },
+  // ---------- Checklist Reminder (PS 1.65, core/chkremind.ts) ----------
+  { id: "chk-on", group: "chkremind", name: "Checklist reminder", line: "Says DO YOUR CHECKLIST when you have not ticked a task for a while. Never in meetings.", on: ["mac", "web"], ck: true, words: ["checklist", "reminder", "nag", "nudge", "to do", "todo", "tick", "tasks", "pop up", "popup", "focus"] },
+  { id: "chk-every", group: "chkremind", name: "How often", line: "How long without a ticked task before it comes: 30 minutes to 12 hours, 2 hours to start.", on: ["mac", "web"], ck: true, words: ["how often", "interval", "minutes", "hours", "every", "frequency", "checklist"] },
+  { id: "chk-sound", group: "chkremind", name: "Soft chime", line: "A soft chime when the pop-up comes.", on: ["mac"], ck: true, words: ["sound", "chime", "ring", "checklist"] },
+  { id: "chk-test", group: "chkremind", name: "Show it now", line: "See the pop-up right away. Nothing is saved.", on: ["mac", "web"], ck: true, words: ["test", "preview", "try", "checklist"] },
 
   // ---------- Add Telegram Bot (views/TelegramBot.tsx, core/tgbot.ts) ----------
   { id: "telegram-bot", group: "telegram", name: "Your Telegram bot", line: "Make a bot with BotFather, give PS app its key, link your Telegram, test it.", words: ["telegram", "bot", "botfather", "text", "message", "sms", "chat", "add task", "send task", "token", "key", "at", "tasks from phone", "remote"] },
@@ -391,6 +400,7 @@ export function visibleTo(e: SetEntry, ctx: Ctx): boolean {
   if (e.mailCan && !ctx.mailCan) return false;
   if (e.sr && !ctx.sr) return false;
   if (e.pf && !ctx.pf) return false;
+  if (e.ck && !ctx.ck) return false;
   if (e.shell && e.shell !== ctx.shell) return false;
   if (e.on && !e.on.includes(ctx.where)) return false;
   const g = groupById(e.group);
