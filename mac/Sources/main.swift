@@ -443,6 +443,13 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       guard id.range(of: RemMath.taskPattern, options: .regularExpression) != nil else { return }
       self?.openList(then: "window.__psOpenTask && window.__psOpenTask('\(id)')")
     }
+    // PS 1.65 Checklist reminder: a choice on its card. Rethink and I forgot open the Tab list on their screen; the page (engine) is told
+    // which one it was either way, so it starts counting again.
+    Reminders.shared.onChk = { [weak self] outcome in
+      guard ["rethink", "forgot", "sure", "esc"].contains(outcome) else { return }
+      if outcome == "rethink" || outcome == "forgot" { self?.openList(then: "window.__psChk && window.__psChk('\(outcome)')") }
+      Reminders.shared.deliver?("window.__psChkAnswered && window.__psChkAnswered('\(outcome)')")
+    }
     Reminders.shared.deliver = { [weak self] js in for w in [self?.overlay, self?.main] { w?.evaluateJavaScript(js, completionHandler: nil) } }
     Reminders.shared.start(testDir: ProcessInfo.processInfo.environment["PS_SELFTEST"])
     // Network monitor (gear menu > Network): its data goes only to the overlay page, only while open.

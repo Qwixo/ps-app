@@ -42,6 +42,10 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   static let shared = Reminders()
   static let width: CGFloat = 460
   static let testId = "__test"
+  /// PS 1.65 Checklist reminder (web core/chkremind.ts): the page hands over ONE card with three choices ("rem:chk"); it comes up like a
+  /// reminder (only while you are at the Mac, never in a meeting, Do Not Disturb, Sleep mode, Sentry mode or over 1Password or Signal),
+  /// stays until a choice, the typed yes or its close button, and tells the page which one it was (onChk).
+  static let chkId = "chk"
 
   /// This Mac's own answer to one reminder, kept until a plan carries one as new (stateAt).
   struct Local: Codable, Equatable { var done = ""; var snoozeUntil = 0.0; var at = 0.0; var sent = 0.0 }
@@ -81,6 +85,10 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   private var cards: [String: Card] = [:]
   private(set) var up: [String] = []              // the reminders whose card is meant to be up, in the list's order
   private var testItem: RemMath.Item?
+  private var chkItem: RemMath.Item?
+  /// A choice was made on the checklist card: "rethink", "forgot", "sure" (the typed yes) or "esc" (closed). main.swift opens the list and
+  /// tells the page.
+  var onChk: ((String) -> Void)?
   private var timer: Timer?
   private var player: AVAudioPlayer?
   private let q = DispatchQueue(label: "ps.reminders.sound", qos: .utility)
@@ -136,9 +144,10 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       case .done, .snoozed, .off: break
       }
     }
+    if chkItem != nil, !quiet, here || up.contains(Reminders.chkId) { want.append(Reminders.chkId) }
     for id in up where !want.contains(id) { close(id) }
     for id in want where !up.contains(id) { open(id) }
-    up = items.map(\.id).filter { want.contains($0) }
+    up = items.map(\.id).filter { want.contains($0) } + (want.contains(Reminders.chkId) ? [Reminders.chkId] : [])
     place()
   }
 
@@ -190,7 +199,7 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   }
 
   // ---------- the cards (main thread) ----------
-  private func item(_ id: String) -> RemMath.Item? { id == Reminders.testId ? testItem : items.first { $0.id == id } }
+  private func item(_ id: String) -> RemMath.Item? { id == Reminders.testId ? testItem : id == Reminders.chkId ? chkItem : items.first { $0.id == id } }
   private func card(_ id: String) -> Card? {
     if let c = cards[id] { return c }
     guard let i = item(id) else { return nil }
@@ -228,7 +237,7 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     guard c.ready else { return }
     let i = c.item
     c.web.callAsyncJavaScript("window.__fu && window.__fu.set(o, f)", arguments: ["o": ["pill": i.pill, "text": i.text, "later": i.later, "yes": i.yes, "word": i.word, "click": i.click, "open": i.open,
-      "bg": i.bg, "accent": i.accent, "ink": i.ink, "test": c.id == Reminders.testId], "f": fresh], in: nil, in: .page, completionHandler: nil)
+      "bg": i.bg, "accent": i.accent, "ink": i.ink, "test": c.id == Reminders.testId, "choices": i.choices, "sure": i.sure, "ask": i.ask], "f": fresh], in: nil, in: .page, completionHandler: nil)
   }
   private func close(_ id: String) {
     PrivateHold.shared.gone("rem:" + id)   // V1.57: its pill goes with it
@@ -300,7 +309,11 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   func escape(_ w: NSWindow? = nil) {
     let id = (w as? FuPanel)?.remId ?? cards.values.first(where: { $0.panel.isKeyWindow })?.id ?? ""
     if id == Reminders.testId { stopTest(); return }
-    if let c = cards[id] { closeBox(c); c.web.evaluateJavaScript("window.__fu && window.__fu.unbox()", completionHandler: nil) }
+    if let c = cards[id] {
+      // The checklist card: Esc backs out of the typed yes first, and then closes the card (PS rule: Esc closes everything).
+      if id == Reminders.chkId, !c.boxOpen { finishChk("esc"); return }
+      closeBox(c); c.web.evaluateJavaScript("window.__fu && window.__fu.unbox()", completionHandler: nil)
+    }
   }
   /// The keyboard goes back to the app he was in (never 1Password or Signal, never in a test copy).
   private func handBack(_ c: Card) {
@@ -331,12 +344,42 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         onOpenTask?(c.item.task)
       }
     case "box": if (msg["open"] as? Bool) == true { openBox(c) } else { closeBox(c) }
+    case "choice":   // a choice on the checklist card (0 Rethink, 2 I forgot; the typed one opens the box instead)
+      guard c.id == Reminders.chkId || test, let n = (msg["i"] as? NSNumber)?.intValue, (0..<c.item.choices.count).contains(n) else { return }
+      if test { stopTest() } else { finishChk(n == 0 ? "rethink" : "forgot") }
+    case "close":    // the checklist card's close button
+      if test { stopTest() } else if c.id == Reminders.chkId { finishChk("esc") }
     case "confirm":
       let typed = String((msg["text"] as? String ?? "").prefix(60))
+      if c.id == Reminders.chkId { if RemMath.confirms(c.item, typed) { finishChk("sure") } else { c.web.evaluateJavaScript("window.__fu && window.__fu.wrong()", completionHandler: nil) }; return }
       if RemMath.confirms(c.item, typed) { if test { stopTest() } else { answer(c.id, done: true) } }
       else { c.web.evaluateJavaScript("window.__fu && window.__fu.wrong()", completionHandler: nil) }
     default: break
     }
+  }
+
+  // ---------- the checklist card (PS 1.65) ----------
+  private func showChk(_ v: Any?) {
+    guard var i = RemMath.item(v), i.choices.count == 3 else { return }
+    i.id = Reminders.chkId
+    if chkItem == i { return }
+    chkItem = i
+    if let c = cards[Reminders.chkId] { c.item = i; show(c) }
+    check()
+  }
+  /// The page took the card away (it was answered somewhere else, or the switch went off).
+  private func stopChk() {
+    guard chkItem != nil else { return }
+    chkItem = nil
+    check()
+  }
+  private func finishChk(_ outcome: String) {
+    chkItem = nil
+    up.removeAll { $0 == Reminders.chkId }
+    close(Reminders.chkId)
+    place()
+    psLog("PS checklist reminder: \(outcome)")   // never the words
+    if testDir == nil { onChk?(outcome) }
   }
 
   // ---------- sound ----------
@@ -399,6 +442,8 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       if let id { try? FileManager.default.removeItem(at: ownURL(id)); try? FileManager.default.removeItem(at: metaURL(id)); psLog("PS reminders: own sound removed") }
       sendOwn()
     case "rem:test": test(msg["item"])
+    case "rem:chk": showChk(msg["item"])
+    case "rem:chkStop": stopChk()
     case "rem:testStop": stopTest(silent: true)
     default: return false
     }
@@ -469,6 +514,14 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   button{border:0;border-radius:99px;padding:9px 16px;font:700 13px -apple-system,sans-serif;color:var(--ink);background:color-mix(in srgb,var(--ink) var(--btn),transparent);cursor:pointer;transition:background .2s,transform .1s}
   button:active{transform:scale(.97)}
   button.main{color:var(--on);background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 80%,#fff),color-mix(in srgb,var(--acc) 85%,#000));box-shadow:0 8px 20px color-mix(in srgb,var(--acc) 35%,transparent)}
+  #ch{display:none;flex-direction:column;gap:8px}
+  body.multi #ch{display:flex}
+  body.multi #later,body.multi #open,body.multi #yes,body.multi .row{display:none}
+  body.multi.box #ch{display:none}
+  #ch button{width:100%;text-align:left;border-radius:14px;padding:11px 16px}
+  #ch button.first{color:var(--on);background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 80%,#fff),color-mix(in srgb,var(--acc) 85%,#000));box-shadow:0 8px 20px color-mix(in srgb,var(--acc) 35%,transparent)}
+  #x{display:none;position:absolute;top:12px;right:12px;width:26px;height:26px;padding:0;border-radius:50%;font-size:15px;line-height:26px;text-align:center}
+  body.multi #x{display:block}
   #box{display:none;margin-top:14px}
   body.box #box{display:block;animation:fade .25s ease both}
   body.box #yes{display:none}
@@ -486,7 +539,9 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   </style></head><body>
   <div id="card">
     <span class="pill"><i></i><span id="p"></span><em id="tt"></em></span>
+    <button id="x" type="button" aria-label="Close (Esc)">&times;</button>
     <h1 id="q"></h1>
+    <div id="ch"></div>
     <div class="row"><button id="later" type="button"></button><button id="open" type="button" hidden></button><button id="yes" class="main" type="button"></button></div>
     <div id="box">
       <label id="lb"></label>
@@ -558,7 +613,17 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       $('p').textContent = o.pill; $('tt').textContent = o.test ? ' · test' : '';
       $('q').textContent = o.text; $('later').textContent = o.later; $('yes').textContent = o.yes;
       $('open').textContent = o.open || ''; $('open').hidden = !o.open;
-      $('lb').textContent = 'Type ' + o.word + ' and press Enter to confirm';
+      const many = Array.isArray(o.choices) && o.choices.length > 0;
+      document.body.classList.toggle('multi', many);
+      const ch = $('ch'); ch.textContent = '';
+      if (many) o.choices.forEach((w, i) => {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = w; if (i === 0) b.className = 'first';
+        b.addEventListener('click', () => {
+          if (i === o.sure) { document.body.classList.add('box'); size(); post({ type: 'box', open: true }); } else post({ type: 'choice', i });
+        });
+        ch.appendChild(b);
+      });
+      $('lb').textContent = o.ask || ('Type ' + o.word + ' and press Enter to confirm');
       $('t').placeholder = 'Type ' + o.word; $('hint').textContent = 'Only ' + o.word + ' closes this.';
       click = !!o.click;
       if (fresh) { document.body.classList.remove('box', 'wrong', 'in', 'out'); $('t').value = ''; void document.body.offsetWidth; document.body.classList.add('in'); }
@@ -569,6 +634,7 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     unbox() { document.body.classList.remove('box', 'wrong'); $('t').value = ''; size(); },
     out() { document.body.classList.add('out'); },
   };
+  $('x').addEventListener('click', () => post({ type: 'close' }));
   $('later').addEventListener('click', () => post({ type: 'snooze' }));
   $('open').addEventListener('click', () => post({ type: 'open' }));
   $('yes').addEventListener('click', () => {

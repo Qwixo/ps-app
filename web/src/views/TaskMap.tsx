@@ -104,6 +104,7 @@ import { BG_DESIGNS, P1_COLORS, P1_DESIGNS, bgDesign, colorHue, hueColor, isVide
 import { Storm, type StormKind } from "./Storm";
 import { rainLayers } from "../core/looksample";
 import { DimensionX, dimxIsOpen, morph } from "./DimensionX";
+import { ChecklistScreens } from "./ChecklistReminder";
 import { openSettings, useSettingsWanted, type Preview, type SettingsOwner } from "./SettingsScreen";
 import { SettingsHost } from "./SettingsGroups";
 import { BgBrightControls, BgDim, GosAddVideoTile } from "./BgBright";
@@ -1340,6 +1341,8 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
             they open from the island's own right click menu and from Settings, Dynamic Island. */}
         <Slot id="meetings"><MeetingsPeek list={meet} notes={st.meetingNotes || []} standing={st.standingNotes || []} privateOn={!!st.privateMode} calAt={calendarSnap(s)?.data.at ?? null} local={!red} web={web} /></Slot>
         {/* V1.58 the island's settings window (views/IslandSettings.tsx): Settings in the island's right click menu opens it. */}
+        {/* PS 1.65 Checklist reminder: the Rethink and I forgot screens (views/ChecklistReminder.tsx); nothing shows until the pop-up's choice opens one. */}
+        <ChecklistScreens lists={lists} dimx={st.dimx || []} working={workingIdsOf(st)} docked={docked} />
         {PS && !docked && <IslandSettingsWindow prefs={islandPrefs(st.island)} save={(p) => void taskMapActions.looks({ island: { ...islandPrefs(st.island), ...p } })} />}
         <div className="tm-xrow">
           {red && CAMPAIGNS_ON && <Slot id="campaigns"><CampaignStats stats={cstats} docked={docked} /></Slot>}
