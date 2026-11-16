@@ -103,6 +103,16 @@ export const INTROS: IntroDef[] = [
     choice: true,
   },
   {
+    // PS 1.65 G Squad pieces (words for the owner to approve): one Ok ends it for good (a `choice` with one button: nothing opens). Only for
+    // people in a squad (views/FeatureIntro.tsx DONE_PROBES).
+    id: "gsquad-pieces-165",
+    headline: "G Squad now comes in pieces.",
+    ask: "In Edit mode, add the chat, the leaderboard or who is working to any page.",
+    show: "Ok",
+    mark: "spark",
+    choice: true,
+  },
+  {
     // PS 1.65 Receipts (words for the owner to approve): one Ok ends it for good (a `choice` with one button: nothing opens). Only while
     // Receipts is on and the person owns the vault (views/FeatureIntro.tsx DONE_PROBES).
     id: "receipts",

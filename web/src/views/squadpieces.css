@@ -1,0 +1,50 @@
+/* G Squad pieces (PS 1.65, views/SquadPieces.tsx): parts of G Squad as panels of the Tab list. They wear the window's own look (.gsw tokens,
+   light or dark, v3 colours), but sit in the page like any panel: no fixed position, a thin rounded card. Sizes: they fill the width they
+   are given (small or large) and the lists scroll inside. Only transform and opacity animate (the window's own rows). */
+.gsw.sqpiece { position: relative; inset: auto; z-index: auto; display: flex; flex-direction: column; flex: none; width: 100%; box-sizing: border-box; min-width: 0; max-width: 100%;
+  padding: 0; overflow: hidden; border-radius: calc(16px * var(--k-rd, 1)); border: 1px solid var(--gw-line); background: var(--gw-paper); color: var(--k-fg, #FFFFFF);
+  font-size: calc(13px * var(--k-fs, 1)); }
+.tm-right .gsw.sqpiece { margin-top: calc(8px * var(--k-dn, 1)); }
+.sqp-h { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 6px 10px 6px 14px; border-bottom: 1px solid var(--gw-line); }
+.sqp-t { min-width: 0; margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+button.sqp-t { cursor: pointer; border-radius: 8px; }
+button.sqp-t:hover b, button.sqp-t:focus-visible b { color: var(--k-acc-t, var(--k-acc, #EC4E86)); }
+.sqp-t b { font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--gw-muted); transition: color .12s ease; }
+.sqp-sub { flex: none; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 600; color: var(--gw-muted); }
+.sqp-note { margin: 0; padding: 12px 14px; font-size: calc(12.5px * var(--k-fs, 1)); color: var(--gw-muted); }
+.sqp-more { align-self: flex-start; margin: 0 10px 8px; padding: 4px 8px; border: 0; border-radius: 8px; background: none; color: var(--gw-muted); font: inherit; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 650; cursor: pointer; }
+.sqp-more:hover { color: var(--k-fg, #FFFFFF); background: var(--gw-hover); }
+.sqp-h .gsw-count { flex: none; }
+
+/* Squad chat: a compact live chat, the same chat the window draws (views/GSquadChat.tsx ChatPanel) */
+.gsw.sqpiece.sqp-chat .gc { flex: none; height: clamp(260px, 52vh, 380px); }   /* beats the window's own full height rules */
+.sqp-chat .gc-sound { display: none; }
+.sqp-chat .gc-list { padding: 8px 10px 4px; }
+
+/* Conversations */
+.sqp-list { list-style: none; margin: 0; padding: 4px 6px 6px; max-height: min(46vh, 340px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.gsw.sqpiece .gsw-conv { min-height: 56px; gap: 11px; padding: 6px 8px; }
+.gsw.sqpiece .gsw-conv-av .gsa { width: 38px !important; height: 38px !important; }
+
+/* Leaderboard and Tasks done */
+.sqp-rows { padding: 4px 6px 6px; max-height: min(46vh, 340px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.gsw.sqpiece .gsb-money .gsb-row { padding: 6px 8px; gap: 10px; }
+.gsw.sqpiece .gsb-money .gsb-who, .gsw.sqpiece .gsb-money .gsb-val { font-size: calc(13.5px * var(--k-fs, 1)); }
+.sqp-done .gsb-chips { flex: none; }
+.sqp-done .gsb-chip { padding: 3px 8px; font-size: calc(11px * var(--k-fs, 1)); }
+
+/* Working now: people in a row that wraps, so a small piece shows a few and a large one all */
+.sqp-people { list-style: none; margin: 0; padding: 10px 12px 12px; display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.sqp-people li { display: grid; justify-items: center; gap: 4px; min-width: 52px; }
+.sqp-people li.off { opacity: .5; }
+.sqp-people li.on .sqp-n { color: var(--k-fg); }
+.sqp-av { position: relative; display: inline-grid; }
+.sqp-n { font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 650; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .gsw.sqpiece * { animation: none !important; } }
+
+/* small sizes: one line titles and names, cut with an ellipsis, never a wrapped heading */
+.sqp-t { flex: 1 1 auto; overflow: hidden; }
+.sqp-t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sqp-sub, .sqp-h .gsb-chips { white-space: nowrap; }
+.sqp-rows .gsb-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+.sqp-rows .gsb-val { white-space: nowrap; }
