@@ -124,7 +124,7 @@ export function chkStep(c: ChkClock, f: ChkFacts): { clock: ChkClock; fire: bool
   const reset = { clock: { since: f.now }, fire: false };
   if (!f.enabled || !f.ready || f.cardOpen || f.block || f.openTasks < 1) return reset;
   if (c.since > f.now) return reset;
-  const ref = Math.max(c.since, f.lastTickAt > f.now ? 0 : f.lastTickAt);
+  const ref = Math.max(c.since, Math.min(f.lastTickAt, f.now));   // a tick stamped by a clock that runs ahead counts as now, never as none
   if (f.now - ref < f.everyMin * 60_000) return { clock: c, fire: false };
   return { clock: { since: f.now }, fire: true };
 }
@@ -184,6 +184,30 @@ export function withCard(list: DimxItem[], card: DimxItem): DimxItem[] {
 }
 /** Undo of a send: the card leaves the list again. */
 export const withoutCard = (list: DimxItem[], id: string): DimxItem[] => list.filter((x) => x.id !== id);
+
+/** Writes to Dimension X and the task list, one after the other. Dimension X is saved as a whole list, so each write is built from the list
+ *  this queue wrote last (`live` can still be one write behind: the Tab list window gets the state back through the main page), never
+ *  from a stale copy. A send saves its card FIRST and deletes the task only after that write went through, so a task is never gone
+ *  without its card. Every job answers true when it all worked, false when something threw (nothing after the failing step ran). */
+export function dimxQueue(live: () => DimxItem[], write: (list: DimxItem[]) => Promise<unknown> | unknown, remove: (id: string) => Promise<unknown> | unknown) {
+  let mine: DimxItem[] | null = null, busy = 0, chain: Promise<unknown> = Promise.resolve();
+  const run = (job: () => Promise<unknown> | unknown): Promise<boolean> => {
+    busy++;
+    const p = chain.then(job).then(() => true, () => false).finally(() => { busy--; });
+    chain = p;
+    return p;
+  };
+  const put = async (f: (cur: DimxItem[]) => DimxItem[]) => { const next = f(mine ?? live()); mine = next; await write(next); };
+  return {
+    run,
+    /** Save the card, then delete the task. */
+    send: (card: DimxItem) => run(async () => { await put((c) => withCard(c, card)); await remove(card.id); }),
+    /** Take the card back out (after the task was restored by `restore`). */
+    unsend: (id: string, restore: () => Promise<unknown> | unknown) => run(async () => { await restore(); await put((c) => withoutCard(c, id)); }),
+    /** The page's own list came back: trust it again once nothing is being written. */
+    fresh: () => { if (busy === 0) mine = null; },
+  };
+}
 
 /** "Add it to the Dynamic Island" only when the task is not already one of the tasks the island shows. */
 export const needsIslandPin = (working: readonly string[], id: string): boolean => !working.includes(id);

@@ -56,7 +56,7 @@ import { ClientEmailsSettings } from "./ClientEmailsSettings";
 import { WhatsAppSettings } from "./WhatsAppSettings";
 import { ScreenRecSettings } from "./ScreenRec";
 import { feature } from "../core/features";
-import { CHK_EVERY_CHOICES, chkCardItem, cleanChk, everyLabel } from "../core/chkremind";
+import { CHK_FEATURE, CHK_EVERY_CHOICES, chkCardItem, cleanChk, everyLabel } from "../core/chkremind";
 import { chkTest } from "../chkwatch";
 import { SR_FEATURE } from "../core/screenrec";
 import { mailOnSnap } from "../core/mailsnap";
@@ -108,7 +108,8 @@ export function SettingsHost({ st, gen, owner }: { st: Settings; gen: GenProps; 
   const mailC = mailCan(v);
   const sr = feature(SR_FEATURE);   // PS 1.60: the Screen recording group shows only where the feature is on in this build
   const pf = feature("posture-reminder");   // PS 1.65: the Posture Reminder group shows only where the feature is on
-  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, pf, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr, pf]);
+  const ck = feature(CHK_FEATURE);   // PS 1.65: the Checklist Reminder group shows only where the feature is on
+  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, pf, ck, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr, pf, ck]);
   return (
     <GenContext.Provider value={{ gen, st }}>
       <SettingsScreen owner={owner} ctx={ctx} controls={CONTROLS} phone={GOS || MWEB} onGo={(go, e, close) => goTo(go, e, close, owner)} />

@@ -144,6 +144,12 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       case .done, .snoozed, .off: break
       }
     }
+    // A checklist card that is not up yet is never held for later: the person is away or a meeting, Sleep mode or Do Not Disturb is on.
+    // It is dropped and the page starts its count again (any quiet spell restarts it), so it never lands the moment they come back.
+    if chkItem != nil, !up.contains(Reminders.chkId), quiet || !here {
+      chkItem = nil
+      if testDir == nil { onChk?("away") }
+    }
     if chkItem != nil, !quiet, here || up.contains(Reminders.chkId) { want.append(Reminders.chkId) }
     for id in up where !want.contains(id) { close(id) }
     for id in want where !up.contains(id) { open(id) }

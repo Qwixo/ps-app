@@ -13,7 +13,7 @@ import { sfx } from "../ui/sfx";
 import { startChkWatch, chkAnswered, useChkCard } from "../chkwatch";
 import { closeChkScreen, openChkScreen, useChkScreen } from "../chkscreen";
 import { feature } from "../core/features";
-import { CHK_FEATURE, CHK_BANDS, CHK_BG, CHK_ACCENT, CHK_CHOICES, CHK_WORDS, checklistTasks, counter, dimxCard, needsIslandPin, sureOk, withCard, withoutCard, type ChkChoice } from "../core/chkremind";
+import { CHK_FEATURE, CHK_BANDS, CHK_BG, CHK_ACCENT, CHK_CHOICES, CHK_WORDS, checklistTasks, counter, dimxCard, dimxQueue, needsIslandPin, sureOk, type ChkChoice } from "../core/chkremind";
 import type { DimxItem, DimxZone, Doc, Todo } from "../core/model";
 import type { TabLists } from "../core/groups";
 import { taskMapActions } from "./TaskMap";
@@ -81,7 +81,9 @@ function ChkCard({ test }: { test: boolean }) {
 
 // ---------- the screens inside the Tab list ----------
 type Props = { lists: TabLists; dimx: DimxItem[]; working: string[]; docked?: boolean };
-type Undo = { text: string; verb: string; restore: () => void };
+type Undo = { key: number; at: number; text: string; verb: string; restore: () => Promise<unknown> };
+/** How long an Undo stays, and how many a stack keeps. */
+const UNDO_MS = 6000, UNDO_MAX = 8;
 
 /** Mounted once in the Tab list (views/TaskMap.tsx), next to Dimension X. Draws nothing until a screen is opened. */
 export function ChecklistScreens(p: Props) {
@@ -107,11 +109,16 @@ function Screen({ kind, lists, dimx, working }: Props & { kind: "rethink" | "for
   const tasks = useMemo(() => checklistTasks(lists), [lists]);
   const total0 = useRef(tasks.length);            // how many there were when it opened: the counter counts against this
   const [gone, setGone] = useState(0);
-  const [undo, setUndo] = useState<Undo | null>(null);
+  const [undos, setUndos] = useState<Undo[]>([]);       // a short stack: each Delete or Send keeps its own Undo
   const [menu, setMenu] = useState<string | null>(null);     // the task whose Dimension X bands are showing
   const [picked, setPicked] = useState<Doc<Todo> | null>(null);
   const live = useRef({ dimx, working });
   live.current = { dimx, working };
+  // Dimension X writes and deletes go one after the other (core/chkremind.ts dimxQueue): two quick sends never drop a card.
+  const q = useRef<ReturnType<typeof dimxQueue> | null>(null);
+  if (!q.current) q.current = dimxQueue(() => live.current.dimx, (l) => taskMapActions.dimx(l), (id) => taskMapActions.remove(id));
+  useEffect(() => { q.current!.fresh(); }, [dimx]);
+  const push = (u: Omit<Undo, "key" | "at">) => setUndos((l) => [...l, { ...u, key: Date.now() + Math.random(), at: Date.now() }].slice(-UNDO_MAX));
   const close = () => { sfx.drop(); closeChkScreen(); };
   // Esc closes everything, before anything behind it hears the key.
   useEffect(() => {
@@ -119,27 +126,32 @@ function Screen({ kind, lists, dimx, working }: Props & { kind: "rethink" | "for
     window.addEventListener("keydown", k, true);
     return () => window.removeEventListener("keydown", k, true);
   }, []);
-  useEffect(() => { if (!undo) return; const t = window.setTimeout(() => setUndo(null), 6000); return () => window.clearTimeout(t); }, [undo]);
+  useEffect(() => {
+    if (!undos.length) return;
+    const t = window.setTimeout(() => setUndos((l) => l.filter((u) => Date.now() - u.at < UNDO_MS)), Math.max(50, UNDO_MS - (Date.now() - undos[0].at)));
+    return () => window.clearTimeout(t);
+  }, [undos]);
 
   const del = (d: Doc<Todo>) => {
     sfx.click();
     const data = d.data;
-    void taskMapActions.remove(d.id);
-    setGone((n) => n + 1); setMenu(null);
-    setUndo({ text: data.title, verb: CHK_WORDS.deleted, restore: () => { void taskMapActions.restore(d.id, data); setGone((n) => Math.max(0, n - 1)); } });
+    setMenu(null);
+    void q.current!.run(() => taskMapActions.remove(d.id)).then((ok) => {
+      if (!ok) return;
+      setGone((n) => n + 1);
+      push({ text: data.title, verb: CHK_WORDS.deleted, restore: () => q.current!.run(async () => { await taskMapActions.restore(d.id, data); setGone((n) => Math.max(0, n - 1)); }) });
+    });
   };
   const send = (d: Doc<Todo>, zone: DimxZone) => {
     sfx.click();
     const data = d.data;
-    const card = dimxCard({ id: d.id, title: data.title }, zone, new Date().toISOString());
-    void taskMapActions.dimx(withCard(live.current.dimx, card));
-    void taskMapActions.remove(d.id);
-    setGone((n) => n + 1); setMenu(null);
-    setUndo({ text: data.title, verb: CHK_WORDS.sent, restore: () => {
-      void taskMapActions.restore(d.id, data);
-      void taskMapActions.dimx(withoutCard(live.current.dimx, d.id));
-      setGone((n) => Math.max(0, n - 1));
-    } });
+    setMenu(null);
+    // The card is saved first; the task is deleted only after that write went through.
+    void q.current!.send(dimxCard({ id: d.id, title: data.title }, zone, new Date().toISOString())).then((ok) => {
+      if (!ok) return;
+      setGone((n) => n + 1);
+      push({ text: data.title, verb: CHK_WORDS.sent, restore: () => q.current!.unsend(d.id, async () => { await taskMapActions.restore(d.id, data); setGone((n) => Math.max(0, n - 1)); }) });
+    });
   };
   const toIsland = (yes: boolean) => {
     sfx.click();
@@ -202,12 +214,15 @@ function Screen({ kind, lists, dimx, working }: Props & { kind: "rethink" | "for
             </div>
           </div>
         )}
-        {undo && (
-          <div className="chk-undo" role="status">
-            <span>{undo.verb}: {undo.text.length > 40 ? `${undo.text.slice(0, 40)}...` : undo.text}</span>
-            <button type="button" onClick={() => { sfx.click(); undo.restore(); setUndo(null); }}>{CHK_WORDS.undo}</button>
-          </div>
-        )}
+        {undos.length > 0 && (() => {
+          const undo = undos[undos.length - 1];
+          return (
+            <div className="chk-undo" role="status">
+              <span>{undo.verb}: {undo.text.length > 40 ? `${undo.text.slice(0, 40)}...` : undo.text}{undos.length > 1 ? ` (+${undos.length - 1})` : ""}</span>
+              <button type="button" onClick={() => { sfx.click(); setUndos((l) => l.filter((u) => u.key !== undo.key)); void undo.restore(); }}>{CHK_WORDS.undo}</button>
+            </div>
+          );
+        })()}
       </section>
     </div>
   );

@@ -62,10 +62,16 @@ function tick() {
   const st = unlocked ? settingsData(s) : null;
   const cfg = cleanChk(st?.chkRemind);
   const enabled = unlocked && feature(CHK_FEATURE) && cfg.on;
-  const { tasks, lastTickAt } = unlocked ? checklistNow() : { tasks: [], lastTickAt: 0 };
   if (testing) return;
+  // Off (the feature or the switch): nothing is worked out, the count stays fresh (the tabLists over every task is not run for nothing).
+  if (!enabled) {
+    if (up) dismiss();
+    clock = chkStart(now);
+    return;
+  }
+  const { tasks, lastTickAt } = checklistNow();
   // The pop-up is up and the person ticked something, or the switch went off: it goes.
-  if (up && (!enabled || lastTickAt > upSince)) { dismiss(); return; }
+  if (up && lastTickAt > upSince) { dismiss(); return; }
   const cal = unlocked ? calendarSnap(s) : null;
   const block = chkBlock({
     locked: !unlocked,
@@ -92,11 +98,16 @@ function dismiss() {
   emit();
 }
 
+/** On the website the two screens live in the Tab list, which is on the To-do page: go there first, so the choice always opens something. */
+function goToTodo() {
+  if (location.hash.replace(/^#\/?/, "").split("/")[0] !== "todo") location.hash = "#/todo";
+}
+
 /** A choice was made (the Mac's card says "rethink", "forgot", "sure" or "esc"; the website's card says the same). The count starts again. */
 export function chkAnswered(outcome: unknown) {
   if (testing) { testing = false; up = false; emit(); return; }
   up = false; clock = chkStart(Date.now());
-  if (outcome === "rethink" || outcome === "forgot") { if (!post) openChkScreen(outcome); }
+  if (outcome === "rethink" || outcome === "forgot") { if (!post) { goToTodo(); openChkScreen(outcome); } }
   emit();
 }
 

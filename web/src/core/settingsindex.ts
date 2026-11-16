@@ -57,12 +57,14 @@ export interface SetEntry {
   sr?: true;
   /** Only where the Posture reminder feature is on in this build (core/features.ts "posture-reminder"). */
   pf?: true;
+  /** Only where the Checklist reminder feature is on in this build (core/features.ts "checklist-reminder"). */
+  ck?: true;
   /** Only in this phone shell: the GrapheneOS app ("gos") or the iPhone web app ("mweb"). V1.47. */
   shell?: Shell;
 }
 /** Which phone shell: the GrapheneOS app (ps-gos, a WebView with the native bridge) or the iPhone web app. */
 export type Shell = "gos" | "mweb";
-export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean }
+export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean; ck?: boolean }
 
 export const GROUPS: SetGroup[] = [
   // V1.51 (the developer, 12 Nov 2026): About and updates is the top item of the Settings menu, above everything else, so the
@@ -199,10 +201,10 @@ export const SETTINGS: SetEntry[] = [
   { id: "posture-hours", group: "posture", name: "Between these times", line: "It only comes inside these hours. An end time before the start time runs past midnight.", on: NOT_PHONE, pf: true, words: ["posture", "hours", "from", "to", "start", "end", "work hours", "schedule", "time", "midnight"] },
   { id: "posture-test", group: "posture", name: "Try it now", line: "Shows the pop-up right now. Esc closes it.", on: NOT_PHONE, pf: true, words: ["posture", "test", "try", "preview", "demo", "see it"] },
   // ---------- Checklist Reminder (PS 1.65, core/chkremind.ts) ----------
-  { id: "chk-on", group: "chkremind", name: "Checklist reminder", line: "Says DO YOUR CHECKLIST when you have not ticked a task for a while. Never in meetings.", on: ["mac", "web"], words: ["checklist", "reminder", "nag", "nudge", "to do", "todo", "tick", "tasks", "pop up", "popup", "focus"] },
-  { id: "chk-every", group: "chkremind", name: "How often", line: "How long without a ticked task before it comes: 30 minutes to 12 hours, 2 hours to start.", on: ["mac", "web"], words: ["how often", "interval", "minutes", "hours", "every", "frequency", "checklist"] },
-  { id: "chk-sound", group: "chkremind", name: "Soft chime", line: "A soft chime when the pop-up comes.", on: ["mac"], words: ["sound", "chime", "ring", "checklist"] },
-  { id: "chk-test", group: "chkremind", name: "Show it now", line: "See the pop-up right away. Nothing is saved.", on: ["mac", "web"], words: ["test", "preview", "try", "checklist"] },
+  { id: "chk-on", group: "chkremind", name: "Checklist reminder", line: "Says DO YOUR CHECKLIST when you have not ticked a task for a while. Never in meetings.", on: ["mac", "web"], ck: true, words: ["checklist", "reminder", "nag", "nudge", "to do", "todo", "tick", "tasks", "pop up", "popup", "focus"] },
+  { id: "chk-every", group: "chkremind", name: "How often", line: "How long without a ticked task before it comes: 30 minutes to 12 hours, 2 hours to start.", on: ["mac", "web"], ck: true, words: ["how often", "interval", "minutes", "hours", "every", "frequency", "checklist"] },
+  { id: "chk-sound", group: "chkremind", name: "Soft chime", line: "A soft chime when the pop-up comes.", on: ["mac"], ck: true, words: ["sound", "chime", "ring", "checklist"] },
+  { id: "chk-test", group: "chkremind", name: "Show it now", line: "See the pop-up right away. Nothing is saved.", on: ["mac", "web"], ck: true, words: ["test", "preview", "try", "checklist"] },
 
   // ---------- Add Telegram Bot (views/TelegramBot.tsx, core/tgbot.ts) ----------
   { id: "telegram-bot", group: "telegram", name: "Your Telegram bot", line: "Make a bot with BotFather, give PS app its key, link your Telegram, test it.", words: ["telegram", "bot", "botfather", "text", "message", "sms", "chat", "add task", "send task", "token", "key", "at", "tasks from phone", "remote"] },
@@ -398,6 +400,7 @@ export function visibleTo(e: SetEntry, ctx: Ctx): boolean {
   if (e.mailCan && !ctx.mailCan) return false;
   if (e.sr && !ctx.sr) return false;
   if (e.pf && !ctx.pf) return false;
+  if (e.ck && !ctx.ck) return false;
   if (e.shell && e.shell !== ctx.shell) return false;
   if (e.on && !e.on.includes(ctx.where)) return false;
   const g = groupById(e.group);

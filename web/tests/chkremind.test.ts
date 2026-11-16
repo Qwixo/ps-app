@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import {
   CHK_BANDS, CHK_CHOICES, CHK_DEFAULT, CHK_EVERY_CHOICES, CHK_EVERY_DEF, CHK_EVERY_MAX, CHK_EVERY_MIN, CHK_MAX_TASKS, CHK_WORDS,
   checklistTasks, chkBlock, chkStart, chkStep, cleanChk, counter, dimxCard, everyLabel, isScreen, lastTickOf, needsIslandPin, overBy,
-  chkCardItem, screenOf, sureOk, withCard, withoutCard, type ChkFacts,
+  chkCardItem, dimxQueue, screenOf, sureOk, withCard, withoutCard, type ChkFacts,
 } from "../src/core/chkremind.ts";
 import type { DimxItem, Doc, Todo } from "../src/core/model.ts";
 
@@ -49,7 +49,11 @@ ok("a tick long ago does not make it come at once after PS opens", () => {
   const c = chkStart(T0);
   assert.equal(chkStep(c, facts({ now: T0 + MIN, lastTickAt: T0 - 9 * 60 * MIN })).fire, false);
 });
-ok("a tick time in the future is ignored", () => { assert.equal(chkStep(chkStart(T0), facts({ now: T0 + 121 * MIN, lastTickAt: T0 + 999 * MIN })).fire, true); });
+ok("a tick stamped by a clock that runs ahead counts as now, so the pop-up does not come right after a real tick", () => {
+  assert.equal(chkStep(chkStart(T0), facts({ now: T0 + 121 * MIN, lastTickAt: T0 + 999 * MIN })).fire, false);
+  assert.equal(chkStep(chkStart(T0), facts({ now: T0 + 121 * MIN, lastTickAt: T0 + 122 * MIN })).fire, false);
+  assert.equal(chkStep(chkStart(T0), facts({ now: T0 + 121 * MIN, lastTickAt: 0 })).fire, true);
+});
 ok("every blocker keeps it away and restarts the count", () => {
   for (const b of ["locked", "protected", "meeting", "sleep", "sentry", "dnd", "away", "setup"] as const) {
     const r = chkStep(chkStart(T0), facts({ now: T0 + 500 * MIN, block: b }));
@@ -142,4 +146,54 @@ ok("the card handed to the Mac has the three choices, the typed yes second, and 
   assert.ok(String(c.ask).length <= 60 && String(c.text).length <= 80 && CHK_CHOICES.every((w) => w.length <= 60));   // the Mac's limits (RemMath.item)
 });
 
+const okA = async (name: string, fn: () => Promise<unknown>) => { await fn(); n++; console.log("ok -", name); };
+const card = (id: string, zone: "act" | "soon" | "x" = "act"): DimxItem => ({ id, text: id, zone, createdAt: "2026-11-17T09:00:00.000Z" });
+const later = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+await okA("two sends close together keep both cards, even when the page's list is a write behind", async () => {
+  let saved: DimxItem[] = [card("old", "x")];
+  const removed: string[] = [];
+  const stale = [card("old", "x")];                       // the page's state never catches up during this test
+  const q = dimxQueue(() => stale, async (l) => { await later(5); saved = l; }, async (id) => { removed.push(id); });
+  const a = q.send(card("a")), b = q.send(card("b"));
+  assert.deepEqual(await Promise.all([a, b]), [true, true]);
+  assert.deepEqual(saved.map((x) => x.id).sort(), ["a", "b", "old"]);
+  assert.deepEqual(removed, ["a", "b"]);
+});
+await okA("a failed Dimension X write never deletes the task, and the next send still works", async () => {
+  let saved: DimxItem[] = [];
+  const removed: string[] = [];
+  let fail = true;
+  const q = dimxQueue(() => saved, async (l) => { if (fail) { fail = false; throw new Error("offline"); } saved = l; }, async (id) => { removed.push(id); });
+  assert.equal(await q.send(card("a")), false);
+  assert.deepEqual(removed, []);
+  assert.equal(await q.send(card("b")), true);
+  assert.deepEqual(removed, ["b"]);
+  assert.ok(saved.some((x) => x.id === "b"));
+});
+await okA("undo takes only its own card back out, and the page's list is trusted again once idle", async () => {
+  let saved: DimxItem[] = [];
+  let page: DimxItem[] = [];
+  const q = dimxQueue(() => page, async (l) => { saved = l; }, async () => {});
+  await q.send(card("a")); await q.send(card("b"));
+  assert.equal(await q.unsend("a", async () => {}), true);
+  assert.deepEqual(saved.map((x) => x.id), ["b"]);
+  page = [card("z")]; q.fresh();
+  await q.send(card("c"));
+  assert.deepEqual(saved.map((x) => x.id).sort(), ["c", "z"]);
+});
+ok("the website goes to To-do before it opens a screen, and the pop-up stays off the phone", () => {
+  const w = readFileSync(new URL("../src/chkwatch.ts", import.meta.url), "utf8");
+  assert.match(w, /goToTodo\(\); openChkScreen\(outcome\)/);
+  const a = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+  assert.match(a, /!MWEB && <ChecklistReminderHost/);
+  assert.match(a, /MODE !== "gos" && !MWEB && <ChecklistReminderHost/);
+  const t = readFileSync(new URL("../src/chkwatch.ts", import.meta.url), "utf8");
+  assert.ok(t.indexOf("if (!enabled)") < t.indexOf("checklistNow()", t.indexOf("function tick")), "nothing is worked out while it is off");
+});
+ok("the Mac drops a held card when the person is away or a quiet spell is on", () => {
+  const m = readFileSync(new URL("../../mac/Sources/Reminders.swift", import.meta.url), "utf8");
+  assert.match(m, /chkItem != nil, !up\.contains\(Reminders\.chkId\), quiet \|\| !here/);
+  assert.match(m, /onChk\?\("away"\)/);
+});
 console.log(`${n} passed`);
