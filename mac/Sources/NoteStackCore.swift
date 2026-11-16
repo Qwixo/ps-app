@@ -41,4 +41,17 @@ enum NoteStackCore {
   }
   /// The page tells Swift whether a click is keeping the list open: {type:"stack", pinned:Bool}.
   static func pinned(from msg: [String: Any]) -> Bool { (msg["pinned"] as? Bool) == true }
+  /// The same message says whether the list is open at all (a click, or only the pointer, keeps it open): {open:Bool}.
+  static func open(from msg: [String: Any]) -> Bool { (msg["open"] as? Bool) == true }
+
+  /// Which stacks (the corner one and the one under the island) have their list open right now. The keyboard tap runs on its own
+  /// thread and asks `anyOpen` before it passes Esc on (the panel never takes focus, so the key never reaches it by itself).
+  final class OpenWatch {
+    private let lock = NSLock()
+    private var open: [ObjectIdentifier: Bool] = [:]
+    init() {}
+    func set(_ id: ObjectIdentifier, _ on: Bool) { lock.lock(); open[id] = on ? true : nil; lock.unlock() }
+    var anyOpen: Bool { lock.lock(); defer { lock.unlock() }; return !open.isEmpty }
+  }
+  static let watch = OpenWatch()
 }

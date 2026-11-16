@@ -35,6 +35,17 @@ check("cap never negative or broken", NoteStackCore.cap(visibleHeight: 0, on: tr
 
 // The page's message and the feature id.
 check("pinned message", NoteStackCore.pinned(from: ["type": "stack", "pinned": true]) && !NoteStackCore.pinned(from: ["pinned": false]) && !NoteStackCore.pinned(from: ["pinned": "yes"]) && !NoteStackCore.pinned(from: [:]))
+check("open message", NoteStackCore.open(from: ["open": true]) && !NoteStackCore.open(from: ["open": false]) && !NoteStackCore.open(from: ["open": 1]) && !NoteStackCore.open(from: [:]))
+do {
+  // Two stacks (corner and island): Esc is passed on while either has its list open.
+  let w = NoteStackCore.OpenWatch(), a = NSObject(), b = NSObject()
+  check("watch starts shut", !w.anyOpen)
+  w.set(ObjectIdentifier(a), true); check("one open", w.anyOpen)
+  w.set(ObjectIdentifier(b), true); w.set(ObjectIdentifier(a), false); check("the other still open", w.anyOpen)
+  w.set(ObjectIdentifier(b), false); check("both shut", !w.anyOpen)
+  DispatchQueue.concurrentPerform(iterations: 200) { i in w.set(ObjectIdentifier(i % 2 == 0 ? a : b), i % 3 == 0); _ = w.anyOpen }
+  check("safe from another thread", true)
+}
 check("feature id", NoteStackCore.feature == "notif-stack")
 
 print("\(passed) passed, \(failed) failed")

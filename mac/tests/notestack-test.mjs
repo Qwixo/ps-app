@@ -15,6 +15,9 @@ const a = swift.indexOf("// >>> stack model"), b = swift.indexOf("// <<< stack m
 ok("the stack model block is in Toast.swift", a > 0 && b > a);
 ok("no long dashes in the block", !/[–—]/.test(swift.slice(a, b)));
 const Stack = new Function(swift.slice(a, b) + "\nreturn Stack;")();
+const ca = swift.indexOf("// >>> card clock"), cb = swift.indexOf("// <<< card clock");
+ok("the card clock block is in Toast.swift", ca > 0 && cb > ca && !/[–—]/.test(swift.slice(ca, cb)));
+const Clock = new Function(swift.slice(ca, cb) + "\nreturn Clock;")();
 const mk = (n, on = true) => { const s = Stack.make(); Stack.setOn(s, on); Stack.count(s, n); return s; };
 
 // ---------- the badge: 0, 1, 2, 5, 50 notifications, never +0 ----------
@@ -94,8 +97,8 @@ for (const n of [2, 5, 50]) { const s = mk(n); ok(`${n} cards: shut at first (ne
 {
   const s = mk(5);
   ok("Esc with nothing open does nothing and is not used up", Stack.esc(s, 0) === false);
-  Stack.enter(s); ok("Esc on a list only hover holds open is not used up", Stack.esc(s, 0) === false && Stack.open(s, 0));
-  Stack.pin(s); Stack.leave(s, 1000);
+  Stack.enter(s); ok("Esc on a list only the pointer holds open closes it and is used up (the real key never reaches the page)", Stack.esc(s, 0) === true && Stack.shut(s, 0));
+  Stack.leave(s, 5); Stack.enter(s); Stack.pin(s); Stack.leave(s, 1000);
   ok("clicked: stays open after the pointer leaves", Stack.open(s, 1000 + Stack.GRACE + 100));
   ok("clicked: the away timer is the next thing due", Stack.due(s, 2000) === 1000 + Stack.AWAY);
   ok("clicked: shuts by itself after the away time", Stack.shut(s, 1000 + Stack.AWAY));
@@ -122,6 +125,57 @@ for (const n of [2, 5, 50]) { const s = mk(n); ok(`${n} cards: shut at first (ne
   const s = mk(5); Stack.enter(s); Stack.pin(s); Stack.setOn(s, false);
   ok("switch turned off while open: everything let go", !s.hover && !s.pinned && !Stack.grouped(s));
 }
+
+// ---------- the real key path: tap, then the app, then the page ----------
+const main = readFileSync(join(here, "..", "Sources", "main.swift"), "utf8");
+{
+  const tap = main.split("\n").find((l) => l.includes("keyboardEventKeycode) == 53") && l.includes("HelperAlert.upNow")) || "";
+  ok("the global key handler passes Esc on while a notification list is open", tap.includes("Toast.stackOpenNow"), tap);
+  const esc = main.slice(main.indexOf("func escKey()"), main.indexOf("guard shown else { escapeOut()", main.indexOf("func escKey()")));
+  ok("the app's Esc reaches the notification list before anything else of the list's", esc.includes("Toast.shared.escapeStack()"));
+  const local = main.slice(main.indexOf("func localEsc"), main.indexOf("func localEsc") + 1200);
+  ok("a focused PS window's Esc reaches it too", local.includes("Toast.shared.escapeStack()"));
+  ok("Toast sets and clears the open flag the tap reads", swift.includes("NoteStackCore.watch.set(") && swift.includes("static var stackOpenNow") && swift.includes("stackOpen = NoteStackCore.open(from: msg)"));
+  ok("the page tells Swift when the list is open, not only pinned", swift.includes("post({type:'stack',pinned:stkPin,open:stkOpen})"));
+  // The whole chain on the model: open by hover only, no click, no focus: the key tap asks the page, the page closes it.
+  const s = mk(4); Stack.enter(s);
+  ok("hover only: open, so the tap would pass Esc on", Stack.open(s, 0));
+  ok("then the page closes it and says it used the key", Stack.esc(s, 0) === true && !Stack.open(s, 0) && !s.pinned);
+}
+
+// ---------- hidden cards keep their time (the card clock) ----------
+{
+  const mkc = (n) => Array.from({ length: n }, () => ({ sticky: false, held: false, run: false, left: 14000, t0: 0 }));
+  // a burst of 5 at once, list shut: only the newest runs
+  const cs = mkc(5), shut = (i) => i > 0;
+  let r = Clock.sync(cs, shut, 0);
+  ok("a burst of 5, list shut: only the newest card's time starts", r.start.length === 1 && r.start[0] === cs[0] && cs.slice(1).every((c) => !c.run));
+  r = Clock.sync(cs, shut, 14000);
+  ok("14 s later the hidden four still have all their time", cs.slice(1).every((c) => c.left === 14000 && !c.run));
+  const open = () => false;
+  r = Clock.sync(cs, open, 20000);
+  ok("the list opens: the hidden four start with their full time, the newest keeps running", r.start.length === 4 && cs[0].run && cs[0].left === 14000);
+  ok("a card that just started has its full 14 s", Clock.due(cs[1]) === 14000);
+  r = Clock.sync(cs, shut, 25000);
+  ok("the list shuts again: the four stop and keep what they had left (5 s of it used)", r.stop.length === 4 && cs.slice(1).every((c) => c.left === 14000 - 5000 && !c.run));
+  ok("the newest card never stopped", cs[0].run);
+}
+{
+  const cs = [{ sticky: false, held: false, run: false, left: 14000, t0: 0 }, { sticky: true, held: false, run: false, left: 14000, t0: 0 }];
+  Clock.sync(cs, () => false, 0);
+  ok("a sticky card never gets a clock", !cs[1].run);
+  cs[0].held = true; const r = Clock.sync(cs, () => false, 4000);
+  ok("the pointer on a card stops its time and keeps what is left", r.stop.length === 1 && cs[0].left === 10000);
+  cs[0].held = false; const r2 = Clock.sync(cs, () => false, 9000);
+  ok("the pointer leaves: it runs again from where it was", r2.start.length === 1 && Clock.due(cs[0]) === 10000);
+  cs[0].left = 100; ok("never less than 2.5 s once running again", Clock.due(cs[0]) === Clock.MIN);
+  const again = Clock.sync(cs, () => false, 9500);
+  ok("syncing again changes nothing", again.start.length === 0 && again.stop.length === 0);
+}
+ok("only the badge opens the list on hover: the shut hit area has no card in it", /if\(stkCol\)rs\.push\(badge\.getBoundingClientRect\(\)\);/.test(swift) && !swift.includes("rs.push(cards[0]"));
+ok("the newest card keeps its place when the list opens: the bar's room is kept while shut", swift.includes("var off=cards.length>1?BAR:0,y=TOP+off"));
+ok("cards ignore the pointer for a moment after the list opens", swift.includes("#wrap.settle .card{pointer-events:none}") && swift.includes("function settle()"));
+ok("a click on a card keeps nothing open", swift.includes("if(t&&t.closest&&t.closest('.card'))return;"));
 
 // ---------- the whole page still parses with the new code in it ----------
 const aiCard = readFileSync(join(here, "..", "Sources", "AiMessageCard.swift"), "utf8");

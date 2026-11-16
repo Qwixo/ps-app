@@ -127,6 +127,10 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   private var stackOn: Bool { Features.on(NoteStackCore.feature) }
   /// A click is keeping the opened list open (the page says; Esc then closes it).
   private var stackPinned = false
+  /// The list is open (a click or the pointer keeps it so): Esc closes it, from the global key handler (TabWatch).
+  private var stackOpen = false
+  /// Read from the keyboard tap's thread.
+  static var stackOpenNow: Bool { NoteStackCore.watch.anyOpen }
   private static var stackWatching = false
   /// The switch changed (Settings): both stacks hear it, and the island stack's room follows the new cap.
   fileprivate func stackSwitched() {
@@ -134,12 +138,13 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     if islandMade { islandStack.refreshHome(); islandStack.pageMode() }
     pageMode()
   }
-  /// Esc: a list that a click is keeping open closes. True when it did (the Esc is used up).
+  /// Esc: an open list closes, however it was opened. True when it did (the Esc is used up).
   func escapeStack() -> Bool {
     var used = false
     if role == .corner, islandMade, islandStack.escapeStack() { used = true }
-    guard panel != nil, ready, stackPinned else { return used }
-    stackPinned = false
+    guard panel != nil, ready, stackOpen || stackPinned else { return used }
+    stackPinned = false; stackOpen = false
+    NoteStackCore.watch.set(ObjectIdentifier(self), false)
     web.evaluateJavaScript("window.__note&&window.__note.esc()", completionHandler: nil)
     return true
   }
@@ -620,6 +625,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       if let id = msg["id"] as? String { gone(String(id.prefix(40)), timedOut: (msg["timedOut"] as? Bool) == true) }
     case "stack":   // PS 1.65: a click is keeping the opened list open, or it is not any more
       stackPinned = NoteStackCore.pinned(from: msg)
+      stackOpen = NoteStackCore.open(from: msg)
+      NoteStackCore.watch.set(ObjectIdentifier(self), stackOpen)
     case "born":   // V1.55: a card just dropped out of the island, or went back into it: the island swells
       Island.shared.swell(true)
     case "gulp":
@@ -953,7 +960,8 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   #badge.on{opacity:1;pointer-events:auto;transform:translate3d(-50%,0,0)}
   #badge:active{background:#1c1c1e}
   body.up #badge{scale:1 -1}
-  .card.stk{pointer-events:none}
+  .card.stk,#wrap.settle .card{pointer-events:none}
+  .card.stk .life i{animation-play-state:paused}   /* waiting behind the newest card: its line holds with its time */
   @media (prefers-reduced-motion:reduce){
     .t-cancel,.t-declined,.t-bad{animation:none}
     .card{transition:opacity .2s ease}.card::after{display:none}
@@ -1172,9 +1180,11 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         if(s.pinned)s.awayAt=now+AWAY;
       }
       function pin(s){if(!grouped(s))return;s.pinned=true;s.awayAt=0}
+      // Esc closes a list that is open, whether a click keeps it open or only the pointer does (the key comes from the global
+      // key handler, never from focus: the panel takes none). Quiet holds it shut until the pointer leaves.
       function esc(s,now){
         tick(s,now);
-        if(!grouped(s)||!s.pinned)return false;
+        if(!open(s,now))return false;
         s.pinned=false;s.hover=false;s.leaveAt=0;s.awayAt=0;s.quiet=true;
         return true;
       }
@@ -1193,13 +1203,39 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         enter:enter,leave:leave,pin:pin,esc:esc,tick:tick,due:due};
     })();
     // <<< stack model
-    var stk=Stack.make(),stkT=0,stkCol=false,stkPin=false;
+    // >>> card clock
+    // How long each plain card has left. A card's time only runs while it is on screen: it is the newest card (list shut), or the
+    // list is open, and the pointer is not on it. A card hidden behind the newest keeps what it had left and runs again when it
+    // shows. Pure: tests/notestack-test.mjs runs this block with a fake clock.
+    var Clock=(function(){
+      var MIN=2500;
+      // cs: the cards, newest first ({sticky,held,run,left,t0}). hidden(i): is card i out of sight. Returns who stops and who starts.
+      function sync(cs,hidden,now){
+        var start=[],stop=[];
+        cs.forEach(function(c,i){
+          if(c.sticky)return;
+          if(hidden(i)||c.held){if(c.run){c.left-=now-c.t0;c.run=false;stop.push(c)}}
+          else if(!c.run){c.t0=now;c.run=true;start.push(c)}
+        });
+        return {start:start,stop:stop};
+      }
+      function due(c){return Math.max(c.left,MIN)}
+      return {MIN:MIN,sync:sync,due:due};
+    })();
+    // <<< card clock
+    var stk=Stack.make(),stkT=0,stkCol=false,stkPin=false,stkOpen=false;
+    // Tell Swift when a click keeps the list open and when the list is open at all (the global key handler passes Esc on for it).
+    function stkPost(){
+      var o=Stack.grouped(stk)&&!stkCol;
+      if(stk.pinned===stkPin&&o===stkOpen)return;
+      stkPin=stk.pinned;stkOpen=o;post({type:'stack',pinned:stkPin,open:stkOpen});
+    }
     function stkNow(){return performance.now()}
     // Where the pointer counts as "on the stack": shut, the newest card and the badge; open, the whole list.
     function stkInside(x,y){
       if(x<0||!Stack.grouped(stk))return false;
       var rs=[];
-      if(stkCol){if(cards[0])rs.push(cards[0].el.getBoundingClientRect());rs.push(badge.getBoundingClientRect())}
+      if(stkCol)rs.push(badge.getBoundingClientRect());   // shut: only the "+N" badge opens it, so nothing moves under the pointer
       else rs.push(list.getBoundingClientRect(),document.getElementById('bar').getBoundingClientRect());
       return rs.some(function(r){return r.width>0&&x>=r.left-2&&x<=r.right+2&&y>=r.top-2&&y<=r.bottom+2});
     }
@@ -1207,7 +1243,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     function stkSync(){
       var now=stkNow();Stack.tick(stk,now);
       if(Stack.shut(stk,now)!==stkCol)layout();
-      if(stk.pinned!==stkPin){stkPin=stk.pinned;post({type:'stack',pinned:stkPin})}
+      stkPost();
       clearTimeout(stkT);
       var d=Stack.due(stk,now);
       if(d)stkT=setTimeout(stkSync,Math.max(0,d-now)+8);
@@ -1219,7 +1255,12 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       stkSync();
     }
     // A click on the stack keeps it open (Esc then closes it); it never blocks the click's own job.
-    wrap.addEventListener('click',function(){if(!Stack.grouped(stk))return;Stack.pin(stk);setTimeout(stkSync,0)},true);
+    // Only the badge, the list's own background or the bar keep it open: a card's x or button just does its own job.
+    wrap.addEventListener('click',function(e){
+      if(!Stack.grouped(stk))return;
+      var t=e.target;if(t&&t.closest&&t.closest('.card'))return;
+      Stack.pin(stk);setTimeout(stkSync,0);
+    },true);
     wrap.addEventListener('mousemove',function(e){stkPtr(e.clientX,e.clientY)});
     document.documentElement.addEventListener('mouseleave',function(){stkPtr(-1,-1)});
 
@@ -1265,13 +1306,15 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     function moving(c){return c.el.classList.contains('drag')}
     function layout(wait){
       Stack.count(stk,cards.length);
-      var col=Stack.shut(stk,stkNow());stkCol=col;
-      var off=cards.length>1&&!col?BAR:0,y=TOP+off,from=list.scrollTop;   // room for the bar at the top
+      var was=stkCol,col=Stack.shut(stk,stkNow());stkCol=col;
+      // Room for the bar at the top, kept while the list is shut too, so the newest card never moves when the list opens.
+      var off=cards.length>1?BAR:0,y=TOP+off,from=list.scrollTop;
+      if(was&&!col)settle();
       view.style.setProperty('--bs',off+'px');
       cards.forEach(function(c,i){
         var s=c.el.style,hide=col&&i>0;s.zIndex=String(1000-i);
         c.el.classList.toggle('stk',hide);
-        c.y=hide?TOP:y;
+        c.y=hide?TOP+off:y;
         // Shut: the cards behind the newest wait right under it, unseen; opening springs them out from there.
         if(!moving(c)){s.transform='translate3d(0,'+c.y+'px,0)'+(hide?' scale(.94)':'');s.opacity=hide?'0':'1';s.filter='none'}
         if(!hide)y+=(c.group?groupH(c):c.el.offsetHeight)+GAP;
@@ -1298,13 +1341,19 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       count.textContent=cards.length+(cards.length===1?' notification':' notifications');
       wrap.classList.toggle('open',many&&!col);
       size(cards.length?listH+PAD:0,(wait||420)+200);
-      if(stk.pinned!==stkPin){stkPin=stk.pinned;post({type:'stack',pinned:stkPin})}
+      stkPost();
+      clock();
     }
-    // Plain cards go after a while (each on its own, paused while the pointer is on it); sticky ones stay.
-    function arm(c){
-      if(c.data.sticky)return;
-      clearTimeout(c.timer);c.t0=Date.now();
-      c.timer=setTimeout(function(){remove(c)},Math.max(c.left,2500));
+    // The list just opened under a resting pointer: for a moment the cards ignore it, so a card that springs out under the pointer
+    // is never clicked by accident.
+    var settleT=0;
+    function settle(){wrap.classList.add('settle');clearTimeout(settleT);settleT=setTimeout(function(){wrap.classList.remove('settle')},450)}
+    // Plain cards go after a while (each on its own). A card's time only runs while it shows: not while it waits behind the newest
+    // one, not while the pointer is on it (core: the "card clock" block above).
+    function clock(){
+      var r=Clock.sync(cards,function(i){return stkCol&&i>0},Date.now());
+      r.stop.forEach(function(c){clearTimeout(c.timer);c.timer=0});
+      r.start.forEach(function(c){clearTimeout(c.timer);c.timer=setTimeout(function(){remove(c)},Clock.due(c))});
     }
     function answer(c,action){
       if(c.group){c.m.rows.forEach(function(r){post({type:'action',id:r.id,action:action})});return}   // the bubble's buttons: every chat in it
@@ -1594,12 +1643,12 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     };
     // A new card onto the stack: its clicks, hover and swipe, then it springs (or pours out of the island) into the top place.
     // Where a new card starts from: under the bar once a list shows, at the very top while only the newest shows.
-    function startY(){var n=cards.length+1;return TOP+(n>1&&!(Stack.grouped(stk)&&Stack.shut(stk,stkNow()))?BAR:0)}
+    function startY(){var n=cards.length+1;return TOP+(n>1?BAR:0)}
     function enter(c){
         var d=c.data;
         c.el.addEventListener('click',function(e){click(c,e)});
-        c.el.addEventListener('mouseenter',function(){c.el.classList.add('held');if(!d.sticky&&c.timer){clearTimeout(c.timer);c.timer=0;c.left-=Date.now()-c.t0}});
-        c.el.addEventListener('mouseleave',function(){c.el.classList.remove('held');if(!d.sticky&&!c.timer&&cards.indexOf(c)>=0)arm(c)});
+        c.el.addEventListener('mouseenter',function(){c.el.classList.add('held');c.held=true;clock()});
+        c.el.addEventListener('mouseleave',function(){c.el.classList.remove('held');c.held=false;if(cards.indexOf(c)>=0)clock()});
         swipe(c);
         // At the top (or close): the new card springs in there. Scrolled down: the stack stays exactly where the developer
         // left it (the new card arrives above, out of sight) and a pill says so.
@@ -1622,7 +1671,7 @@ final class Toast: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         // Read a size first so the start position is applied, then move: the move is a transition.
         // (Never wait for a frame: a hidden window gets none, and the panel is hidden until now.)
         void c.el.offsetHeight;
-        layout();arm(c);
+        layout();clock();
         if(atTop)list.scrollTop=0;
         else{
           rebase(from,from+c.el.offsetHeight+GAP);fresh++;

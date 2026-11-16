@@ -2234,7 +2234,7 @@ final class TabWatch {
     // whatever mode it is in (pinned, Keep overlay, Hover mode, typing in it). V1.47: a timed Soundboard play ringing
     // takes the Esc too, whatever app is in front (that one Esc stops it; Soundboard.swift). V1.49: so does the restart
     // helper pop up while it is on screen (HelperAlert.swift; never over 1Password or Signal, the tap is off there).
-    if state == .idle && type == .keyDown && e.getIntegerValueField(.keyboardEventKeycode) == 53 && (app?.shown == true || app?.sleepUp == true || Soundboard.ringingNow || HelperAlert.upNow) {
+    if state == .idle && type == .keyDown && e.getIntegerValueField(.keyboardEventKeycode) == 53 && (app?.shown == true || app?.sleepUp == true || Soundboard.ringingNow || HelperAlert.upNow || Toast.stackOpenNow) {   // 1.65: an open notification list takes the Esc too
       DispatchQueue.main.async { self.app?.escKey() }
       return nil
     }
