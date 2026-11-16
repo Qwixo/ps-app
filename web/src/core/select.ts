@@ -8,6 +8,7 @@ import type { TzZones } from "./tzzones";
 import { cleanLayout, emptyLayout, pickLayout, type TabLayout } from "./tablayout";
 import { cleanPhoneLayout, defaultPhoneLayout, pickPhoneLayout, type PhoneKind, type PhoneLayout } from "./phonelayout";
 import { phonesOf, type PhoneDev } from "./phonedevices";
+import * as Dev from "./devicebg";
 import { pickRemind, type RemindRec } from "./remind";
 import { mainCalendar } from "./calfeeds";
 import { hasOff, shownEvents, type CalInfo } from "./calpick";
@@ -183,6 +184,10 @@ export function phoneLayout(s: Snapshot, phone: PhoneKind, red: boolean): PhoneL
 /** The phones that opened PS on this account (core/phonedevices.ts), most recently seen first. */
 export function phoneDevs(s: Snapshot): PhoneDev[] {
   return phonesOf(byKind<unknown>(s, "phonedev").map((d) => d.data));
+}
+/** Every device that opened PS on this account (core/devicebg.ts), most recently seen first. */
+export function bgDevices(s: Snapshot): Dev.Device[] {
+  return Dev.devicesOf(byKind<unknown>(s, "bgdev").map((d) => d.data));
 }
 export function tabLayout(s: Snapshot): TabLayout {
   const d = tabLayoutDoc(s);

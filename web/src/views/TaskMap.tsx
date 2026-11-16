@@ -107,6 +107,7 @@ import { DimensionX, dimxIsOpen, morph } from "./DimensionX";
 import { openSettings, useSettingsWanted, type Preview, type SettingsOwner } from "./SettingsScreen";
 import { SettingsHost } from "./SettingsGroups";
 import { BgBrightControls, BgDim, GosAddVideoTile } from "./BgBright";
+import { DeviceBg } from "./DeviceBg";
 import { BgClip, BgFitControls, PhoneBgChoice, bgPatch, shownBg, useBgKeeper, usePhoneCrop } from "./BgFit";
 import { cropCss, type BgCrop } from "../core/bgcrop";
 import { FitnessButton } from "../fitness/FitnessButton";
@@ -2297,6 +2298,7 @@ export function LookBackground({ st, preview }: LookProps) {
         )}
         {GOS && red && <GosAddVideoTile />}
       </MsSection>
+      <DeviceBg st={st} />
       {STORM_SAMPLE(bg) && <div data-set="lightning"><StormControls st={st} set={set} /></div>}
       {isVideoBg(bg) && <div data-set="video-bright"><BgBrightControls st={st} set={set} /></div>}
       <BgFitControls st={st} set={set} />

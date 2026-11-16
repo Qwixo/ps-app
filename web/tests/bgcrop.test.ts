@@ -191,7 +191,7 @@ ok("the list: a phone reads its own background and fits the video; the Mac draws
   assert.match(tm, /onPick=\{\(\) => set\(bgPatch\(st, d\.id\)\)\}/);
   const fit = src("src/views/BgFit.tsx");
   assert.match(fit, /if \(!PHONE_BG \|\| !isVideoBg\(bg\)\) return null;/, "usePhoneCrop is null on the Mac");
-  assert.match(fit, /export function shownBg\(st: Settings\)[^\n]*PHONE_BG \? phoneBg\(st, isBg\) : st\.tmBg/);
+  assert.match(fit, /export function shownBg\(st: Settings\)[^\n]*\n\s*return deviceShown\(st\.tmBgDev, isBg, PHONE_BG \? phoneBg\(st, isBg\) : st\.tmBg\);/);   // PS 1.65: this device\'s own pick first, the phone and Mac fallback as before
   assert.match(fit, /addEventListener\("gos-back", b, true\)/, "the back gesture closes the editor first");
   assert.match(fit, /e\.key === "Escape"/, "Esc closes the editor");
 });

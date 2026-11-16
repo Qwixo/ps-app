@@ -14,16 +14,28 @@ import { look, newWatch, type Watch } from "../core/bgwatch";
 import { useVaultVideos } from "../core/bgvault";
 import { gosPost } from "../gos/bridge";
 import { sfx } from "../ui/sfx";
+import { deviceShown, thisDevId, tickMode } from "../devicebgnow";
+import { withPick } from "../core/devicebg";
+import { bgDevices } from "../core/select";
+import { vaultStore } from "../core/vault";
 import { useBgVideos } from "../ps";
 
 /** A phone: PS GOS, or the iPhone web app (src/mobile/boot.ts sets the flag before any of this loads). */
 export const PHONE_BG = import.meta.env.MODE === "gos" || (globalThis as { __psMobile?: unknown }).__psMobile === true;
-const isBg = (v: string) => bgDesign(v) === v;
+export const isBg = (v: string) => bgDesign(v) === v;
 
 /** The background this device shows (the phone's own once it has one). */
-export function shownBg(st: Settings): string | null | undefined { return PHONE_BG ? phoneBg(st, isBg) : st.tmBg; }
-/** A background picked on this device: saved where this device reads it. */
-export function bgPatch(st: Settings, id: string): Partial<Settings> { return { [bgKey(st, PHONE_BG, isBg)]: id }; }
+export function shownBg(st: Settings): string | null | undefined {   // PS 1.65: this device's own pick first (core/devicebg.ts), else what it always showed
+  return deviceShown(st.tmBgDev, isBg, PHONE_BG ? phoneBg(st, isBg) : st.tmBg);
+}
+/** A background picked on this device: saved where this device reads it. PS 1.65 (core/devicebg.ts): once the account has a
+ *  second device (or a device pick already), a pick is this device's own pick, so the others keep theirs; Settings, Looks
+ *  then lets the person tick more devices. Before that, or with the feature off, exactly as before. */
+export function bgPatch(st: Settings, id: string): Partial<Settings> {
+  const picks = st.tmBgDev;
+  if (tickMode(bgDevices(vaultStore.get()).length, picks, isBg)) return { tmBgDev: withPick(picks, thisDevId(), id) };
+  return { [bgKey(st, PHONE_BG, isBg)]: id };
+}
 
 /** One line in the phone's log (PS GOS writes it to its own log file; the iPhone web app has none). */
 export function logBg(text: string) { if (import.meta.env.MODE === "gos") gosPost({ type: "log", text: `bg video: ${text}` }); }

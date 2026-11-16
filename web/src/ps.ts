@@ -30,6 +30,7 @@ import { applyScreen } from "./core/screenfit";
 import { relayoutNow } from "./ui/relayout";
 import { bgDesign, p1Color, p1Design } from "./core/prio";
 import { bgBright } from "./core/bgbright";
+import { cleanPicks, cleanName as cleanDevName } from "./core/devicebg";
 import { cleanCrops } from "./core/bgcrop";
 import { rainAmount, rainKind } from "./core/rain";
 import { nbDesign } from "./core/notebook";
@@ -60,6 +61,7 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (Number.isFinite(Number(p.tmBgVideoBright)) && p.tmBgVideoBright !== null && p.tmBgVideoBright !== "") o.tmBgVideoBright = bgBright(p.tmBgVideoBright);   // core/bgbright.ts
   if (p.tmBgPhone === null) o.tmBgPhone = null;                                       // the phone back to Same as my Mac (core/bgcrop.ts, V1.47)
   else if (typeof p.tmBgPhone === "string" && bgDesign(p.tmBgPhone) === p.tmBgPhone) o.tmBgPhone = p.tmBgPhone;
+  if (p.tmBgDev && typeof p.tmBgDev === "object") o.tmBgDev = cleanPicks(p.tmBgDev);   // a background for each device (core/devicebg.ts, PS 1.65)
   if (p.tmBgCrop && typeof p.tmBgCrop === "object") o.tmBgCrop = cleanCrops(p.tmBgCrop);   // how each background fits the phone
   if (typeof p.tmRain === "string") o.tmRain = rainKind(p.tmRain);                       // rain over the list (core/rain.ts, V1.40)
   if (p.tmRainAmount !== undefined && p.tmRainAmount !== null && Number.isFinite(Number(p.tmRainAmount))) o.tmRainAmount = rainAmount(p.tmRainAmount);
@@ -178,7 +180,7 @@ import { mergeWalkSeen } from "./core/walkthrough";
 import { cleanUpdateEvery } from "./core/updateevery";
 import { presenceOn } from "./core/offswitches";   // "Tell the website PS app is open": off = no ps-presence channel, the website no longer leaves Tab to PS app
 import { startExamples } from "./examples";
-import { deleteExamples, undoExamples } from "./core/actions";
+import { deleteExamples, undoExamples, renameDevice } from "./core/actions";
 import { recentPrivate } from "./core/privatenotes";
 import { cleanTzOp } from "./core/tzpeople";
 import { cleanTzZonesOp } from "./core/tzzones";
@@ -716,6 +718,8 @@ export function startPsBridge() {
         if (patch.phoneLayoutOp) void runPhoneLayoutOp(patch.phoneLayoutOp).catch(() => psPost({ type: "log", text: "phone layout: a save from the Tab list failed" }));
         // Settings > Annoying 15 min reminder in the Tab list: the list changed (one small record).
         if (patch.remindOp) void runRemindOp(patch.remindOp).catch(() => psPost({ type: "log", text: "reminders: a save from the Tab list failed" }));
+        // Backgrounds per device (core/devicebg.ts, PS 1.65): a device renamed in Settings, Looks in the Tab list.
+        if (patch.bgDevRename && typeof patch.bgDevRename === "object") { const r = patch.bgDevRename as { dev?: unknown; name?: unknown }; if (typeof r.dev === "string") void renameDevice(r.dev, cleanDevName(r.name)).catch(() => {}); }
         if (patch.tzOp) void runTzOp(patch.tzOp).catch(() => psPost({ type: "log", text: "time zones: a save from the Tab list failed" }));
         // The screen time line from the Tab list (shareTimeline): checked again, then saved by the hour.
         if (patch.stLine) { const tl = cleanTimeline(patch.stLine); if (tl && vaultStore.get().status === "unlocked" && vaultStore.get().role === "owner") void saveScreenLine("mac", tl); }
@@ -903,7 +907,7 @@ export function startPsBridge() {
       || d.kind === "tzperson"  // the Time zones screen's people (a name and a zone each)
       || d.kind === "tzzones"   // the Time zones screen's list of clocks (zone ids and names)
       || d.kind === "tablayout" // Edit mode: where the Tab list's panels sit and which are removed
-      || d.kind === "phonelayout" || d.kind === "phonedev"   // V1.56 the phone layout editor: each phone's layout, and which phones you have
+      || d.kind === "phonelayout" || d.kind === "phonedev" || d.kind === "bgdev"   // V1.56 the phone layout editor: each phone's layout, and which phones you have
       || d.kind === "remind"    // Settings > Annoying 15 min reminder: the reminders and their answers (a few KB)
       || (d.kind === "stline" && Number((d.data as { hour?: number }).hour) > Date.now() - 25 * 3600_000)) : [];
     if (cal) docs.push(cal);

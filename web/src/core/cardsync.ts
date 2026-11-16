@@ -11,6 +11,7 @@ import { mergeChatDone } from "./chatdone.ts";
 import { mergeAiMsgs } from "./aimessage.ts";
 import { mergeMailRules } from "./mailrules.ts";
 import { mergeMailReply } from "./mailreply.ts";
+import { mergePicks } from "./devicebg.ts";
 
 export function mergeSettings(local: Settings, remote: Settings): Settings {
   const out: Settings = { ...local };
@@ -24,6 +25,8 @@ export function mergeSettings(local: Settings, remote: Settings): Settings {
   if (rules) out.mailRules = rules;
   const reply = mergeMailReply(local.mailReply, remote.mailReply);   // signatures and saved responses: the newer change
   if (reply) out.mailReply = reply;
+  const picks = mergePicks(local.tmBgDev, remote.tmBgDev);   // a background for each device (PS 1.65): per device, the later pick wins
+  if (picks) out.tmBgDev = picks;
   return out;
 }
 

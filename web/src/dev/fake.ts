@@ -5,6 +5,7 @@ import type { ClientRec, Doc, Draft, Kind, Meeting, Payment, Project, ProjectPri
 import { newProject } from "../core/model";
 import { addDays, todayISO } from "../ui/kit";
 import { fakeCampaignStats } from "./cstats-fake";
+import { thisDevId, thisKind } from "../devicebgnow";
 import { fakeRadarFeeds } from "./radar-fake";
 import { fitnessFakeDocs } from "./fitness-fake";
 import { toHours } from "../core/stline";
@@ -232,7 +233,7 @@ export function fakeDocs(): Doc[] {
   ] });
   // Fictional call reminders for the live test call (c2), so the Tab list's "Meeting notes" checklist shows.
   const liveStart = (() => { const x = new Date(); x.setHours(x.getHours(), 0, 0, 0); return x.toISOString(); })();
-  push("settings", null, { ownerName: "Owner", p1Migrated: true, autoLockMin: 15, autoReset: "off", theme: "system", birthday: "1990-05-20",
+  push("settings", null, { tmBg: "none", tmBgDev: { fakephonepixel01: { b: "spotlight", t: Date.now() - 6e4 }, [thisDevId()]: { b: "none", t: Date.now() - 6e4 } }, ownerName: "Owner", p1Migrated: true, autoLockMin: 15, autoReset: "off", theme: "system", birthday: "1990-05-20",
     // Timelines (views/Timelines.tsx, V1.43): fictional countdowns of every kind. A birthday and an anniversary keep
     // their first year so the age and the years show; one with no kind is a timeline from before V1.43.
     timelines: [
@@ -330,6 +331,11 @@ export function fakeDocs(): Doc[] {
       { title: "Wins", items: ["A 31% reply rate on the latest follow up sequence", "One proposal moved to signed"], tone: "good" },
     ],
   });
+  // Fictional devices for Settings, Looks, Backgrounds per device (core/devicebg.ts): this page, another Mac and a phone.
+  { const seen = (h: number) => new Date(Date.now() - h * 3600e3).toISOString();
+    push("bgdev", null, { dev: thisDevId(), kind: thisKind(), name: "Mac", seen: seen(0.1) });
+    push("bgdev", null, { dev: "fakemacstudio001", kind: "mac", name: "Mac Studio", own: true, seen: seen(3) });
+    push("bgdev", null, { dev: "fakephonepixel01", kind: "phone", name: "Pixel 8", seen: seen(6) }); }
   // Fictional campaign statistics (Tab list > Campaign stats). /dev?stale=19 shows the amber "old data" look.
   const stale = Number(new URLSearchParams(location.search).get("stale")) || 0;
   push("cstats", null, fakeCampaignStats(new Date(), { staleDays: stale }));
