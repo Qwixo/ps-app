@@ -26,7 +26,14 @@ import { posturePrefs } from "../core/posture";
 import { PROTON_FEATURE, protonMirror } from "../core/protonmail";
 import { mailCan } from "../core/mailswitch";
 import { attachedLayout, ISLAND_ASK_MS, ISLAND_QUEUED_MS, type IslandAnchor } from "../core/whatsnew";
-import { addActive, answer, CARD_W, cleanDone, LOGO_MOMENT, logoChime, cleanState, INTROS, introReply, markShown, nextIntro, recheckMs, retire, updaterAnswer, type IntroDef, type IntroState } from "../core/featureintro";
+import { addActive, answer, CARD_W, cleanDone, LOGO_MOMENT, logoChime, cleanState, INTROS, introReply, markShown, nextIntro, recheckMs, retire, retireFolded, updaterAnswer, type IntroDef, type IntroState } from "../core/featureintro";
+import { AGAIN_KEY, buttonWord, stepAfter, TOUR_FEATURE, TOUR_ID, TOUR_WORDS, tourSteps, type TourStep } from "../core/tour";
+import { tipsOn } from "../core/offswitches";
+import { afkMeetWindows } from "../core/afkmeet";
+import { meetingEvents } from "../core/calpick";
+import { calendarSnap } from "../core/select";
+import type { CalendarSnap } from "../core/model";
+import { GOS } from "../gos/bridge";
 import { accountOlderThan, LOCAL_KEY as WN_SEEN_KEY } from "../core/whatsnew";
 import { islandPrefs } from "../core/island";
 import { saveSettings } from "../core/actions";
@@ -95,7 +102,24 @@ const GUIDES: Record<NonNullable<IntroDef["guide"]>, (p: { onClose: () => void; 
   "wa-link": (p) => <WaGuide onClose={p.onClose} anchor={p.anchor} />,
 };
 /** Has the person already done what the intro is about? "done" retires it for good. "open" keeps it. "unknown" waits (never shows on a guess). */
+/** PS 1.65: the tour's steps for this person on this device (only features on in this build; core/tour.ts). */
+function tourListFor(s: Snapshot): TourStep[] {
+  const unlocked = s.status === "unlocked";
+  return tourSteps({ where: PS ? "mac" : GOS ? "phone" : "web", on: (id) => feature(id), owner: unlocked && s.role === "owner", mail: mailCan(s) });
+}
+const tourAgainAsked = (): boolean => { try { return localStorage.getItem(AGAIN_KEY) === "1"; } catch { return false; } };
+/** The intros the tour replaces show on their own only while the tour is switched off (then nothing is folded). */
+const foldedUnlessTour = (read: (can: boolean, s: Snapshot) => Promise<"done" | "open" | "unknown">) =>
+  async (can: boolean, s: Snapshot): Promise<"done" | "open" | "unknown"> => (feature(TOUR_FEATURE) && feature("feature-intros") ? "done" : read(can, s));
 const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" | "open" | "unknown">> = {
+  // PS 1.65 the tour: updaters only (a first install has nothing "new" to be shown), once per person (Done on any device ends it everywhere),
+  // never with "Show first use tips" off, and only when at least one step applies. "Show the tour again" (Settings, About) asks for it.
+  [TOUR_ID]: async (_can, s) => {
+    if (!feature(TOUR_FEATURE) || s.status !== "unlocked" || !tipsOn(settingsData(s).tipsShow)) return "unknown";
+    const who = tourAgainAsked() ? "open" : updaterProbe(TOUR_ID, s);
+    if (who !== "open") return who;
+    return tourListFor(s).length ? "open" : "unknown";
+  },
   // V1.62 the new app logo: only people updating from an earlier version, once per person (Ok on any device ends it everywhere).
   "new-logo-162": async (_can, s) => updaterProbe("new-logo-162", s),
   // Screen recording (12b): shown only to people who said No or have not answered. Yes retires it. Asks the Mac for its saved choice only (nothing from macOS).
@@ -108,20 +132,20 @@ const DONE_PROBES: Record<string, (can: boolean, s: Snapshot) => Promise<"done" 
   },
   // PS 1.64 G Squad replies and members list: only for people in a squad; Ok ends it for good (a choice with one button).
   "gsquad-reply-164": async () => (squadStore.get().in ? "open" : "unknown"),
-  "gsquad-pieces-165": async () => (feature("gsquad-pieces") && squadStore.get().in ? "open" : "unknown"),
-  "gsquad-v3-165": async () => (feature("gsquad-v3") && squadStore.get().in ? "open" : "unknown"),
+  "gsquad-pieces-165": foldedUnlessTour(async () => (feature("gsquad-pieces") && squadStore.get().in ? "open" : "unknown")),
+  "gsquad-v3-165": foldedUnlessTour(async () => (feature("gsquad-v3") && squadStore.get().in ? "open" : "unknown")),
   // PS 1.65 Receipts: only while the feature is on for an owner; Ok ends it for good.
-  receipts: async (_can, s) => (s.status === "unlocked" && s.role === "owner" && receiptsOn(feature(RCPT_FEATURE), settingsData(s).receipts) ? "open" : "unknown"),
+  receipts: foldedUnlessTour(async (_can, s) => (s.status === "unlocked" && s.role === "owner" && receiptsOn(feature(RCPT_FEATURE), settingsData(s).receipts) ? "open" : "unknown")),
   // PS 1.65 Posture reminder: only while the feature is on and the person has not switched it off; Ok ends it for good.
-  "posture-165": async (_can, s) => (feature("posture-reminder") && posturePrefs(settingsData(s).posture).on ? "open" : "unknown"),
+  "posture-165": foldedUnlessTour(async (_can, s) => (feature("posture-reminder") && posturePrefs(settingsData(s).posture).on ? "open" : "unknown")),
   // PS 1.65 Checklist reminder: shown only while the feature is on; Ok ends it for good.
-  "checklist-165": async () => (feature(CHK_FEATURE) ? "open" : "unknown"),
+  "checklist-165": foldedUnlessTour(async () => (feature(CHK_FEATURE) ? "open" : "unknown")),
   // PS 1.65 stacked notifications: only on the Mac, and only while its switch is on.
-  "notif-stack-165": async () => (PS && feature("notif-stack") ? "open" : "unknown"),
+  "notif-stack-165": foldedUnlessTour(async () => (PS && feature("notif-stack") ? "open" : "unknown")),
   // PS 1.65 G Squad DMs, groups and pictures: only once the hub answers for them (until Red deploys it, it just waits), for people in a squad.
-  "gsquad-dm": async () => (feature("gsquad-dm") && squadStore.get().in && chatStore.get().dm === true ? "open" : "unknown"),
+  "gsquad-dm": foldedUnlessTour(async () => (feature("gsquad-dm") && squadStore.get().in && chatStore.get().dm === true ? "open" : "unknown")),
   // PS 1.65 Proton Mail through Bridge: only on a Mac with the feature on, and only until Bridge is linked (a link retires it for good).
-  "proton-bridge-165": async () => (!PS || !feature(PROTON_FEATURE) ? "unknown" : protonMirror.get().status.linked ? "done" : "open"),
+  "proton-bridge-165": foldedUnlessTour(async () => (!PS || !feature(PROTON_FEATURE) ? "unknown" : protonMirror.get().status.linked ? "done" : "open")),
   screenrec: async () => { askScreenRec(); return introAudience({ mac: PS, st: screenRecNow() }); },
   whatsapp: async (can) => {
     if (!can) return "unknown";   // no own Supabase project to link (yet): wait and look again, never retire for good on what may be a still loading vault
@@ -146,6 +170,7 @@ export function FeatureIntroHost() {
   const openRef = useRef(open);
   openRef.current = open;
   const probe = useRef<Record<string, "done" | "open" | "unknown">>({});
+  const tourRef = useRef<TourStep[]>([]);
   const holdUntil = useRef(0);
   const probeAt = useRef<Record<string, number>>({});
   const lastInput = useRef(Date.now());
@@ -153,6 +178,16 @@ export function FeatureIntroHost() {
   const live = useRef({ s, listShown, welcome, face, wn, can });
   live.current = { s, listShown, welcome, face, wn, can };
   const commit = useCallback((f: (x: IntroState) => IntroState) => { const n = f(stateRef.current); stateRef.current = n; save(n); setState(n); }, []);
+
+  // "Show the tour again" (Settings, About): forget the tour's answer so it is looked at again now (views/TourAgain.tsx).
+  useEffect(() => {
+    const again = () => {
+      delete probe.current[TOUR_ID]; probeAt.current[TOUR_ID] = 0; holdUntil.current = 0;
+      commit((x) => { const { [TOUR_ID]: _gone, ...recs } = x.recs; return { ...x, recs }; });
+    };
+    window.addEventListener("ps:tour-again", again);
+    return () => window.removeEventListener("ps:tour-again", again);
+  }, [commit]);
 
   // 12b: the Mac's saved screen recording choice is read once, early, so the screen recording intro knows who said No (nothing from macOS).
   useEffect(() => { if (PS) askScreenRec(); }, []);
@@ -173,14 +208,19 @@ export function FeatureIntroHost() {
       const visible = document.visibilityState !== "hidden";
       commit((x) => addActive(x, { version: __PS_VERSION__.name, deltaMs: now - last, idleMs: now - lastInput.current, listShown: L.listShown && visible }));
       last = now;
-      if (openRef.current || checking || now < holdUntil.current || L.s.status !== "unlocked") return;
+      if (L.s.status !== "unlocked") return;
       const st = settingsData(L.s);
       const fullScreen = !!document.fullscreenElement;
+      const cal = calendarSnap(L.s);
+      const meeting = afkMeetWindows(meetingEvents(cal ? (cal.data as CalendarSnap).events : [], st.calChoices), st.meetHidden, now).some(([a, b]) => now >= a && now < b);
+      // A tour that is running stops quietly when a meeting, Sleep mode, Sentry mode, Do Not Disturb or a full screen app begins. It comes back later.
+      if (openRef.current?.tour && (meeting || sleepState().here || sentryUp() || dndActive(st.dnd, now) || fullScreen)) { setOpen(null); holdUntil.current = now + 60_000; return; }
+      if (openRef.current || checking || now < holdUntil.current) return;
       const facts = {
         now,
         notForThem: INTROS.filter((d) => probe.current[d.id] === "done" || probe.current[d.id] === "unknown").map((d) => d.id),
         islandBusy: L.welcome || L.face || L.wn || popupOn() || tipOn() || walkOn() || !!islandCards.queue.active || islandCards.queue.waiting.length > 0,
-        sleep: sleepState().here, sentry: sentryUp(), dnd: dndActive(st.dnd, now), sharing: false, fullScreen,
+        sleep: sleepState().here, sentry: sentryUp(), dnd: dndActive(st.dnd, now), sharing: false, fullScreen, meeting,
         off: !feature("feature-intros"),
       };
       // "Did they already do it?" is read for the intro that is next in line, only once the clock says it could show (one small read,
@@ -200,17 +240,28 @@ export function FeatureIntroHost() {
       const pick = nextIntro(stateRef.current, facts);
       if (!pick) return;
       if ("wait" in pick) { if (pick.wait !== "notActive") holdUntil.current = now + Math.min(recheckMs(pick.wait), 60_000); return; }
+      if (pick.show.tour) {
+        tourRef.current = tourListFor(L.s);
+        if (!tourRef.current.length) { probe.current[pick.show.id] = "unknown"; return; }
+      }
       setOpen(pick.show);
     };
     const t = window.setInterval(tick, 5000);
     return () => window.clearInterval(t);
   }, [commit]);
 
-  const onShown = useCallback((id: string) => commit((x) => markShown(x, id, Date.now())), [commit]);
+  // The tour running marks the intros it replaces done, so no separate card ever follows it.
+  const onShown = useCallback((id: string) => commit((x) => { const n = markShown(x, id, Date.now()); return id === TOUR_ID ? retireFolded(n, Date.now()) : n; }), [commit]);
   const onAnswer = useCallback((id: string, a: "show" | "later") => {
     commit((x) => answer(x, id, a));
     // A one button notice: Ok is the end of it on every device of this person (saved with their settings).
     if (INTROS.find((d) => d.id === id)?.ack) {
+      const done = cleanDone(settingsData(live.current.s).introsDone);
+      if (!done.includes(id)) void saveSettings({ introsDone: [...done, id] }).catch(() => { /* this device still never shows it again */ });
+    }
+    // PS 1.65 the tour: Done or Esc ends it for good on every device of this person, and a "show it again" request is used up.
+    if (id === TOUR_ID) {
+      try { localStorage.removeItem(AGAIN_KEY); } catch { /* fine */ }
       const done = cleanDone(settingsData(live.current.s).introsDone);
       if (!done.includes(id)) void saveSettings({ introsDone: [...done, id] }).catch(() => { /* this device still never shows it again */ });
     }
@@ -221,14 +272,14 @@ export function FeatureIntroHost() {
     holdUntil.current = Date.now() + (why ? recheckMs("busy") : 15_000);
   }, []);
   if (!open) return null;
-  return <IntroStage key={open.id} def={open} onShown={onShown} onAnswer={onAnswer} onChoose={onChoose} onGone={onGone} />;
+  return <IntroStage key={open.id} def={open} tour={tourRef.current} onShown={onShown} onAnswer={onAnswer} onChoose={onChoose} onGone={onGone} />;
 }
 
 type Phase = "ask" | "card" | "guide" | "out";
 /** The logo moment's card width and logo size (points). */
 const ACK_W = 260, LOGO_PX = 92;
 
-function IntroStage({ def, onShown, onAnswer, onChoose, onGone }: { def: IntroDef; onShown: (id: string) => void; onAnswer: (id: string, a: "show" | "later") => void; onChoose: (id: string, yes: boolean) => void; onGone: (why?: string) => void }) {
+function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: IntroDef; tour: TourStep[]; onShown: (id: string) => void; onAnswer: (id: string, a: "show" | "later") => void; onChoose: (id: string, yes: boolean) => void; onGone: (why?: string) => void }) {
   const viaIsland = PS && feature("island-moments");
   // The page's own queue first (a web card of this page goes before it), then on the Mac the island's queue.
   const turn = useIslandTurn(`intro:${def.id}`, true, "low");
@@ -238,6 +289,7 @@ function IntroStage({ def, onShown, onAnswer, onChoose, onGone }: { def: IntroDe
   phaseRef.current = phase;
   const asked = useRef(false);
   const [guide, setGuide] = useState(false);
+  const [ti, setTi] = useState(0);
   const vault = useVault();
 
   useEffect(() => {
@@ -284,6 +336,7 @@ function IntroStage({ def, onShown, onAnswer, onChoose, onGone }: { def: IntroDe
 
   const finish = (a: "show" | "later", yes = true) => {
     if (phaseRef.current === "out") return;
+    if (def.tour) a = "show";   // PS 1.65: Next moves on in the card, Done and Esc end the tour for good
     if (def.choice && a === "show") onChoose(def.id, yes);   // PS 1.63: Yes or No is the end of it, no guide
     if (def.ack) a = "show";   // V1.62: a one button notice has no Later: Ok, Esc and Back all close it for good
     onAnswer(def.id, a);
@@ -338,8 +391,22 @@ function IntroStage({ def, onShown, onAnswer, onChoose, onGone }: { def: IntroDe
             <b id="fi-title" className="fi-head">{def.headline}</b>
           </div>
         )}
+        {def.tour && tour[ti] && (
+          <div className="fi-tour" key={ti} aria-live="polite">
+            <p className="fi-count">{TOUR_WORDS.count(ti, tour.length)}</p>
+            <b className="fi-step">{tour[ti].title}</b>
+            <p className="fi-ask">{tour[ti].line}</p>
+            <p className="fi-where">{tour[ti].where}</p>
+          </div>
+        )}
         {def.ask && <p className="fi-ask">{def.ask}</p>}
-        <div className="fi-btns">
+        {def.tour && (
+          <div className="fi-btns">
+            {/* The tour takes no focus (a choice card, no autofocus). Next moves on, Done and Esc end it for good. */}
+            <button type="button" className="fi-btn go" onClick={() => { sfx.click(); const n = stepAfter(ti, tour.length); if (n === null) finish("show"); else setTi(n); }}>{buttonWord(ti, tour.length)}</button>
+          </div>
+        )}
+        <div className="fi-btns" hidden={!!def.tour}>
           <button type="button" className="fi-btn go" autoFocus={!def.choice} onClick={() => { sfx.click(); finish("show"); }}>{def.show}</button>
           {!def.ack && def.later && <button type="button" className="fi-btn" onClick={() => { sfx.click(); if (def.choice) finish("show", false); else finish("later"); }}>{def.later}</button>}
         </div>

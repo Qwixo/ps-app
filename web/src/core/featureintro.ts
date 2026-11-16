@@ -8,6 +8,7 @@
 import { cleanAnchor, cleanVersion, cmpVersion, type IslandAnchor } from "./whatsnew.ts";
 import { SR_INTRO } from "./screenrecmeet.ts";
 import { PROTON_WORDS } from "./protonmail.ts";
+import { TOUR_FOLDS, TOUR_ID, TOUR_WORDS } from "./tour.ts";
 
 // The rules (all in nextIntro):
 //  - Not right after an update: only after about 1 minute of ACTIVE use of the to do list on this version (idle time does not
@@ -39,6 +40,10 @@ export interface IntroDef {
   /** PS 1.63: a question with two answers (`show` is Yes, `later` is No). Both answers end it for good, nothing opens, and what the
    *  answer does is in views/FeatureIntro.tsx CHOICES. Esc, Back and a page that goes away are no answer: it asks once more later. */
   choice?: true;
+  /** PS 1.65: the "where things live" tour (core/tour.ts). It starts like any intro (a minute of use, the island free, no meeting) but is
+   *  not held back by the one day gap, comes back until it is finished (Done, or Esc, which ends it for good) and is saved with the
+   *  person's settings (introsDone), so it shows once per person. Its steps are drawn by views/FeatureIntro.tsx. */
+  tour?: true;
   /** What "Show me" opens (views/FeatureIntro.tsx GUIDES). Without one, `steps` are shown in a small generic guide. */
   guide?: "wa-link";
   /** A few plain steps for the generic guide (one short sentence each). */
@@ -59,6 +64,17 @@ export const INTROS: IntroDef[] = [
     show: "Ok",
     mark: "logo",
     ack: true,
+    updatersOnly: true,
+  },
+  {
+    // PS 1.65 (the developer's friend, 17 Nov 2026): one short tour of where the new things live, after about a minute of use. It replaces
+    // the separate intros in TOUR_FOLDS (receipts, posture-165, checklist-165, notif-stack-165). Updaters only.
+    id: TOUR_ID,
+    headline: TOUR_WORDS.head,
+    show: TOUR_WORDS.next,
+    mark: "spark",
+    tour: true,
+    choice: true,   // a one button card that takes no focus and opens no guide (views/FeatureIntro.tsx)
     updatersOnly: true,
   },
   {
@@ -236,9 +252,11 @@ export interface IntroFacts {
   fullScreen: boolean;
   /** The feature switch (features.json "feature-intros") is off. */
   off: boolean;
+  /** PS 1.65: the person is in a meeting right now (left out: not in one). */
+  meeting?: boolean;
 }
 
-export type Wait = "off" | "notActive" | "gap" | "busy" | "sleep" | "sentry" | "dnd" | "sharing" | "fullScreen";
+export type Wait = "off" | "notActive" | "gap" | "busy" | "sleep" | "sentry" | "dnd" | "sharing" | "fullScreen" | "meeting";
 export type Choice = { show: IntroDef } | { wait: Wait } | null;
 
 const has = (s: IntroFacts["notForThem"], id: string) => Array.isArray(s) ? s.includes(id) : (s as ReadonlySet<string>).has(id);
@@ -248,6 +266,7 @@ export function eligible(d: IntroDef, s: IntroState, f: Pick<IntroFacts, "notFor
   if (has(f.notForThem, d.id)) return false;
   const r = s.recs[d.id];
   if (!r) return true;
+  if (d.tour) return !r.closed;   // the tour comes back (after a meeting, a closed page) until it is finished
   if (r.closed || r.n >= 2) return false;
   // shown once and answered Later (or closed by Esc, or the page went away): asks once more after 3 days
   return now - r.at >= LATER_AFTER_MS;
@@ -259,13 +278,14 @@ export function nextIntro(s: IntroState, f: IntroFacts, defs: IntroDef[] = INTRO
   if (!d) return null;
   if (f.off) return { wait: "off" };
   if (s.activeMs < ACTIVE_NEEDED_MS) return { wait: "notActive" };
-  if (s.lastAt && f.now - s.lastAt < GAP_MS) return { wait: "gap" };
+  if (!d.tour && s.lastAt && f.now - s.lastAt < GAP_MS) return { wait: "gap" };
   // the places an intro must never come: the person is asleep, away, in a call or watching something
   if (f.sleep) return { wait: "sleep" };
   if (f.sentry) return { wait: "sentry" };
   if (f.dnd) return { wait: "dnd" };
   if (f.sharing) return { wait: "sharing" };
   if (f.fullScreen) return { wait: "fullScreen" };
+  if (f.meeting) return { wait: "meeting" };
   if (f.islandBusy) return { wait: "busy" };
   return { show: d };
 }
@@ -303,6 +323,11 @@ export function retire(s: IntroState, id: string, now: number): IntroState {
   const r = s.recs[id];
   if (r?.closed) return s;
   return { ...s, recs: { ...s.recs, [id]: { n: r?.n ?? 1, at: r?.at ?? now, closed: true } } };
+}
+
+/** PS 1.65: the tour runs, so the intros it replaces are done for good (they never show as separate cards). */
+export function retireFolded(s: IntroState, now: number): IntroState {
+  return TOUR_FOLDS.reduce((acc, id) => retire(acc, id, now), s);
 }
 
 /** The Mac's answer to "island:intro": queued behind another card, go (with where the island is, or none when the island

@@ -14,6 +14,7 @@
 .fi-head { font-size: 15px; font-weight: 800; letter-spacing: -.01em; animation: fi-text .45s .22s ease both; }
 .fi-ask { margin: 0; font-size: 13.5px; line-height: 1.4; color: rgba(245, 245, 247, .78); animation: fi-text .45s .55s ease both; }
 .fi-btns { display: flex; gap: 8px; animation: fi-text .45s .7s ease both; }
+.fi-btns[hidden] { display: none; }
 .fi-btn { flex: 1; text-align: center; text-decoration: none; font: inherit; font-weight: 700; font-size: 13.5px; padding: 9px 12px; border: 0; border-radius: 99px; cursor: pointer; color: #f5f5f7; background: rgba(255, 255, 255, .14); }
 .fi-btn:hover { background: rgba(255, 255, 255, .22); }
 .fi-btn.go { background: #25D366; color: #04210e; }
@@ -27,7 +28,13 @@
 /* the mark swoops in from the side and above, turning as it lands, on the spring */
 @keyframes fi-swoop { from { opacity: 0; transform: translate(-90px, -46px) rotate(-35deg) scale(.3); } 25% { opacity: 1; } }
 @keyframes fi-text { from { opacity: 0; transform: translateY(5px); } }
+/* PS 1.65 the "where things live" tour: one step at a time inside the same card. Only opacity and transform animate. */
+.fi-tour { display: grid; gap: 4px; animation: fi-text .3s ease both; }
+.fi-count { margin: 0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: rgba(245, 245, 247, .5); }
+.fi-step { font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.fi-where { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #FFD60A; }
 @media (prefers-reduced-motion: reduce) {
+  .fi-tour { animation: none !important; }
   .fi-card, .fi-mark, .fi-head, .fi-ask, .fi-btns { animation: none !important; }
 }
 

@@ -386,6 +386,8 @@ export const SETTINGS: SetEntry[] = [
   // V1.55 (the developer, 12 Nov 2026): the first use tips come once per account; this brings them back.
   { id: "tips", group: "about", name: "Tips", line: "Short tips about swiping between pages, the dots, Edit and reminders. They show once each.", words: ["tips", "show tips again", "hints", "tutorial", "help", "tour", "swipe", "learn"] },
   // Open source build: the tips can be switched off for good (views/Tips.tsx, core/offswitches.ts).
+  // PS 1.65 (the developer's friend, 17 Nov 2026): the "where things live" tour (core/tour.ts) can be run again from here.
+  { id: "tour-again", group: "about", name: "Show the tour again", line: "A short tour of where the new things live.", words: ["tour", "walkthrough", "where", "new", "whats new", "help", "tutorial", "show again", "intro"] },
   { id: "tips-show", group: "about", name: "Show first use tips", line: "Short tip cards the first few times you use PS app, and pop-ups about what is new. Off: none of them.", words: ["tips", "hints", "tutorial", "help", "first use", "off", "hide tips"] },
   { id: "examples", group: "about", name: "Example tasks", line: "Delete the example tasks PS app started your list with.", on: MAC, more: true, words: ["examples", "sample", "demo", "delete"] },
   // V1.44: the website's To-do page is the Tab list without what needs a Mac; this says where that lives.
