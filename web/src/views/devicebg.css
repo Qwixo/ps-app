@@ -1,0 +1,14 @@
+/* Settings, Looks, Backgrounds per device (views/DeviceBg.tsx, PS 1.65). Thin and calm: a list, no cards inside cards. */
+.dbg-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(4px * var(--k-dn, 1)); min-width: 0; }
+.dbg-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0;
+  padding: calc(6px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: calc(10px * var(--k-rd, 1));
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) 5%, transparent); }
+.dbg-lab { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; cursor: pointer; }
+.dbg-lab input { accent-color: var(--k-acc, #EC4E86); width: 16px; height: 16px; margin: 0; flex: none; }
+.dbg-lab input:disabled { opacity: 0.55; cursor: default; }
+.dbg-name { font-size: calc(13px * var(--k-fs, 1)); overflow-wrap: anywhere; }
+.dbg-edit { flex: 1 1 120px; min-width: 0; font: inherit; font-size: calc(13px * var(--k-fs, 1)); color: inherit; padding: 4px 8px;
+  border-radius: calc(8px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) 25%, transparent); background: transparent; }
+.dbg-edit:focus { outline: none; border-color: var(--k-acc, #EC4E86); }
+.dbg .btn { color: inherit; opacity: 0.8; }
+.dbg .btn:hover { opacity: 1; }

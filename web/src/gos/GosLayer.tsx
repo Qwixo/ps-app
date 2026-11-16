@@ -41,7 +41,8 @@ import { NewPopupsHost } from "../views/NewPopups";
 import { fitPop, useFitPop } from "../fitness/pop";
 import { defaultPhoneLayout, lookOf, navLabel } from "../core/phonelayout";
 import { clearPhoneNow, setPhoneNow, thisPhoneKind, viewOf } from "./phonepage";
-import { usePhoneBeat } from "./phonebeat";
+import { usePhoneBeat, phoneDevName } from "./phonebeat";
+import { setDeviceNameHint } from "../devicebeat";
 import { PhoneEditMount } from "./PhoneEditMode";
 import { useFlip } from "./flip";
 import { noteGymScreen } from "../squad/presence";
@@ -73,6 +74,7 @@ export function GosLayer() {
   const order = useMemo(() => pl.pages.map(viewOf), [pl]);
   // A page of panels deleted on the Mac while it shows here: back to the list.
   useEffect(() => { if (view.startsWith("page:") && !order.includes(view)) setView("list"); }, [order, view]);
+  useEffect(() => { if (g.device) setDeviceNameHint(phoneDevName(kind, g.device)); }, [kind, g.device]);   // PS 1.65: the model name for the device list (src/devicebeat.ts)
   usePhoneBeat(kind, s.status === "unlocked" && s.role === "owner", g.visible, g.device);
 
   // Settings (V1.47): the same screen as the Mac's, opened on its list of groups (or straight into one). It draws inside

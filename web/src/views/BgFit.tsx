@@ -14,16 +14,27 @@ import { look, newWatch, type Watch } from "../core/bgwatch";
 import { useVaultVideos } from "../core/bgvault";
 import { gosPost } from "../gos/bridge";
 import { sfx } from "../ui/sfx";
+import { deviceBgOn, deviceShown, thisDevId } from "../devicebgnow";
+import { tilePicks } from "../core/devicebg";
 import { useBgVideos } from "../ps";
 
 /** A phone: PS GOS, or the iPhone web app (src/mobile/boot.ts sets the flag before any of this loads). */
 export const PHONE_BG = import.meta.env.MODE === "gos" || (globalThis as { __psMobile?: unknown }).__psMobile === true;
-const isBg = (v: string) => bgDesign(v) === v;
+export const isBg = (v: string) => bgDesign(v) === v;
 
 /** The background this device shows (the phone's own once it has one). */
-export function shownBg(st: Settings): string | null | undefined { return PHONE_BG ? phoneBg(st, isBg) : st.tmBg; }
-/** A background picked on this device: saved where this device reads it. */
-export function bgPatch(st: Settings, id: string): Partial<Settings> { return { [bgKey(st, PHONE_BG, isBg)]: id }; }
+export function shownBg(st: Settings): string | null | undefined {   // PS 1.65: this device's own pick first (core/devicebg.ts), else what it always showed
+  return deviceShown(st.tmBgDev, isBg, PHONE_BG ? phoneBg(st, isBg) : st.tmBg);
+}
+/** A background picked on this device: saved exactly as before (the shared background, or the phone's own), so phones and
+ *  older PS copies that follow it keep following. PS 1.65 (core/devicebg.ts): a device that already has a pick of its own
+ *  (ticked in Settings, Looks) also moves that pick. Per device picks otherwise come only from the tick list. */
+export function bgPatch(st: Settings, id: string): Partial<Settings> {
+  const out: Partial<Settings> = { [bgKey(st, PHONE_BG, isBg)]: id };
+  const own = deviceBgOn() ? tilePicks(st.tmBgDev, thisDevId(), id, isBg) : null;
+  if (own) out.tmBgDev = own;
+  return out;
+}
 
 /** One line in the phone's log (PS GOS writes it to its own log file; the iPhone web app has none). */
 export function logBg(text: string) { if (import.meta.env.MODE === "gos") gosPost({ type: "log", text: `bg video: ${text}` }); }

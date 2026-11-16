@@ -27,6 +27,7 @@ import type { Zone } from "./tz";
 import { cleanLayout, isDefault, pickLayout, sameLayout, type TabLayout } from "./tablayout";
 import { cleanPhoneLayout, isDefaultPhone, pickPhoneLayout, samePhoneLayout, type PhoneLayout } from "./phonelayout";
 import { cleanPhoneDev, shouldBeat, type PhoneDev } from "./phonedevices";
+import * as Dev from "./devicebg";
 import { cleanRemind, mergeRemind, pickRemind, sameRemind, type RemindRec } from "./remind";
 import { buildExamples, examplesLeft, withoutExamples, type ExampleState } from "./examples";
 
@@ -1030,3 +1031,22 @@ export async function undoExamples(): Promise<void> {
     ...(st?.examples ? { examples: { ...st.examples, gone: null } } : {}) });
 }
 
+
+// ---------- PS 1.65 a background for each device (core/devicebg.ts) ----------
+/** This device's own record (kind, name, last seen): only when new, changed, or once a day. A name the person chose is kept. */
+export async function beatDevice(id: { dev: string; kind: Dev.DevKind; name: string }): Promise<void> {
+  const mine = docs<unknown>("bgdev", null).filter((d) => Dev.cleanDevice(d.data)?.dev === id.dev);
+  const prev = mine.map((d) => Dev.cleanDevice(d.data)!).sort((a, b) => Date.parse(b.seen) - Date.parse(a.seen))[0] ?? null;
+  if (!Dev.shouldBeat(prev, id)) return;
+  await put<Dev.Device>("bgdev", Dev.beatRecord(prev, id), { id: mine[0]?.id, ws: null });
+  for (const d of mine.slice(1)) await remove(d.id);   // a second copy from two writes at once
+  // Records of devices not seen for 90 days are deleted now, so private windows and cleared storage do not pile them up.
+  for (const sid of Dev.staleIds(docs<unknown>("bgdev", null).map((d) => ({ id: d.id, data: d.data })))) await remove(sid).catch(() => {});
+}
+/** The person renames a device (empty goes back to the default name). */
+export async function renameDevice(dev: string, name: string): Promise<void> {
+  const mine = docs<unknown>("bgdev", null).filter((d) => Dev.cleanDevice(d.data)?.dev === dev);
+  const prev = mine.map((d) => Dev.cleanDevice(d.data)!).sort((a, b) => Date.parse(b.seen) - Date.parse(a.seen))[0];
+  if (!prev) return;
+  await put<Dev.Device>("bgdev", Dev.renamed(prev, name), { id: mine[0]?.id, ws: null });
+}
