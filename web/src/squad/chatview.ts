@@ -4,6 +4,8 @@
 import { cleanAbout, cleanEmoji, cleanReply, cleanText, replySnippet, type ChatAbout, type ChatReply } from "../core/squadchat.ts";
 import { cleanGifItems, cleanGifQuery, type GifItem } from "./chatgif.ts";
 import type { ReactionPill } from "./chatreact.ts";
+import { cleanConvs, cleanDmOp, cleanMembers, SQUAD_CONV, type ConvView, type DmOp, type MemberView } from "./dmview.ts";
+export type { ConvView, MemberView } from "./dmview.ts";
 
 /** PS 1.64: the quote above a reply. name: who wrote the original ("You" for yours); s: its first line (the original's
  *  words as they are now when it is loaded, else the line the reply carried); gone: deleted or not on the hub for you. */
@@ -39,8 +41,13 @@ export interface ChatView {
   gif: GifView;
   jump?: ChatJump | null;         // PS 1.64: the answer to the last "seek" (a reply's quote was clicked)
   seeking?: boolean;              // PS 1.64: older history is loading to find a reply's original
+  // PS 1.65 (G Squad v3): conversations. "squad" is the main chat and is always in the list; DMs and groups only when the hub answers.
+  convs?: ConvView[];             // newest last message first
+  activeConv?: string;            // the conversation `lines` belong to ("squad" until another is opened)
+  members?: MemberView[];         // everyone in the squad, with their picture when they have one (only while open)
+  dm?: boolean;                   // the hub has DMs and groups (false = the screen shows no DM or group button)
 }
-export const EMPTY_CHAT: ChatView = { in: false, ready: false, open: false, unread: 0, lines: [], more: false, votes: [], note: null, sound: false, notify: false, notifyOn: true, noteSound: true, islandOk: false, noteIsland: true, sending: 0, error: null, loaded: false, gif: EMPTY_GIF };
+export const EMPTY_CHAT: ChatView = { in: false, ready: false, open: false, unread: 0, lines: [], more: false, votes: [], note: null, sound: false, notify: false, notifyOn: true, noteSound: true, islandOk: false, noteIsland: true, sending: 0, error: null, loaded: false, gif: EMPTY_GIF, convs: [], activeConv: SQUAD_CONV, members: [], dm: false };
 
 export type ChatOp =
   | { op: "open"; on: boolean } | { op: "send"; text: string; a?: ChatAbout; q?: ChatReply } | { op: "edit"; id: string; text: string } | { op: "del"; id: string }
@@ -48,7 +55,8 @@ export type ChatOp =
   | { op: "notify"; on: boolean } | { op: "noteSound"; on: boolean } | { op: "noteIsland"; on: boolean }
   | { op: "react"; to: string; e: string }                    // PS 1.63: an emoji on a message (again = take it back)
   | { op: "gifs"; q: string; more?: boolean } | { op: "gifclear" }   // the GIF picker's search, and closing it
-  | { op: "seek"; id: string };                                // PS 1.64: find a reply's original (loads older history if needed)
+  | { op: "seek"; id: string }
+  | DmOp;                                                      // PS 1.65: DMs, groups, pictures (squad/dmview.ts)                                // PS 1.64: find a reply's original (loads older history if needed)
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const id = (v: unknown) => (typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null);
@@ -68,6 +76,7 @@ export function cleanChatOp(v: unknown): ChatOp | null {
     case "react": { const i = id(o.to), e = cleanEmoji(o.e); return i && e ? { op: "react", to: i, e } : null; }
     case "gifs": return { op: "gifs", q: cleanGifQuery(o.q), ...(o.more === true ? { more: true } : {}) };
     case "gifclear": return { op: "gifclear" };
+    case "openConv": case "newDm": case "newGroup": case "setAvatar": case "clearAvatar": case "groupAdd": case "groupRemove": case "leaveConv": return cleanDmOp(v);
     case "vote": { const i = id(o.id); return i && typeof o.yes === "boolean" ? { op: "vote", id: i, yes: o.yes } : null; }
   }
   return null;
@@ -122,6 +131,7 @@ export function cleanChatView(v: unknown): ChatView {
     notify: o.notify === true, notifyOn: o.notifyOn !== false, noteSound: o.noteSound !== false, islandOk: o.islandOk === true, noteIsland: o.noteIsland !== false, sending: n(o.sending),
     error: typeof o.error === "string" ? o.error.slice(0, 200) : null, loaded: o.loaded === true, gif: cleanGif(o.gif),
     jump, seeking: o.seeking === true,
+    convs: cleanConvs(o.convs), activeConv: typeof o.activeConv === "string" && o.activeConv ? o.activeConv.slice(0, 40) : SQUAD_CONV, members: cleanMembers(o.members), dm: o.dm === true,
   };
 }
 

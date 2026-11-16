@@ -130,6 +130,16 @@ export const INTROS: IntroDef[] = [
     choice: true,
   },
   {
+    // PS 1.65 G Squad v3 (words for the owner to approve): one Ok ends it for good. Only once the hub answers for DMs and the person is in a squad
+    // (views/FeatureIntro.tsx DONE_PROBES).
+    id: "gsquad-dm",
+    headline: "New in G Squad: private messages, group chats and pictures.",
+    ask: "Click a name at the top to send a private message.",
+    show: "Ok",
+    mark: "spark",
+    choice: true,
+  },
+  {
     // PS 1.60 (pull request 12b). Only for people who said No or have not answered (views/FeatureIntro.tsx DONE_PROBES, core/screenrecmeet.ts introAudience).
     id: "screenrec",
     headline: SR_INTRO.headline,
