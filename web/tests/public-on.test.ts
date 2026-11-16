@@ -140,7 +140,7 @@ ok("the panel shows in the Tab list with the connect prompt, and Connect Gmail o
   assert.match(tm, /\{\(mailOnSnap\(s\) \|\| waOnSnap\(s\)\) && <Slot id="mail">\{mailOnSnap\(s\) && <ClientMail s=\{s\} mail \/>\}/, "behind the Client emails switch only, not the developer's account");
   const body = tm.slice(tm.indexOf("function ClientMail("), tm.indexOf("// ---------- upcoming meetings"));
   assert.doesNotMatch(body, /if \(!list\.length && !replied\.length\) return null;/, "an empty panel no longer hides");
-  assert.match(body, /const gmail = useGmailKnown\(empty && !seen\);/, "Gmail is only asked about while the panel is empty");
+  assert.match(body, /const gmail = useGmailKnown\(empty && !seen && !gmailMail, gmailMail\);/, "Gmail is only asked about while the panel is empty and no Gmail mail has arrived");
   assert.match(body, /shows === "connect"/);
   assert.match(body, /openSettings\("notify", \{ jump: "client-emails" \}\); \}\}>\{MAIL_EMPTY_WORDS\.button\}<\/button>/);
   assert.match(body, /\{MAIL_EMPTY_WORDS\.connect\}/);
@@ -148,7 +148,7 @@ ok("the panel shows in the Tab list with the connect prompt, and Connect Gmail o
   assert.match(file("src/core/settingsindex.ts"), /\{ id: "client-emails", group: "notify", /, "the jump lands on a real row");
   assert.match(file("src/views/SettingsGroups.tsx"), /"client-emails": block\(\(\) => <ClientEmailsSettings compact \/>\)/);
   const ce = file("src/views/ClientEmailsSettings.tsx");
-  assert.match(ce, /<CopyForAiButton className="btn" \/>/, "the one Copy for your AI button leads the section");
+  assert.match(ce, /<CopyForAiChoice \/>/, "the Copy for your AI choice (two ways) leads the section");
   assert.match(ce, /<details className="stack tight ce-hand">/, "the old step guide is closed behind one small link");
   assert.match(ce, /\{AI_COPY_WORDS\.hand\}/);
   const hook = file("src/views/gmailknown.ts");
