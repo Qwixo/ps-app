@@ -1,7 +1,8 @@
 // Outsource work to your other computer (PS 1.65): the messages between the PAGE (this web app, which holds the
 // vault and does all the crypto) and the MAC app (which runs the jobs and keeps files). Types only, no logic.
 // Both sides send one envelope kind: window.webkit...ps.postMessage(JSON) with type "outsource" (page to Mac), and
-// the Mac calls window.__psOutsource(json) (Mac to page). The Mac never sees a private key of the vault, never
+// the Mac hands the page the object through the usual window.__ps.apply(m) with m.type "outsource" (Mac to page,
+// handled in src/outsourcerun.ts; it works the same in the main window and needs no new JS hook). The Mac never sees a private key of the vault, never
 // signs for the person, and never decides who is paired: the page checks every signature and expiry first and
 // only then hands the Mac a plain, already checked job.
 export const BRIDGE_VERSION = 1;
@@ -34,7 +35,7 @@ export type PageToMac =
   | { type: "outsource"; op: "cli-answer"; req: string; ok: boolean; text: string; id?: string } // answer to a CLI request
   | { type: "outsource"; op: "island"; text: string };                                    // optional: show a line on the island
 
-// ---------- Mac to page (JSON given to window.__psOutsource) ----------
+// ---------- Mac to page (an object given to window.__ps.apply) ----------
 export type MacToPage =
   | { type: "outsource"; op: "state"; v: number; keep: KeepRecord | null; app: string; model: string; chip: string; name: string; helper: "approved" | "needs approval" | "not set up" | "missing"; awake: boolean; locked: boolean; cli: string[]; folder: string }
   | { type: "outsource"; op: "progress"; id: string; state: JobRun; step?: string; tail?: string; startedAt?: number; endedAt?: number; exit?: number } // runner (other computer)
