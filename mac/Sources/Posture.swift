@@ -88,9 +88,16 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     w.loadHTMLString(Posture.page, baseURL: nil)
   }
   private func show(_ msg: [String: Any]) {
-    guard !coveredNow() else { return }   // never over Sleep mode, Sentry mode or Do Not Disturb (the page checks too)
+    // Never over Sleep mode, Sentry mode or Do Not Disturb (the page checks too). Say so, or the page waits for an answer that never comes.
+    guard !coveredNow() else { onMessage?("{\"type\":\"postureAct\",\"act\":\"skipped\"}"); return }
     func s(_ k: String, _ max: Int) -> String { String(((msg[k] as? String) ?? "").prefix(max)) }
-    pending = ["svg": s("svg", 4000), "css": s("css", 4000), "pill": s("pill", 40), "title": s("title", 60), "button": s("button", 40), "test": (msg["test"] as? Bool) == true]
+    var o: [String: Any] = ["svg": s("svg", 4000), "css": s("css", 4000), "pill": s("pill", 40), "title": s("title", 60), "button": s("button", 40), "test": (msg["test"] as? Bool) == true]
+    // The first pop-up's one-time question (words come from the page, plain text only).
+    if let a = msg["ask"] as? [String: Any] {
+      func t(_ k: String) -> String { String(((a[k] as? String) ?? "").prefix(60)) }
+      o["ask"] = ["title": t("title"), "off": t("off"), "keep": t("keep")]
+    }
+    pending = o
     if panel == nil { make() }
     up = true
     if ready { push() }
@@ -151,6 +158,9 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     switch type {
     case "size":
       if let h = msg["h"] as? Double, h > 100, h < 700 { height = CGFloat(h.rounded(.up)); place() }
+    case "ask":
+      // The question's answer goes to the page, which saves it. Turn off makes the page close the card; Keep it on leaves it up.
+      if let a = msg["a"] as? String, a == "off" || a == "keep" { onMessage?("{\"type\":\"postureAsk\",\"answer\":\"\(a)\"}") }
     case "done": close(tell: true, act: "done")
     case "esc": close(tell: true, act: "esc")
     default: break
@@ -177,17 +187,25 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   @keyframes pulse{50%{opacity:.3}}
   h1{margin:10px 0 4px;font-size:21px;font-weight:850;letter-spacing:.01em;line-height:1.2}
   #fig{margin:4px 0 8px}
+  #b:not(.rdy){pointer-events:none}
   button{border:0;border-radius:99px;padding:9px 22px;font:700 13px -apple-system,sans-serif;color:#fff;cursor:pointer;transition:transform .1s;
     background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 80%,#fff),color-mix(in srgb,var(--acc) 85%,#000));box-shadow:0 8px 20px color-mix(in srgb,var(--acc) 35%,transparent);animation:btnin .45s ease 3500ms both}
   button:active{transform:scale(.97)}
   @keyframes btnin{from{opacity:0;transform:translateY(4px)}}
-  @media (prefers-reduced-motion:reduce){body.in #card,#card::before,.pill i,button{animation:none}}
+  #ask{display:none;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.14);animation:btnin .45s ease 3500ms both}
+  #ask.on{display:block}
+  #ask p{margin:0 0 8px;font-size:12.5px;color:var(--sub)}
+  #ask span{display:inline-flex;gap:8px}
+  #ask button{background:transparent;box-shadow:none;border:1px solid rgba(255,255,255,.25);padding:6px 14px;font:600 12px -apple-system,sans-serif;animation:none}
+  #ask:not(.rdy){pointer-events:none}
+  @media (prefers-reduced-motion:reduce){body.in #card,#card::before,.pill i,button,#ask{animation:none}}
   </style><style id="figcss"></style></head><body>
   <div id="card">
     <span class="pill"><i></i><span id="p"></span><em id="tt"></em></span>
     <h1 id="q"></h1>
     <div id="fig"></div>
     <button id="b" type="button"></button>
+    <div id="ask"><p id="aq"></p><span><button id="ao" type="button"></button><button id="ak" type="button"></button></span></div>
   </div>
   <script>
   const post = (m) => { try { window.webkit.messageHandlers.pf.postMessage(JSON.stringify(m)); } catch (e) {} };
@@ -198,12 +216,21 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       $('p').textContent = o.pill; $('tt').textContent = o.test ? ' · test' : '';
       $('q').textContent = o.title; $('b').textContent = o.button;
       $('figcss').textContent = o.css; $('fig').innerHTML = o.svg;   // our own constant picture from the page, restarted each time
+      const a = o.ask, ask = $('ask');
+      ask.classList.toggle('on', !!a); ask.classList.remove('rdy');
+      if (a) { $('aq').textContent = a.title; $('ao').textContent = a.off; $('ak').textContent = a.keep; }
+      const b = $('b'); b.classList.remove('rdy'); ask.classList.remove('rdy');
+      clearTimeout(window.__rt);
+      const go = () => { b.classList.add('rdy'); ask.classList.add('rdy'); };
+      if (matchMedia('(prefers-reduced-motion:reduce)').matches) go(); else window.__rt = setTimeout(go, 3500);
       document.body.classList.remove('in', 'out'); void document.body.offsetWidth; document.body.classList.add('in');
       size();
     },
     out() { document.body.classList.add('out'); },
   };
   $('b').addEventListener('click', () => post({ type: 'done' }));
+  $('ao').addEventListener('click', () => post({ type: 'ask', a: 'off' }));
+  $('ak').addEventListener('click', () => { post({ type: 'ask', a: 'keep' }); $('ask').classList.remove('on'); size(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); post({ type: 'esc' }); } });
   </script></body></html>
   """#

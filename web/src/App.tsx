@@ -758,7 +758,7 @@ function OwnerShell() {
           the list on To-do, with the keyboard's Tab left for moving between buttons. */}
       {red && page !== "todo" && <TaskMap />}
       {WEBSITE_WN && <WhatsNewHost />}
-      {WEBSITE_WN && import.meta.env.MODE !== "gos" && <PosturePopupHost />}{/* the Posture reminder pop-up on the website (PS 1.65); the Mac draws its own card */}
+      {WEBSITE_WN && import.meta.env.MODE !== "gos" && !MWEB && <PosturePopupHost />}{/* the Posture reminder pop-up on the website (PS 1.65); the Mac draws its own card */}
       {WEBSITE_WN && <FeatureIntroHost />}{/* the same "Did you know?" intro, plain, for the website and the phone */}
       {WEBSITE_WN && <NewPopupsHost />}{/* the "new in this version" pop-ups (V1.56): only the open source one can show on the website */}
       {WEBSITE_WN && <TipsHost />}{/* the first use tips (V1.55, views/Tips.tsx): only where the list shows them something to point at */}

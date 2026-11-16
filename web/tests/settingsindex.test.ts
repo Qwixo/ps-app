@@ -7,8 +7,8 @@ import { GROUPS, SETTINGS, groupById, groupsFor, landingOf, norm, rowsOf, search
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
-const RED_MAC: Ctx = { red: true, where: "mac" }, FRIEND_MAC: Ctx = { red: false, where: "mac" };
-const FRIEND_WEB: Ctx = { red: false, where: "web" }, PHONE: Ctx = { red: false, where: "phone", shell: "gos" };
+const RED_MAC: Ctx = { red: true, where: "mac", pf: true }, FRIEND_MAC: Ctx = { red: false, where: "mac", pf: true };
+const FRIEND_WEB: Ctx = { red: false, where: "web", pf: true }, PHONE: Ctx = { red: false, where: "phone", shell: "gos" };
 const ids = (q: string, ctx: Ctx) => searchSettings(q, ctx).map((h) => h.e.id);
 const first = (q: string, ctx: Ctx) => ids(q, ctx)[0];
 
@@ -135,6 +135,12 @@ ok("the side menu has the developer's groups in order, each with something in it
     const r = rowsOf(g.id, ctx);
     assert.ok(r.main.length > 0, `${ctx.where} ${g.id}: a row before More`);
   }
+});
+ok("the Posture Reminder tab and its rows hide where the feature is off", () => {
+  assert.ok(groupsFor(FRIEND_MAC).some((g) => g.id === "posture"));
+  const off: Ctx = { red: false, where: "mac" };
+  assert.ok(!groupsFor(off).some((g) => g.id === "posture"));
+  assert.ok(!visibleTo(settingById("posture-on")!, off) && visibleTo(settingById("posture-on")!, FRIEND_MAC));
 });
 ok("Add Telegram Bot (V1.47) is a group of its own for everyone, on every device, and search finds it", () => {
   for (const ctx of [FRIEND_MAC, FRIEND_WEB, PHONE, RED_MAC]) {

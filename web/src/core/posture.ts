@@ -48,6 +48,24 @@ export const POSTURE_WORDS = {
   figureLabel: "A stick figure slouches, then sits up straight",
 } as const;
 
+// ---------- the first pop-up asks once (the developer's friend, 17 Nov 2026; the same way the first stand-up does, core/standup.ts) ----------
+// The first real pop-up a person gets carries a small question under its button. Turn off saves the switch off, Keep it on
+// just carries on. Asked once per person: kept in the synced settings (settings.postureAsk), so no other device asks again.
+// "Try it now" never asks.
+export const POSTURE_ASK_WORDS = {
+  title: "Do you want to turn the posture reminder off?",
+  off: "Turn off",
+  keep: "Keep it on",
+} as const;
+export type PostureAnswer = "off" | "keep";
+/** Ask with the next real pop-up? Only while the person has never seen the question and the reminder is on. */
+export const postureAskDue = (st: { postureAsk?: boolean; posture?: unknown }): boolean => st.postureAsk !== true && posturePrefs(st.posture).on;
+/** What an answer saves. Both mark the question seen, Turn off also switches the reminder off. null: not an answer. */
+export function postureAskPatch(answer: unknown, current: unknown): { postureAsk: true; posture?: PosturePrefs } | null {
+  if (answer !== "off" && answer !== "keep") return null;
+  return answer === "off" ? { postureAsk: true, posture: { ...posturePrefs(current), on: false } } : { postureAsk: true };
+}
+
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 export function posturePrefs(v: unknown): PosturePrefs {
   const o = v && typeof v === "object" ? v as Record<string, unknown> : {};

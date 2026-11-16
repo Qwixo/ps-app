@@ -163,4 +163,36 @@ ok("the figure is plain SVG: no script, no link, no outside address, no on handl
 ok("no dashes in the words", () => {
   for (const w of Object.values(P.POSTURE_WORDS)) assert.doesNotMatch(w, /[–—]/);
 });
+ok("the Settings line says an end before the start runs past midnight", async () => {
+  const { readFileSync } = await import("node:fs");
+  const t = readFileSync(new URL("../src/core/settingsindex.ts", import.meta.url), "utf8");
+  assert.match(t, /An end time before the start time runs past midnight/);
+  assert.doesNotMatch(t, /later end time than start/);
+});
+ok("the first pop-up asks once: due only while unseen and on", () => {
+  assert.equal(P.postureAskDue({}), true);
+  assert.equal(P.postureAskDue({ postureAsk: false, posture: {} }), true);
+  assert.equal(P.postureAskDue({ postureAsk: true }), false);
+  assert.equal(P.postureAskDue({ posture: { on: false } }), false);
+});
+ok("answers: Turn off saves the switch off and seen, Keep it on only seen, junk is nothing", () => {
+  assert.deepEqual(P.postureAskPatch("off", { every: 60, from: "08:00", to: "17:00" }), { postureAsk: true, posture: { on: false, every: 60, from: "08:00", to: "17:00" } });
+  assert.deepEqual(P.postureAskPatch("off", undefined), { postureAsk: true, posture: { ...P.POSTURE_DEFAULT, on: false } });
+  assert.deepEqual(P.postureAskPatch("keep", { every: 30 }), { postureAsk: true });
+  for (const bad of ["seen", "", null, undefined, 1, {}]) assert.equal(P.postureAskPatch(bad, {}), null);
+});
+ok("the question words are short, plain and dash free", () => {
+  for (const w of Object.values(P.POSTURE_ASK_WORDS)) { assert.doesNotMatch(w, /[–—;!]/); assert.ok(w.length <= 60); }
+  assert.equal(P.POSTURE_ASK_WORDS.off, "Turn off");
+});
+ok("the Mac card refuses and says so, the button waits for its fade, the question is wired", async () => {
+  const { readFileSync } = await import("node:fs");
+  const sw = readFileSync(new URL("../../mac/Sources/Posture.swift", import.meta.url), "utf8");
+  assert.match(sw, /guard !coveredNow\(\) else \{ onMessage\?\(.*skipped/);
+  assert.match(sw, /#b:not\(\.rdy\)\{pointer-events:none\}/);
+  assert.match(sw, /postureAsk/);
+  const w = readFileSync(new URL("../src/posturewatch.ts", import.meta.url), "utf8");
+  assert.match(w, /o\.act === "skipped"/);
+  assert.match(w, /o\.type === "postureAsk"/);
+});
 console.log(`${n} passed`);

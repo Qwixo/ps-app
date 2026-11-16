@@ -9,7 +9,8 @@
 import { vaultStore } from "./core/vault";
 import { settingsData } from "./core/select";
 import { feature } from "./core/features";
-import { posturePrefs, postureStep, POSTURE_WORDS, AWAY_MS, latestSlot, type PostureEnv } from "./core/posture";
+import { posturePrefs, postureStep, postureAskDue, postureAskPatch, POSTURE_WORDS, POSTURE_ASK_WORDS, AWAY_MS, latestSlot, type PostureEnv } from "./core/posture";
+import { saveSettings } from "./core/actions";
 import { FIGURE_SVG, FIGURE_CSS } from "./core/posturefigure";
 import { meetingEvents } from "./core/calpick";
 import { visibleEvents } from "./core/meethide";
@@ -29,6 +30,7 @@ let started = false;
 let handled = 0;
 let lastTick = 0;
 let shown = false;
+let askOn = false;
 let testing = false;
 let macEnv: { at: number; idleMs: number; covered: boolean } | null = null;
 let lastInput = Date.now();
@@ -38,8 +40,8 @@ let primed = false;
 let pageCovered: () => boolean = () => false;
 
 // ---------- what the website draws ----------
-export interface PostureView { open: boolean; test: boolean; key: number }
-let view: PostureView = { open: false, test: false, key: 0 };
+export interface PostureView { open: boolean; test: boolean; key: number; ask: boolean }
+let view: PostureView = { open: false, test: false, key: 0, ask: false };
 const listeners = new Set<() => void>();
 export const postureView = () => view;
 export const subscribePosture = (f: () => void) => { listeners.add(f); return () => { listeners.delete(f); }; };
@@ -71,14 +73,34 @@ function envNow(now: number): PostureEnv {
 
 function open(test: boolean) {
   shown = true; testing = test;
-  if (MAC) post({ type: "posture:show", svg: FIGURE_SVG, css: FIGURE_CSS, pill: POSTURE_WORDS.pill, title: POSTURE_WORDS.title, button: POSTURE_WORDS.button, test });
-  else setView({ open: true, test, key: view.key + 1 });
+  // The first real pop-up carries the one-time question (never "Try it now"). It counts as seen once the pop-up is over.
+  const s = vaultStore.get();
+  askOn = !test && s.status === "unlocked" && postureAskDue(settingsData(s));
+  if (MAC) post({ type: "posture:show", svg: FIGURE_SVG, css: FIGURE_CSS, pill: POSTURE_WORDS.pill, title: POSTURE_WORDS.title, button: POSTURE_WORDS.button, test,
+    ...(askOn ? { ask: { title: POSTURE_ASK_WORDS.title, off: POSTURE_ASK_WORDS.off, keep: POSTURE_ASK_WORDS.keep } } : {}) });
+  else setView({ open: true, test, key: view.key + 1, ask: askOn });
+}
+/** The pop-up is over. If it carried the question, that was seen: saved once for every device (a Turn off answer saved it already). */
+function settle() {
+  const was = askOn;
+  shown = false; testing = false; askOn = false;
+  if (was) void saveSettings({ postureAsk: true }).catch(() => {});
 }
 function close() {
   if (!shown) return;
-  shown = false; testing = false;
+  settle();
   if (MAC) post({ type: "posture:hide" });
-  else setView({ open: false, test: false, key: view.key });
+  else setView({ open: false, test: false, key: view.key, ask: false });
+}
+/** The question's answer (the website's buttons, or the Mac card's). Turn off saves the switch off and ends the pop-up. */
+export function postureAnswer(a: unknown) {
+  if (!askOn) return;
+  const patch = postureAskPatch(a, settingsData(vaultStore.get()).posture);
+  if (!patch) return;
+  askOn = false;   // seen: one answer only
+  void saveSettings(patch).catch(() => {});
+  if (a === "off") close();
+  else if (!MAC) setView({ ...view, ask: false });
 }
 
 function enabled(): boolean {
@@ -110,7 +132,9 @@ export function postureShellMessage(m: { type?: unknown }): boolean {
     macEnv = { at: Date.now(), idleMs: idle, covered: o.covered === true };
     return true;
   }
-  if (o.type === "postureAct") { shown = false; testing = false; return true; }
+  if (o.type === "postureAsk") { postureAnswer(o.answer); return true; }
+  // "done" and "esc" end it; "skipped" is the Mac refusing (Sleep, Sentry or Do Not Disturb came on): no card came up, so the question was not seen.
+  if (o.type === "postureAct") { if (o.act === "skipped") askOn = false; settle(); return true; }
   return false;
 }
 

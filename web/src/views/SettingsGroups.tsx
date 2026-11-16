@@ -105,7 +105,8 @@ export function SettingsHost({ st, gen, owner }: { st: Settings; gen: GenProps; 
   const mail = mailOnSnap(v);   // the Client emails switch (core/mailswitch.ts); it was "has email records" before 1.60
   const mailC = mailCan(v);
   const sr = feature(SR_FEATURE);   // PS 1.60: the Screen recording group shows only where the feature is on in this build
-  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr]);
+  const pf = feature("posture-reminder");   // PS 1.65: the Posture Reminder group shows only where the feature is on
+  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, pf, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr, pf]);
   return (
     <GenContext.Provider value={{ gen, st }}>
       <SettingsScreen owner={owner} ctx={ctx} controls={CONTROLS} phone={GOS || MWEB} onGo={(go, e, close) => goTo(go, e, close, owner)} />

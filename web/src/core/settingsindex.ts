@@ -55,12 +55,14 @@ export interface SetEntry {
   mailCan?: true;
   /** Only where screen recording is on in this build (core/features.ts "screen-recording"). */
   sr?: true;
+  /** Only where the Posture reminder feature is on in this build (core/features.ts "posture-reminder"). */
+  pf?: true;
   /** Only in this phone shell: the GrapheneOS app ("gos") or the iPhone web app ("mweb"). V1.47. */
   shell?: Shell;
 }
 /** Which phone shell: the GrapheneOS app (ps-gos, a WebView with the native bridge) or the iPhone web app. */
 export type Shell = "gos" | "mweb";
-export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean }
+export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean }
 
 export const GROUPS: SetGroup[] = [
   // V1.51 (the developer, 12 Nov 2026): About and updates is the top item of the Settings menu, above everything else, so the
@@ -190,10 +192,10 @@ export const SETTINGS: SetEntry[] = [
   { id: "rem-test", group: "remind", parent: "reminders", name: "Test a reminder", line: "Shows it right now with its sound. Esc ends it.", words: ["test", "try", "preview", "see it", "demo"] },
 
   // ---------- Posture Reminder (PS 1.65, core/posture.ts; the controls are views/PostureSettings.tsx) ----------
-  { id: "posture-on", group: "posture", name: "Posture reminder", line: "A pop-up with a stick figure that slouches and sits up straight, and one button, Sitting straight.", on: NOT_PHONE, words: ["posture", "sit", "sitting", "straight", "slouch", "back", "spine", "desk", "ergonomic", "health", "reminder", "stick figure", "pop up", "popup"] },
-  { id: "posture-every", group: "posture", name: "How often", line: "Every 30, 45, 60 or 90 minutes.", on: NOT_PHONE, words: ["posture", "interval", "how often", "every", "minutes", "frequency", "30", "45", "60", "90"] },
-  { id: "posture-hours", group: "posture", name: "Between these times", line: "It only comes inside these hours. A later end time than start time runs past midnight.", on: NOT_PHONE, words: ["posture", "hours", "from", "to", "start", "end", "work hours", "schedule", "time", "midnight"] },
-  { id: "posture-test", group: "posture", name: "Try it now", line: "Shows the pop-up right now. Esc closes it.", on: NOT_PHONE, words: ["posture", "test", "try", "preview", "demo", "see it"] },
+  { id: "posture-on", group: "posture", name: "Posture reminder", line: "A pop-up with a stick figure that slouches and sits up straight, and one button, Sitting straight.", on: NOT_PHONE, pf: true, words: ["posture", "sit", "sitting", "straight", "slouch", "back", "spine", "desk", "ergonomic", "health", "reminder", "stick figure", "pop up", "popup"] },
+  { id: "posture-every", group: "posture", name: "How often", line: "Every 30, 45, 60 or 90 minutes.", on: NOT_PHONE, pf: true, words: ["posture", "interval", "how often", "every", "minutes", "frequency", "30", "45", "60", "90"] },
+  { id: "posture-hours", group: "posture", name: "Between these times", line: "It only comes inside these hours. An end time before the start time runs past midnight.", on: NOT_PHONE, pf: true, words: ["posture", "hours", "from", "to", "start", "end", "work hours", "schedule", "time", "midnight"] },
+  { id: "posture-test", group: "posture", name: "Try it now", line: "Shows the pop-up right now. Esc closes it.", on: NOT_PHONE, pf: true, words: ["posture", "test", "try", "preview", "demo", "see it"] },
 
   // ---------- Add Telegram Bot (views/TelegramBot.tsx, core/tgbot.ts) ----------
   { id: "telegram-bot", group: "telegram", name: "Your Telegram bot", line: "Make a bot with BotFather, give PS app its key, link your Telegram, test it.", words: ["telegram", "bot", "botfather", "text", "message", "sms", "chat", "add task", "send task", "token", "key", "at", "tasks from phone", "remote"] },
@@ -388,6 +390,7 @@ export function visibleTo(e: SetEntry, ctx: Ctx): boolean {
   if (e.mail && !ctx.mail) return false;
   if (e.mailCan && !ctx.mailCan) return false;
   if (e.sr && !ctx.sr) return false;
+  if (e.pf && !ctx.pf) return false;
   if (e.shell && e.shell !== ctx.shell) return false;
   if (e.on && !e.on.includes(ctx.where)) return false;
   const g = groupById(e.group);
