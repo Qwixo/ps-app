@@ -5,7 +5,7 @@
 import Foundation
 
 /// A job as the page hands it over (web core/secondbridge.ts PlainJob).
-struct OutJob: Equatable {
+struct OutsourceJob: Equatable {
   var id: String
   var title: String
   var repo: String
@@ -23,7 +23,7 @@ struct OutJob: Equatable {
   static let maxMinutes = 120
 
   /// Why the job is refused, or nil when it may run. `now` is epoch ms.
-  static func parse(_ o: [String: Any], now: Double) -> (OutJob?, String?) {
+  static func parse(_ o: [String: Any], now: Double) -> (OutsourceJob?, String?) {
     func s(_ k: String) -> String { (o[k] as? String) ?? "" }
     let id = s("id"), title = s("title"), repo = s("repo"), base = s("base"), prompt = s("prompt")
     guard OutSafe.idOk(id) else { return (nil, "bad id") }
@@ -38,7 +38,7 @@ struct OutJob: Equatable {
     guard exp > now else { return (nil, "expired") }
     let ret = o["returns"] as? [String: Any] ?? [:]
     let mins = min(maxMinutes, max(1, (o["minutes"] as? NSNumber)?.intValue ?? 20))
-    return (OutJob(id: id, title: title, repo: repo, base: base, prompt: prompt,
+    return (OutsourceJob(id: id, title: title, repo: repo, base: base, prompt: prompt,
                    bundle: (ret["bundle"] as? Bool) ?? true, report: (ret["report"] as? Bool) ?? true,
                    screenshots: (ret["screenshots"] as? Bool) ?? false, minutes: mins, tool: tool,
                    createdAt: (o["createdAt"] as? NSNumber)?.doubleValue ?? 0, expiresAt: exp), nil)
@@ -166,7 +166,7 @@ enum OutPolicy {
   }
 
   /// The prompt the tool gets: the job's own, then the house rules (it cannot push) and where to put screenshots.
-  static func fullPrompt(_ j: OutJob) -> String {
+  static func fullPrompt(_ j: OutsourceJob) -> String {
     var p = j.prompt + "\n\n---\nRules of this computer: work only inside this folder, commit your work on the current branch with clear messages, never push, deploy or send anything, and finish with a short summary of what you changed and which tests you ran."
     if j.screenshots { p += " Save any screenshots as PNG files in .ps-outsource/shots/." }
     return p
@@ -209,11 +209,11 @@ enum OutCli {
     func str(_ k: String, max: Int) -> Bool { guard let v = o[k] as? String, !v.isEmpty, v.utf8.count <= max else { return false }; out[k] = v; return true }
     switch cmd {
     case "send":
-      guard str("title", max: 200), str("repo", max: 300), str("base", max: 100), str("prompt", max: OutJob.maxPrompt) else { return nil }
+      guard str("title", max: 200), str("repo", max: 300), str("base", max: 100), str("prompt", max: OutsourceJob.maxPrompt) else { return nil }
       guard OutSafe.repoOk(out["repo"] as! String), OutSafe.baseOk(out["base"] as! String) else { return nil }
       if let b = o["bundle"] as? Bool { out["bundle"] = b }
       if let b = o["screenshots"] as? Bool { out["screenshots"] = b }
-      if let m = o["minutes"] as? Int { guard m >= 1 && m <= OutJob.maxMinutes else { return nil }; out["minutes"] = m }
+      if let m = o["minutes"] as? Int { guard m >= 1 && m <= OutsourceJob.maxMinutes else { return nil }; out["minutes"] = m }
       if let t = o["tool"] as? String { guard t == "claude" || t == "codex" else { return nil }; out["tool"] = t }
     case "result", "cancel":
       guard str("id", max: 64), OutSafe.idOk(out["id"] as! String) else { return nil }

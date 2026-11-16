@@ -27,14 +27,14 @@ func jobDict(_ over: [String: Any] = [:]) -> [String: Any] {
   for (k, v) in over { d[k] = v }
   return d
 }
-check(OutJob.parse(jobDict(), now: now).0 != nil, "a good job parses")
-check(OutJob.parse(jobDict(["expiresAt": now - 1]), now: now).1 == "expired", "an expired job is refused")
-check(OutJob.parse(jobDict(["id": "../x"]), now: now).1 == "bad id", "a path as id refused")
-check(OutJob.parse(jobDict(["tool": "bash"]), now: now).1 == "bad tool", "an unknown tool refused")
-check(OutJob.parse(jobDict(["minutes": 9999]), now: now).0?.minutes == 120, "minutes capped at 120")
-check(OutJob.parse(jobDict(["minutes": 0]), now: now).0?.minutes == 1, "minutes at least 1")
-check(OutJob.parse(jobDict(["prompt": "use sk-abcdefghijklmnopqrstuvwx to call"]), now: now).1 == "secret in job", "a key in the prompt refused")
-check(OutJob.parse(jobDict(["prompt": ""]), now: now).1 == "bad prompt", "an empty prompt refused")
+check(OutsourceJob.parse(jobDict(), now: now).0 != nil, "a good job parses")
+check(OutsourceJob.parse(jobDict(["expiresAt": now - 1]), now: now).1 == "expired", "an expired job is refused")
+check(OutsourceJob.parse(jobDict(["id": "../x"]), now: now).1 == "bad id", "a path as id refused")
+check(OutsourceJob.parse(jobDict(["tool": "bash"]), now: now).1 == "bad tool", "an unknown tool refused")
+check(OutsourceJob.parse(jobDict(["minutes": 9999]), now: now).0?.minutes == 120, "minutes capped at 120")
+check(OutsourceJob.parse(jobDict(["minutes": 0]), now: now).0?.minutes == 1, "minutes at least 1")
+check(OutsourceJob.parse(jobDict(["prompt": "use sk-abcdefghijklmnopqrstuvwx to call"]), now: now).1 == "secret in job", "a key in the prompt refused")
+check(OutsourceJob.parse(jobDict(["prompt": ""]), now: now).1 == "bad prompt", "an empty prompt refused")
 for bad in ["https://user:pw@example.com/a.git", "https://x@example.com/a.git", "file:///tmp/x", "ext::sh -c id", "/etc", "../x", "a b", "-oProxy=x", "git@host:a@b", "http://example.com/a.git", "..", ".hidden"] {
   check(!OutSafe.repoOk(bad), "repo refused: \(bad)")
 }
@@ -119,7 +119,7 @@ check(OutTools.find(home: home, path: "/nonexistent", override: ["claude": "/nop
 let runner = OutRunner(root: root, home: home, tools: tools, searchDirs: [srcDir], baseEnv: benv)
 
 func runJob(_ over: [String: Any], wait: TimeInterval = 60) -> (OutDone?, [String]) {
-  let job = OutJob.parse(jobDict(over), now: now).0!
+  let job = OutsourceJob.parse(jobDict(over), now: now).0!
   let sem = DispatchSemaphore(value: 0)
   var res: OutDone?; var steps: [String] = []
   let lock = NSLock()
@@ -237,11 +237,11 @@ check(r9?.report.note.contains("Stopped after") == true, "timeout note")
 
 // 9. Cancel from the main computer, and the queue
 runner.secondsPerMinute = 60
-let cancelJob = OutJob.parse(jobDict(["id": "job-cancel", "base": baseSha, "prompt": "SLEEP", "minutes": 5]), now: now).0!
+let cancelJob = OutsourceJob.parse(jobDict(["id": "job-cancel", "base": baseSha, "prompt": "SLEEP", "minutes": 5]), now: now).0!
 let semC = DispatchSemaphore(value: 0)
 var rc: OutDone?; var order: [String] = []; let ol = NSLock()
 _ = runner.submit(cancelJob, progress: { s, t in ol.lock(); order.append("c:" + s); ol.unlock() }, done: { rc = $0; semC.signal() })
-let nextJob = OutJob.parse(jobDict(["id": "job-next1", "base": baseSha, "prompt": "Add work"]), now: now).0!
+let nextJob = OutsourceJob.parse(jobDict(["id": "job-next1", "base": baseSha, "prompt": "Add work"]), now: now).0!
 let semN = DispatchSemaphore(value: 0)
 var rn: OutDone?
 _ = runner.submit(nextJob, progress: { s, t in ol.lock(); order.append("n:" + s); ol.unlock() }, done: { rn = $0; semN.signal() })
@@ -261,8 +261,8 @@ let firstNRun = order.firstIndex(of: "n:running"), cDoneIdx = order.lastIndex(wh
 ol.unlock()
 check(firstNRun != nil && cDoneIdx != nil && firstNRun! > cDoneIdx!, "one job at a time")
 // A queued job cancelled before it starts
-let q1 = OutJob.parse(jobDict(["id": "job-q001", "base": baseSha, "prompt": "SLEEP", "minutes": 5]), now: now).0!
-let q2 = OutJob.parse(jobDict(["id": "job-q002", "base": baseSha, "prompt": "Add work"]), now: now).0!
+let q1 = OutsourceJob.parse(jobDict(["id": "job-q001", "base": baseSha, "prompt": "SLEEP", "minutes": 5]), now: now).0!
+let q2 = OutsourceJob.parse(jobDict(["id": "job-q002", "base": baseSha, "prompt": "Add work"]), now: now).0!
 let sq1 = DispatchSemaphore(value: 0), sq2 = DispatchSemaphore(value: 0)
 var rq2: OutDone?
 _ = runner.submit(q1, progress: { _, _ in }, done: { _ in sq1.signal() })
@@ -274,7 +274,7 @@ check(rq2?.state == "cancelled", "a queued job cancelled before it starts")
 var accepted = 0
 var sems: [DispatchSemaphore] = []
 for i in 0..<8 {
-  let j = OutJob.parse(jobDict(["id": "job-lim\(i)x", "base": baseSha, "prompt": "SLEEP", "minutes": 5]), now: now).0!
+  let j = OutsourceJob.parse(jobDict(["id": "job-lim\(i)x", "base": baseSha, "prompt": "SLEEP", "minutes": 5]), now: now).0!
   let s = DispatchSemaphore(value: 0)
   if runner.submit(j, progress: { _, _ in }, done: { _ in s.signal() }) { accepted += 1; sems.append(s) }
 }

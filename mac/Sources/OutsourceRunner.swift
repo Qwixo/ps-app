@@ -116,7 +116,7 @@ final class OutRunner {
   static let maxQueue = 5
 
   /// Queues a checked job. False when the queue is full (the page then tells the person). `progress` and `done` come from the runner's queue.
-  func submit(_ job: OutJob, progress: @escaping (String, String) -> Void, done: @escaping (OutDone) -> Void) -> Bool {
+  func submit(_ job: OutsourceJob, progress: @escaping (String, String) -> Void, done: @escaping (OutDone) -> Void) -> Bool {
     mu.lock()
     if waiting + (running == nil ? 0 : 1) >= OutRunner.maxQueue { mu.unlock(); return false }
     waiting += 1; mu.unlock()
@@ -155,7 +155,7 @@ final class OutRunner {
     return e
   }
 
-  private func execute(_ job: OutJob, progress: @escaping (String, String) -> Void) -> OutDone {
+  private func execute(_ job: OutsourceJob, progress: @escaping (String, String) -> Void) -> OutDone {
     let t0 = Date()
     let dir = jobDir(job.id), work = dir + "/work"
     prune()
@@ -241,7 +241,7 @@ final class OutRunner {
       let (bc, bt) = git(["bundle", "create", b, branch, "^" + sha], cwd: clone)
       if bc == 0, git(["bundle", "verify", b], cwd: clone).0 == 0,
          let size = (try? fm.attributesOfItem(atPath: b))?[.size] as? Int {
-        if size <= OutRunner.maxBundle { bundlePath = b; bundleSize = size; bundleSha = sha256(b) }
+        if size <= OutRunner.maxBundle { bundlePath = b; bundleSize = size; bundleSha = OutLanding.sha256(b) }
         else { note += " The result is too big to send back (\(size / 1_000_000) MB)."; if state == "done" { state = "failed" } }
       } else { note += " Could not pack the result: " + OutSecrets.tail(bt, 200); if state == "done" { state = "failed" } }
     }
@@ -285,7 +285,7 @@ final class OutRunner {
     return p
   }
 
-  private func finish(_ job: OutJob, state: String, note: String, started: Date) -> OutDone {
+  private func finish(_ job: OutsourceJob, state: String, note: String, started: Date) -> OutDone {
     let r = OutReport(id: job.id, title: job.title, state: state, tool: job.tool, branch: "", base: "", head: "", commits: 0, files: [], summary: "", log: "",
                       exit: -1, seconds: Int(Date().timeIntervalSince(started)), note: note)
     return OutDone(id: job.id, state: state, report: r, bundlePath: nil, bundleSha: nil, bundleSize: 0, shotPaths: [])
@@ -316,13 +316,5 @@ final class OutRunner {
     guard let h = FileHandle(forReadingAtPath: path) else { return nil }
     defer { try? h.close() }
     do { try h.seek(toOffset: UInt64(index * OutChunks.size)); let d = try h.read(upToCount: OutChunks.size) ?? Data(); return d.isEmpty ? nil : d } catch { return nil }
-  }
-
-  private func sha256(_ path: String) -> String? {
-    let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/shasum"); p.arguments = ["-a", "256", path]
-    let pipe = Pipe(); p.standardOutput = pipe; p.standardError = FileHandle.nullDevice
-    do { try p.run() } catch { return nil }
-    let d = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
-    return String(data: d, encoding: .utf8)?.split(separator: " ").first.map(String.init)
   }
 }

@@ -462,6 +462,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // Second Computer (Sources/Second.swift): the page carries everything through the vault; native holds
     // the device key and the trust store, checks and signs, runs allowlisted jobs and lands files.
     Second.shared.toPage = { [weak self] j in if self?.vaultUnlocked == true { self?.sendToMain(j) } }
+    // Outsource work to your other computer (Outsource.swift): the page checks and seals, this side runs and lands.
+    Outsource.shared.toPage = { [weak self] j in self?.main.callAsyncJavaScript("window.__psOutsource && window.__psOutsource(m)", arguments: ["m": j], in: nil, in: .page, completionHandler: nil) }
     Second.shared.openWindow = { [weak self] tab in self?.secondWin.open(tab) }
     Second.shared.beforePanel = { [weak self] in if self?.shown == true { self?.hideOverlay(force: true, giveBack: false) } }
     Backgrounds.shared.beforePanel = { [weak self] in if self?.shown == true { self?.hideOverlay(force: true, giveBack: false) } }
@@ -1565,6 +1567,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       Backgrounds.shared.resend()
     case "second:pick" where fromOverlay:     // the Second panel's Send files: PS's Open panel (the developer's click)
       if let t = msg["target"] as? [String: Any] { Second.shared.pick(t) }
+    case "outsource" where fromMain:         // Outsource work to your other computer (Outsource.swift)
+      Outsource.shared.handle(msg)
     case _ where fromMain && type.hasPrefix("second:"):   // Second Computer (Sources/Second.swift): native signs, checks and runs
       Second.shared.handle(type, msg)
     case "localCal" where fromMain || (fromOverlay && msg["op"] as? String == "settings"):
