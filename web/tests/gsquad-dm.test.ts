@@ -5,11 +5,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as S from "../src/core/squadcrypto.ts";
 import { sealCard, type HubMember, type SquadRec } from "../src/core/squadrec.ts";
-import { cleanAvatar, dmConvId, dmKey, dmKeyWith, openConvMessage, planGroupKeys, sealConvMessage } from "../src/core/squaddm.ts";
+import { AVATAR_MAX_BYTES, cleanAvatar, dmAad, dmConvId, dmKey, dmKeyWith, openConvMessage, planGroupKeys, sealConvMessage } from "../src/core/squaddm.ts";
 import { HubError } from "../src/squad/hub.ts";
 import type { DmApi, DmMsgRow, DmPull, DmStatus } from "../src/squad/dmhub.ts";
 import { DmSession } from "../src/squad/dmflows.ts";
-import { buildConvs, cleanConvs, cleanDmOp, cleanMembers } from "../src/squad/dmview.ts";
+import { buildConvs, cleanConvs, cleanDmOp, cleanMembers, sendRoute } from "../src/squad/dmview.ts";
 import { cleanChatOp, cleanChatView, EMPTY_CHAT } from "../src/squad/chatview.ts";
 
 const tests: [string, () => Promise<void> | void][] = [];
@@ -41,13 +41,16 @@ class FakeHub {
   clock = Date.parse("2026-11-01T10:00:00Z");
   noDm = false;
   convs = new Map<string, FConv>();
-  drops: { conv: string; epoch: number; member: string; sealed: string }[] = [];
+  drops: { conv: string; epoch: number; member: string; sealed: string; sig: string }[] = [];
+  epochs: { conv: string; epoch: number; signer: string; creator: string; members: string[]; title_ct: string }[] = [];
+  tickHits = 0;
   msgs: (DmMsgRow & { conv: string })[] = [];
   reads = new Map<string, string>();
   avatars = new Map<string, { ct: string; gen: number; at: string }>();
   left = new Set<string>();
   calls: Record<string, number> = {};
   now() { this.clock += 1000; return new Date(this.clock).toISOString(); }
+  /** Like the real dm_in(conv): not removed from the conversation AND still in the squad. The pull's people and the rekey check both use it. */
   inSet(c: FConv) { return [...c.people].filter(([m, p]) => !p.removed && !this.left.has(m)).map(([m]) => m).sort(); }
   private access(me: string, id: string) {
     const c = this.convs.get(id);
@@ -59,13 +62,13 @@ class FakeHub {
     const hit = (a: string) => { h.calls[a] = (h.calls[a] ?? 0) + 1; if (h.noDm) throw new HubError(404, "Requested function was not found"); };
     return {
       async tick(): Promise<DmStatus> {
-        hit("tick");
+        hit("tick"); h.tickHits++;
         const convs = [...h.convs.values()].filter((c) => c.people.get(me) && !c.people.get(me)!.removed).map((c) => {
           const rd = h.reads.get(`${c.id}:${me}`) ?? c.people.get(me)!.joined;
           return { id: c.id, k: c.kind, e: c.epoch, last: c.last, upd: c.upd, rot: c.kind === "group" && c.keyMembers.join() !== h.inSet(c).join(), closed: h.inSet(c).length < 2,
             u: h.msgs.filter((m) => m.conv === c.id && m.member_id !== me && !m.deleted && Date.parse(m.created_at) > Date.parse(rd)).length };
         });
-        return { convs, av: [...h.avatars.values()].map((a) => a.at).sort().pop() ?? null };
+        return { convs, more: false, av: [...h.avatars.values()].map((a) => a.at).sort().pop() ?? null };
       },
       async pull(conv, since, before): Promise<DmPull> {
         hit("pull");
@@ -74,7 +77,9 @@ class FakeHub {
         const eps = c.kind === "group" ? mine.map((d) => d.epoch) : null;
         let m = h.msgs.filter((x) => x.conv === conv && (!eps || eps.includes(x.epoch)));
         if (before) m = m.filter((x) => x.created_at < before && !x.deleted); else if (since) m = m.filter((x) => x.updated_at > since); else m = m.filter((x) => !x.deleted);
-        return { now: h.now(), conv: { id: conv, kind: c.kind, epoch: c.epoch, title_ct: c.title }, people: h.inSet(c), drops: eps && !since ? mine.map((d) => ({ epoch: d.epoch, sealed: d.sealed })) : eps ? mine.filter(() => true).map((d) => ({ epoch: d.epoch, sealed: d.sealed })) : [], msgs: m.map(({ conv: _c, ...r }) => r), more: false };
+        const dr = eps ? mine : [];
+        const epochs = h.epochs.filter((e) => e.conv === conv && dr.some((d) => d.epoch === e.epoch)).map(({ conv: _c, ...e }) => e);
+        return { now: h.now(), conv: { id: conv, kind: c.kind, epoch: c.epoch, title_ct: c.title }, people: h.inSet(c), drops: dr.map((d) => ({ epoch: d.epoch, sealed: d.sealed, sig: d.sig })), epochs, msgs: m.map(({ conv: _c, ...r }) => r), more: false };
       },
       async create(a) {
         hit("new");
@@ -88,7 +93,8 @@ class FakeHub {
         if (ids.some((i) => h.left.has(i))) throw new HubError(403, "not a member");
         const t = h.now();
         h.convs.set(a.id, { id: a.id, kind: a.kind, epoch: 1, by: me, keyMembers: a.kind === "group" ? ids : [], title: a.title ?? null, last: null, upd: t, people: new Map(ids.map((i) => [i, { removed: false, joined: t }])) });
-        for (const d of a.drops ?? []) h.drops.push({ conv: a.id, epoch: 1, member: d.member, sealed: d.sealed });
+        for (const d of a.drops ?? []) h.drops.push({ conv: a.id, epoch: 1, member: d.member, sealed: d.sealed, sig: d.sig });
+        if (a.kind === "group") h.epochs.push({ conv: a.id, epoch: 1, signer: me, creator: me, members: ids, title_ct: a.title! });
         return { created: true, epoch: 1 };
       },
       async change(conv, a) {
@@ -108,7 +114,8 @@ class FakeHub {
         if (c.keyMembers.join() === h.inSet(c).join()) return { done: false, epoch: c.epoch };
         if (drops.map((d) => d.member).sort().join() !== h.inSet(c).join()) throw new HubError(409, "drops");
         c.epoch++; c.keyMembers = h.inSet(c); c.title = title ?? c.title; c.upd = h.now();
-        for (const d of drops) h.drops.push({ conv, epoch: c.epoch, member: d.member, sealed: d.sealed });
+        for (const d of drops) h.drops.push({ conv, epoch: c.epoch, member: d.member, sealed: d.sealed, sig: d.sig ?? "" });
+        h.epochs.push({ conv, epoch: c.epoch, signer: me, creator: c.by, members: h.inSet(c), title_ct: title! });
         return { done: true, epoch: c.epoch };
       },
       async post(conv, id, epoch, ct) {
@@ -121,10 +128,17 @@ class FakeHub {
         c.last = at; h.reads.set(`${conv}:${me}`, at);
         return { at };
       },
-      async edit(conv, id, ct) { hit("edit"); h.access(me, conv); const m = h.msgs.find((x) => x.id === id && x.member_id === me); if (!m) throw new HubError(404, "no message"); m.ct = ct; m.edited = true; m.updated_at = h.now(); return { ok: true }; },
+      async edit(conv, id, epoch, ct) {
+        hit("edit");
+        const c = h.access(me, conv);
+        if (c.epoch !== epoch || (c.kind === "group" && c.keyMembers.join() !== h.inSet(c).join())) throw new HubError(409, "epoch");   // like dm_edit
+        const m = h.msgs.find((x) => x.id === id && x.member_id === me);
+        if (!m) throw new HubError(404, "no message");
+        m.ct = ct; m.epoch = epoch; m.edited = true; m.updated_at = h.now(); return { ok: true };
+      },
       async del(conv, id) { hit("del"); h.access(me, conv); const m = h.msgs.find((x) => x.id === id && x.member_id === me); if (m) { m.ct = ""; m.deleted = true; m.updated_at = h.now(); } return { ok: true }; },
       async read(conv, at) { hit("read"); h.access(me, conv); h.reads.set(`${conv}:${me}`, at); return { ok: true }; },
-      async avatars(since) { hit("apull"); const r = [...h.avatars].map(([member_id, a]) => ({ member_id, ct: a.ct, gen: a.gen, updated_at: a.at })).filter((x) => !since || x.updated_at > since); return { rows: r, more: false }; },
+      async avatars(since) { hit("apull"); const r = [...h.avatars].map(([member_id, a]) => ({ member_id, ct: a.ct, gen: a.gen, updated_at: a.at })).filter((x) => !since || x.updated_at >= since); return { rows: r, more: false }; },
       async setAvatar(ct, gen) { hit("aset"); h.avatars.set(me, { ct, gen, at: h.now() }); return { ok: true }; },
       async clearAvatar() { hit("aset"); h.avatars.set(me, { ct: "", gen: 1, at: h.now() }); return { ok: true }; },
     };
@@ -319,6 +333,146 @@ ok("the plan for a group key refuses an unchecked member and a plan without your
   assert.equal(await planGroupKeys(A, S.newUuid(), 1, [rows.get(B.memberId)!, rows.get(C.memberId)!], "x"), null);
 });
 
+ok("a member who leaves the SQUAD never freezes a group: the hub's people list and the rekey check agree", async () => {
+  const hub = new FakeHub();
+  const a = session(hub, A), b = session(hub, B), c = session(hub, C);
+  const g = await a.newGroup("Crew", [B.memberId, C.memberId]);
+  await b.tick(); await b.pull(g);
+  hub.left.add(B.memberId);   // Sam leaves the whole squad (his row in the conversation is not marked removed)
+  await a.tick();
+  assert.equal(a.convs.get(g)!.status.rot, true, "the hub says the key is out of date");
+  assert.deepEqual((await hub.api(A.memberId).pull(g, null)).people, [A.memberId, C.memberId], "the people list leaves the leaver out, like the rekey check");
+  assert.equal(await a.rotateIfDue(g), true, "so the rekey goes through");
+  assert.equal(hub.convs.get(g)!.epoch, 2);
+  await a.send(g, { t: "without sam" });
+  await c.tick(); await c.pull(g);
+  assert.equal(c.list(g).at(-1)!.t, "without sam");
+  assert.equal((await a.tick()).length >= 0 && a.convs.get(g)!.status.rot, false, "no more out of date, no double pulling every tick");
+  assert.match(read("supabase/hub/functions/dm/index.ts"), /rpc<string\[\]>\("dm_in"/, "the real hub builds people from dm_in");
+});
+
+ok("a queued private message whose conversation is gone is never posted to the squad chat", () => {
+  assert.equal(sendRoute("squad", false), "squad");
+  assert.equal(sendRoute("squad", true), "squad");
+  assert.equal(sendRoute(ID(70), true), "dm");
+  assert.equal(sendRoute(ID(70), false), "gone", "removed, a 403, the tick dropped it, the feature off: dropped with a note");
+  const src = read("src/squad/chatengine.ts");
+  assert.match(src, /sendRoute\(p\.conv,/);
+  assert.match(src, /route === "gone"/);
+  assert.doesNotMatch(src, /dm\?\.convs\.has\(p\.conv\) \? p\.conv : null/, "the old reroute to the squad is gone");
+});
+
+ok("group keys are bound to their maker: a hub that swaps every member's key copy is refused", async () => {
+  const hub = new FakeHub();
+  const a = session(hub, A), b = session(hub, B), c = session(hub, C);
+  const g = await a.newGroup("Crew", [B.memberId, C.memberId]);
+  await a.send(g, { t: "real words" });
+  // The hub makes its own key and seals it to every member's box key (anonymous seal, the right aad), with a copied or empty signature.
+  const evil = await S.newSquadKey();
+  const real = hub.drops.filter((d) => d.conv === g);
+  for (const d of real) d.sealed = await S.sealKeyTo(rows.get(d.member)!.box_pub, evil, dmAad.key(SQ, g, d.member, 1));
+  const ep = hub.epochs.find((e) => e.conv === g)!;
+  ep.title_ct = await S.seal(evil, { n: "Hacked" }, dmAad.title(SQ, g, 1));
+  for (const s2 of [b, c]) {
+    await s2.tick(); await s2.pull(g);
+    assert.equal(s2.convs.get(g)!.keys.size, 0, "the swapped key is not taken");
+    assert.equal(s2.convs.get(g)!.title, null);
+    assert.equal(s2.list(g).length, 0);
+  }
+  // Signed with the hub's own sign key but naming Alex as the maker: still refused.
+  const evilSign = await S.newSignPair();
+  const fake = await planGroupKeys({ ...A, sign: evilSign }, g, 1, [rows.get(A.memberId)!, rows.get(B.memberId)!, rows.get(C.memberId)!], "Hacked");
+  for (const d of fake!.drops) { const h = hub.drops.find((x) => x.member === d.member && x.conv === g)!; h.sealed = d.sealed; h.sig = d.sig; }
+  ep.title_ct = fake!.title_ct;
+  const b2 = session(hub, B);
+  await b2.tick(); await b2.pull(g);
+  assert.equal(b2.convs.get(g)!.keys.size, 0, "a signature by a key that is not Alex's checked card key fails");
+});
+
+ok("a hub that adds a member by itself gets no key: the others refuse, and a forged rekey by a non creator is refused", async () => {
+  const hub = new FakeHub();
+  const a = session(hub, A), b = session(hub, B), c = session(hub, C), d = session(hub, D);
+  const g = await a.newGroup("Crew", [B.memberId, C.memberId]);
+  await b.tick(); await b.pull(g); await c.tick(); await c.pull(g);
+  hub.convs.get(g)!.people.set(D.memberId, { removed: false, joined: hub.now() });   // the hub adds Kim on its own
+  await b.tick();
+  assert.equal(b.convs.get(g)!.status.rot, true);
+  assert.equal(await b.rotateIfDue(g), false, "Sam will not seal the next key to someone the creator did not add");
+  assert.equal(hub.convs.get(g)!.epoch, 1);
+  assert.equal(hub.drops.filter((x) => x.member === D.memberId).length, 0);
+  // A member who is not the creator signs a rekey that includes Kim anyway (hub accepts it, it has the right shape).
+  const plan = (await planGroupKeys(B, g, 2, [rows.get(A.memberId)!, rows.get(B.memberId)!, rows.get(C.memberId)!, rows.get(D.memberId)!], "Crew", A.memberId))!;
+  await hub.api(B.memberId).rotate(g, 1, plan.drops, plan.title_ct);
+  for (const s2 of [a, c, d]) {
+    await s2.tick(); await s2.pull(g);
+    assert.equal(s2.convs.get(g)!.keys.has(2), false, "epoch 2 adds a member without the creator's signature");
+  }
+  await assert.rejects(c.send(g, { t: "x" }), /key is not here|epoch/);
+  // The creator's own add still works.
+  const hub2 = new FakeHub();
+  const a2 = session(hub2, A), d2 = session(hub2, D), c2 = session(hub2, C);
+  const g2 = await a2.newGroup("Crew", [B.memberId, C.memberId]);
+  await a2.addMembers(g2, [D.memberId]);
+  await d2.tick(); await d2.pull(g2); await c2.tick(); await c2.pull(g2);
+  assert.equal(d2.convs.get(g2)!.keys.has(2), true);
+  assert.equal(c2.convs.get(g2)!.keys.has(2), true, "a signed add by the creator is accepted by the others");
+});
+
+ok("an edit after a removal is sealed under the current key, never the old one the removed member holds", async () => {
+  const hub = new FakeHub();
+  const a = session(hub, A), b = session(hub, B), c = session(hub, C);
+  const g = await a.newGroup("Crew", [B.memberId, C.memberId]);
+  const m = (await a.send(g, { t: "first draft" }))!;
+  await c.tick(); await c.pull(g);
+  const old = new Map(c.convs.get(g)!.keys);
+  await hub.api(A.memberId).change(g, { remove: C.memberId });   // removed, key not yet renewed
+  await assert.rejects(hub.api(A.memberId).edit(g, m.id, 1, "AAAA"), /epoch/, "the hub refuses an edit under the old epoch");
+  await a.tick();
+  await a.edit(g, m.id, "secret after removal");
+  assert.equal(hub.convs.get(g)!.epoch, 2);
+  const row0 = hub.msgs.find((x) => x.id === m.id)!;
+  assert.equal(row0.epoch, 2, "the row moved to the current epoch");
+  for (const [e, k] of old) for (const ep of [1, 2]) assert.equal(await openConvMessage(k, SQ, g, ep, A.memberId, m.id, row0.ct), null, `robin's key ${e} at epoch ${ep}`);
+  await b.tick(); await b.pull(g);
+  assert.equal(b.list(g)[0].t, "secret after removal");
+});
+
+ok("the picture cap of the app fits the hub's: the biggest accepted picture seals to under 70,000 characters", async () => {
+  const bytes = AVATAR_MAX_BYTES;
+  const big = "data:image/jpeg;base64," + Buffer.alloc(bytes, 7).toString("base64");
+  assert.equal(cleanAvatar(big), big);
+  const sealed = await (await import("../src/core/squaddm.ts")).sealAvatar(A, big);
+  assert.ok(sealed.ct.length < 70_000, `sealed length ${sealed.ct.length}`);
+  assert.equal(cleanAvatar("data:image/jpeg;base64," + Buffer.alloc(bytes + 2000, 7).toString("base64")), null);
+});
+
+ok("after a 404 the tick backs off for an hour, and a DM cannot be left", async () => {
+  const hub = new FakeHub();
+  hub.noDm = true;
+  let t = 1_000_000;
+  const a = session(hub, A); a.now = () => t;
+  await a.tick(); await a.tick(); t += 600_000; await a.tick();
+  assert.equal(hub.calls.tick, 1, "no calls for an hour");
+  t += 3_000_000; await a.tick();
+  assert.equal(hub.calls.tick, 2);
+  hub.noDm = false;
+  t += 3_700_000; await a.tick();
+  assert.equal(a.available, true);
+  const id = await a.newDm(B.memberId);
+  await assert.rejects(a.leave(id), /cannot leave/);
+});
+
+ok("a squad with more than 100 conversations: a conversation missing from the list is not deleted", async () => {
+  const hub = new FakeHub();
+  const a = session(hub, A);
+  const id = await a.newDm(B.memberId);
+  const real = hub.api(A.memberId);
+  const more = new DmSession(A, () => [...rows.values()], { ...real, tick: async () => ({ convs: [], av: null, more: true }) }, null);
+  more.convs.set(id, a.convs.get(id)!);
+  await more.tick();
+  assert.equal(more.convs.has(id), true);
+});
+
 // ---------- pictures ----------
 ok("profile pictures: sealed with the squad key, fetched once, cached on the device, updated on change only", async () => {
   const hub = new FakeHub();
@@ -448,8 +602,17 @@ ok("the hub function and migration: signed acts only, rate limits, closed tables
   assert.match(sql, />= 30 then raise exception 'slow'/);
   assert.match(sql, />= 10 then raise exception 'slow'/);
   assert.match(sql, /interval '10 seconds'/);
-  for (const t of ["dm_convs", "dm_members", "dm_keydrops", "dm_messages", "dm_reads", "dm_avatars"]) { assert.match(sql, new RegExp(`'${t}'`)); assert.match(rb, new RegExp(t)); }
+  for (const t of ["dm_convs", "dm_members", "dm_keydrops", "dm_epochs", "dm_meta", "dm_messages", "dm_reads", "dm_avatars"]) { assert.match(sql, new RegExp(`'${t}'`)); assert.match(rb, new RegExp(t)); }
   assert.match(sql, /force row level security/);
+  // Housekeeping: once a day (gate), bounded, indexed. No unbounded delete.
+  const tidy = sql.slice(sql.indexOf("function public.dm_tidy()"), sql.indexOf("do $$\ndeclare f text;"));
+  assert.match(tidy, /dm_meta set at = now\(\) where k = 'tidy' and at < now\(\) - interval '1 day'/);
+  assert.equal((tidy.match(/\bdelete from\b/g) ?? []).length, 5);
+  assert.equal((tidy.match(/limit \d+/g) ?? []).length >= 4, true, "every bulk delete is bounded");
+  for (const ix of ["dm_messages_deleted", "dm_keydrops_member", "dm_reads_member", "dm_convs_updated", "squad_members_left"]) assert.match(sql, new RegExp(`create index ${ix}`));
+  assert.match(sql, /gsquad-dm-new:/);
+  assert.match(sql, /create or replace function public\.dm_edit/);
+  assert.doesNotMatch(fn, /dm_tidy"\)[^\n]*\n[^\n]*dm_tidy/);
   assert.match(sql, /grant execute on function public\.%s to service_role/);
   assert.doesNotMatch(fn + sql + rb, /[–—]/);
   const f = JSON.parse(read("../features.json")).features.find((x: { id: string }) => x.id === "gsquad-dm");

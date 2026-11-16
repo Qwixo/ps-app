@@ -5,8 +5,12 @@
 -- DB PROOF (not run on the live hub, this repo has no database; read it as a plan):
 --   every read is by a key that has an index: dm_members(member_id) where active, dm_messages(conv_id, created_at) and
 --   (conv_id, updated_at), dm_keydrops pk (conv_id, member_id, epoch), dm_avatars(squad_id, updated_at).
---   One conversation list per member is bounded by 100 rows; a pull is bounded by 200 or 500 rows; nothing scans a whole table.
---   No cron: the edge function runs dm_tidy now and then, like chat_tidy. No recurring DDL.
+--   One conversation list per member is bounded by 100 rows; a pull is bounded by 200 or 500 rows.
+--   Housekeeping (dm_tidy) runs at most once a day (a one row gate table), every delete is bounded (limit) and reached by an
+--   index: dm_messages(updated_at) where deleted, dm_keydrops(member_id), dm_reads(member_id), dm_convs(updated_at),
+--   squad_members(left_at desc) where left_at is not null (one small partial index on an existing table, additive).
+--   No cron: the edge function calls dm_tidy now and then, the gate makes all but one call a day return at once. No recurring DDL.
+--   Retention: dm_epochs rows go with their conversation (cascade); deleted messages after 30 days (dm_tidy).
 -- Privacy: the hub stores ciphertext, public keys, ids, counts and times. It does see WHO is in each conversation and when
 -- messages are sent (it has to, to deliver them). It never sees a key, a name, a title, a message or a picture.
 -- Rate limits (in the functions): 30 messages a minute per member (shared by DMs and groups), 10 new conversations a
@@ -37,15 +41,35 @@ create table public.dm_members (
   primary key (conv_id, member_id)
 );
 create index dm_members_active on public.dm_members(member_id) where removed_at is null;
+create index dm_convs_updated on public.dm_convs(updated_at);
 
 create table public.dm_keydrops (
   conv_id uuid not null references public.dm_convs(id) on delete cascade,
   epoch integer not null,
   member_id uuid not null references public.squad_members(id) on delete cascade,
   sealed text not null check (length(sealed) <= 600),
+  sig text not null check (length(sig) between 1 and 200),            -- the maker's signature over this copy (checked on the devices, never here)
   created_at timestamptz not null default now(),
   primary key (conv_id, member_id, epoch)
 );
+create index dm_keydrops_member on public.dm_keydrops(member_id);
+
+-- The signed envelope of each group epoch: who made it, who created the group, the exact member list and the sealed name.
+-- The hub only stores it; every device checks the signature against the maker's signed card.
+create table public.dm_epochs (
+  conv_id uuid not null references public.dm_convs(id) on delete cascade,
+  epoch integer not null,
+  signer uuid not null references public.squad_members(id) on delete cascade,
+  creator uuid not null,
+  members uuid[] not null,
+  title_ct text not null check (length(title_ct) <= 400),
+  primary key (conv_id, epoch)
+);
+
+-- One row: when housekeeping last ran (so it runs once a day, never inside every request).
+create table public.dm_meta (k text primary key, at timestamptz not null);
+insert into public.dm_meta (k, at) values ('tidy', 'epoch');
+create index squad_members_left on public.squad_members(left_at desc) where left_at is not null;
 
 create table public.dm_messages (
   id uuid primary key,
@@ -61,6 +85,7 @@ create table public.dm_messages (
 create index dm_messages_conv_created on public.dm_messages(conv_id, created_at);
 create index dm_messages_conv_updated on public.dm_messages(conv_id, updated_at);
 create index dm_messages_member_recent on public.dm_messages(member_id, created_at);
+create index dm_messages_deleted on public.dm_messages(updated_at) where deleted;
 
 create table public.dm_reads (
   conv_id uuid not null references public.dm_convs(id) on delete cascade,
@@ -68,6 +93,7 @@ create table public.dm_reads (
   read_at timestamptz not null,
   primary key (conv_id, member_id)
 );
+create index dm_reads_member on public.dm_reads(member_id);
 
 create table public.dm_avatars (
   member_id uuid primary key references public.squad_members(id) on delete cascade,
@@ -81,7 +107,7 @@ create index dm_avatars_squad on public.dm_avatars(squad_id, updated_at);
 do $$
 declare t text;
 begin
-  foreach t in array array['dm_convs', 'dm_members', 'dm_keydrops', 'dm_messages', 'dm_reads', 'dm_avatars'] loop
+  foreach t in array array['dm_convs', 'dm_members', 'dm_keydrops', 'dm_epochs', 'dm_meta', 'dm_messages', 'dm_reads', 'dm_avatars'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('alter table public.%I force row level security', t);
     execute format('revoke all on table public.%I from anon, authenticated, public', t);
@@ -120,7 +146,7 @@ end $$;
 -- ---------- the cheap look: one small answer for every conversation of one member ----------
 create or replace function public.dm_status(p_member uuid)
 returns jsonb language plpgsql stable set search_path = '' as $$
-declare sq uuid; convs jsonb; av timestamptz;
+declare sq uuid; convs jsonb; av timestamptz; total integer;
 begin
   select squad_id into sq from public.squad_members where id = p_member and left_at is null and admitted;
   if sq is null then raise exception 'member' using errcode = 'P0001'; end if;
@@ -136,7 +162,8 @@ begin
     where m.member_id = p_member and m.removed_at is null and c.squad_id = sq
     order by c.last_at desc nulls last limit 100) x;
   select max(updated_at) into av from public.dm_avatars where squad_id = sq;
-  return jsonb_build_object('convs', convs, 'av', av);
+  select count(*) into total from public.dm_members where member_id = p_member and removed_at is null;   -- dm_members_active
+  return jsonb_build_object('convs', convs, 'av', av, 'more', total > 100);
 end $$;
 
 -- ---------- make a conversation ----------
@@ -155,6 +182,7 @@ begin
     update public.dm_members set removed_at = null where conv_id = p_id and member_id = me.id and removed_at is not null and c.kind = 'dm';
     return jsonb_build_object('created', false, 'epoch', c.epoch);
   end if;
+  perform pg_advisory_xact_lock(hashtextextended('gsquad-dm-new:' || me.id::text, 0));   -- one at a time per member, so parallel calls cannot slip past the limit
   if (select count(*) from public.dm_convs where created_by = me.id and created_at > now() - interval '1 minute') >= 10 then raise exception 'slow' using errcode = 'P0001'; end if;
   ids := (select coalesce(array_agg(distinct x order by x), '{}') from unnest(p_others || array[me.id]) x);
   n := cardinality(ids);
@@ -164,7 +192,7 @@ begin
   end if;
   if p_kind = 'group' then
     select coalesce(array_agg((d->>'member')::uuid order by (d->>'member')::uuid), '{}') into got from jsonb_array_elements(p_drops) d;
-    if got <> ids or coalesce(p_title, '') = '' or exists (select 1 from jsonb_array_elements(p_drops) d where coalesce(d->>'sealed', '') = '' or length(d->>'sealed') > 600) then
+    if got <> ids or coalesce(p_title, '') = '' or exists (select 1 from jsonb_array_elements(p_drops) d where coalesce(d->>'sealed', '') = '' or length(d->>'sealed') > 600 or coalesce(d->>'sig', '') = '' or length(d->>'sig') > 200) then
       raise exception 'drops' using errcode = 'P0001';
     end if;
   end if;
@@ -172,7 +200,8 @@ begin
     values (p_id, me.squad_id, p_kind, me.id, 1, case when p_kind = 'group' then ids else '{}' end, case when p_kind = 'group' then p_title end);
   insert into public.dm_members (conv_id, member_id) select p_id, x from unnest(ids) x;
   if p_kind = 'group' then
-    insert into public.dm_keydrops (conv_id, epoch, member_id, sealed) select p_id, 1, (d->>'member')::uuid, d->>'sealed' from jsonb_array_elements(p_drops) d;
+    insert into public.dm_keydrops (conv_id, epoch, member_id, sealed, sig) select p_id, 1, (d->>'member')::uuid, d->>'sealed', d->>'sig' from jsonb_array_elements(p_drops) d;
+    insert into public.dm_epochs (conv_id, epoch, signer, creator, members, title_ct) values (p_id, 1, me.id, me.id, ids, p_title);
   end if;
   return jsonb_build_object('created', true, 'epoch', 1);
 end $$;
@@ -222,10 +251,11 @@ begin
   want := public.dm_in(p_conv);
   if c.key_members = want then return jsonb_build_object('done', false, 'epoch', c.epoch); end if;
   select coalesce(array_agg((d->>'member')::uuid order by (d->>'member')::uuid), '{}') into got from jsonb_array_elements(p_drops) d;
-  if got <> want or coalesce(p_title, '') = '' or exists (select 1 from jsonb_array_elements(p_drops) d where coalesce(d->>'sealed', '') = '' or length(d->>'sealed') > 600) then
+  if got <> want or coalesce(p_title, '') = '' or exists (select 1 from jsonb_array_elements(p_drops) d where coalesce(d->>'sealed', '') = '' or length(d->>'sealed') > 600 or coalesce(d->>'sig', '') = '' or length(d->>'sig') > 200) then
     raise exception 'drops' using errcode = 'P0001';
   end if;
-  insert into public.dm_keydrops (conv_id, epoch, member_id, sealed) select p_conv, nxt, (d->>'member')::uuid, d->>'sealed' from jsonb_array_elements(p_drops) d;
+  insert into public.dm_keydrops (conv_id, epoch, member_id, sealed, sig) select p_conv, nxt, (d->>'member')::uuid, d->>'sealed', d->>'sig' from jsonb_array_elements(p_drops) d;
+  insert into public.dm_epochs (conv_id, epoch, signer, creator, members, title_ct) values (p_conv, nxt, p_member, c.created_by, want, p_title);
   update public.dm_members set since_epoch = nxt where conv_id = p_conv and member_id = any(want) and since_epoch > c.epoch;
   update public.dm_convs set epoch = nxt, key_members = want, title_ct = p_title, updated_at = now() where id = p_conv;
   return jsonb_build_object('done', true, 'epoch', nxt);
@@ -251,6 +281,23 @@ begin
   return jsonb_build_object('at', at);
 end $$;
 
+-- ---------- an edit ----------
+-- Only into the epoch now (the client seals the new text under the CURRENT key and the row moves to it), so text written after a
+-- removal is never under a key the removed member holds. A group only while its key covers exactly the members still in.
+create or replace function public.dm_edit(p_member uuid, p_conv uuid, p_id uuid, p_epoch integer, p_ct text)
+returns jsonb language plpgsql set search_path = '' as $$
+declare c public.dm_convs; n integer;
+begin
+  perform public.dm_lock(p_conv);
+  c := public.dm_access(p_member, p_conv);
+  if c.epoch <> p_epoch then raise exception 'epoch' using errcode = 'P0001'; end if;
+  if c.kind = 'group' and c.key_members <> public.dm_in(p_conv) then raise exception 'epoch' using errcode = 'P0001'; end if;
+  update public.dm_messages set ct = p_ct, epoch = p_epoch, edited = true, updated_at = now()
+    where id = p_id and conv_id = p_conv and member_id = p_member and not deleted;
+  get diagnostics n = row_count;
+  return jsonb_build_object('ok', n > 0);
+end $$;
+
 -- ---------- pictures ----------
 create or replace function public.dm_avatar_set(p_member uuid, p_ct text, p_gen integer)
 returns jsonb language plpgsql set search_path = '' as $$
@@ -265,25 +312,39 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
--- Housekeeping (the edge function runs it now and then): deleted messages after 30 days, everything of members who
--- left the squad, conversations nobody is in any more.
+-- Housekeeping: deleted messages after 30 days, the key copies and read marks of members who left the squad, conversations
+-- nobody is in any more. At most once a day (the gate row), every delete bounded and reached by an index, so a call is cheap
+-- whatever the table sizes. The edge function may call it often: all but one call a day return 0 at once.
 create or replace function public.dm_tidy()
-returns void language sql set search_path = '' as $$
-  delete from public.dm_messages where deleted and updated_at < now() - interval '30 days';
-  delete from public.dm_keydrops d using public.squad_members m where m.id = d.member_id and m.left_at is not null;
-  delete from public.dm_reads r using public.squad_members m where m.id = r.member_id and m.left_at is not null;
-  delete from public.dm_avatars a using public.squad_members m where m.id = a.member_id and m.left_at is not null;
-  delete from public.dm_convs c where not exists (
-    select 1 from public.dm_members x join public.squad_members s on s.id = x.member_id
-    where x.conv_id = c.id and x.removed_at is null and s.left_at is null) and c.updated_at < now() - interval '30 days';
-$$;
+returns integer language plpgsql set search_path = '' as $$
+declare n integer := 0; cnt integer; gone uuid[];
+begin
+  update public.dm_meta set at = now() where k = 'tidy' and at < now() - interval '1 day';   -- pk lookup
+  if not found then return 0; end if;
+  delete from public.dm_messages where id in (select id from public.dm_messages where deleted and updated_at < now() - interval '30 days' order by updated_at limit 500);   -- dm_messages_deleted
+  get diagnostics cnt = row_count; n := n + cnt;
+  select coalesce(array_agg(id), '{}') into gone from (select id from public.squad_members where left_at is not null order by left_at desc limit 100) x;   -- squad_members_left
+  delete from public.dm_keydrops where (conv_id, member_id, epoch) in (select conv_id, member_id, epoch from public.dm_keydrops where member_id = any(gone) limit 500);   -- dm_keydrops_member
+  get diagnostics cnt = row_count; n := n + cnt;
+  delete from public.dm_reads where (conv_id, member_id) in (select conv_id, member_id from public.dm_reads where member_id = any(gone) limit 500);   -- dm_reads_member
+  get diagnostics cnt = row_count; n := n + cnt;
+  delete from public.dm_avatars where member_id = any(gone);   -- pk, at most 100
+  get diagnostics cnt = row_count; n := n + cnt;
+  delete from public.dm_convs where id in (
+    select c.id from public.dm_convs c where c.updated_at < now() - interval '30 days'   -- dm_convs_updated
+      and not exists (select 1 from public.dm_members x join public.squad_members s on s.id = x.member_id
+                      where x.conv_id = c.id and x.removed_at is null and s.left_at is null)
+    order by c.updated_at limit 200);
+  get diagnostics cnt = row_count; n := n + cnt;
+  return n;
+end $$;
 
 do $$
 declare f text;
 begin
   foreach f in array array['dm_in(uuid)', 'dm_lock(uuid)', 'dm_access(uuid, uuid)', 'dm_status(uuid)',
     'dm_new(uuid, uuid, text, uuid[], text, jsonb)', 'dm_change(uuid, uuid, uuid[], uuid)', 'dm_rotate(uuid, uuid, integer, jsonb, text)',
-    'dm_post(uuid, uuid, uuid, integer, text)', 'dm_avatar_set(uuid, text, integer)', 'dm_tidy()'] loop
+    'dm_post(uuid, uuid, uuid, integer, text)', 'dm_edit(uuid, uuid, uuid, integer, text)', 'dm_avatar_set(uuid, text, integer)', 'dm_tidy()'] loop
     execute format('revoke all on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;

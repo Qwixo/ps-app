@@ -24,9 +24,9 @@ export async function dmCall<T = unknown>(who: HubIdent, act: string, args: unkn
 }
 
 export interface DmStatusConv { id: string; k: "dm" | "group"; e: number; last: string | null; upd: string; rot: boolean; closed: boolean; u: number }
-export interface DmStatus { convs: DmStatusConv[]; av: string | null }
+export interface DmStatus { convs: DmStatusConv[]; av: string | null; more?: boolean }
 export interface DmMsgRow { id: string; member_id: string; epoch: number; ct: string; edited: boolean; deleted: boolean; created_at: string; updated_at: string }
-export interface DmPull { now: string; conv: { id: string; kind: "dm" | "group"; epoch: number; title_ct: string | null }; people: string[]; drops: { epoch: number; sealed: string }[]; msgs: DmMsgRow[]; more: boolean }
+export interface DmPull { now: string; conv: { id: string; kind: "dm" | "group"; epoch: number; title_ct: string | null }; people: string[]; drops: { epoch: number; sealed: string; sig?: string }[]; epochs?: { epoch: number; signer: string; creator: string; members: string[]; title_ct: string }[]; msgs: DmMsgRow[]; more: boolean }
 export interface AvatarRow { member_id: string; ct: string; gen: number; updated_at: string }
 
 export function dmApi(who: HubIdent, fetcher?: Fetcher) {
@@ -34,12 +34,12 @@ export function dmApi(who: HubIdent, fetcher?: Fetcher) {
   return {
     tick: () => call<DmStatus>("d_tick", {}),
     pull: (conv: string, since: string | null, before?: string | null) => call<DmPull>("d_pull", before ? { conv, before } : { conv, since }),
-    create: (a: { id: string; kind: "dm" | "group"; others: string[]; title?: string; drops?: { member: string; sealed: string }[] }) =>
+    create: (a: { id: string; kind: "dm" | "group"; others: string[]; title?: string; drops?: { member: string; sealed: string; sig: string }[] }) =>
       call<{ created: boolean; epoch: number }>("d_new", a),
     change: (conv: string, a: { add?: string[]; remove?: string }) => call<{ ok: true }>("d_change", { conv, ...a }),
-    rotate: (conv: string, from: number, drops: { member: string; sealed: string }[], title?: string) => call<{ done: boolean; epoch: number }>("d_rotate", { conv, from, drops, ...(title ? { title } : {}) }),
+    rotate: (conv: string, from: number, drops: { member: string; sealed: string; sig?: string }[], title?: string) => call<{ done: boolean; epoch: number }>("d_rotate", { conv, from, drops, ...(title ? { title } : {}) }),
     post: (conv: string, id: string, epoch: number, ct: string) => call<{ at: string }>("d_post", { conv, id, epoch, ct }),
-    edit: (conv: string, id: string, ct: string) => call<{ ok: true }>("d_edit", { conv, id, ct }),
+    edit: (conv: string, id: string, epoch: number, ct: string) => call<{ ok: true }>("d_edit", { conv, id, epoch, ct }),
     del: (conv: string, id: string) => call<{ ok: true }>("d_del", { conv, id }),
     read: (conv: string, at: string) => call<{ ok: true }>("d_read", { conv, at }),
     avatars: (since: string | null) => call<{ rows: AvatarRow[]; more: boolean }>("d_apull", { since }),

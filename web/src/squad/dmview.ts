@@ -78,3 +78,9 @@ export function buildConvs(items: ConvInput[]): ConvView[] {
   if (!list.some((c) => c.id === SQUAD_CONV)) list.unshift({ id: SQUAD_CONV, kind: "squad", title: "G Squad", memberIds: [], unread: 0 });
   return list.sort((a, b) => ms(b.last?.at ?? "") - ms(a.last?.at ?? "") || (a.id === SQUAD_CONV ? -1 : b.id === SQUAD_CONV ? 1 : a.title.localeCompare(b.title)));
 }
+
+/** Where a queued message goes: the squad chat only if it was written there; a private one whose conversation is gone is
+ *  "gone" (dropped with a note), never rerouted to the squad chat. */
+export function sendRoute(conv: string, convStillHere: boolean): "squad" | "dm" | "gone" {
+  return conv === SQUAD_CONV ? "squad" : convStillHere ? "dm" : "gone";
+}

@@ -5,7 +5,9 @@
 // HKDF with both public keys, the squad, the conversation and the epoch in it). The hub never holds a key for a DM, it
 // only stores ciphertext, so neither the hub nor any other member can open one: a third member has neither private key.
 // Every box key is checked against the member's sealed card first (trustedBox in squadchat.ts), so the hub cannot slip
-// its own key in. Rotating a DM = a higher epoch: a new key, bound into every message's aad.
+// its own key in. Rotating a DM = a higher epoch: a new key, bound into every message's aad. NOTE: both keys are static, so
+// a DM rotation is NOT forward secrecy (anyone who gets a box key can derive every epoch); it only separates epochs.
+// Messages are not signed: any member holding a group key could post as another member (same as the main squad chat).
 // Group chat: a random key per epoch, sealed to each member's checked box key (the same seal as the chat periods). When
 // someone is removed or leaves, a member still in makes the next epoch for exactly the members still in, so the one
 // who left holds no key for any message sent after. A member added gets keys from their epoch on, never older ones.
@@ -14,7 +16,7 @@ import { b64, sha256hex, unb64 } from "./crypto.ts";
 import { open, seal, sealKeyTo, newSquadKey, V } from "./squadcrypto.ts";
 import { cleanBody, cleanText, trustedBox, type ChatBody } from "./squadchat.ts";
 import { openKeyDrop } from "./squadcrypto.ts";
-import { cleanName, keyFor, currentKey, type HubMember, type SquadRec } from "./squadrec.ts";
+import { cleanName, keyFor, currentKey, openCard, type HubMember, type SquadRec } from "./squadrec.ts";
 
 const subtle = globalThis.crypto.subtle;
 const te = new TextEncoder();
@@ -29,7 +31,7 @@ export const dmAad = {
 };
 
 export const MAX_GROUP = 24, MAX_TITLE = 40;
-export const AVATAR_MAX_BYTES = 40 * 1024;
+export const AVATAR_MAX_BYTES = 36 * 1024;   // the hub takes 70,000 characters of sealed base64: 36 KB becomes about 65,500, so every picture the app accepts also fits there
 
 // ---------- direct messages ----------
 /** The conversation id of two members: the same on both devices, so "open or create" never makes two. */
@@ -59,19 +61,67 @@ export async function dmKeyWith(rec: SquadRec, conv: string, peer: HubMember, ep
 export function cleanTitle(v: unknown): string {
   return cleanName(typeof v === "string" ? v.slice(0, 200) : "").slice(0, MAX_TITLE);
 }
-/** Epoch keys for exactly `members` (each checked first). Null when any of them cannot be checked or you are not among
- *  them: nobody is ever sealed around. `title` is sealed under the new key. */
-export async function planGroupKeys(rec: SquadRec, conv: string, epoch: number, members: HubMember[], title: string):
-  Promise<{ epoch: number; raw: string; drops: { member: string; sealed: string }[]; title_ct: string } | null> {
+/** What a rekeying member signs for each member's copy of an epoch key: the squad, group, epoch, who signs, who made the
+ *  group, the exact member list, the sealed name, and this member's sealed copy. A hub cannot swap any of it. */
+export interface GroupEnv { epoch: number; signer: string; creator: string; members: string[]; title_ct: string }
+export interface GroupTrust { epoch: number; members: string[]; creator: string }
+const dropText = (squad: string, conv: string, e: GroupEnv, member: string, sealedHash: string, titleHash: string) =>
+  `${V}:gdrop:${squad}:${conv}:${e.epoch}:${e.signer}:${e.creator}:${[...e.members].sort().join(",")}:${titleHash}:${member}:${sealedHash}`;
+async function signDrop(rec: SquadRec, conv: string, e: GroupEnv, member: string, sealed: string): Promise<string> {
+  const k = await subtle.importKey("pkcs8", unb64(rec.sign.priv), { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const text = dropText(rec.squadId, conv, e, member, await sha256hex(sealed), await sha256hex(e.title_ct));
+  return b64(new Uint8Array(await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, k, te.encode(text))));
+}
+/** A member's sign key checked against their own signed card (a member who has since left still counts: they signed while in). */
+async function trustedSignPub(rec: SquadRec, m: HubMember | undefined): Promise<string | null> {
+  if (!m) return null;
+  const card = await openCard(rec, m.id, m.card_ct, m.card_gen);
+  return card && card.sign === m.sign_pub && card.box === m.box_pub ? m.sign_pub : null;
+}
+/**
+ * Is this key copy (yours) really made by a member of this group? Needs: the signer's checked sign key, a good signature,
+ * you and the signer in the signed list, and the chain: after an epoch you already accepted, the signer must have been in
+ * its list, the creator stays the same, and only the creator may add people. A first epoch (or one after a gap) must be
+ * signed by the creator. So a hub that swaps keys or adds a member cannot produce one.
+ */
+export async function checkGroupDrop(rec: SquadRec, conv: string, env: GroupEnv, sealed: string, sig: string, signerRow: HubMember | undefined, prev: GroupTrust | null): Promise<boolean> {
+  try {
+    if (!Array.isArray(env.members) || !env.members.includes(rec.memberId) || !env.members.includes(env.signer)) return false;
+    const pub = await trustedSignPub(rec, signerRow);
+    if (!pub || signerRow!.id !== env.signer) return false;
+    const key = await subtle.importKey("raw", unb64(pub), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    const text = dropText(rec.squadId, conv, env, rec.memberId, await sha256hex(sealed), await sha256hex(env.title_ct));
+    if (!(await subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, unb64(sig), te.encode(text)))) return false;
+    if (prev && prev.epoch === env.epoch - 1) {
+      if (!prev.members.includes(env.signer) || env.creator !== prev.creator) return false;
+      if (env.members.some((m) => !prev.members.includes(m)) && env.signer !== env.creator) return false;
+      return true;
+    }
+    return env.signer === env.creator;
+  } catch { return false; }
+}
+
+/** Epoch keys for exactly `members` (each checked first), every copy and the member list signed with your sign key.
+ *  Null when any of them cannot be checked or you are not among them: nobody is ever sealed around. `title` is sealed
+ *  under the new key. `creator` is who made the group. */
+export async function planGroupKeys(rec: SquadRec, conv: string, epoch: number, members: HubMember[], title: string, creator: string = rec.memberId):
+  Promise<{ epoch: number; raw: string; drops: { member: string; sealed: string; sig: string }[]; title_ct: string; members: string[] } | null> {
   const raw = await newSquadKey();
-  const drops: { member: string; sealed: string }[] = [];
+  const boxes: { id: string; box: string }[] = [];
   for (const m of members) {
     const box = await trustedBox(rec, m);
     if (!box) return null;
-    drops.push({ member: m.id, sealed: await sealKeyTo(box, raw, dmAad.key(rec.squadId, conv, m.id, epoch)) });
+    boxes.push({ id: m.id, box });
   }
-  if (!drops.some((d) => d.member === rec.memberId)) return null;
-  return { epoch, raw, drops, title_ct: await seal(raw, { n: cleanTitle(title) || "Group" }, dmAad.title(rec.squadId, conv, epoch)) };
+  if (!boxes.some((b) => b.id === rec.memberId)) return null;
+  const title_ct = await seal(raw, { n: cleanTitle(title) || "Group" }, dmAad.title(rec.squadId, conv, epoch));
+  const env: GroupEnv = { epoch, signer: rec.memberId, creator, members: boxes.map((b) => b.id).sort(), title_ct };
+  const drops: { member: string; sealed: string; sig: string }[] = [];
+  for (const b of boxes) {
+    const sealed = await sealKeyTo(b.box, raw, dmAad.key(rec.squadId, conv, b.id, epoch));
+    drops.push({ member: b.id, sealed, sig: await signDrop(rec, conv, env, b.id, sealed) });
+  }
+  return { epoch, raw, drops, title_ct, members: env.members };
 }
 export async function openGroupDrop(rec: SquadRec, conv: string, epoch: number, sealed: string): Promise<string | null> {
   try { return await openKeyDrop(rec.box.priv, sealed, dmAad.key(rec.squadId, conv, rec.memberId, epoch)); } catch { return null; }
@@ -91,9 +141,9 @@ export async function openConvMessage(raw: string, squad: string, conv: string, 
 }
 
 // ---------- profile pictures ----------
-/** A picture the app will take: a jpeg or webp data URL of at most 40 KB (the Tab list shows it as is). */
+/** A picture the app will take: a jpeg or webp data URL of at most 36 KB (the Tab list shows it as is). */
 export function cleanAvatar(v: unknown): string | null {
-  if (typeof v !== "string" || v.length > 60_000) return null;
+  if (typeof v !== "string" || v.length > 50_000) return null;
   const m = /^data:image\/(jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(v);
   if (!m) return null;
   const bytes = Math.floor((m[2].length * 3) / 4) - (m[2].endsWith("==") ? 2 : m[2].endsWith("=") ? 1 : 0);

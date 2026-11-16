@@ -5,7 +5,7 @@
 import { newUuid } from "../core/squadcrypto.ts";
 import { currentKey, type HubMember, type SquadRec } from "../core/squadrec.ts";
 import { cleanBody, hubMicros, type ChatBody } from "../core/squadchat.ts";
-import { cleanAvatar, cleanTitle, dmConvId, dmKeyWith, MAX_GROUP, openAvatar, openConvMessage, openGroupDrop, openTitle, planGroupKeys, sealAvatar, sealConvMessage } from "../core/squaddm.ts";
+import { checkGroupDrop, cleanAvatar, cleanTitle, dmConvId, dmKeyWith, MAX_GROUP, openAvatar, openConvMessage, openGroupDrop, openTitle, planGroupKeys, sealAvatar, sealConvMessage, type GroupTrust } from "../core/squaddm.ts";
 import { HubError } from "./hub.ts";
 import { reactPlan, type ReactEvent } from "./chatreact.ts";
 import type { ChatMsg } from "./chatflows.ts";
@@ -16,10 +16,12 @@ export interface DmConv {
   keys: Map<number, string>; msgs: Map<string, ChatMsg>; reacts: Map<string, ReactEvent>; gone: Set<string>;
   since: string | null; more: boolean; loaded: boolean;
   status: { last: string | null; upd: string; rot: boolean; closed: boolean; u: number };
+  trust?: GroupTrust | null;   // group: the last key epoch whose signed envelope checked out (memory only, rebuilt from the signed epochs)
 }
 /** Where the sealed pictures and the change cursor are kept between runs (the engine hands localStorage, tests a map). */
 export interface AvatarStore { get(k: string): string | null; set(k: string, v: string): void }
 
+const RETRY_MS = 3_600_000;
 const shell = (id: string, kind: "dm" | "group", epoch: number, people: string[]): DmConv => ({
   id, kind, epoch, title: null, people, keys: new Map(), msgs: new Map(), reacts: new Map(), gone: new Set(), since: null, more: false, loaded: false,
   status: { last: null, upd: "", rot: false, closed: false, u: 0 },
@@ -33,6 +35,8 @@ export class DmSession {
   available: boolean | null = null;       // null = not asked yet; false = the hub has no `dm` function (everything stays hidden)
   private members: () => HubMember[];
   private store: AvatarStore | null;
+  now: () => number = () => Date.now();
+  retryAt = 0;
   private avCursor: string | null = null;
   private avSeen: string | null = null;
   private avSealed = new Map<string, { ct: string; gen: number }>();   // as the hub sent them: the cache on disk
@@ -46,9 +50,11 @@ export class DmSession {
   // ---------- the cheap look ----------
   /** One small call. Returns the ids of conversations that are new or changed (the caller pulls only those). */
   async tick(): Promise<string[]> {
+    if (this.now() < this.retryAt) return [];   // the hub had no `dm` a short while ago: look again once an hour, not every 2 minutes
     let st;
     try { st = await this.api.tick(); }
-    catch (e) { if (e instanceof HubError && (e.status === 404 || e.status === 403)) { this.available = false; return []; } throw e; }
+    catch (e) { if (e instanceof HubError && (e.status === 404 || e.status === 403)) { this.available = false; this.retryAt = this.now() + RETRY_MS; return []; } throw e; }
+    this.retryAt = 0;
     this.available = true;
     const changed: string[] = [], seen = new Set<string>();
     for (const c of st.convs) {
@@ -61,7 +67,8 @@ export class DmSession {
       this.convs.set(c.id, cur);
       if (!had || was.last !== c.last || was.upd !== c.upd) changed.push(c.id);
     }
-    for (const id of [...this.convs.keys()]) if (!seen.has(id)) this.convs.delete(id);   // removed from it: it is gone for you
+    // Removed from it: gone for you. The hub lists at most 100, so with more than that nothing is dropped here (a pull's 403 does it).
+    if (!st.more) for (const id of [...this.convs.keys()]) if (!seen.has(id)) this.convs.delete(id);
     if (st.av && st.av !== this.avSeen) await this.pullAvatars(st.av);
     return changed;
   }
@@ -87,14 +94,19 @@ export class DmSession {
     try { p = await this.api.pull(id, c.since); }
     catch (e) { if (e instanceof HubError && e.status === 403) { this.convs.delete(id); return; } throw e; }
     c.kind = p.conv.kind; c.epoch = p.conv.epoch; c.people = p.people;
-    for (const d of p.drops) {
+    // A group key copy is accepted only with a signature by a checked member who may make it (checkGroupDrop): a hub that
+    // swaps the keys or adds a member has no such signature, so its copy is ignored and the group just stays out of date.
+    for (const d of [...p.drops].sort((a, b) => a.epoch - b.epoch)) {
       if (c.keys.has(d.epoch)) continue;
+      const env = (p.epochs ?? []).find((e) => e.epoch === d.epoch);
+      if (!env || typeof d.sig !== "string") continue;
+      const signer = this.members().find((m) => m.id === env.signer);
+      if (!(await checkGroupDrop(this.rec, id, env, d.sealed, d.sig, signer, c.trust ?? null))) continue;
       const k = await openGroupDrop(this.rec, id, d.epoch, d.sealed);
-      if (k) c.keys.set(d.epoch, k);
-    }
-    if (c.kind === "group" && p.conv.title_ct) {
-      const raw = c.keys.get(c.epoch);
-      const t = raw ? await openTitle(raw, this.rec.squadId, id, c.epoch, p.conv.title_ct) : null;
+      if (!k) continue;
+      c.keys.set(d.epoch, k);
+      c.trust = { epoch: d.epoch, members: env.members, creator: env.creator };
+      const t = await openTitle(k, this.rec.squadId, id, d.epoch, env.title_ct);
       if (t) c.title = t;
     }
     await this.take(c, p.msgs);
@@ -152,36 +164,44 @@ export class DmSession {
     if (!plan) throw new Error("Someone in that list is not ready for messages yet.");
     const r = await this.api.create({ id, kind: "group", others, title: plan.title_ct, drops: plan.drops });
     const c = shell(id, "group", r.epoch, [this.me, ...others].sort());
-    c.keys.set(1, plan.raw); c.title = name;
+    c.keys.set(1, plan.raw); c.title = name; c.trust = { epoch: 1, members: plan.members, creator: this.me };
     this.convs.set(id, c);
     return id;
   }
   /** The creator adds people or removes anyone; anyone removes themselves (leave). Either way a member still in then
    *  makes the next key (rotateIfDue), so a removed member holds no key for anything sent after. */
   async addMembers(id: string, add: string[]): Promise<void> {
-    await this.api.change(id, { add: [...new Set(add)] });
-    await this.rotateIfDue(id);
+    const adds = [...new Set(add)];
+    await this.api.change(id, { add: adds });
+    await this.rotateIfDue(id, adds);
   }
   async removeMember(id: string, member: string): Promise<void> {
     await this.api.change(id, { remove: member });
     if (member !== this.me) await this.rotateIfDue(id);
   }
   async leave(id: string): Promise<void> {
+    if (this.convs.get(id)?.kind === "dm") throw new Error("You cannot leave a private message.");
     await this.api.change(id, { remove: this.me });
     this.convs.delete(id);
   }
   /** A group whose members changed: the next epoch for exactly the members still in. A DM never needs it. */
-  async rotateIfDue(id: string): Promise<boolean> {
+  async rotateIfDue(id: string, adds: string[] = []): Promise<boolean> {
     const c = this.convs.get(id);
     if (!c || c.kind !== "group") return false;
     await this.pull(id);
+    const t = c.trust;
+    if (!t) return false;   // no key copy of yours has checked out: you cannot vouch for who is in
+    // Nobody is sealed in that the last signed list does not hold, unless the creator is adding them right now. A hub that
+    // adds a member by itself therefore freezes the group (nobody writes) instead of getting the next key.
+    const explained = new Set([...t.members, ...(this.me === t.creator ? adds : [])]);
+    if (c.people.some((p) => !explained.has(p))) return false;
     const rows = c.people.map((p) => this.row(p));
     if (rows.some((r) => !r)) return false;
-    const plan = await planGroupKeys(this.rec, id, c.epoch + 1, rows as HubMember[], c.title ?? "Group");
+    const plan = await planGroupKeys(this.rec, id, c.epoch + 1, rows as HubMember[], c.title ?? "Group", t.creator);
     if (!plan) return false;
     try {
       const r = await this.api.rotate(id, c.epoch, plan.drops, plan.title_ct);
-      if (r.done) { c.keys.set(plan.epoch, plan.raw); c.epoch = plan.epoch; c.status.rot = false; }
+      if (r.done) { c.keys.set(plan.epoch, plan.raw); c.epoch = plan.epoch; c.status.rot = false; c.trust = { epoch: plan.epoch, members: plan.members, creator: t.creator }; }
     } catch (e) { if (!(e instanceof HubError && e.status === 409)) throw e; }
     await this.pull(id);
     return true;
@@ -217,14 +237,17 @@ export class DmSession {
       }
     }
   }
+  /** An edit is sealed under the CURRENT epoch key (and the hub updates the row's epoch), never the message's old one: text written
+   *  after someone was removed is not under a key they hold. The conversation must be up to date (not waiting for a rekey). */
   async edit(id: string, msgId: string, text: string): Promise<void> {
     const c = this.convs.get(id), m = c?.msgs.get(msgId);
     if (!c || !m || m.from !== this.me) return;
-    const raw = c.keys.get(m.epoch) ?? await this.keyFor(c, m.epoch);
+    if (c.kind === "group" && c.status.rot) await this.rotateIfDue(id);
+    const raw = await this.keyFor(c, c.epoch);
     const b = cleanBody({ t: text, ...(m.a ? { a: m.a } : {}), ...(m.q ? { q: m.q } : {}) });
     if (!raw || !b) return;
-    await this.api.edit(id, msgId, await sealConvMessage(raw, this.rec.squadId, id, m.epoch, m.from, msgId, b));
-    c.msgs.set(msgId, { ...m, t: b.t, edited: true });
+    await this.api.edit(id, msgId, c.epoch, await sealConvMessage(raw, this.rec.squadId, id, c.epoch, m.from, msgId, b));
+    c.msgs.set(msgId, { ...m, t: b.t, epoch: c.epoch, edited: true });
   }
   async del(id: string, msgId: string): Promise<void> {
     const c = this.convs.get(id), m = c?.msgs.get(msgId);
@@ -282,7 +305,9 @@ export class DmSession {
     for (let i = 0; i < 20; i++) {
       const r = await this.api.avatars(this.avCursor);
       for (const row of r.rows) {
-        if (!row.ct) { this.pics.delete(row.member_id); this.avSealed.delete(row.member_id); }
+        const had = this.avSealed.get(row.member_id);
+        if (row.ct && had && had.ct === row.ct && had.gen === row.gen && this.pics.has(row.member_id)) { /* the page edge repeats a row: already open */ }
+        else if (!row.ct) { this.pics.delete(row.member_id); this.avSealed.delete(row.member_id); }
         else {
           this.avSealed.set(row.member_id, { ct: row.ct, gen: row.gen });
           const p = await openAvatar(this.rec, row.member_id, row.ct, row.gen);

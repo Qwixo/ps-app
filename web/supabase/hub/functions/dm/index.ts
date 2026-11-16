@@ -60,8 +60,8 @@ async function rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
   return r.data as T;
 }
 const dropList = (v: unknown) => (Array.isArray(v) ? v.slice(0, 24) : []).map((d: Record<string, unknown>) => {
-  if (typeof d?.sealed !== "string" || d.sealed.length > 600) throw new Fail(400, "drop");
-  return { member: uuid(d.member), sealed: d.sealed };
+  if (typeof d?.sealed !== "string" || d.sealed.length > 600 || typeof d?.sig !== "string" || !B64.test(d.sig) || d.sig.length > 200) throw new Fail(400, "drop");
+  return { member: uuid(d.member), sealed: d.sealed, sig: d.sig };
 });
 const ids = (v: unknown, max: number) => (Array.isArray(v) ? v.slice(0, max) : []).map(uuid);
 /** The DM conversation id both devices derive (src/core/squaddm.ts dmConvId): the hub checks it so an id cannot be squatted. */
@@ -83,7 +83,7 @@ async function handle(body: Record<string, unknown>) {
   limited(me.id);
   const used = await db.from("squad_nonces").insert({ member_key: await sha256hex(me.sign_pub), nonce });
   if (used.error) throw new Fail(409, "replay");
-  if (Math.random() < 0.01) await db.rpc("dm_tidy");
+  if (Math.random() < 0.01) await db.rpc("dm_tidy");   // gated inside: runs once a day, bounded deletes
 
   switch (act) {
     // The cheap look (every 2 minutes while PS runs): every conversation with its epoch, newest message time, unread; the pictures' newest change.
@@ -95,12 +95,15 @@ async function handle(body: Record<string, unknown>) {
       const conv = uuid(args.conv), since = iso(args.since), before = iso(args.before);
       const now = new Date().toISOString();
       const c = await rpc<Record<string, unknown>>("dm_access", { p_member: me.id, p_conv: conv });
-      const people = must(await db.from("dm_members").select("member_id").eq("conv_id", conv).is("removed_at", null).limit(30)) as { member_id: string }[];
-      let eps: number[] | null = null, myDrops: unknown[] = [];
+      // The same list the rekey check uses (dm_in: not removed, still in the squad), so a member who left the squad is left out on both sides.
+      const people = await rpc<string[]>("dm_in", { p_conv: conv });
+      let eps: number[] | null = null, myDrops: unknown[] = [], epochs: unknown[] = [];
       if (c.kind === "group") {
-        const all = must(await db.from("dm_keydrops").select("epoch, sealed, created_at").eq("conv_id", conv).eq("member_id", me.id).order("epoch").limit(500)) as { epoch: number; created_at: string }[];
+        const all = must(await db.from("dm_keydrops").select("epoch, sealed, sig, created_at").eq("conv_id", conv).eq("member_id", me.id).order("epoch").limit(500)) as { epoch: number; created_at: string }[];
         eps = all.map((d) => d.epoch);
         myDrops = since && !before ? all.filter((d) => Date.parse(d.created_at) > Date.parse(since)) : before ? [] : all;
+        const want = (myDrops as { epoch: number }[]).map((d) => d.epoch);
+        if (want.length) epochs = must(await db.from("dm_epochs").select("epoch, signer, creator, members, title_ct").eq("conv_id", conv).in("epoch", want).order("epoch").limit(500)) as unknown[];
       }
       let msgs: unknown[] = [];
       if (eps === null || eps.length) {
@@ -112,7 +115,7 @@ async function handle(body: Record<string, unknown>) {
         msgs = must(await q) as unknown[];
       }
       const conv_ = { id: conv, kind: c.kind, epoch: c.epoch, title_ct: c.kind === "group" ? c.title_ct : null };
-      return { now, conv: conv_, people: people.map((p) => p.member_id), drops: myDrops, msgs, more: !since && msgs.length >= (before ? PAGE : FIRST_LOAD) };
+      return { now, conv: conv_, people, drops: myDrops.map((d) => ({ epoch: (d as { epoch: number }).epoch, sealed: (d as { sealed: string }).sealed, sig: (d as { sig: string }).sig })), epochs, msgs, more: !since && msgs.length >= (before ? PAGE : FIRST_LOAD) };
     }
 
     case "d_new": {
@@ -136,10 +139,15 @@ async function handle(body: Record<string, unknown>) {
     // Edit or delete: your own messages only, in a conversation you are still in.
     case "d_edit": case "d_del": {
       const conv = uuid(args.conv);
+      if (act === "d_edit") {
+        // Only into the epoch now (the row moves to it), so new text is never under a key a removed member holds.
+        const r = await rpc<{ ok: boolean }>("dm_edit", { p_member: me.id, p_conv: conv, p_id: uuid(args.id), p_epoch: int(args.epoch, 1, 1e6), p_ct: ct(args.ct) });
+        if (!r.ok) throw new Fail(404, "no message");
+        return { ok: true };
+      }
       await rpc("dm_access", { p_member: me.id, p_conv: conv });
-      const patch = act === "d_edit" ? { ct: ct(args.ct), edited: true, updated_at: new Date().toISOString() } : { ct: "", deleted: true, edited: false, updated_at: new Date().toISOString() };
-      const r = must(await db.from("dm_messages").update(patch).eq("id", uuid(args.id)).eq("conv_id", conv).eq("member_id", me.id).eq("deleted", false).select("id")) as unknown[];
-      if (!r.length && act === "d_edit") throw new Fail(404, "no message");
+      const patch = { ct: "", deleted: true, edited: false, updated_at: new Date().toISOString() };
+      must(await db.from("dm_messages").update(patch).eq("id", uuid(args.id)).eq("conv_id", conv).eq("member_id", me.id).eq("deleted", false).select("id"));
       return { ok: true };
     }
     case "d_read": {
@@ -153,11 +161,12 @@ async function handle(body: Record<string, unknown>) {
 
     // Pictures of the squad, change only.
     case "d_apull": {
+      // updated_at >= since (not >): rows that share the timestamp at a page edge are never skipped; the device ignores a row it already holds.
       const since = iso(args.since);
-      let q = db.from("dm_avatars").select("member_id, ct, gen, updated_at").eq("squad_id", me.squad_id).order("updated_at").limit(AVATAR_PAGE);
-      if (since) q = q.gt("updated_at", since);
+      let q = db.from("dm_avatars").select("member_id, ct, gen, updated_at").eq("squad_id", me.squad_id).order("updated_at").order("member_id").limit(AVATAR_PAGE);
+      if (since) q = q.gte("updated_at", since);
       const rows = must(await q) as unknown[];
-      return { rows, more: rows.length >= AVATAR_PAGE };
+      return { rows, more: rows.length >= AVATAR_PAGE };   // a full page: ask again from its last time
     }
     case "d_aset": {
       const text = args.clear === true ? "" : ct(args.ct, 70_000);

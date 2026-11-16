@@ -125,6 +125,7 @@ The G Squad is a shared space with other PS users. It runs on a second server of
   (the developer) lets you in after you ask. Until then nobody hands your PS the squad key, and the hub refuses to store it
   for you. Anyone in the squad can bring a friend in with their code, and that friend can then read what members
   share.
+- Private messages, group chats and pictures (G Squad direct messages switch): the words, group names and pictures are sealed, the hub cannot read them. The hub does see who is in each conversation, when messages are sent, read, edited and deleted, how long each message and name is, and when a picture changes. Private message keys never change in a way that protects older messages if a key leaks, and any member who holds a group key could post as another member.
 - The hub runs on Supabase too, so its request logs keep IP addresses for a short time, and the developer can read them.
 
 ## What stays on your Mac

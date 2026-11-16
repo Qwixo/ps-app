@@ -29,7 +29,7 @@ import { foldReactions } from "./chatreact";
 import { gifMemory, parseGifMessage } from "./chatgif";
 import { DmSession } from "./dmflows";
 import { dmApi } from "./dmhub";
-import { buildConvs, SQUAD_CONV, type ConvInput } from "./dmview";
+import { buildConvs, sendRoute, SQUAD_CONV, type ConvInput } from "./dmview";
 import type { HubMember } from "../core/squadrec";
 import type { ReactEvent } from "./chatreact";
 import { EMPTY_CHAT, EMPTY_GIF, type GifView, type ChatJump, type ChatLine, type ChatOp, type ChatView, type ChatVoteView, type QuoteView } from "./chatview";
@@ -50,6 +50,7 @@ const pending = new Map<string, { t: string; a?: ChatMsg["a"]; q?: ChatMsg["q"];
 // PS 1.65 (G Squad v3): DMs, group chats and pictures (squad/dmflows.ts). "squad" is the main chat above, exactly as before.
 // With the hub's `dm` function missing (404) or the feature off, `dm.available` is not true and none of it shows or runs.
 const DM_FEATURE = "gsquad-dm";
+const GONE_NOTE = "A message was not sent because that chat is gone.";
 let dm = null as DmSession | null, active = SQUAD_CONV;
 const dmOn = () => !!dm && dm.available === true && feature(DM_FEATURE);
 const avStore = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage off */ } } };
@@ -505,7 +506,10 @@ export async function runChatOp(o: ChatOp): Promise<void> {
 async function send(cur: ChatSession, id: string) {
   const p = pending.get(id);
   if (!p) return;
-  const conv = p.conv !== SQUAD_CONV && dm?.convs.has(p.conv) ? p.conv : null;
+  // A private message is never rerouted: if its conversation is gone (removed, left, a 403, the feature off) it is dropped with a note.
+  const route = sendRoute(p.conv, dmOn() && dm!.convs.has(p.conv));
+  if (route === "gone") { pending.delete(id); error = GONE_NOTE; rebuild(); return; }
+  const conv = route === "dm" ? p.conv : null;
   const body = { t: p.t, ...(p.a ? { a: p.a } : {}), ...(p.q ? { q: p.q } : {}) };
   try {
     if (conv) await dm!.send(conv, body, id); else await cur.send(body, id);
@@ -514,7 +518,8 @@ async function send(cur: ChatSession, id: string) {
   } catch (e) {
     // A send whose answer was lost may have landed: look before calling it failed.
     try { if (conv) await dm!.pull(conv); else await cur.pull(); } catch { /* offline */ }
-    if (conv ? dm!.convs.get(conv)?.msgs.has(id) : cur.msgs.has(id)) pending.delete(id);
+    if (conv && !dm!.convs.has(conv)) { pending.delete(id); error = GONE_NOTE; }
+    else if (conv ? dm!.convs.get(conv)?.msgs.has(id) : cur.msgs.has(id)) pending.delete(id);
     else { pending.set(id, { ...p, failed: true }); if (!gone(e)) error = e instanceof Error && /key is not here/.test(e.message) ? "The chat is getting its new key. Try again in a moment." : say(e); }
   }
   rebuild();
