@@ -3,6 +3,7 @@ import { NOT_IN_BACKUP } from "../core/backup";   // Rewind never leaves the vau
 import "./extra.css";
 import { GmailSettings } from "./Replies";
 import { ClientEmailsSettings } from "./ClientEmailsSettings";
+import { ProtonBridgeSettings } from "./ProtonBridgeSettings";
 import { WhatsAppSettings } from "./WhatsAppSettings";
 import { mailCan } from "../core/mailswitch";
 import type { ClientRec, Settings } from "../core/model";
@@ -37,6 +38,7 @@ export function SettingsView() {
         <PassphrasePanel />
       </div>
       {mailCan(s) ? <ClientEmailsSettings /> : red && <GmailSettings />}
+      <ProtonBridgeSettings />{/* PS 1.65: Proton Mail through Bridge, Mac only, no Supabase needed */}
       {mailCan(s) && <WhatsAppSettings />}
       {red && <ClaudeAccess />}
       <InviteOwners />

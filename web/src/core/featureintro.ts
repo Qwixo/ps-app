@@ -7,6 +7,7 @@
 //
 import { cleanAnchor, cleanVersion, cmpVersion, type IslandAnchor } from "./whatsnew.ts";
 import { SR_INTRO } from "./screenrecmeet.ts";
+import { PROTON_WORDS } from "./protonmail.ts";
 
 // The rules (all in nextIntro):
 //  - Not right after an update: only after about 1 minute of ACTIVE use of the to do list on this version (idle time does not
@@ -138,6 +139,18 @@ export const INTROS: IntroDef[] = [
     show: "Ok",
     mark: "spark",
     choice: true,
+  },
+  {
+    // PS 1.65 Proton Mail through Bridge (core/protonmail.ts PROTON_WORDS.intro). Mac only: the probe in views/FeatureIntro.tsx never lets it
+    // show anywhere else, and retires it once Bridge is linked. "Show me" opens the plain steps; they stay in Settings.
+    id: "proton-bridge-165",
+    headline: PROTON_WORDS.intro.headline,
+    ask: PROTON_WORDS.intro.ask,
+    show: PROTON_WORDS.intro.show,
+    later: PROTON_WORDS.intro.later,
+    mark: "spark",
+    steps: [...PROTON_WORDS.introSteps],
+    settings: PROTON_WORDS.intro.settings,
   },
   {
     // PS 1.60 (pull request 12b). Only for people who said No or have not answered (views/FeatureIntro.tsx DONE_PROBES, core/screenrecmeet.ts introAudience).

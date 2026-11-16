@@ -537,6 +537,9 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // Add Telegram Bot (V1.47): the bot key in the Keychain and the relay for the main page's reader (TelegramBot.swift).
     TelegramBot.shared.app = self
     TelegramBot.shared.start()
+    // Proton Mail through Proton Bridge (PS 1.65): the link in the Keychain, a check of the inbox once a minute while PS runs (ProtonBridge.swift).
+    ProtonBridge.shared.app = self
+    ProtonBridge.shared.start()
     // AI task API: a local API on 127.0.0.1 for AI tools on this Mac, off until switched on (TaskApi.swift).
     TaskApi.shared.app = self
     TaskApi.shared.start()
@@ -881,6 +884,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // V1.58: away from its right click menu, until when (ms): the island settings say so and offer Show it now.
     d["islandAway"] = Island.shared.away.map { ["kind": $0.kind.rawValue, "until": ($0.until * 1000).rounded()] as [String: Any] } ?? NSNull()
     d["mailSend"] = MailSend.shared.settingsJSON()    // Reply from PS: which accounts can send, never a token or a key
+    d["proton"] = ProtonBridge.shared.settingsJSON()   // Proton Mail through Bridge: linked or not, the problem if any, never the password
     d["tgBot"] = TelegramBot.shared.settingsJSON()    // Add Telegram Bot: a key kept here or not and the reader's status, never the key
     d["taskApi"] = TaskApi.shared.settingsJSON()      // AI task API: on, listening, the switches, the key's last 4 characters, never the key
     d["ignoredApps"] = w.ignoredApps.map { ["id": $0, "name": name($0)] }
@@ -1356,6 +1360,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     if fromMain && type.hasPrefix("posture:") && Posture.shared.handle(type, msg) { return }    // the Posture reminder: sensor on or off, show, hide (Sources/Posture.swift, PS 1.65)
     if (fromMain || fromOverlay) && SleepScreen.shared.handle(type, msg) { return }   // sleep:* Sleep mode (SleepScreen.swift, V1.40)
     if (fromMain || fromOverlay) && Sentry.shared.handle(type, msg) { return }   // sentry:* Sentry mode (Sentry.swift, V1.48)
+    if (fromMain || fromOverlay) && ProtonBridge.shared.handle(type, msg, fromMain: fromMain, fromOverlay: fromOverlay) { return }   // proton:* Proton Mail through Bridge (ProtonBridge.swift, PS 1.65)
     if (fromMain || fromOverlay) && TelegramBot.shared.handle(type, msg, fromMain: fromMain, fromOverlay: fromOverlay) { return }   // tg:* Add Telegram Bot (TelegramBot.swift, V1.47)
     if (fromMain || fromOverlay) && TaskApi.shared.handle(type, msg, fromMain: fromMain, fromOverlay: fromOverlay) { return }   // api:* AI task API (TaskApi.swift)
     if (fromMain || fromOverlay) && type.hasPrefix("sb:") && Soundboard.shared.handle(type, msg, from: message.webView) { return }   // V1.47 Soundboard (Soundboard.swift)

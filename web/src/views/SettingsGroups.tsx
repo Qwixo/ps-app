@@ -50,6 +50,7 @@ import { CalSwitch } from "./CalSwitch";
 import { CalPicker } from "./CalPicker";
 import { RemindSettings, RemTestCard } from "./RemindSettings";
 import { TelegramBotSettings } from "./TelegramBot";
+import { ProtonBridgeSettings } from "./ProtonBridgeSettings";
 import { TaskApiSettings } from "./TaskApi";
 import { MailPeople } from "./MailPeople";
 import { ClientEmailsSettings } from "./ClientEmailsSettings";
@@ -299,6 +300,7 @@ export const CONTROLS: Controls = {
   "reply-from-ps": row(() => <button className="btn quiet sm" onClick={() => psPost({ type: "looks", patch: { replySetup: true } })}
     data-tip="Open the reply panel" data-tip-line="Quick replies, your signature, Send now or at a random time, and the accounts that can send.">Open</button>),
   "client-emails": block(() => <ClientEmailsSettings compact />),
+  "proton-bridge": block(() => <ProtonBridgeSettings />),   // PS 1.65 Proton Mail through Bridge (views/ProtonBridgeSettings.tsx)
   "whatsapp": block(() => <WhatsAppSettings />),
   "screenrec": block(() => <ScreenRecSettings />),   // PS 1.60 (views/ScreenRec.tsx)
   "gmail-replies": block(() => <MailPeople overlay={PS} />, false),

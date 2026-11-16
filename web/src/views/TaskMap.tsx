@@ -137,7 +137,9 @@ import { SecondButton } from "./Second";
 import { SecurityButton, SecurityWindow } from "./Security";
 import { MinecraftWindow } from "./Minecraft";
 import { MINECRAFT_ENABLED } from "../core/mcmode";
-import { CAMPAIGNS_ON, NOTEBOOK_ON } from "../core/features";
+import { CAMPAIGNS_ON, NOTEBOOK_ON, feature } from "../core/features";
+import { PROTON_FEATURE, PROTON_WORDS, clearProtonSent, protonKeyOf, protonProblemWords, protonMailRows, protonMirror } from "../core/protonmail";
+import { ownAccounts } from "../core/mailrules";
 import "./taskmap.css";
 import "./smallscreen.css";
 import "./moresettings.css";
@@ -3579,6 +3581,8 @@ const ago = (iso: string) => {
 function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean }) {
   // The Tab overlay has no Instantly feed (the main page sends the rows); the website and the main window read it here.
   const mirrored = useSyncExternalStore(leadMirror.subscribe, leadMirror.get);
+  const protonIn = useSyncExternalStore(protonMirror.subscribe, protonMirror.get);
+  const protonOn = PS && feature(PROTON_FEATURE);
   const { list, total } = useMemo(() => {
     const open = openReplies(s);
     const gmail = open.map((r): MailRow => {
@@ -3589,13 +3593,17 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
     });
     const feed = irepFeed(s);
     const leads = feed ? leadRows(leadCards(feed, settingsData(s).leadCards)) : mirrored;
-    return { list: mailRows(gmail, leads), total: gmail.length + leads.length };
-  }, [s, mirrored]);
+    // PS 1.65 Proton Mail through Bridge (core/protonmail.ts): the unread client mail PS on this Mac read, marked Proton. Nothing in the vault.
+    const proton = protonOn ? protonMailRows(protonIn.rows, [...s.docs.values()].filter((d): d is Doc<ClientRec> => d.kind === "client"), settingsData(s).mailRules, ownAccounts(s.docs.values(), protonIn.status.user ? [protonIn.status.user] : [])) : [];
+    return { list: mailRows([...gmail, ...proton], leads), total: gmail.length + proton.length + leads.length };
+  }, [s, mirrored, protonOn, protonIn]);
   // V1.59 Reply in the email panel (core/inlinereply.ts): the box, its Undo, and how each reply went (from the vault).
   const inline = replyInPanelOn(settingsData(s));
   const outs = useMemo(() => [...s.docs.values()].filter((d) => d.kind === "rout").map((d) => cleanOut(d.data)).filter((o): o is ReplyOut => !!o), [s]);
   const status = useMemo(() => panelStatus(outs), [outs]);
   const [openId, setOpenId] = useState<string | null>(null);
+  // A Proton reply that has really gone: its words are let go on this device.
+  useEffect(() => { for (const [k, v] of Object.entries(protonIn.sent)) if (v.ok) replyDrafts.clear(`p:${k}`); }, [protonIn]);
   const [undo, setUndo] = useState<Map<string, UndoSend>>(() => new Map());
   // PS 1.61: the island's envelope or reply arrow (core/mailopen.ts): the newest email of that kind opens here, its whole
   // opening shown and lit up, scrolled into view. The light goes after a while; nothing is sent or marked.
@@ -3634,7 +3642,7 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
   // V1.62: the panel shows with nothing in it too (Client emails is on for everyone now). Empty and no Gmail connected yet:
   // a short prompt and Connect Gmail, which opens Settings, Client emails (the 1.60 connect guide). Gmail is only asked
   // about while the panel is empty and nothing in this vault already proves a connection (core/mailempty.ts).
-  const seen = useMemo(() => replies(s).length > 0 || !!irepFeed(s) || mirrored.length > 0, [s, mirrored]);
+  const seen = useMemo(() => replies(s).length > 0 || !!irepFeed(s) || mirrored.length > 0 || (protonOn && protonIn.status.linked), [s, mirrored, protonOn, protonIn]);
   const empty = !list.length && !replied.length;
   // V1.63: Gmail mail already in this vault proves a connection, whatever the status check says (core/gmailtruth.ts).
   const gmailMail = useMemo(() => seenAccounts(s.docs.values()).length > 0, [s]);
@@ -3666,7 +3674,16 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
   );
   const leadsIn = list.some((r) => r.via === "instantly");
   const dropUndo = (id: string) => setUndo((m) => { const n = new Map(m); n.delete(id); return n; });
+  // Proton (PS 1.65): the same Send and Undo, then PS on this Mac sends it through Bridge, only after the Undo time has run out.
+  const sendProton = (r: MailRow, text: string) => {
+    setOpenId(null);
+    const pk = protonKeyOf(r.cardId);
+    if (!pk) return;
+    const u = startUndoSend(() => { dropUndo(r.cardId); clearProtonSent(pk); psPost({ type: "proton:reply", key: pk, text }); });
+    setUndo((m) => new Map(m).set(r.cardId, u));
+  };
   const sendFrom = (r: MailRow, text: string) => {
+    if (r.via === "proton") { sendProton(r, text); return; }
     setOpenId(null);
     const id = crypto.randomUUID();
     const u = startUndoSend(() => {
@@ -3683,19 +3700,23 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
       <ul className="tm-mail-list" ref={listEl}>
         {rows.map((r) => {
           const fresh = Date.now() - Date.parse(r.at) < 3600_000;
-          const canInline = inline && !!cleanReplyCardId(r.cardId);
+          const canProton = r.via === "proton" && protonOn;
+          const canInline = (inline && !!cleanReplyCardId(r.cardId)) || canProton;
+          const pst = r.via === "proton" ? protonIn.sent[protonKeyOf(r.cardId) ?? ""] : undefined;
           const canReply = !canInline && replyButtonShows({ mode: import.meta.env.MODE, mail, cardId: r.cardId });
           const u = undo.get(r.cardId), st = status.get(r.cardId), boxOpen = canInline && openId === r.cardId;
           const busy = !!u || st?.kind === "sending";
           return (
             <li key={r.cardId} data-card={r.cardId} className={`${fresh ? "fresh" : ""}${st?.kind === "replied" && !u ? " replied" : ""}${focusId === r.cardId ? " focus" : ""}`}>
-              <span className="tm-mail-who">{r.who}{r.company && <em> · {r.company}</em>}{r.via === "instantly" && <em className="tm-mail-via"> · Instantly</em>}</span>
+              <span className="tm-mail-who">{r.who}{r.company && <em> · {r.company}</em>}{r.via === "instantly" && <em className="tm-mail-via"> · Instantly</em>}{r.via === "proton" && <em className="tm-mail-via"> · {PROTON_WORDS.badge}</em>}</span>
               <span className="tm-mail-t num" title={new Date(r.at).toLocaleString()}>{ago(r.at)}{r.count > 1 ? ` · ${r.count} emails` : ""}</span>
               <span className="tm-mail-s">{r.subject || "(no subject)"}</span>
               {r.preview && !boxOpen && <span className="tm-mail-p">{focusId === r.cardId ? r.preview : firstSentences(r.preview, 4)}</span>}
               {u ? (
                 <span className="tm-mail-st" role="status">Sending in {u.left()} s
                   <button type="button" className="tm-mail-undo" onClick={() => { sfx.click(); undoIt(r.cardId); }}>Undo</button></span>
+              ) : pst && !boxOpen ? (
+                <span className={`tm-mail-st ${pst.ok ? "replied" : "failed"}`} role="status">{pst.ok ? PROTON_WORDS.sentOk : `${PROTON_WORDS.sendFail}: ${protonProblemWords(pst.error)}`}</span>
               ) : st && canInline ? (
                 <span className={`tm-mail-st ${st.kind}`} role="status" title={st.error || undefined}>{st.kind === "failed" && st.error ? `Not sent: ${st.error}` : st.text}</span>
               ) : null}
@@ -3707,7 +3728,7 @@ function ClientMail({ s, mail }: { s: ReturnType<typeof useVault>; mail: boolean
                   {canReply && <button type="button" className="tm-meet-j tm-mail-reply" title="Opens the reply panel with this email in it. Nothing is sent until you press Send."
                     onClick={() => { sfx.click(); void taskMapActions.replyOpen(r.cardId); }}>Reply</button>}
                   <a className={canReply || canInline ? "tm-mail-done" : "tm-meet-j"} href={r.url} target="_blank" rel="noopener noreferrer">Open</a>
-                  <button type="button" className="tm-mail-done" onClick={() => { sfx.click(); void (r.replyId ? taskMapActions.replyHandled(r.replyId) : taskMapActions.leadDone(r.cardId)); }}>Done</button>
+                  <button type="button" className="tm-mail-done" onClick={() => { sfx.click(); const pk = r.via === "proton" ? protonKeyOf(r.cardId) : null; if (pk) psPost({ type: "proton:done", key: pk }); else void (r.replyId ? taskMapActions.replyHandled(r.replyId) : taskMapActions.leadDone(r.cardId)); }}>Done</button>
                 </span>
               )}
             </li>

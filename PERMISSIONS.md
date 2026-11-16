@@ -107,7 +107,7 @@ screen is up) and "Always auto approve" (while PS is open). Code: `mac/Sources/A
 
 PS keeps its own items in your login Keychain, never synced to iCloud: your sign in for "Remember me", the key of
 a vault kept on this Mac only, the key of the network monitor's history, a Supabase token if you connect your own
-project and let PS keep it, and keys for features you set up yourself (Telegram bot, mail sending).
+project and let PS keep it, and keys for features you set up yourself (Telegram bot, mail sending, the Proton Mail Bridge password and the fingerprint of its certificate).
 
 ## What PS does NOT ask for
 
