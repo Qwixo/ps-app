@@ -109,13 +109,13 @@ enum OutSecrets {
     return out
   }
   /// The last `n` characters, cut at a line start, then stripped. Logs are never longer than this in a report.
-  static func tail(_ s: String, _ n: Int = 6000) -> String {
+  static func tail(_ s: String, _ n: Int = 6000, home: String? = NSHomeDirectory()) -> String {
     var t = s
     if t.count > n {
       t = String(t.suffix(n))
       if let i = t.firstIndex(of: "\n") { t = String(t[t.index(after: i)...]) }
     }
-    return strip(t)
+    return strip(t, home: home)
   }
 }
 

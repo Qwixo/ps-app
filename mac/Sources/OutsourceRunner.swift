@@ -95,6 +95,8 @@ final class OutRunner {
   var tools: OutTools
   var searchDirs: [String]
   var baseEnv: [String: String]
+  /// Seconds in a job's "minute" (60). Only tests change it, so a timeout test does not take a minute.
+  var secondsPerMinute: TimeInterval = 60
   private let q = DispatchQueue(label: "ps.outsource.runner", qos: .utility)
   private let mu = NSLock()
   private var waiting = 0
@@ -213,7 +215,7 @@ final class OutRunner {
     let prompt = OutPolicy.fullPrompt(job)
     let args = job.tool == "claude" ? OutPolicy.claudeArgs(prompt: prompt) : OutPolicy.codexArgs(prompt: prompt, dir: work, lastMessage: lastMsg)
     let env = OutPolicy.env(base: baseEnv, shimDir: shims, hooksDir: hooks, home: home)
-    let res = proc.run(perl: tools.perl, exe: exe, args: args, cwd: work, env: env, timeout: TimeInterval(job.minutes * 60), out: toolLog)
+    let res = proc.run(perl: tools.perl, exe: exe, args: args, cwd: work, env: env, timeout: TimeInterval(job.minutes) * secondsPerMinute, out: toolLog)
     let logText = (try? String(contentsOfFile: toolLog, encoding: .utf8)) ?? ""
     var summary = logText
     if job.tool == "codex", let m = try? String(contentsOfFile: lastMsg, encoding: .utf8), !m.isEmpty { summary = m }
@@ -262,7 +264,7 @@ final class OutRunner {
     try? fm.removeItem(atPath: work)
 
     let report = OutReport(id: job.id, title: job.title, state: state, tool: job.tool, branch: branch, base: sha, head: head, commits: commits,
-                           files: stat, summary: OutSecrets.tail(summary, 3000), log: OutSecrets.tail(logText, 6000), exit: res.exit,
+                           files: stat, summary: OutSecrets.tail(summary, 3000, home: home), log: OutSecrets.tail(logText, 6000, home: home), exit: res.exit,
                            seconds: Int(Date().timeIntervalSince(t0)), note: note.trimmingCharacters(in: .whitespaces))
     try? report.json().write(toFile: dir + "/report.json", atomically: true, encoding: .utf8)
     return OutDone(id: job.id, state: state, report: report, bundlePath: bundlePath, bundleSha: bundleSha, bundleSize: bundleSize, shotPaths: shots)

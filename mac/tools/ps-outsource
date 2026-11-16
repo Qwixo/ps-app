@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+# ps-outsource: the command line a person's own AI uses to send a job to their other computer through PS.
+# Talks only to this Mac's PS over a socket only this person can open. Nothing merges: a result is a git bundle
+# in a folder, to be fetched into a review branch.
+#   ps-outsource status
+#   ps-outsource send --title T --repo R --base B (--prompt TEXT | --prompt-file FILE | --prompt -) [--tool claude|codex] [--minutes N] [--no-bundle] [--screenshots]
+#   ps-outsource list | result ID | cancel ID | restart
+use strict; use warnings;
+use IO::Socket::UNIX; use JSON::PP; use POSIX qw(strftime);
+
+my $sock = $ENV{PS_OUTSOURCE_SOCKET} // ($ENV{HOME} // "") . "/Library/Application Support/PS/outsource/cli.sock";
+sub usage { print STDERR "Usage: ps-outsource status | list | result ID | cancel ID | restart\n       ps-outsource send --title T --repo R --base B (--prompt TEXT | --prompt-file FILE | --prompt -) [--tool claude|codex] [--minutes N] [--no-bundle] [--screenshots]\n"; exit 2; }
+sub die2 { print STDERR "ps-outsource: $_[0]\n"; exit 2; }
+
+my $cmd = shift @ARGV or usage();
+my %req = (cmd => $cmd);
+if ($cmd eq "send") {
+  my %o; my $bundle = 1;
+  while (@ARGV) {
+    my $a = shift @ARGV;
+    if ($a =~ /^--(title|repo|base|prompt|prompt-file|tool|minutes)$/) { $o{$1} = shift @ARGV // die2("$a needs a value"); }
+    elsif ($a eq "--no-bundle") { $bundle = 0 }
+    elsif ($a eq "--screenshots") { $o{shots} = 1 }
+    else { die2("unknown option $a") }
+  }
+  if (defined $o{"prompt-file"}) { open(my $f, "<", $o{"prompt-file"}) or die2("cannot read the prompt file"); local $/; $o{prompt} = <$f>; close $f; }
+  elsif (defined $o{prompt} && $o{prompt} eq "-") { local $/; $o{prompt} = <STDIN>; }
+  for my $k (qw(title repo base prompt)) { die2("--$k is required") unless defined $o{$k} && length $o{$k}; }
+  die2("a repo must be a folder name or a git URL without a password or token")
+    if $o{repo} =~ m{\@} && $o{repo} !~ m{^(git\@[^@]+|ssh://git\@[^@]+)$} || $o{repo} =~ m{^(file:|ext:)} || $o{repo} =~ /\s/;
+  die2("--tool must be claude or codex") if defined $o{tool} && $o{tool} !~ /^(claude|codex)$/;
+  die2("--minutes must be 1 to 120") if defined $o{minutes} && ($o{minutes} !~ /^\d+$/ || $o{minutes} < 1 || $o{minutes} > 120);
+  die2("the prompt looks like it holds a secret (a key, token or password): take it out") if $o{prompt} =~ /\bsk-[A-Za-z0-9_-]{16,}|\bgh[pousr]_[A-Za-z0-9]{20,}|github_pat_|\bAKIA[0-9A-Z]{12,}|BEGIN [A-Z ]*PRIVATE KEY|(?i:password|api[_-]?key|secret|token)\s*[=:]\s*\S{6,}/;
+  %req = (cmd => "send", title => $o{title}, repo => $o{repo}, base => $o{base}, prompt => $o{prompt}, bundle => $bundle ? JSON::PP::true : JSON::PP::false);
+  $req{screenshots} = JSON::PP::true if $o{shots};
+  $req{minutes} = $o{minutes} + 0 if defined $o{minutes};
+  $req{tool} = $o{tool} if defined $o{tool};
+} elsif ($cmd eq "result" || $cmd eq "cancel") {
+  my $id = shift @ARGV // die2("$cmd needs a job id");
+  die2("that is not a job id") unless $id =~ /^[A-Za-z0-9_-]{4,64}$/;
+  $req{id} = $id; usage() if @ARGV;
+} elsif ($cmd =~ /^(status|list|restart)$/) { usage() if @ARGV; }
+else { usage(); }
+
+my $s = IO::Socket::UNIX->new(Peer => $sock, Type => SOCK_STREAM, Timeout => 5);
+unless ($s) { print STDERR "ps-outsource: PS is not running on this Mac, or Outsource is switched off in PS Settings.\n"; exit 1; }
+print $s encode_json(\%req) . "\n"; $s->flush;
+my $line = eval { local $SIG{ALRM} = sub { die "timeout\n" }; alarm 45; my $l = <$s>; alarm 0; $l };
+unless (defined $line && length $line) { print STDERR "ps-outsource: no answer from PS (is it locked? the vault must be open).\n"; exit 1; }
+my $ans = eval { decode_json($line) };
+unless (ref $ans eq "HASH") { print STDERR "ps-outsource: PS gave an answer this tool cannot read.\n"; exit 1; }
+my $text = $ans->{text} // "";
+print "$text\n";
+print "Job id: $ans->{id}\n" if $ans->{id} && $text !~ /\Q$ans->{id}\E/;
+if ($ans->{ok} && $cmd eq "result" && $text =~ /^Bundle:\s*(.+?)\s*$/m) {
+  my $b = $1;
+  if (-f $b) {
+    my $rc = system("git", "bundle", "verify", $b, "-q");
+    my $id = $req{id};
+    print $rc == 0 ? "The bundle is complete. Review it, nothing is merged:\n  git fetch '$b' 'outsource/$id:review/$id'\n" : "Warning: git could not verify this bundle in the current folder. Run the verify inside the repository it belongs to.\n";
+  }
+}
+exit($ans->{ok} ? 0 : 1);
