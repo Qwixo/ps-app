@@ -160,6 +160,61 @@ ok("feature registry, docs and intro", () => {
   assert.match(src("views/FeatureIntro.tsx"), /"gsquad-pieces-165"/);
 });
 
+ok("review fix: a chat piece is live only while the Tab list is on screen", () => {
+  const all = { on: true, shown: true, inSquad: true, listShown: true };
+  assert.equal(P.chatPieceLive(all), true);
+  assert.equal(P.chatPieceLive({ ...all, listShown: false }), false, "a hidden Tab list is not an open chat");
+  assert.equal(P.chatPieceLive({ ...all, shown: false }), false);
+  assert.equal(P.chatPieceLive({ ...all, inSquad: false }), false);
+  assert.equal(P.chatPieceLive({ ...all, on: false }), false);
+  const v = src("views/SquadPieces.tsx");
+  assert.match(v, /useOverlayShown\(\)/, "the piece asks the real screen state");
+  assert.match(v, /chatPieceLive\(\{ on, shown, inSquad: v\.in, listShown \}\)/);
+});
+
+ok("review fix: a piece keeps its text and quote per conversation, nothing crosses", () => {
+  const k = P.draftKeeper<{ id: string }>();
+  // typing in a DM with a quote, then switching to the squad: the squad box is empty
+  const squad = k.swap("dm-1", { text: "private words", reply: { id: "x" } }, "squad");
+  assert.deepEqual(squad, { text: "", reply: null });
+  // typing in the squad, going back to the DM: the DM gets its own draft back
+  const dm = k.swap("squad", { text: "hello all", reply: null }, "dm-1");
+  assert.deepEqual(dm, { text: "private words", reply: { id: "x" } });
+  // and the squad's own draft is still the squad's
+  assert.deepEqual(k.swap("dm-1", { text: "", reply: null }, "squad"), { text: "hello all", reply: null });
+  assert.equal(k.size(), 1, "an empty box keeps nothing");
+  k.clear(); assert.equal(k.size(), 0);
+  const c = src("views/GSquadComposer.tsx");
+  assert.match(c, /convKey/);
+  assert.match(c, /setEditing\(null\); setAbout\(null\)/, "an edit and a note chip stop on a switch");
+  const v = src("views/SquadPieces.tsx");
+  assert.match(v, /convKey=\{conv\.active\}/, "the piece passes the conversation");
+  assert.match(v, /conv\.cur\.title/, "the title is the conversation's");
+});
+
+ok("review fix: Conversations is gone with the Signal style switch off, and Tasks done opens Tasks", () => {
+  const v = src("views/SquadPieces.tsx");
+  assert.match(v, /if \(!on \|\| !v3On\(\)\) return null;/);
+  assert.match(v, /v3On\(\) && <Slot id="sqconvs">/, "not offered in the gallery either");
+  assert.equal(P.pieceOf("sqdone")?.opens, "tasks");
+});
+
+ok("review fix: the window holds the chat open once, backdrop click needs press and release, resize draws once per frame", () => {
+  const w = src("views/GSquadWindow.tsx");
+  assert.match(w, /holdChatOpen\(\)/);
+  assert.match(src("views/GSquadChat.tsx"), /ChatPanel hold=\{false\}/);
+  assert.match(w, /bgDown\.current && e\.target === e\.currentTarget/);
+  assert.match(w, /onPointerDown=\{\(e\) => \{ bgDown\.current = e\.target === e\.currentTarget/);
+  assert.doesNotMatch(w, /move = \(m: PointerEvent\) => \{[^}]*setSize/, "no state write per move");
+  assert.match(w, /lostpointercapture/);
+});
+
+ok("review fix: FEATURES.md has no merge markers", () => {
+  const f = readFileSync(new URL("../../FEATURES.md", import.meta.url), "utf8");
+  assert.doesNotMatch(f, /^(<<<<<<<|=======$|>>>>>>>)/m);
+  assert.match(f, /\| G Squad pieces \|/); assert.match(f, /\| G Squad DMs, groups and pictures \|/); assert.match(f, /\| G Squad Signal style \|/);
+});
+
 ok("no em or en dashes in the new files", () => {
   for (const f of ["core/squadpieces.ts", "views/SquadPieces.tsx", "views/squadpieces.css", "squad/chathold.ts"]) assert.doesNotMatch(src(f), /[–—]/, f);
 });

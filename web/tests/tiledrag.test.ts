@@ -101,4 +101,13 @@ ok("the phone editors drag without a state write per pointer move (source check)
   assert.ok(/\.pe-tile \{[^}]*transition: transform/.test(css), "it glides home by a transform transition");
   assert.ok(read("src/views/tiledrive.ts").includes("el.style.transform = moveTransform"), "a move writes a transform, not a variable");
 });
+ok("review fix: a settled panel animates only its offset, a cancelled swipe snaps back", () => {
+  assert.ok(/\.pe-tile\[data-settling\] \{ transition: transform/.test(read("src/views/phoneeditor.css")), "left, top, width, height jump at once");
+  assert.ok(read("src/views/tiledrive.ts").includes('el.dataset.settling = "1"'));
+  assert.ok(/\[data-settling\] \{ animation: none/.test(read("src/gos/phoneeditmode.css")), "the wiggle never hides the glide");
+  const m = read("src/gos/PhoneEditMode.tsx");
+  assert.ok(m.includes("onPointerCancel={roomCancel}"));
+  const i = m.indexOf("const roomCancel"), body = m.slice(i, m.indexOf("const roomUp"));
+  assert.ok(body.includes("frames.cancel()") && body.includes("swipeLive.current = null") && body.includes("setSwipe(null)"));
+});
 console.log(`\n${n} passed`);

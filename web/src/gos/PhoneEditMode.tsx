@@ -366,6 +366,15 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     ptr.current = { x: e.clientX, y: e.clientY };
     frames.push(swipeFrame);
   };
+  // A cancelled swipe (the phone's back gesture, the notification shade): the pending frame must not draw the old offset again, so the pages snap back.
+  const roomCancel = (e: RPE) => {
+    const sw = swipeLive.current;
+    if (!sw) { setSwipe(null); return; }   // not a swipe: a tile or the navbar may be using the frame queue
+    if (e.pointerId !== sw.id) return;
+    frames.cancel();
+    swipeLive.current = null;
+    setSwipe(null);
+  };
   const roomUp = (e: RPE) => {
     const sw0 = swipeLive.current;
     if (!sw0 || e.pointerId !== sw0.id) return;
@@ -528,7 +537,7 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
   const thisDev = useMemo(() => ({ dev: "thisphone", phone: kind, name: "", w: W, h: H, seen: at() }), [kind, W, H]);
   return (
     <div ref={roomRef} className={`pm-room ${phase}${gal ? " gal" : ""}${tile || nav ? " dragging" : ""}`} style={{ ["--inv" as string]: 1 / k, ["--k" as string]: k }}
-      onPointerDown={roomDown} onPointerMove={roomMove} onPointerUp={roomUp} onPointerCancel={() => setSwipe(null)}
+      onPointerDown={roomDown} onPointerMove={roomMove} onPointerUp={roomUp} onPointerCancel={roomCancel}
       onScroll={(e) => { e.currentTarget.scrollLeft = 0; e.currentTarget.scrollTop = 0; }}>
       <div className="pm-dim" aria-hidden="true" onClick={() => { if (gal) setGal(false); }} />
       {shown.map((id, i) => {

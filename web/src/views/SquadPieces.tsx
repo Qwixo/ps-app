@@ -5,7 +5,7 @@
 // (core/tablayout.ts optIn). The rules are in core/squadpieces.ts (tests/squadpieces.test.ts); this file only draws.
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { feature } from "../core/features";
-import { DONE_PERIODS, PIECES_FEATURE, boardRows, convClick, doneRows, doneShare, pieceShows, unreadTotal, workHeadline, workRows } from "../core/squadpieces";
+import { DONE_PERIODS, chatPieceLive, PIECES_FEATURE, boardRows, convClick, doneRows, doneShare, pieceShows, unreadTotal, workHeadline, workRows } from "../core/squadpieces";
 import { fmtMoney, placeLabel, type TasksPeriod } from "../core/squadboard";
 import { useChat } from "../squad/chatmirror";
 import { chatPiecesShown, holdChatPiece } from "../squad/chathold";
@@ -14,6 +14,7 @@ import { looksClass, looksVars } from "../squad/looks";
 import { signalOn } from "../squad/signal";
 import type { SquadView } from "../squad/view";
 import { unreadText } from "../squad/chatgroups";
+import { useOverlayShown } from "../ps";
 import { useVault } from "../ui/kit";
 import { sfx } from "../ui/sfx";
 import { Slot, useShownHere } from "./EditMode";
@@ -64,10 +65,14 @@ export function SqChat() {
   const v = useSquad();
   const on = useOn();
   const shown = useShownHere();
-  const live = on && shown && v.in;
+  const listShown = useOverlayShown();   // PS keeps the Tab list alive while hidden: a hidden list is not an open chat
+  const live = chatPieceLive({ on, shown, inSquad: v.in, listShown });
+  const conv = useConvs(v);
   useEffect(() => (live ? holdChatPiece() : undefined), [live]);
   if (!on) return null;
-  return <Piece title="Squad chat" opens="chat" v={v} cls="sqp-chat">{live && <ChatPanel />}</Piece>;
+  // The title is the conversation on screen (the squad, a group or a person), the same one the window shows.
+  const title = v3On() ? conv.cur.title || "Squad chat" : "Squad chat";
+  return <Piece title={title} opens="chat" v={v} cls="sqp-chat">{live && <ChatPanel hold={false} convKey={conv.active} />}</Piece>;
 }
 
 // ---------- Conversations ----------
@@ -76,7 +81,7 @@ export function SqConvs() {
   const chat = useChat();
   const on = useOn();
   const conv = useConvs(v);
-  if (!on) return null;
+  if (!on || !v3On()) return null;   // the list needs the Signal style switch: off gives the old one-chat window back
   const total = unreadTotal(conv.list);
   const pick = (id: string) => {
     sfx.click(); openConv(id);
@@ -139,7 +144,7 @@ export function SqDone() {
     </span>
   );
   return (
-    <Piece title="Tasks done" opens="leaderboard" v={v} cls="sqp-done" extra={chips}>
+    <Piece title="Tasks done" opens="tasks" v={v} cls="sqp-done" extra={chips}>
       {!v.board ? <p className="sqp-note">Loading...</p>
         : rows.length === 0 ? <p className="sqp-note">Nothing here yet.</p>
         : <ol className="gsb-list gsb-money sqp-rows">
@@ -193,7 +198,7 @@ export function SquadPieceSlots() {
   return (
     <>
       <Slot id="sqchat"><SqChat /></Slot>
-      <Slot id="sqconvs"><SqConvs /></Slot>
+      {v3On() && <Slot id="sqconvs"><SqConvs /></Slot>}
       <Slot id="sqboard"><SqBoard /></Slot>
       <Slot id="sqdone"><SqDone /></Slot>
       <Slot id="sqnow"><SqNow /></Slot>

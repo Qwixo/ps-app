@@ -7,6 +7,7 @@ import { composeStore } from "../squad/chatopen";
 import { buildSend } from "../squad/chatsend";
 import { useBack } from "../squad/back";
 import type { ChatLine } from "../squad/chatview";
+import { draftKeeper } from "../core/squadpieces";
 import { MAX_TEXT, type ChatAbout, type ChatReply } from "../core/squadchat";
 import { insertAt } from "../squad/chatreact";
 import { EmojiIcon, GifIcon } from "./GSquadPickers";
@@ -41,13 +42,26 @@ export interface ReplyDraft extends ChatReply { name: string }
 
 /** The composer's state. onSent runs after a send or a save (the chat scrolls to the newest). listenAsk: another part of PS
  *  may ask the chat to open with a draft and a chip (squad/chatopen.ts); it is never sent by itself. */
-export function useComposer(opts: { onSent?: () => void; listenAsk?: boolean } = {}): ComposerState {
+export function useComposer(opts: { onSent?: () => void; listenAsk?: boolean; convKey?: string } = {}): ComposerState {
   const box = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   const [about, setAbout] = useState<ChatAbout | null>(null);
   const [editing, setEditing] = useState<ChatLine | null>(null);
   const [reply, setReply] = useState<ReplyDraft | null>(null);
   const ask = useSyncExternalStore(composeStore.subscribe, composeStore.get);
+  // PS 1.65: a chat piece stays mounted while the conversation changes. Its text and quote stay with the conversation they were typed in
+  // (a DM line never rides into the squad), and an edit or a note chip stops. The window remounts per conversation, so it passes no key.
+  const keeper = useRef(draftKeeper<ReplyDraft>());
+  const was = useRef(opts.convKey);
+  const cur = useRef({ text: "", reply: null as ReplyDraft | null });
+  cur.current = { text, reply };
+  useEffect(() => {
+    const from = was.current, to = opts.convKey;
+    was.current = to;
+    if (from === undefined || to === undefined || from === to) return;
+    const back = keeper.current.swap(from, cur.current, to);
+    setText(back.text); setReply(back.reply); setEditing(null); setAbout(null);
+  }, [opts.convKey]);
 
   useEffect(() => {
     if (opts.listenAsk === false || !ask.n) return;

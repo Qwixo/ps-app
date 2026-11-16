@@ -140,6 +140,7 @@ html.pe-mac-gone .ov-room, html.pe-mac-gone .ov-top, html.pe-mac-gone .tm-overla
 .pe-tile { position: absolute; display: flex; border-radius: 16px; transition: transform .32s cubic-bezier(.22, 1, .36, 1), left .32s cubic-bezier(.22, 1, .36, 1), top .32s cubic-bezier(.22, 1, .36, 1), width .32s cubic-bezier(.22, 1, .36, 1), height .32s cubic-bezier(.22, 1, .36, 1); }
 .pe-tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1.5px solid color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); pointer-events: none; transition: border-color .2s ease; }
 .pe-tile:hover::after { border-color: var(--k-acc, #EC4E86); }
+.pe-tile[data-settling] { transition: transform .32s cubic-bezier(.22, 1, .36, 1); }
 .pe-tile.dragging { transition: none; will-change: transform; contain: layout style; z-index: 20; box-shadow: 0 18px 30px rgba(0, 0, 0, .55); }
 .pe-tile.away { opacity: .55; }
 .pe-tile.dragging::after { border-color: #fff; }
