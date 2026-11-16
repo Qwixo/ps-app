@@ -59,12 +59,14 @@ export interface SetEntry {
   pf?: true;
   /** Only where the Checklist reminder feature is on in this build (core/features.ts "checklist-reminder"). */
   ck?: true;
+  /** Only where Outsource work to your other computer is on in this build (core/features.ts "second-computer", PS 1.65). */
+  os?: true;
   /** Only in this phone shell: the GrapheneOS app ("gos") or the iPhone web app ("mweb"). V1.47. */
   shell?: Shell;
 }
 /** Which phone shell: the GrapheneOS app (ps-gos, a WebView with the native bridge) or the iPhone web app. */
 export type Shell = "gos" | "mweb";
-export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean; ck?: boolean }
+export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean; ck?: boolean; os?: boolean }
 
 export const GROUPS: SetGroup[] = [
   // V1.51 (the developer, 12 Nov 2026): About and updates is the top item of the Settings menu, above everything else, so the
@@ -209,7 +211,7 @@ export const SETTINGS: SetEntry[] = [
 
   // ---------- Posture Reminder (PS 1.65, core/posture.ts; the controls are views/PostureSettings.tsx) ----------
   // ---------- Outsource work to your other computer (PS 1.65) ----------
-  { id: "outsource-main", group: "outsource", name: "Outsource work to your other computer", line: "Pair your other computer, see if it is awake and ready, and see running and finished jobs.", on: ["mac", "phone"], words: ["outsource", "second computer", "other computer", "other mac", "m1", "m4", "pair", "pairing", "code", "jobs", "job", "offload", "remote", "build", "tests", "bundle", "restart", "claude", "codex", "ai", "cool", "fast"] },
+  { id: "outsource-main", group: "outsource", name: "Outsource work to your other computer", line: "Pair your other computer, see if it is awake and ready, and see running and finished jobs.", on: ["mac", "phone"], os: true, words: ["outsource", "second computer", "other computer", "other mac", "m1", "m4", "pair", "pairing", "code", "jobs", "job", "offload", "remote", "build", "tests", "bundle", "restart", "claude", "codex", "ai", "cool", "fast"] },
   { id: "posture-on", group: "posture", name: "Posture reminder", line: "A pop-up with a stick figure that slouches and sits up straight, and one button, Sitting straight.", on: NOT_PHONE, pf: true, words: ["posture", "sit", "sitting", "straight", "slouch", "back", "spine", "desk", "ergonomic", "health", "reminder", "stick figure", "pop up", "popup"] },
   { id: "posture-every", group: "posture", name: "How often", line: "Every 30, 45, 60 or 90 minutes.", on: NOT_PHONE, pf: true, words: ["posture", "interval", "how often", "every", "minutes", "frequency", "30", "45", "60", "90"] },
   { id: "posture-hours", group: "posture", name: "Between these times", line: "It only comes inside these hours. An end time before the start time runs past midnight.", on: NOT_PHONE, pf: true, words: ["posture", "hours", "from", "to", "start", "end", "work hours", "schedule", "time", "midnight"] },
@@ -420,6 +422,7 @@ export function visibleTo(e: SetEntry, ctx: Ctx): boolean {
   if (e.mailCan && !ctx.mailCan) return false;
   if (e.sr && !ctx.sr) return false;
   if (e.pf && !ctx.pf) return false;
+  if (e.os && !ctx.os) return false;
   if (e.ck && !ctx.ck) return false;
   if (e.shell && e.shell !== ctx.shell) return false;
   if (e.on && !e.on.includes(ctx.where)) return false;

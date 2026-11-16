@@ -142,6 +142,14 @@ ok("the Posture Reminder tab and its rows hide where the feature is off", () => 
   assert.ok(!groupsFor(off).some((g) => g.id === "posture"));
   assert.ok(!visibleTo(settingById("posture-on")!, off) && visibleTo(settingById("posture-on")!, FRIEND_MAC));
 });
+ok("the Outsource work to your other computer tab shows on a Mac and a phone where the feature is on, never on the website", () => {
+  const on: Ctx = { red: false, where: "mac", os: true };
+  assert.ok(groupsFor(on).some((g) => g.id === "outsource"));
+  assert.ok(groupsFor({ red: false, where: "phone", os: true }).some((g) => g.id === "outsource"));
+  assert.ok(!groupsFor({ red: false, where: "web", os: true }).some((g) => g.id === "outsource"));
+  assert.ok(!groupsFor({ red: false, where: "mac" }).some((g) => g.id === "outsource"));
+  assert.ok(ids("second computer", on).includes("outsource-main"));
+});
 ok("the Checklist Reminder tab and its rows hide where the feature is off", () => {
   assert.ok(groupsFor(FRIEND_MAC).some((g) => g.id === "chkremind"));
   const off: Ctx = { red: false, where: "mac" };

@@ -92,6 +92,7 @@ export function createEngine(deps: Deps) {
   let note = "";
   let status: OtherStatus | null = null;
   let peerStat: { at: number; st: StatBody | null } = { at: 0, st: null };
+  let peerStatSig = "";
   const subs = new Set<() => void>();
   let lastRunWrite = 0, lastHeartbeat = 0, lastStatKey = "", lastTidy = 0;
   const processed = new Set<string>();                  // docs already handled this session (the kept replay list is the real guard)
@@ -193,7 +194,7 @@ export function createEngine(deps: Deps) {
       await store.remove(`spair-offer-${keep.device}`).catch(() => {});
       await store.remove(d.id).catch(() => {});
       emit();
-      void heartbeat(true);
+      await heartbeat(true);
       return;
     }
   }
@@ -363,14 +364,14 @@ export function createEngine(deps: Deps) {
       if (m.keep && m.keep.priv) keep = m.keep;                 // the Mac's Keychain copy is the truth on a Mac
       else if (m.keep && !m.keep.priv && m.keep.peer) { keep = { ...m.keep, peer: undefined, role: "none" }; setNote("This Mac could not read its saved pairing without asking for your password. Pair again once, it then stays."); }
       status = { awake: m.awake, locked: m.locked, busy: false, queue: 0, app: m.app, model: m.model, chip: m.chip, tools: m.cli, helper: m.helper };
-      emit(); void heartbeat(false);
-    } else if (m.op === "power") { if (status) status = { ...status, awake: m.awake, locked: m.locked }; emit(); void heartbeat(false); }
+      emit(); await heartbeat(false);
+    } else if (m.op === "power") { if (status) status = { ...status, awake: m.awake, locked: m.locked }; emit(); await heartbeat(false); }
     else if (m.op === "progress") {
       const row = live.get(m.id); if (!row) return;
       live.set(m.id, { ...row, state: m.state, step: m.step, tail: m.tail ? tail(m.tail, 600) : row.tail });
       const now = deps.now();
       if (m.state !== "running" || now - lastRunWrite > RUN_WRITE_MS || row.state !== "running") { lastRunWrite = now; await writeStatus({ job: m.id, state: m.state as JobState, step: m.step, tail: tail(m.tail ?? "", 600), startedAt: m.startedAt }); }
-      emit(); void heartbeat(false);
+      emit(); await heartbeat(false);
     } else if (m.op === "done") {
       const row = live.get(m.id) ?? { id: m.id, title: "", at: deps.now(), mine: false };
       live.set(m.id, { ...row, state: m.state, endedAt: deps.now() });
@@ -379,7 +380,7 @@ export function createEngine(deps: Deps) {
       const bu = m.state === "done" && m.bundle && m.bundle.size > 0 && m.bundle.size <= BUNDLE_MAX && !fileRefusal(m.bundle.name, m.bundle.size) ? m.bundle : undefined;
       pendingBundle.set(m.id, { n: bu?.n ?? 0, sha: bu?.sha256 ?? "", size: bu?.size ?? 0, name: bu?.name ?? "", got: new Map(), report, state: m.state, exit: m.exit, shots: m.shots?.slice(0, 4) });
       if (!bu) await finishResult(m.id);
-      emit(); void heartbeat(false);
+      emit(); await heartbeat(false);
     } else if (m.op === "chunk") {
       const pb = pendingBundle.get(m.id); if (!pb || !(m.i >= 0 && m.i < pb.n)) return;
       pb.got.set(m.i, m.b64);
@@ -407,10 +408,9 @@ export function createEngine(deps: Deps) {
   }
 
   // ---------- keeping the vault small ----------
-  /** MAIN, once a result landed: the pieces and the job record go (the small result record stays for the list). */
+  /** MAIN, once a result landed: the pieces of the bundle go (the small job and result records stay for the list, 30 days). */
   async function tidyJob(id: string) {
     for (const c of store.docs<ChunkDoc>("sfile")) if (c.data?.job === id) await store.remove(c.id).catch(() => {});
-    await store.remove(`sojob-${id}`).catch(() => {});
   }
   /** Old records go: finished results after 30 days, expired jobs, commands and codes. At most once an hour, only on a change. */
   async function tidy() {
@@ -420,7 +420,8 @@ export function createEngine(deps: Deps) {
     const old = (at: unknown, ms: number) => typeof at !== "number" || now - at > ms;
     if (keep.role === "main") {
       for (const d of store.docs<ResDoc>("sores")) if (d.data?.to === keep.device && old(d.data.at, JOB_KEEP_MS)) await store.remove(d.id).catch(() => {});
-      for (const d of store.docs<JobDoc>("sojob")) if (d.data?.from === keep.device && (typeof d.data.exp !== "number" || d.data.exp < now - 3600_000)) await store.remove(d.id).catch(() => {});
+      for (const d of store.docs<JobDoc>("sojob")) if (d.data?.from === keep.device && old(d.data.at, JOB_KEEP_MS)) await store.remove(d.id).catch(() => {});
+      for (const d of store.docs<ChunkDoc>("sfile")) if (d.data?.to === keep.device && landed.get(d.data.job)?.path) await store.remove(d.id).catch(() => {});
       for (const d of store.docs<CmdDoc>("scmd")) if (d.data?.from === keep.device && old(d.data.exp, 0)) await store.remove(d.id).catch(() => {});
     }
     for (const d of store.docs<OfferDoc>("spair")) if (old(d.data?.at, PAIR_CODE_MS + 3600_000)) await store.remove(d.id).catch(() => {});
@@ -445,9 +446,9 @@ export function createEngine(deps: Deps) {
     if (!k || !p || keep?.role !== "main") return;
     for (const d of store.docs<StatDoc>("sstat")) {
       const s = d.data;
-      if (!s || s.to !== k.device || s.device !== p.device || s.at <= peerStat.at) continue;
+      if (!s || s.to !== k.device || s.device !== p.device || s.at < peerStat.at || s.env?.sig === peerStatSig) continue;
       const o = await openEnv<StatBody>(k, s.env, { ...p, role: "secondary" });
-      if (o.ok && o.body.t === "stat" && o.body.at <= deps.now() + 5 * 60_000) { peerStat = { at: o.body.at, st: o.body }; emit(); }
+      if (o.ok && o.body.t === "stat" && o.body.at >= peerStat.at && o.body.at <= deps.now() + 5 * 60_000) { peerStat = { at: o.body.at, st: o.body }; peerStatSig = s.env.sig; emit(); }
     }
   }
   async function decodeAll() {
