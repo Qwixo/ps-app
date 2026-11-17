@@ -64,6 +64,7 @@ export function ReceiptCheck({ start, photo, photoId, id, from, warns, at, onClo
   // A click beside the sheet closes it only when nothing was typed: one stray click never throws away a checked receipt.
   const changed = draftChanged(d, start);
   const showPic = !!pic || picState !== "none";
+  const title = id ? RS_WORDS.edit : from === "typed" ? RS_WORDS.add : RS_WORDS.check;   // typing one in is not "checking" it
   useEffect(() => {
     if (!photoId || photo) return;
     let live = true, url: string | null = null;
@@ -91,10 +92,10 @@ export function ReceiptCheck({ start, photo, photoId, id, from, warns, at, onClo
   const del = async () => { if (!id) return; setBusy(true); try { await removeReceipt(id); onSaved?.(); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : ""); setBusy(false); } };
   const root = document.body;
   return createPortal(
-    <div className="rs-layer" role="dialog" aria-modal="true" aria-label={id ? RS_WORDS.edit : RS_WORDS.check} onMouseDown={(e) => e.stopPropagation()}>
+    <div className="rs-layer" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
       <div className="rs-dim" onClick={() => { if (!changed && !busy) onClose(); }} />
       <div className={cx("rs-sheet", !showPic && "nopic")}>
-        <header className="rs-head"><b>{id ? RS_WORDS.edit : RS_WORDS.check}</b><button type="button" className="rs-x" aria-label={RS_WORDS.cancel} onClick={onClose}>&times;</button></header>
+        <header className="rs-head"><b>{title}</b><button type="button" className="rs-x" aria-label={RS_WORDS.cancel} onClick={onClose}>&times;</button></header>
         <div className="rs-body">
           {showPic && <figure className="rs-pic">
             {pic ? <img src={pic} alt={RS_WORDS.photoOf} /> : <figcaption>{picState === "loading" ? RS_WORDS.loadingPic : picState === "gone" ? RS_WORDS.gonePic : RS_WORDS.noPic}</figcaption>}
@@ -113,7 +114,7 @@ export function ReceiptCheck({ start, photo, photoId, id, from, warns, at, onClo
             {bad.includes("date") && <p className="rs-warn">{RS_WORDS.bad_date}</p>}
             {bad.includes("total") && <p className="rs-warn">{RS_WORDS.bad_total}</p>}
             <div className="rs-items" role="group" aria-label={RS_WORDS.items}>
-              <div className="rs-ih"><span>{RS_WORDS.item}</span><span>{RS_WORDS.qty}</span><span>{RS_WORDS.price}</span><span /></div>
+              {d.items.length > 0 && <div className="rs-ih"><span>{RS_WORDS.item}</span><span>{RS_WORDS.qty}</span><span>{RS_WORDS.price}</span><span /></div>}
               {d.items.map((it, i) => (
                 <div className="rs-ir" key={i}>
                   <input aria-label={RS_WORDS.item} value={it.n} maxLength={80} onChange={(e) => setItem(i, { n: e.target.value })} />

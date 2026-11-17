@@ -73,3 +73,6 @@
   .pc-scroll { padding: 12px 14px 40px; }
 }
 .pc-table .dt { font-variant-numeric: tabular-nums; opacity: .8; }
+/* The date and the numbers take only the room they need; the shop (and the item) get the rest. */
+.pc-table th:first-child, .pc-table td.dt, .pc-table th.num, .pc-table td.num { width: 1%; }
+.pc-table td.dt { padding-right: 18px; }
