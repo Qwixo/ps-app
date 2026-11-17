@@ -64,7 +64,7 @@ const st = { since: iso(24 * 60) };
 ok("an open lead reply becomes a row: first name, company domain, subject, opening, Open in Instantly, card id", () => {
   const [r] = O.leadRows(L.leadCards({ replies: [rep("e1", 3)] }, st, now));
   assert.deepEqual(r, { cardId: "n:e1", who: "Jane", company: "northwindsilk.example", subject: "Re: Jane, I rebuilt your homepage",
-    preview: "Hi Sam, this looks great. Can we talk on Tuesday?", at: iso(3), url: "https://app.instantly.ai/app/unibox" });
+    preview: "Hi the developer, this looks great. Can we talk on Tuesday?", at: iso(3), url: "https://app.instantly.ai/app/unibox" });
   assert.equal(O.replyButtonShows({ mode: "ps", mail: true, cardId: r.cardId }), true);
 });
 ok("a dismissed lead reply (the card's Dismiss, or Done in the panel) is not in the panel", () => {
@@ -115,6 +115,40 @@ ok("set up, the Mac not heard from yet, or the Mac's own problem line showing: n
   assert.equal(MR.sendSetupHint("gmail", true, true), "");
   assert.equal(MR.sendSetupHint("gmail", false, false), "");
   assert.equal(MR.sendSetupHint("instantly", false, true, "The key was refused"), "");
+});
+
+ok("Proton (1.65): Send opens only once Bridge is linked on this Mac; a problem code comes along; an older Mac keeps Send open", () => {
+  const base = { gmail: [{ account: "ana@example.com", connected: true }], instantly: { saved: false } };
+  assert.deepEqual(MR.sendReady("proton", "me@example.com", { ...base, proton: { linked: false } }), { ready: false, problem: "" });
+  assert.deepEqual(MR.sendReady("proton", "me@example.com", { ...base, proton: { linked: true } }), { ready: true, problem: "" });
+  assert.deepEqual(MR.sendReady("proton", "me@example.com", { ...base, proton: { linked: true, problem: "bridgeDown" } }), { ready: true, problem: "bridgeDown" });
+  assert.deepEqual(MR.sendReady("proton", "me@example.com", base), { ready: true, problem: "" }, "no proton field: as before");
+  assert.deepEqual(MR.sendReady("proton", "me@example.com", null), { ready: false, problem: "" }, "the Mac not heard from yet");
+  // the hint now has a way to show: not linked, no problem line
+  const r = MR.sendReady("proton", "me@example.com", { ...base, proton: { linked: false } });
+  assert.match(MR.sendSetupHint("proton", r.ready, true, r.problem), /Proton Mail is not linked on this Mac yet/);
+});
+ok("Gmail and Instantly readiness unchanged: the account (any case) must be connected, Instantly needs a saved key", () => {
+  const st = { gmail: [{ account: "ana@example.com", connected: true }, { account: "bo@example.com", connected: false, problem: "Signed out" }], instantly: { saved: true, problem: "Key refused" } };
+  assert.deepEqual(MR.sendReady("gmail", "ANA@example.com", st), { ready: true, problem: "" });
+  assert.deepEqual(MR.sendReady("gmail", "bo@example.com", st), { ready: false, problem: "Signed out" });
+  assert.deepEqual(MR.sendReady("gmail", "cy@example.com", st), { ready: false, problem: "" });
+  assert.deepEqual(MR.sendReady("instantly", "x@example.com", st), { ready: true, problem: "Key refused" });
+});
+ok("the reply window uses sendReady and shows no Gmail or Instantly button for a Proton email", () => {
+  const src = readFileSync(new URL("../src/views/ReplyWindow.tsx", import.meta.url), "utf8");
+  assert.match(src, /sendReady\(ctx\.via, ctx\.account, status\)/);
+  assert.match(src, /ctx\.via === "proton" \? null/);
+});
+
+ok("Proton send problems read as words in the waiting list; a lost answer never says Not sent", () => {
+  const row = (error?: string, via: "proton" | "gmail" = "proton") => ({ id: "j1", cardId: "p:k1", via, account: "me@example.com", to: "ana@example.com", toName: null, subject: "Re: hi", sendAt: 0, state: "failed" as const, error });
+  assert.match(MR.rowText(row("Proton: bridgeDown")), /^Not sent: Proton Mail Bridge is not running/);
+  const lost = MR.rowText(row("Proton: maybeSent"));
+  assert.match(lost, /It may have gone/); assert.doesNotMatch(lost, /Not sent/);
+  assert.equal(MR.rowText(row("Proton: someNewCode")), "Not sent: Proton: someNewCode", "an unknown code stays as the Mac said it");
+  assert.equal(MR.rowText(row("Proton: bridgeDown", "gmail")), "Not sent: Proton: bridgeDown", "only Proton rows are read this way");
+  assert.equal(MR.rowText(row(undefined)), "Not sent");
 });
 
 // ---------- wiring (source checks: the overlay holds no vault, the main page opens the panel) ----------

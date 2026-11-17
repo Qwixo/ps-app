@@ -45,7 +45,7 @@ import { DeletePage, UndoDelete } from "./PhoneDeletePage";
 import { deletePage, pageAfterDelete, restorePage, type RemovedPage } from "../core/phonepagedelete";
 import { rowPos, type Row } from "../core/phonepan";
 import { usePhonePan, type PanApi } from "./usePhonePan";
-import { dragDelta, dragSig, frameQueue, ghostFor } from "../core/tiledrag";
+import { dragDelta, dragSig, endKind, frameQueue, ghostFor, samePointer } from "../core/tiledrag";
 import { carriedEl, carry, carryNav, release, releaseNav, settle } from "./tiledrive";
 import "./phoneeditor.css";
 
@@ -385,10 +385,12 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
   };
 
   // ---------- dragging a tile ----------
+  const held = useRef<number | null>(null);   // V1.65 quality pass: the pointer carrying a panel or the navbar (core/tiledrag.ts samePointer)
   const tileDown = useStable((e: RPE, id: string, mode: "move" | "size") => {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    held.current = e.pointerId;   // only this pointer moves or drops it
     const d: TileDrag = { id, mode, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0, over: null, p0: pan.off() };
     tileRef.current = d; sigRef.current = "";
     setTile(d);
@@ -419,9 +421,11 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
     ptr.current = { x, y };
     frames.push(tileFrame);
   };
-  const tileMove = useStable((e: RPE) => tileAt(e.clientX, e.clientY));
+  const tileMove = useStable((e: RPE) => { if (samePointer(held.current, e.pointerId)) tileAt(e.clientX, e.clientY); });
   const ghostOf = useStable((t: Tile, d: TileDrag) => ghostFor(t, d.mode, d.dx, d.dy, W));
-  const tileUp = useStable(() => {
+  const tileUp = useStable((e?: RPE) => {
+    if (!samePointer(held.current, e?.pointerId)) return;
+    held.current = null;
     frames.flush();
     const d = tileRef.current;
     if (!d) return;
@@ -429,6 +433,7 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
     const el = carriedEl(roomRef.current, d.id);
     setTile(null); tileRef.current = null;
     if (!t || (Math.abs(d.dx) < 3 && Math.abs(d.dy) < 3)) { release(el); pan.settle(); return; }
+    if (endKind(e?.type) === "cancel") { settle(el, t, d.mode, d.dx, d.dy, t, W); pan.settle(); return; }   // the system took the pointer: back where it was, nothing saved
     if (d.mode === "move" && d.over) {
       const j = pages.findIndex((p) => p.id === d.over);
       if (pages[j]?.kind !== "panels") release(el);
@@ -450,6 +455,7 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    held.current = e.pointerId;
     navLive.current = d; navSig.current = "";
     setNav(d);
   });
@@ -464,7 +470,7 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
     if (sig !== navSig.current) { navSig.current = sig; setNav(next); }
   };
   const navMove = useStable((e: RPE) => {
-    if (!navLive.current) return;
+    if (!navLive.current || !samePointer(held.current, e.pointerId)) return;
     ptr.current = { x: e.clientX, y: e.clientY };
     frames.push(navFrame);
   });
@@ -484,13 +490,16 @@ function PhoneEditor({ phone, dev, devs, red, leaving, stage, onBack, onDone, on
     const align: NavAlign = Math.abs(d.dx) < 24 ? layout.nav.align : x < W * 0.36 ? "left" : x > W * 0.64 ? "right" : layout.nav.align === "full" ? "full" : "center";
     return { edge, align } as const;
   };
-  const navUp = useStable(() => {
+  const navUp = useStable((e?: RPE) => {
+    if (!samePointer(held.current, e?.pointerId)) return;
+    held.current = null;
     frames.flush();
     const d = navLive.current;
     if (!d) return;
     navLive.current = null;
     setNav(null);
     releaseNav(roomRef.current);
+    if (endKind(e?.type) === "cancel") return;   // the system took the pointer: the bar stays where it was
     if (d.kind === "bar") {
       if (Math.abs(d.dx) < 3 && Math.abs(d.dy) < 3) return;
       const t = barDrop(d);
@@ -621,8 +630,8 @@ const navItemsW = (l: PhoneLayout, W: number) => {
 
 // ---------- one page drawn at the phone's real size ----------
 export type EditProps = {
-  tile: TileDrag | null; ghostOf: (t: Tile, d: TileDrag) => Tile; tileDown: (e: RPE, id: string, mode: "move" | "size") => void; tileMove: (e: RPE) => void; tileUp: () => void;
-  nav: NavDrag | null; navShown: PhoneLayout["nav"]; navDown: (e: RPE, d: NavDrag) => void; navMove: (e: RPE) => void; navUp: () => void;
+  tile: TileDrag | null; ghostOf: (t: Tile, d: TileDrag) => Tile; tileDown: (e: RPE, id: string, mode: "move" | "size") => void; tileMove: (e: RPE) => void; tileUp: (e?: RPE) => void;
+  nav: NavDrag | null; navShown: PhoneLayout["nav"]; navDown: (e: RPE, d: NavDrag) => void; navMove: (e: RPE) => void; navUp: (e?: RPE) => void;
   fresh: string | null; removeTile: (id: string) => void; removeNav: (id: string) => void;
 };
 type ScreenProps = { layout: PhoneLayout; page: PhonePage; phone: PhoneKind; W: number; H: number; red: boolean; edit: EditProps | null };

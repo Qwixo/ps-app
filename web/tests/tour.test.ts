@@ -2,6 +2,7 @@
 // The "where things live" tour (core/tour.ts, PS 1.65) and how it joins the island intro rules (core/featureintro.ts). Fake times only.
 import { readFileSync } from "node:fs";
 import { ACTIVE_NEEDED_MS, GAP_MS, INTROS, addActive, answer, cleanState, emptyState, markShown, nextIntro, retireFolded, eligible, type IntroFacts, type IntroState } from "../src/core/featureintro.ts";
+import * as T from "../src/core/tour.ts";
 import { AGAIN_KEY, TOUR_FEATURE, TOUR_FOLDS, TOUR_ID, TOUR_STEPS, TOUR_WORDS, buttonWord, stepAfter, tourSteps, type TourFacts } from "../src/core/tour.ts";
 import { GROUPS, SETTINGS, settingById } from "../src/core/settingsindex.ts";
 
@@ -103,6 +104,13 @@ ok("the tour never takes focus: it is a choice card, whose button has no autoFoc
 ok("the four folded intros read their probe through the tour switch", ["receipts", "\"posture-165\"", "\"checklist-165\"", "\"notif-stack-165\""].every((k) => new RegExp(`${k}:? foldedUnlessTour|${k.replace(/"/g, "")}: foldedUnlessTour`).test(view) || view.includes(`${k}: foldedUnlessTour`)));
 ok("Done saves introsDone so it is once per person, synced", /if \(id === TOUR_ID\) \{[\s\S]*?introsDone: \[\.\.\.done, id\]/.test(view));
 ok("the Settings row is drawn", readFileSync(new URL("../src/views/SettingsGroups.tsx", import.meta.url), "utf8").includes('"tour-again": row('));
+
+// A tour cut short (a meeting, Sleep mode) goes on at the step it was on, never past the end, never from a bad number.
+ok("resumeAt: the saved step when it still exists", T.resumeAt(3, 6) === 3);
+ok("resumeAt: past the end or the last gone starts again", T.resumeAt(6, 6) === 0 && T.resumeAt(9, 4) === 0);
+ok("resumeAt: odd numbers start at the first step", T.resumeAt(-1, 5) === 0 && T.resumeAt(1.5, 5) === 0 && T.resumeAt(NaN, 5) === 0);
+ok("the card starts at resumeAt and Next reports the step to the host", /useState\(\(\) => resumeAt\(tourAt, tour\.length\)\)/.test(view) && /setTi\(n\); onTourStep\?\.\(n\)/.test(view));
+ok("Done, Esc and Show the tour again start the next tour from the first step", (view.match(/tourAt\.current = 0/g) || []).length >= 2);
 
 if (fails) { console.log(`tour: ${fails} FAILED of ${n}`); process.exit(1); }
 console.log(`tour: ${n} passed`);

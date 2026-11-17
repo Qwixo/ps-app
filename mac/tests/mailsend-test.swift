@@ -235,5 +235,10 @@ check("oauth-identity-bad", GmailOAuth.identity(idToken: "nonsense") == nil)
 let sec = MailSecrets(gmail: ["a@b.example": GmailCred(clientId: "c", clientSecret: "s", refresh: "r", name: nil)], clients: [:], instantly: "k")
 check("secrets-codable", (try? JSONDecoder().decode(MailSecrets.self, from: JSONEncoder().encode(sec))) == sec)
 
+// 1.65: a Proton email PS cannot open names Proton, the others keep their old line.
+check("cannot-proton-line", ReplyCannot.line(via: "proton").contains("Proton Mail"))
+check("cannot-gmail-line", ReplyCannot.line(via: "gmail") == "Use Open in Gmail or Open in Instantly on its card.")
+check("cannot-missing-via", ReplyCannot.line(via: nil) == ReplyCannot.line(via: "instantly"))
+
 print("\n\(count - fails) of \(count) ok")
 exit(fails == 0 ? 0 : 1)

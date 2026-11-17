@@ -11,6 +11,7 @@
 // thread; the tokens and the Instantly key live only in the Mac's Keychain, never here or in the vault).
 import type { ClientRec, Reply } from "./model";
 import { cleanReplyFrom, FREE_DOMAINS, domainOf, firstName, parseMatchEntry, replierName } from "./mail.ts";
+import { protonProblemWords } from "./protonmail.ts";
 
 /** A quick reply. `clients` empty or unset: General, offered for every email. Otherwise only for those clients. */
 export interface SavedResponse { id: string; name: string; text: string; clients?: string[] }
@@ -327,6 +328,30 @@ export function responsesFor(list: SavedResponse[], clientIds: string[], names: 
 }
 
 // ---------- send behaviour ----------
+/** What the Mac says about sending (ps.ts MailSendStatus, the same shape, kept here so this file needs no page code).
+ *  proton: since 1.65, the Bridge link on this Mac (a code for any problem, never a password). */
+export interface SendStatusIn {
+  gmail: { account: string; connected: boolean; problem?: string }[];
+  instantly: { saved: boolean; problem?: string };
+  proton?: { linked: boolean; problem?: string | null };
+}
+/** Can this reply be sent from this Mac now, and what problem line does the panel show. Proton: linked on this Mac (the
+ *  problem is a code, the panel turns it into words); a Mac that does not say anything about Proton yet keeps Send open,
+ *  as before (it checks the link itself when the send is due). Gmail: this account is connected. Instantly: a key is saved. */
+export function sendReady(via: Via, account: string, status: SendStatusIn | null | undefined): { ready: boolean; problem: string } {
+  if (!status) return { ready: false, problem: "" };
+  if (via === "proton") {
+    const p = status.proton;
+    if (!p) return { ready: true, problem: "" };
+    return { ready: p.linked === true, problem: p.linked === true && typeof p.problem === "string" ? p.problem : "" };
+  }
+  if (via === "gmail") {
+    const g = status.gmail.find((x) => x.account.toLowerCase() === account.toLowerCase());
+    return { ready: !!g?.connected, problem: g?.problem || "" };
+  }
+  return { ready: !!status.instantly.saved, problem: status.instantly.problem || "" };
+}
+
 /** The one line the reply panel shows under From while this account cannot send yet (10 Nov 2026: Reply is in the Tab
  *  list now, so the panel itself says what to do, once, instead of the button hiding). Empty when it can send, while
  *  the Mac has not said yet (status null), or when the Mac gave its own problem line. Words only; nothing is sent. */
@@ -432,7 +457,15 @@ export function rowText(r: OutRow, now = Date.now()): string {
   if (r.state === "sending") return "Sending now";
   if (r.state === "sent") return "Sent";
   if (r.state === "cancelled") return "Cancelled";
-  if (r.state === "failed") return r.error ? `Not sent: ${r.error}` : "Not sent";
+  if (r.state === "failed") {
+    // Proton (1.65): the Mac says "Proton: <code>"; the person reads the same words as in Settings, never the code. A reply whose
+    // answer got lost may have gone, so that one never starts with "Not sent".
+    const code = r.via === "proton" ? /^Proton: ([A-Za-z]{1,20})$/.exec(r.error || "")?.[1] : undefined;
+    const words = code ? protonProblemWords(code) : "";
+    if (code === "maybeSent" && words) return words;
+    const why = words || r.error;
+    return why ? `Not sent: ${why}` : "Not sent";
+  }
   const s = Math.max(0, Math.ceil((r.sendAt - now) / 1000));
   return r.undo || s <= 60 ? `Sending in ${s} s` : `${sendsAtText(r.sendAt, now)} (${inText(Math.ceil(s / 60))})`;
 }

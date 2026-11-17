@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { cellBox } from "../src/core/phonelayout.ts";
-import { dragDelta, dragSig, frameQueue, ghostFor, moveTransform, navTransform, outsideBox, settleVars, tileVars } from "../src/core/tiledrag.ts";
+import { dragDelta, dragSig, endKind, frameQueue, samePointer, ghostFor, moveTransform, navTransform, outsideBox, settleVars, tileVars } from "../src/core/tiledrag.ts";
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
@@ -109,5 +109,29 @@ ok("review fix: a settled panel animates only its offset, a cancelled swipe snap
   assert.ok(m.includes("onPointerCancel={roomCancel}"));
   const i = m.indexOf("const roomCancel"), body = m.slice(i, m.indexOf("const roomUp"));
   assert.ok(body.includes("frames.cancel()") && body.includes("swipeLive.current = null") && body.includes("setSwipe(null)"));
+});
+ok("one finger per drag: only the pointer that picked the panel up moves or drops it", () => {
+  assert.equal(samePointer(7, 7), true);
+  assert.equal(samePointer(7, 8), false, "a second finger");
+  assert.equal(samePointer(null, 7), false, "nothing carried");
+  assert.equal(samePointer(7, undefined), true, "a call without an event is the same finger");
+});
+ok("a cancelled touch (Android back gesture, the shade) glides back and saves nothing; a lifted finger drops", () => {
+  assert.equal(endKind("pointercancel"), "cancel");
+  assert.equal(endKind("pointerup"), "drop");
+  assert.equal(endKind(undefined), "drop");
+});
+ok("both editors guard by pointer and treat cancel as back where it was", () => {
+  for (const f of ["src/gos/PhoneEditMode.tsx", "src/views/PhoneEditor.tsx"]) {
+    const m = read(f);
+    for (const fn of ["const tileUp", "const navUp"]) {
+      const i = m.indexOf(fn), body = m.slice(i, i + 700);
+      assert.ok(body.includes("samePointer(held.current, e?.pointerId)"), `${f} ${fn} pointer guard`);
+      assert.ok(body.includes('endKind(e?.type) === "cancel"'), `${f} ${fn} cancel path`);
+    }
+    assert.ok(/held\.current = e\.pointerId/.test(m), `${f} remembers the finger`);
+  }
+  // the grid and the navbar send cancel to the same handler, which now tells the two apart
+  assert.ok(read("src/views/PhoneEditor.tsx").includes("onPointerCancel={edit?.tileUp}"));
 });
 console.log(`\n${n} passed`);
