@@ -168,4 +168,15 @@ await ok("no dashes in the Purchases files", () => {
   for (const p of ["../src/core/receipts.ts", "../src/core/purchases.ts", "../src/receipts.ts", "../src/views/Purchases.tsx", "../src/views/ReceiptScan.tsx", "../src/gos/receiptscan.ts", "./purchases.test.ts"]) assert.doesNotMatch(read(p), /[\u2013\u2014]/);
 });
 
+await ok("check screen: a changed draft is noticed, and a price like 1 234,50 is fine while abc or 1,234 is marked", () => {
+  const d = R.draftOf({ shop: "Spar", date: "2026-11-17", total: 1250, cur: "GEL", items: [{ n: "Tea", p: 400 }] });
+  assert.equal(R.draftChanged(structuredClone(d), d), false);
+  assert.equal(R.draftChanged({ ...d, note: "x" }, d), true);
+  assert.equal(R.itemPriceBad({ n: "Tea", p: "1 234,50" }), false);
+  assert.equal(R.itemPriceBad({ n: "Tea", p: "abc" }), true);
+  assert.equal(R.itemPriceBad({ n: "Tea", p: "1,234" }), true, "unclear thousands are not guessed");
+  assert.equal(R.itemPriceBad({ n: "Tea", p: "" }), true, "a named item needs its price");
+  assert.equal(R.itemPriceBad({ n: " ", p: "" }), false, "an empty row is skipped, not an error");
+});
+
 console.log(`purchases: ${n} passed`);

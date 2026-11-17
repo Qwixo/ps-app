@@ -64,10 +64,11 @@ function Bars({ data, cur, label }: { data: { label: string; value: number }[]; 
   return (
     <svg className="pc-bars" viewBox={`0 0 ${W} ${H + 18}`} role="img" aria-label={label}>
       {data.map((d, i) => {
-        const h = Math.round((d.value / max) * H), x = pad + i * ((W - pad * 2) / data.length) + 3;
+        const h = Math.round((Math.max(0, d.value) / max) * H), x = pad + i * ((W - pad * 2) / data.length) + 3;
+        const bh = Math.max(h, d.value > 0 ? 2 : 0);   // a tiny month still shows, and grows up from the line like the rest
         return (
           <g key={d.label}>
-            <rect x={x} y={H - h} width={bw} height={Math.max(h, d.value > 0 ? 2 : 0)} rx="2"><title>{`${d.label}: ${fmtMoney(d.value, cur)}`}</title></rect>
+            <rect x={x} y={H - bh} width={bw} height={bh} rx="2"><title>{`${d.label}: ${fmtMoney(d.value, cur)}`}</title></rect>
             <text x={x + bw / 2} y={H + 13} textAnchor="middle">{mLabel(d.label)}</text>
           </g>
         );

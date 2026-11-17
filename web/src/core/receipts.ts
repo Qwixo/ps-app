@@ -82,6 +82,11 @@ export function typedMoney(s: string): number | null {
   return amountToMinor(t, true);
 }
 
+/** The person changed something on the check screen (then a click beside it does not throw the receipt away). */
+export const draftChanged = (now: RcDraft, start: RcDraft): boolean => JSON.stringify(now) !== JSON.stringify(start);
+/** One item row whose price would stop Save: a row with a name or a price, and a price that is not a number. */
+export const itemPriceBad = (i: { n: string; p: string }): boolean => !!(i.n.trim() || i.p.trim()) && typedMoney(i.p) === null;
+
 export type DraftProblem = "date" | "total" | "item-price";
 /** The receipt a draft makes, or what is wrong with it (the check screen points at it). */
 export function receiptOfDraft(d: RcDraft, now: Date, src: Receipt["src"], ph?: string): { ok: Receipt } | { bad: DraftProblem[] } {
