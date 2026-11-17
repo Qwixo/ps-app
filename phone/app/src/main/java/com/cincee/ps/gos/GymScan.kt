@@ -10,7 +10,6 @@ import android.os.Handler
 import android.os.HandlerThread
 import com.googlecode.tesseract.android.TessBaseAPI
 import org.json.JSONObject
-import java.io.File
 
 /*
  * Gym scan (V1.59, the developer: "a text scan for the gym... PS reads the text on the phone"). The page (web
@@ -128,21 +127,11 @@ object GymScan {
         return list
     }
 
-    /** The reader, made once: the models are copied out of the APK the first time (Tesseract reads files, not assets). */
+    /** The reader, made once: the models are copied out of the APK the first time (OcrModels, shared with the receipt
+     *  scan). Before this fix it read each model's size with openFd, which throws on the compressed assets, so no scan worked. */
     private fun api(c: Context): TessBaseAPI? {
         tess?.let { return it }
-        val root = File(c.noBackupFilesDir, "ocr")
-        val dir = File(root, "tessdata").apply { mkdirs() }
-        for (lang in LANGS.split("+")) {
-            val name = "$lang.traineddata"
-            val f = File(dir, name)
-            val size = c.assets.openFd("tessdata/$name").use { it.length }
-            if (f.length() != size) {
-                val tmp = File(dir, "$name.part")
-                c.assets.open("tessdata/$name").use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
-                if (!tmp.renameTo(f)) { tmp.delete(); return null }
-            }
-        }
+        val root = OcrModels.root(c, LANGS, "gym") ?: return null
         val t = TessBaseAPI()
         if (!t.init(root.absolutePath, LANGS, TessBaseAPI.OEM_LSTM_ONLY)) { t.recycle(); Plog.i("gymscan: the reader did not start"); return null }
         t.setVariable("user_defined_dpi", "300")
