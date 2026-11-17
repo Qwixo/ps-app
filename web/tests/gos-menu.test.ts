@@ -8,6 +8,9 @@ import { readFileSync } from "node:fs";
 import { MENU, menuItems, ENDDAY_LINE_FRIEND } from "../src/gos/menu.ts";
 import { CAMPAIGNS_ON } from "../src/core/features.ts";
 import { SETTINGS, groupsFor, rowsOf, searchSettings, visibleTo, type Ctx } from "../src/core/settingsindex.ts";
+// PS 1.65: the Your Macs row shows once Second Computer is switched on (core/mailflag.ts setSecondAllowed, set by the vault).
+import { setSecondAllowed } from "../src/core/mailflag.ts";
+setSecondAllowed(true);
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
@@ -78,9 +81,13 @@ ok("GrapheneOS rows only in the GrapheneOS app, web app rows only in the web app
   for (const e of SETTINGS.filter((x) => x.shell === "mweb")) { assert.ok(!visibleTo(e, GOS), e.id); assert.ok(!visibleTo(e, MAC), e.id); }
   assert.ok(!SETTINGS.some((e) => e.go === "phone"), "no row points at the old sheet any more");
 });
-ok("Your Macs and background videos stay the developer's", () => {
-  const rows = groupsFor(FRIEND_GOS).flatMap((g) => rowsOf(g.id, FRIEND_GOS).main.map((e) => e.id));
-  assert.ok(!rows.includes("phone-macs") && !rows.includes("phone-videos"));
+ok("background videos stay the developer's, Your Macs follows the Second Computer switch (PS 1.65, everyone's)", () => {
+  const rows = () => groupsFor(FRIEND_GOS).flatMap((g) => rowsOf(g.id, FRIEND_GOS).main.map((e) => e.id));
+  assert.ok(!rows().includes("phone-videos"));
+  assert.ok(rows().includes("phone-macs"), "switched on: a friend sees Your Macs");
+  setSecondAllowed(false);
+  assert.ok(!rows().includes("phone-macs"), "switched off: no Your Macs row");
+  setSecondAllowed(true);
 });
 ok("the phone's search finds its own settings", () => {
   const first = (q: string, c: Ctx) => searchSettings(q, c)[0]?.e.id;
@@ -91,7 +98,9 @@ ok("the phone's search finds its own settings", () => {
   assert.equal(first("change project", MW), "mweb-project");
 });
 ok("every phone row has a control", () => {
-  const c = read("src/gos/PhoneRows.tsx");
+  // PhoneRows.tsx holds the phone's own controls; SettingsGroups.tsx spreads them into the one control map, so a phone row
+  // drawn there (Low power mode's Battery Saver switch, PS 1.65) counts too.
+  const c = read("src/gos/PhoneRows.tsx") + read("src/views/SettingsGroups.tsx");
   // an entry with `parent` is drawn inside its parent's control (phone-bg and phone-fit sit in Background), so it needs no row of its own
   for (const e of SETTINGS.filter((x) => (x.shell || x.id.startsWith("phone-")) && !x.parent)) assert.ok(c.includes(`"${e.id}":`), e.id);
 });

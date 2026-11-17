@@ -7,8 +7,7 @@ import * as S from "../core/squadcrypto.ts";
 import { signRequest } from "../core/squadcrypto.ts";
 import { currentKey, keyFor, type SquadRec } from "../core/squadrec.ts";
 import { cleanRequest, frAad, mergeSquadList, type FeatureRequest, type SquadRow } from "../core/featreq.ts";
-import { HUB_URL, HubError, hubBytes } from "./hub.ts";
-import { hubAwake } from "./hub";
+import { HUB_URL, HubError, hubBytes, hubAwake } from "./hub.ts";
 
 export const FR_FN = `${HUB_URL}/functions/v1/featreq`;
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;

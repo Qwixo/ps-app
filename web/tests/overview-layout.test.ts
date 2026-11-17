@@ -12,6 +12,8 @@ import {
 let n = 0;
 // Client emails is on for these accounts (core/mailswitch.ts via core/mailflag.ts): the panel is theirs, not the developer's.
 (await import("../src/core/mailflag.ts")).setMailAllowed(true);
+// PS 1.65: Second Computer is everyone's once its switch is on (core/secondswitch.ts via core/mailflag.ts), so its panel is too.
+(await import("../src/core/mailflag.ts")).setSecondAllowed(true);
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log("ok -", name); };
 const AT = "2026-11-12T22:00:00.000Z";
 let seed = 1;
