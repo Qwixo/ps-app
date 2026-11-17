@@ -14,6 +14,7 @@ import { islandMeetings } from "./core/islandaway";
 import { visibleEvents } from "./core/meethide";
 import { meetingEvents } from "./core/calpick";
 import { saveSettings, toggleTodo } from "./core/actions";
+import { clockStart } from "./core/timesave";
 import { workingIdsOf, type Doc, type Reply, type Todo } from "./core/model";
 import { mailCards } from "./core/mailcards";
 import { leadCards } from "./core/leadcards";
@@ -162,7 +163,7 @@ export function islandMessage(m: { type?: string; action?: string; id?: string }
   } else if (m.action === "untick" && canUndo(lastTick, d.id, d.data, Date.now())) {
     const back = lastTick?.working ?? null;
     lastTick = null;
-    void toggleTodo(d.id).then(() => { if (back?.includes(d.id)) void saveSettings({ workingIds: back, workingOn: back[0] ?? null }); });
+    void toggleTodo(d.id).then(() => { if (back?.includes(d.id)) { void saveSettings({ workingIds: back, workingOn: back[0] ?? null }); void clockStart(d.id); } });   // its clock goes on again (core/timesave.ts)
   }
   return true;
 }

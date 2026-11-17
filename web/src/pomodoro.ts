@@ -5,6 +5,8 @@ import { vaultStore } from "./core/vault";
 import { settingsData } from "./core/select";
 import { saveSettings } from "./core/actions";
 import { applyOp, cleanRun, pomoPrefs, resolve, type PomoOp, type PomoRun } from "./core/pomodoro";
+import { workingIdsOf } from "./core/model";
+import { notePomo } from "./core/timesave";
 
 const same = (a: PomoRun | null, b: PomoRun | null) => JSON.stringify(a) === JSON.stringify(b);
 const canWrite = () => { const s = vaultStore.get(); return s.status === "unlocked" && s.role === "owner"; };
@@ -17,7 +19,7 @@ export async function runPomoOp(op: PomoOp): Promise<void> {
   if (!prefs.on && op !== "stop") return;
   const was = cleanRun(st.pomoRun);
   const next = applyOp(was, op, prefs, Date.now());
-  if (!same(was, next) || (st.pomoRun ?? null) !== null && next === null) await saveSettings({ pomoRun: next });
+  if (!same(was, next) || (st.pomoRun ?? null) !== null && next === null) { await saveSettings({ pomoRun: next }); notePomo(was, next, workingIdsOf(st)); }   // time spent (core/timesave.ts)
 }
 
 /** Saves the run when a phase ends (and after a sleep, a restart or a settings change), so the next phase is on record.
@@ -38,7 +40,7 @@ export function startPomodoro(onChange?: () => void) {
     const next = prefs.on ? resolve(was, prefs, now) : null;
     if (!same(was, next)) {
       busy = true;
-      try { await saveSettings({ pomoRun: next }); } catch { /* the next check tries again */ } finally { busy = false; }
+      try { await saveSettings({ pomoRun: next }); notePomo(was, next, workingIdsOf(st)); } catch { /* the next check tries again */ } finally { busy = false; }
       onChange?.();
     }
     if (next && next.left === null) timer = window.setTimeout(() => void check(), Math.max(200, next.endsAt - Date.now() + 120));

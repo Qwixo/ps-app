@@ -10,6 +10,7 @@
 // - the work is cut into small steps that give the page back in between, so nothing ever stutters.
 // Off (Settings, Privacy and sharing, "Rewind (yearly recap)") means nothing at all is collected or written.
 // Nothing here reads Rewind back to show it: there is no view of it before the recap (core/rewind.ts openYear).
+import { allDone, foldTime } from "./core/timeest";
 import { docs, put, remove, vaultStore, type Snapshot } from "./core/vault";
 import { settingsData } from "./core/select";
 import { saveSettings } from "./core/actions";
@@ -117,6 +118,7 @@ function sources(s: Snapshot, st: ReturnType<typeof settingsData>): R.RwSources 
     gymAck: st.gymAck || [],
     gym: gp.on ? { on: true, days: gp.days } : null,
     money: st.squadMoney?.m || {},
+    timed: allDone([...foldTime(docs<unknown>("ttime", null)).months.values()].map((m) => m.rec)),   // time spent (core/timeest.ts)
   };
 }
 

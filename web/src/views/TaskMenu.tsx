@@ -21,6 +21,8 @@ import { TaskRemindHost, openTaskRemind, reminderWords } from "./TaskRemind";
 import { reminderOfTask } from "../core/remind";
 import { remindRec } from "../core/select";
 import type { ClientRec } from "../core/model";
+import { EstPicker, setTaskEst, timeAct, timeView } from "./TimeEstimate";
+import { cleanEst, estLabel as estLabelOf, isRunning, TE_WORDS } from "../core/timeest";
 import "./taskmenu.css";
 
 const GOS = import.meta.env.MODE === "gos";
@@ -93,6 +95,7 @@ function Menu({ at, lists, onEdit }: { at: MenuAt; lists: TabLists; onEdit: (id:
   const [copied, setCopied] = useState(false);
   const [handOpen, setHandOpen] = useState(false);   // G Squad: Hand to someone (views/GSquadTask.tsx)
   const [listOpen, setListOpen] = useState(false);   // V1.55: Move to list (views/ListPager.tsx)
+  const [estOpen, setEstOpen] = useState(false);     // PS 1.65: Estimate (views/TimeEstimate.tsx)
   const d = vaultStore.get().docs.get(at.id) as Doc<Todo> | undefined;
   const t = d?.kind === "todo" ? d.data : undefined;
   const [pickDay, setPickDay] = useState(() => (t?.due && /^\d{4}-\d{2}-\d{2}/.test(t.due) ? t.due.slice(0, 10) : todayISO()));
@@ -105,7 +108,7 @@ function Menu({ at, lists, onEdit }: { at: MenuAt; lists: TabLists; onEdit: (id:
     const w = el.offsetWidth, h = el.offsetHeight, W = window.innerWidth, H = window.innerHeight;
     const up = at.y + h + 8 > H && at.y - h - 4 >= 0;
     setPos({ left: Math.max(6, Math.min(W - w - 6, at.x + 2)), top: up ? at.y - h - 2 : Math.max(6, Math.min(H - h - 6, at.y + 2)), up });
-  }, [at, dateOpen, handOpen, listOpen]);
+  }, [at, dateOpen, handOpen, listOpen, estOpen]);
   // Closes on a click anywhere else, the wheel, Esc, or the window losing focus.
   useEffect(() => {
     const away = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) close(); };
@@ -138,6 +141,8 @@ function Menu({ at, lists, onEdit }: { at: MenuAt; lists: TabLists; onEdit: (id:
   if (!t || !d) return null;
 
   const done = tickView(at.id, !!t.done).done;
+  const tv = timeView(vaultStore.get());
+  const est = cleanEst(t.est), running = tv.on && tv.prefs.track && isRunning(tv.live, at.id);
   const daily = t.type === "daily";
   const every = daily && isEveryDay(t);
   const inList = lists.ranked.some((x) => x.id === at.id) || [...lists.groups.values()].some((l) => l.some((x) => x.id === at.id));
@@ -164,6 +169,9 @@ function Menu({ at, lists, onEdit }: { at: MenuAt; lists: TabLists; onEdit: (id:
     ...(at.from === "list" && !done ? [{ key: "m", label: "Move to list", hint: "M", keep: true, run: () => { sfx.hover(); setListOpen((v) => !v); } }] : []),
     // V1.55: an Annoying 15 min reminder on this task (views/TaskRemind.tsx). Not on a finished one-off.
     ...(!done || daily ? [{ key: "r", label: reminderWords(!!reminderOfTask(remindRec(vaultStore.get()), at.id)), hint: "R", run: () => openTaskRemind(at.id, at.root) }] : []),
+    // PS 1.65 time estimates (core/timeest.ts): an estimate, and the task's clock (Working on starts it too). Only when switched on.
+    ...(tv.on && tv.prefs.est && !done ? [{ key: "t", label: est ? `${TE_WORDS.estimate}: ${estLabelOf(est)}` : TE_WORDS.estimate, hint: "T", keep: true, run: () => { sfx.hover(); setEstOpen((v) => !v); } }] : []),
+    ...(tv.on && tv.prefs.track && !done ? [{ key: "w", label: running ? TE_WORDS.stop : TE_WORDS.start, hint: "W", run: () => { sfx.click(); timeAct({ op: running ? "stop" : "start", id: at.id }); } }] : []),
     { key: "c", label: copied ? "Copied" : "Copy text", hint: "C", keep: true, run: () => {
       void copyText(t.title).then((ok) => { if (ok) { sfx.click(); setCopied(true); window.setTimeout(close, 420); } else close(); });
     } },
@@ -174,7 +182,7 @@ function Menu({ at, lists, onEdit }: { at: MenuAt; lists: TabLists; onEdit: (id:
   const pick = (it: Item) => { it.run(); if (!it.keep) close(); };
   keyRef.current = (e: KeyboardEvent) => {
     const own = () => { e.preventDefault(); e.stopImmediatePropagation(); };
-    if (e.key === "Escape") { own(); if (dateOpen) setDateOpen(false); else close(); return; }
+    if (e.key === "Escape") { own(); if (dateOpen) setDateOpen(false); else if (estOpen) setEstOpen(false); else close(); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if ((e.target as HTMLElement | null)?.matches?.("input") && ref.current?.contains(e.target as Node)) return;   // typing a date
     const all = [...(ref.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? [])];
@@ -204,13 +212,14 @@ function Menu({ at, lists, onEdit }: { at: MenuAt; lists: TabLists; onEdit: (id:
       <span className="tm-ctx-t">{t.title}</span>
       {items.map((it) => (
         <div key={it.key} className="tm-ctx-grp">
-          <button type="button" role="menuitem" data-k={it.key} className={`tm-ctx-i${it.danger ? " bad" : ""}${(it.key === "n" && dateOpen) || (it.key === "m" && listOpen) ? " on" : ""}`}
-            aria-expanded={it.key === "n" ? dateOpen : undefined}
+          <button type="button" role="menuitem" data-k={it.key} className={`tm-ctx-i${it.danger ? " bad" : ""}${(it.key === "n" && dateOpen) || (it.key === "m" && listOpen) || (it.key === "t" && estOpen) ? " on" : ""}`}
+            aria-expanded={it.key === "n" ? dateOpen : it.key === "t" ? estOpen : undefined}
             onMouseEnter={(e) => { e.currentTarget.focus({ preventScroll: true }); sfx.hover(); }} onClick={() => pick(it)}>
             <span>{it.label}</span><kbd>{it.hint}</kbd>
           </button>
           {it.key === "h" && handOpen && <HandPicker id={at.id} onDone={close} />}
           {it.key === "m" && listOpen && <ListPicker ids={[at.id]} onDone={close} />}
+          {it.key === "t" && estOpen && <EstPicker compact value={est} onPick={(m) => { if (m !== est) { pushUndoAction(`est:${at.id}`, t.title, () => setTaskEst(d, est)); setTaskEst(d, m); } close(); }} />}
           {it.key === "n" && dateOpen && (
             <div className="tm-ctx-date" role="group" aria-label="New date">
               <button type="button" className="tm-ed-chip" onClick={() => setDue(plusDays(0))}>Today</button>

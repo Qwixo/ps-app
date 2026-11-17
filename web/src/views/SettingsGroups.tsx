@@ -59,6 +59,8 @@ import { ScreenRecSettings } from "./ScreenRec";
 import { cleanSwitches, feature } from "../core/features";
 import { CHK_FEATURE, CHK_EVERY_CHOICES, chkCardItem, cleanChk, everyLabel } from "../core/chkremind";
 import { chkTest } from "../chkwatch";
+import { cleanTe, TE_FEATURE } from "../core/timeest";
+import { TimeHours } from "./TimeEstimate";
 import { SR_FEATURE } from "../core/screenrec";
 import { mailOnSnap } from "../core/mailsnap";
 import { mailCan } from "../core/mailswitch";
@@ -112,7 +114,8 @@ export function SettingsHost({ st, gen, owner }: { st: Settings; gen: GenProps; 
   const sr = feature(SR_FEATURE);   // PS 1.60: the Screen recording group shows only where the feature is on in this build
   const pf = feature("posture-reminder");   // PS 1.65: the Posture Reminder group shows only where the feature is on
   const ck = feature(CHK_FEATURE);   // PS 1.65: the Checklist Reminder group shows only where the feature is on
-  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, pf, ck, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr, pf, ck]);
+  const te = feature(TE_FEATURE);   // PS 1.65: the time estimate rows show only where the feature is on
+  const ctx = useMemo(() => ({ red, where: settingsWhere(), mail, mailCan: mailC, sr, pf, ck, te, shell: GOS ? "gos" as const : MWEB ? "mweb" as const : undefined }), [red, mail, mailC, sr, pf, ck, te]);
   return (
     <GenContext.Provider value={{ gen, st }}>
       <SettingsScreen owner={owner} ctx={ctx} controls={CONTROLS} phone={GOS || MWEB} onGo={(go, e, close) => goTo(go, e, close, owner)} />
@@ -164,6 +167,10 @@ function OnOff({ on, ready = true, set, label }: { on: boolean; ready?: boolean;
 function SyncedOnOff({ e, field }: { e: RowProps["e"]; field: "squadAutoJoin" | "psPresence" | "tipsShow" | "taskHistory" }) {
   const v = useVault();
   return <SetRow e={e} right={<OnOff label={e.name} on={onUnlessOff(settingsData(v)[field])} ready={v.status === "unlocked"} set={(on) => save({ [field]: on })} />} />;
+}
+function TeOnOff({ e, k }: { e: RowProps["e"]; k: "est" | "track" | "warn" }) {
+  const v = useVault(), p = cleanTe(settingsData(v).timeEst);
+  return <SetRow e={e} right={<OnOff label={e.name} on={p[k]} ready={v.status === "unlocked"} set={(on) => save({ timeEst: { ...p, [k]: on } })} />} />;
 }
 type Ps = (PsSettings & { afk?: { on: boolean }; mediaGuard?: { on: boolean }; middleClick?: { on: boolean }; fu?: { on: boolean }; aiDone?: AiDoneState }) | null;
 const usePs = () => usePsSettings() as Ps;
@@ -275,6 +282,11 @@ export const CONTROLS: Controls = {
   // Annoying 15 min reminder (core/remind.ts): the whole list, always open. The website's Test card sits here too.
   "reminders": function Reminders({ e }) { return <SetRow e={e} body={<><RemindSettings /><RemTestCard /></>} open plain />; },
   // Checklist Reminder (PS 1.65, core/chkremind.ts, views/ChecklistReminder.tsx): on or off, how often, the chime, and a look at the pop-up.
+  // Time estimates (PS 1.65, core/timeest.ts, views/TimeEstimate.tsx): estimates, time spent, the overload line, working hours.
+  "te-est": function TeEst({ e }) { return <TeOnOff e={e} k="est" />; },
+  "te-track": function TeTrack({ e }) { return <TeOnOff e={e} k="track" />; },
+  "te-warn": function TeWarn({ e }) { return <TeOnOff e={e} k="warn" />; },
+  "te-hours": row(() => <TimeHours />),
   "chk-on": function ChkOn({ e }) {
     const v = useVault(), c = cleanChk(settingsData(v).chkRemind);
     return <SetRow e={e} right={<OnOff label={e.name} on={c.on} ready={v.status === "unlocked"} set={(on) => save({ chkRemind: { ...c, on } })} />} />;

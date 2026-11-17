@@ -31,6 +31,8 @@ import { cleanPhoneLayout, isDefaultPhone, pickPhoneLayout, samePhoneLayout, typ
 import { cleanPhoneDev, shouldBeat, type PhoneDev } from "./phonedevices";
 import * as Dev from "./devicebg";
 import { cleanMonth, mergeMonth } from "./monthhist";
+import { cleanLive, cleanTMonth, mergeLive, mergeTMonth } from "./timeest";
+import { clockFinish, clockStart, clockStop, clockStopAll, clockUntick, learnedEst } from "./timesave";
 import { cleanRemind, mergeRemind, pickRemind, sameRemind, type RemindRec } from "./remind";
 import { buildExamples, examplesLeft, withoutExamples, type ExampleState } from "./examples";
 
@@ -44,6 +46,12 @@ setMerger("msender", (a, b) => mergeSender(a as MailSender, b as MailSender));
 setMerger("daylog", (a, b) => mergeDayLog(a as DayLog, b as DayLog));
 setMerger("mhist", (a, b) => { const x = cleanMonth(a), y = cleanMonth(b); return x && y ? mergeMonth(x, y) : (x || y || a); });
 setMerger("remind", (a, b) => mergeRemind(cleanRemind(a), cleanRemind(b)));
+// Time spent (PS 1.65, core/timeest.ts): the live clocks and each month's finishes merge, so two devices never undo each other.
+setMerger("ttime", (a, b) => {
+  if ((a as { t?: unknown })?.t === "live" && (b as { t?: unknown })?.t === "live") return mergeLive(cleanLive(a), cleanLive(b));
+  const x = cleanTMonth(a), y = cleanTMonth(b);
+  return x && y && x.mo === y.mo ? mergeTMonth(x, y) : (x || y || a);
+});
 
 // ---------- settings ----------
 // One settings save at a time: put() encrypts before the new copy lands in memory, so two saves
@@ -465,8 +473,10 @@ export async function addTodo(t: Partial<Todo> & { title: string }) {
   // New tasks join the bottom of the priority list (drag them up to raise their priority).
   const list = todos(vaultStore.get());
   const order = t.order ?? (list.length ? Math.max(...list.map((x) => x.data.order ?? 0)) + 1 : 0);
+  // Time estimates (PS 1.65, core/timeest.ts): a name used before gets the usual time, marked as learned ("Usually takes about").
+  const usual = !t.example && t.est == null ? learnedEst(t.title) : null;
   const id = await put<Todo>("todo", {
-    type: "once", done: false, source: "manual", ...t, order, createdAt: now(),
+    type: "once", done: false, source: "manual", ...t, ...(usual ? { est: usual, estBy: "past" as const } : {}), order, createdAt: now(),
   } as Todo, { ws: null });
   if (!t.example && id) void logTaskEvent("added", { id, title: t.title, p1: t.p1, clientId: t.clientId });
   return id;
@@ -554,6 +564,8 @@ export async function toggleTodo(id: string) {
     const p = tickPatch(d.data, now());
     const subs = tickParentSubs(d.data.subtasks, !!p.done, now());
     await updateTodo(id, subs ? { ...p, subtasks: subs } : p);
+    // Time spent (core/timesave.ts): a tick ends the task's clock and keeps what it took; an untick takes that back. Never awaited.
+    if (p.done) void clockFinish(id); else void clockUntick(id);
   }
   // Finishing a task you were working on clears its white highlight (the others stay).
   const ids = workingIdsOf(settings(vaultStore.get())?.data || {});
@@ -1021,9 +1033,11 @@ export function liveNotes() { return notes(vaultStore.get()).live; }
 // ---------- the task the developer is working on right now ----------
 /** Click a task: add it to (or take it off) the tasks you are working on. null clears them all. */
 export function setWorkingOn(id: string | null) {
-  if (id === null) return saveSettings({ workingIds: [], workingOn: null });
+  // Time spent (core/timesave.ts): Working on starts a task's clock, taking it off stops it. Never awaited.
+  if (id === null) { void clockStopAll(); return saveSettings({ workingIds: [], workingOn: null }); }
   const ids = workingIdsOf(settings(vaultStore.get())?.data || {});
   const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+  void (next.includes(id) ? clockStart(id) : clockStop(id));
   return saveSettings({ workingIds: next, workingOn: next[0] ?? null });
 }
 

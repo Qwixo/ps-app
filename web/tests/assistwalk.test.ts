@@ -7,7 +7,7 @@ import { pathOf } from "../src/core/assist.ts";
 
 let fails = 0, n = 0;
 const ok = (name: string, c: boolean) => { n++; if (!c) { fails++; console.log(`FAIL ${name}`); } };
-const base = { pf: true, ck: true, sr: true, mail: true, mailCan: true };
+const base = { pf: true, ck: true, te: true, sr: true, mail: true, mailCan: true };
 const CTXS: Ctx[] = [];
 for (const red of [false, true]) for (const where of ["mac", "web", "phone"] as const) for (const shell of where === "phone" ? (["gos", "mweb"] as const) : [undefined]) CTXS.push({ ...base, red, where, shell });
 const reachable = SETTINGS.filter((e) => CTXS.some((c) => visibleTo(e, c)));

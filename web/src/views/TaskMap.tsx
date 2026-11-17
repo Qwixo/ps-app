@@ -109,6 +109,8 @@ import { Storm, type StormKind } from "./Storm";
 import { rainLayers } from "../core/looksample";
 import { DimensionX, dimxIsOpen, morph } from "./DimensionX";
 import { ChecklistScreens } from "./ChecklistReminder";
+import { EditTime, EstBadge, EstHint, OverloadLine } from "./TimeEstimate";
+import { cleanEst } from "../core/timeest";
 import { openSettings, useSettingsWanted, type Preview, type SettingsOwner } from "./SettingsScreen";
 import { SettingsHost } from "./SettingsGroups";
 import { BgBrightControls, BgDim, GosAddVideoTile } from "./BgBright";
@@ -167,7 +169,7 @@ import { okTaskId } from "../core/remind";
 
 // What a tick or a click does. The PS Mac app's floating window swaps these for messages to
 // its main window, which holds the keys (see src/ps.ts).
-export type TodoPatch = Partial<Pick<Todo, "title" | "notes" | "due" | "type" | "clientId" | "order" | "repeat" | "p1" | "unranked" | "group" | "aiInbox">>;
+export type TodoPatch = Partial<Pick<Todo, "title" | "notes" | "due" | "type" | "clientId" | "order" | "repeat" | "p1" | "unranked" | "group" | "aiInbox" | "est" | "estBy">>;
 
 /** The order value that puts a task at priority p (1 = top) in a ranked list, between its new
  *  neighbours, so only that one task changes. */
@@ -1453,6 +1455,8 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
         </header>
         {/* Local first (V1.44, views/LocalFirst.tsx): one line while the data is only on this device, the week old card. */}
         <LocalLine s={s} st={st} />
+        {/* PS 1.65 time estimates (views/TimeEstimate.tsx): "You've planned 9 h with 5 h free", with Rethink. Once a day at most. */}
+        <OverloadLine lists={lists} />
         {/* Several lists (V1.55): the list's name under the headline (views/ListPager.tsx). */}
         <ListStrip names={pg.names} id={curPage.id} />
         <ListPager ids={pageIds} index={curPage.index} docked={docked} render={(id, here) => {
@@ -3472,6 +3476,8 @@ function Row({ d, n, working, today, drag, onEdit, fresh, sel, ticked }: { d: Do
         {t.ai && <span className="tm-ai" title="Added by an AI (AI task API)">AI</span>}
         {rep && <span className="tm-due tm-rep">{rep}</span>}
         {when && <span className={`tm-due num${late ? " late" : ""}`}>{when}</span>}
+        <EstBadge d={d} />
+        <EstHint d={d} />
       </button>
       <TaskBell task={d.id} done={isDone} />
       <MiniToggle d={d} open={mini.open} onToggle={mini.toggle} />
@@ -3499,6 +3505,7 @@ export function Editor({ d, clients, onDone, ranked }: { d: Doc<Todo>; clients: 
   const [due, setDue] = useState(t.due || "");
   const [clientId, setClientId] = useState(t.clientId || "");
   const [sure, setSure] = useState(false);
+  const [est, setEst] = useState<number | null>(() => cleanEst(t.est));   // PS 1.65 time estimates, saved with Save
   const reminder = useTaskReminder(d.id);
   const pick = (k: RepeatDraft["kind"]) => { setRule((r) => ({ ...r, kind: k, from: k === "repeat" && r.kind !== "repeat" ? due || todayISO() : r.from })); sfx.hover(); };
   const plus = (n: number) => { const x = new Date(); x.setDate(x.getDate() + n); return x.toLocaleDateString("en-CA"); };
@@ -3511,6 +3518,7 @@ export function Editor({ d, clients, onDone, ranked }: { d: Doc<Todo>; clients: 
     if (!name) return;
     const r = patchOf(rule, todayISO(), t);
     const patch: TodoPatch = { title: name, notes: notes.trim() || null, type: r.type, repeat: r.repeat, due: r.type === "once" ? due || null : r.due ?? null, clientId: clientId || null };
+    if (est !== cleanEst(t.est)) { patch.est = est; patch.estBy = null; }
     // A new priority number moves just this task between its new neighbours.
     if (typedP && ranked && type === "once") {
       const e = typedEdit(ranked.map((x) => ({ id: x.id, ...x.data })), d.id, typedP.prio);
@@ -3559,6 +3567,7 @@ export function Editor({ d, clients, onDone, ranked }: { d: Doc<Todo>; clients: 
           )}
         </div>
         {kind === "repeat" && <RepeatPicker value={rule} onChange={setRule} cls={TM_REPEAT} />}
+        <EditTime d={d} title={title} est={est} setEst={setEst} />
         {ranked && type === "once" && (
           <div className="tm-ed-row">
             <button type="button" role="switch" aria-checked={p1} className={`tm-p1-switch${p1 ? " on" : ""}`} onClick={() => { tp.picked(); setP1((v) => !v); sfx.click(); }}

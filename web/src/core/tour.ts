@@ -43,6 +43,7 @@ export const TOUR_STEPS: TourStep[] = [
   { ids: ["notif-stack"], title: "Stacked notifications", line: "With many waiting you see the newest and a +number. Point at the +number to open the rest.", where: "On the island. Switch: Settings, G Squad, From the squad", on: ["mac"] },
   { ids: ["proton-bridge"], title: "Proton Mail", line: "Read your clients' Proton Mail in the email panel.", where: "Settings, Client emails, Link Proton Mail", on: ["mac"], mail: true },
   { ids: ["settings-assistant"], title: "Settings assistant", line: "Tell a little bot what you want and it finds the setting and takes you there.", where: "The bot at the top of Settings. Switch: Settings, Settings assistant" },
+  { ids: ["time-estimates"], title: "Time estimates", line: "Give tasks an estimate, see how long they really took, and get a quiet line when the day is too full.", where: "A task's Edit (on a Mac also its right click menu), Estimate and Start. Switches: Settings, Your list" },
   { ids: ["fuller-history"], title: "Fuller history", line: "A private record of tasks you missed, added or deleted.", where: "Settings, Privacy and sharing, Fuller task history" },
   { ids: ["gsquad-v3", "gsquad-dm"], title: "G Squad, new look", line: "A new look with direct messages and group chats.", where: "Open G Squad. Your picture: Squad settings, Your name and picture" },
   { ids: ["gsquad-pieces"], title: "G Squad on your pages", line: "Put the squad chat, the leaderboard or who is working on any page.", where: "Edit mode, Add, the G Squad pieces" },

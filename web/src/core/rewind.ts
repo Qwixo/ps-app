@@ -67,6 +67,7 @@ export interface RwDay {
   st?: Partial<Record<"mac" | "gos", [number, Record<string, number>]>>;   // screen time: [total minutes, app: minutes]
   af?: Record<string, [number, string]>;                       // break start (base 36 seconds): [minutes, reason]
   mt?: string[];                                               // meetings (keys)
+  tm?: Record<string, [string, number, number]>;               // time spent (PS 1.65, core/timeest.ts), tick key as in tk: [title, minutes, estimate minutes or 0]
   dv?: Record<string, RwDev>;                                  // each device's own counts
 }
 export interface RwMoney { usd: number; rank?: number; of?: number; low?: 1; src?: "ps" | "board" }
@@ -169,6 +170,7 @@ export function mergeDay(a: RwDay, b: RwDay): RwDay {
   const st = mergeSt(a.st, b.st); if (st && Object.keys(st).length) out.st = st;
   const af = union(a.af, b.af, (x, y) => (x[0] >= y[0] ? x : y)); if (af) out.af = af;
   if (a.mt || b.mt) out.mt = [...new Set([...(a.mt || []), ...(b.mt || [])])].sort();
+  const tm = union(a.tm, b.tm, (x, y): [string, number, number] => [x[0] <= y[0] ? x[0] : y[0], Math.max(x[1], y[1]), Math.max(x[2], y[2])]); if (tm) out.tm = tm;
   const dv = union(a.dv, b.dv, mergeDev); if (dv) out.dv = dv;
   return out;
 }
@@ -251,6 +253,8 @@ export interface RwSources {
   gymAck: string[];
   gym: { on: boolean; days: number[] } | null;
   money: Record<string, number>;
+  /** Time spent (PS 1.65, core/timeest.ts): each finished task's minutes, from the "ttime" month records. */
+  timed?: { id: string; n: string; m: number; e: number; at: number }[];
 }
 export interface DeriveOpts {
   tz: string; now: number; since: number;
@@ -363,6 +367,13 @@ export function derive(src: RwSources, o: DeriveOpts): { days: Map<string, RwDay
     const d = day(s.day);
     const was = d.st?.[dev];
     (d.st ??= {})[dev] = [Math.max(num(was?.[0]), Math.round(total / 60)), topN(union(was?.[1], apps, maxN) || {}, RW.appsPerDay)];
+  }
+
+  // Time spent on finished tasks (PS 1.65): keyed like the tick itself, so the recap can put the two together.
+  for (const x of src.timed || []) {
+    const name = cut(x.n, RW.titleMax);
+    if (!okTs(x.at) || !keepName(name) || !(x.m > 0)) continue;
+    (day(dayKey(x.at, o.tz)).tm ??= {})[hkey(`${x.id}|${new Date(x.at).toISOString()}`)] = [name, Math.round(x.m), Math.round(x.e) || 0];
   }
 
   // AFK and other breaks.

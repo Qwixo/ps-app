@@ -101,7 +101,7 @@ function route(): "demo" | "join" | "join-owner" | "app" | "overlay" | "campaign
     void import("./dev/fake").then((m) => {
       (window as { __devTimeline?: unknown }).__devTimeline = m.fakeTimeline();
       void Promise.all([import("./dev/clive-fake"), import("./core/campaignsLive")]).then(([f, l]) => l.__devLive((b) => f.fakeLivePayload(new Date(), b)));
-      return import("./core/vault").then((v) => v.__devLoad(m.fakeDocs()));
+      return import("./core/vault").then(async (v) => v.__devLoad(location.search.includes("est") ? (await import("./dev/timeest-fake")).withEst(m.fakeDocs()) : m.fakeDocs()));   // ?est: time estimates (PS 1.65)
     }).then(() => { if (location.search.includes("squad")) void import("./dev/gym-fake").then((g) => g.loadGymFake()); });   // ?squad: a fictional G Squad for Fitness
     if (location.search.includes("note")) void import("./dev/gsquad-fake").then((g) => g.loadGSquadFake());   // &note: a made up G Squad message card in the corner (PS 1.60)
     return "app";

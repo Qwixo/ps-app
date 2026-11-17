@@ -14,6 +14,7 @@ import type { BgCrop } from "./bgcrop";
 export type Kind =
   | "client" | "pprivate" | "todo" | "meeting" | "draft" | "settings" | "reply" | "brief" | "calendar" | "iemail" | "ithread" | "agenda" | "journal" | "quote" | "note" | "daylog" | "screentime" | "stline" | "cstats" | "cpage" | "fup" | "irep" | "msender" | "fprog" | "fwork" | "fit" | "psnote" | "tzperson" | "tzzones" | "tablayout" | "remind" | "fsleep" | "squad" | "squadask" | "squadjoin" | "fact" | "phonelayout" | "phonedev" | "rout" | "wachat" | "srec" | "srkey" | "sqpast" | "bgdev"   // owner private (vault key); bgdev: a device that opened PS, for backgrounds per device (core/devicebg.ts, PS 1.65); sqpast: one G Squad Past boards month, the owner publishes it to the squad (core/squadpast.ts, PS 1.64); srkey: the key that seals uploaded screen recordings, kept in the vault so every device can open them (core/recordings.ts, PS 1.60); srec: one screen recording's small details, never the media (core/recordings.ts, PS 1.60);  f*: Fitness (core/fitness.ts, fsleep: core/sleep.ts, fact: core/activity.ts); psnote: the developer's private release notes (core/privatenotes.ts); tzperson: Time zones people (core/tzpeople.ts); tzzones: your list of clocks (core/tzzones.ts); tablayout: the Tab list's Edit mode places (core/tablayout.ts); remind: the Annoying 15 min reminders and their answers (core/remind.ts); squad: your G Squad keys (core/squadrec.ts); squadask: your request to join a listed squad (core/squaddir.ts, older PS); squadjoin: your automatic join into The G Squad (core/squadauto.ts); phonelayout: a phone kind's own layout (core/phonelayout.ts); phonedev: a phone that opened PS (core/phonedevices.ts); wachat: one WhatsApp conversation per number, owner private (core/whatsapp.ts, PS 1.60); rout: a reply typed in the email panel on its way to a Mac that sends it (core/inlinereply.ts, V1.59)
   | "rcpt"  // A receipt (PS 1.65): one per receipt, owner private (vault key), the photo is a separate sealed file (core/receipts.ts)
+  | "ttime"   // Time spent (PS 1.65): the task clocks now and, one per month, what each finished task really took, owner private (vault key), never sent to the squad (core/timeest.ts)
   | "mhist"   // Month history (PS 1.65): your own earnings and the leaderboards as you saw them, one record per month, owner private (vault key), never sent to the squad (core/monthhist.ts)
   | "rwd"   // Rewind (PS 1.64): the private yearly recap history, one record per day and per year, owner private (vault key), never read back before 1 January (core/rewind.ts)
   | "sdev" | "spair" | "sjob" | "sjobst" | "smsg" | "sfile" | "sack" | "sstat" | "scmd" | "sidx" | "sget" | "sgot" | "sbudget" | "sojob" | "sores"   // Second Computer (core/second.ts), owner private (vault key)
@@ -259,6 +260,8 @@ export interface Todo {
   sqAnon?: boolean | null;       // G Squad: true = the squad sees "Client task", false = the real title; unset = not asked yet (core/squadanon.ts)
   ai?: boolean;                  // Task API: an AI on this Mac added it (the small AI marker, kept wherever it goes), core/aiinbox.ts
   aiInbox?: boolean;             // Task API: still in the AI Inbox (Dimension X), on no list yet; moving it anywhere clears it
+  est?: number | null;           // Time estimate (PS 1.65, core/timeest.ts): minutes, 1 to 1440; none = no estimate
+  estBy?: "past" | null;         // the estimate came from the past times of tasks with this name ("Usually takes about"), not typed or picked
 }
 
 export interface Meeting {
@@ -419,6 +422,8 @@ export interface Settings {
   tipsShow?: boolean;              // Settings, About and updates, "Show first use tips": false = no tip cards (views/Tips.tsx; missing = on)
   replyInPanel?: boolean;          // Settings, Notifications, "Reply in the email panel" (V1.59, core/inlinereply.ts; missing = on)
   assistant?: { on?: boolean; pop?: boolean };   // Settings, Settings assistant (PS 1.65, core/assist.ts): the bot on (missing = on) and pop out when Settings opens (missing = on)
+  timeEst?: Partial<import("./timeest").TePrefs>;   // Settings, Your list (PS 1.65, core/timeest.ts): Time estimates, Time spent, Too much planned (each missing = on) and the working hours (missing = 09:00 to 17:00)
+  estWarnDay?: string | null;      // the day ("YYYY-MM-DD") the "You've planned 9 h with 5 h free" line was closed, used or went by itself, so it never comes twice that day
   chkRemind?: { on: boolean; every: number; sound: boolean };   // Settings, Checklist Reminder (PS 1.65, core/chkremind.ts): on (missing = on), minutes between pop-ups (30 to 720, missing = 120), a soft chime (missing = on)
   swipeInvert?: boolean;           // Settings, Controls, "Invert swipe" (V1.57): true flips every page swipe (core/lists.ts swipeSign; missing = off)
   autoLockMin: number;
