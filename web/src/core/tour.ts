@@ -79,6 +79,11 @@ export function tourSteps(f: TourFacts, steps: readonly TourStep[] = TOUR_STEPS)
 export function stepAfter(i: number, n: number): number | null {
   return i + 1 < n ? i + 1 : null;
 }
+/** Where a tour that was cut short (a meeting began, Sleep mode, a full screen app) starts again: the step it was on, so nobody
+ *  clicks through the same steps twice. Anything odd (the steps got fewer, a bad number) starts at the first step. */
+export function resumeAt(saved: number, n: number): number {
+  return Number.isInteger(saved) && saved > 0 && saved < n ? saved : 0;
+}
 /** The main button's word on step `i` of `n`. */
 export const buttonWord = (i: number, n: number): string => (i + 1 < n ? TOUR_WORDS.next : TOUR_WORDS.done);
 

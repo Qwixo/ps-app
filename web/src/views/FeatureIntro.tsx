@@ -29,7 +29,7 @@ import { APPROVE_FEATURE, APPROVE_INTRO, approveAnswer, approveIntroProbe, appro
 import { mailCan } from "../core/mailswitch";
 import { attachedLayout, ISLAND_ASK_MS, ISLAND_QUEUED_MS, type IslandAnchor } from "../core/whatsnew";
 import { addActive, answer, CARD_W, cleanDone, LOGO_MOMENT, logoChime, cleanState, INTROS, introReply, markShown, nextIntro, recheckMs, retire, retireFolded, updaterAnswer, type IntroDef, type IntroState } from "../core/featureintro";
-import { AGAIN_KEY, buttonWord, stepAfter, TOUR_FEATURE, TOUR_ID, TOUR_WORDS, tourSteps, type TourStep } from "../core/tour";
+import { AGAIN_KEY, buttonWord, resumeAt, stepAfter, TOUR_FEATURE, TOUR_ID, TOUR_WORDS, tourSteps, type TourStep } from "../core/tour";
 import { tipsOn } from "../core/offswitches";
 import { afkMeetWindows } from "../core/afkmeet";
 import { meetingEvents } from "../core/calpick";
@@ -207,6 +207,7 @@ export function FeatureIntroHost() {
   openRef.current = open;
   const probe = useRef<Record<string, "done" | "open" | "unknown">>({});
   const tourRef = useRef<TourStep[]>([]);
+  const tourAt = useRef(0);   // the step a running tour is on, so one that was cut short goes on from there (this page only)
   const holdUntil = useRef(0);
   const probeAt = useRef<Record<string, number>>({});
   const lastInput = useRef(Date.now());
@@ -218,7 +219,7 @@ export function FeatureIntroHost() {
   // "Show the tour again" (Settings, About): forget the tour's answer so it is looked at again now (views/TourAgain.tsx).
   useEffect(() => {
     const again = () => {
-      delete probe.current[TOUR_ID]; probeAt.current[TOUR_ID] = 0; holdUntil.current = 0;
+      delete probe.current[TOUR_ID]; probeAt.current[TOUR_ID] = 0; holdUntil.current = 0; tourAt.current = 0;
       commit((x) => { const { [TOUR_ID]: _gone, ...recs } = x.recs; return { ...x, recs }; });
     };
     window.addEventListener("ps:tour-again", again);
@@ -321,6 +322,7 @@ export function FeatureIntroHost() {
     }
     // PS 1.65 the tour: Done or Esc ends it for good on every device of this person, and a "show it again" request is used up.
     if (id === TOUR_ID) {
+      tourAt.current = 0;
       try { localStorage.removeItem(AGAIN_KEY); } catch { /* fine */ }
       const done = cleanDone(settingsData(live.current.s).introsDone);
       if (!done.includes(id)) void saveSettings({ introsDone: [...done, id] }).catch(() => { /* this device still never shows it again */ });
@@ -332,14 +334,14 @@ export function FeatureIntroHost() {
     holdUntil.current = Date.now() + (why ? recheckMs("busy") : 15_000);
   }, []);
   if (!open) return null;
-  return <IntroStage key={open.id} def={open} tour={tourRef.current} onShown={onShown} onAnswer={onAnswer} onChoose={onChoose} onGone={onGone} />;
+  return <IntroStage key={open.id} def={open} tour={tourRef.current} tourAt={tourAt.current} onTourStep={(i) => { tourAt.current = i; }} onShown={onShown} onAnswer={onAnswer} onChoose={onChoose} onGone={onGone} />;
 }
 
 type Phase = "ask" | "card" | "guide" | "out";
 /** The logo moment's card width and logo size (points). */
 const ACK_W = 260, LOGO_PX = 92;
 
-function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: IntroDef; tour: TourStep[]; onShown: (id: string) => void; onAnswer: (id: string, a: "show" | "later") => void; onChoose: (id: string, yes: boolean, keep: string[]) => void; onGone: (why?: string) => void }) {
+function IntroStage({ def, tour, tourAt = 0, onTourStep, onShown, onAnswer, onChoose, onGone }: { def: IntroDef; tour: TourStep[]; tourAt?: number; onTourStep?: (i: number) => void; onShown: (id: string) => void; onAnswer: (id: string, a: "show" | "later") => void; onChoose: (id: string, yes: boolean, keep: string[]) => void; onGone: (why?: string) => void }) {
   const viaIsland = PS && feature("island-moments");
   const [kept, setKept] = useState<string[]>(() => (def.picks ?? []).map((p) => p.id));   // PS 1.65: the switches the card keeps on
   // The page's own queue first (a web card of this page goes before it), then on the Mac the island's queue.
@@ -350,7 +352,7 @@ function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: I
   phaseRef.current = phase;
   const asked = useRef(false);
   const [guide, setGuide] = useState(false);
-  const [ti, setTi] = useState(0);
+  const [ti, setTi] = useState(() => resumeAt(tourAt, tour.length));   // a tour cut short goes on where it was
   const vault = useVault();
 
   useEffect(() => {
@@ -479,7 +481,7 @@ function IntroStage({ def, tour, onShown, onAnswer, onChoose, onGone }: { def: I
         {def.tour && (
           <div className="fi-btns">
             {/* The tour takes no focus (a choice card, no autofocus). Next moves on, Done and Esc end it for good. */}
-            <button type="button" className="fi-btn go" onClick={() => { sfx.click(); const n = stepAfter(ti, tour.length); if (n === null) finish("show"); else setTi(n); }}>{buttonWord(ti, tour.length)}</button>
+            <button type="button" className="fi-btn go" onClick={() => { sfx.click(); const n = stepAfter(ti, tour.length); if (n === null) finish("show"); else { setTi(n); onTourStep?.(n); } }}>{buttonWord(ti, tour.length)}</button>
           </div>
         )}
         <div className="fi-btns" hidden={!!def.tour}>
