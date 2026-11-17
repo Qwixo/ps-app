@@ -281,6 +281,7 @@ export const SETTINGS: SetEntry[] = [
   // PS 1.65 Audio priority (core/audiopriority.ts, views/AudioPriority.tsx): the switch; the lists live in the volume mixer.
   { id: "audio-priority", group: "mac", name: "Audio priority", line: "Uses the top connected speaker and microphone from your order in the volume mixer.", on: MAC, words: ["audio", "sound", "output", "input", "speakers", "speaker", "microphone", "mic", "airpods", "headphones", "bluetooth", "jbl", "order", "priority", "default", "switch", "auto switch", "device", "devices"] },
   { id: "mic", group: "mac", name: "Microphone", line: "The default microphone for every app.", on: MAC, words: ["mic", "microphone", "input", "audio", "voice"] },
+  { id: "activity", group: "mac", name: "Activity monitor", line: "The chart button: what your Mac is doing, live.", on: MAC, words: ["activity", "cpu", "memory", "ram", "process", "processes", "end task", "force quit", "battery", "gpu", "disk", "startup", "login items", "slow"] },
   { id: "network", group: "mac", name: "Network monitor", line: "The Network button and the VPN leak alarm.", on: MAC, words: ["vpn", "network", "leak", "internet", "wifi", "connection", "traffic"] },
   { id: "app-name", group: "mac", name: "App name", line: "What PS app is called in Applications, Finder and Spotlight.", on: MAC, more: true, words: ["rename", "name", "title", "folder"] },
 

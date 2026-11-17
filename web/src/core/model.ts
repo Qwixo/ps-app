@@ -532,6 +532,9 @@ export interface Settings {
   lookText?: number;             // text size in percent (80 to 150, default 100)
   lookFont?: string | null;      // a core/looks.ts FONTS id, null = the look's own
   netMonitor?: boolean;
+  activityMonitor?: boolean;     // PS 1.65: the Activity monitor's chart button (core/activitymon.ts), on unless switched off. Mac only
+  activitySpeed?: 0.5 | 1 | 2;   // PS 1.65: how often the Activity monitor reads the Mac while it is open, in seconds (default 1)
+  activityCols?: string[];       // PS 1.65: the Processes columns shown (core/activity.ts cleanCols)
   briefSeen?: string | null;     // the morning brief (its record id) the developer last opened, in PS or on the website: newer ones show NEW          // PS's network monitor on (default) or completely off: no polling, no leak watch
   whatsNewSeen?: string;         // the last PS version whose What's new was handled ("1.36"), any device (core/whatsnew.ts, V1.36)
   syncNudgeAt?: string | null;   // local first (V1.44): "Not now" on the week old Turn on sync card (src/views/LocalFirst.tsx)

@@ -16,7 +16,7 @@ const ok = (name: string, fn: () => unknown) => { fn(); n++; console.log("ok -",
 
 // ---------- the rules ----------
 ok("the web form leaves out exactly the parts that need a Mac", () => {
-  assert.deepEqual([...W.WEB_HIDDEN].sort(), ["afk", "glass", "mixer", "net", "screentime", "second", "security"]);
+  assert.deepEqual([...W.WEB_HIDDEN].sort(), ["activity", "afk", "glass", "mixer", "net", "screentime", "second", "security"]);
   for (const id of ["clocks", "timelines", "series", "meetings", "dimx", "fitness", "endday", "clipboard", "gear", "gsquad", "dnd",
     "meetnotes", "leftovers", "undo", "overdue"]) assert.ok(W.webShows(id), `${id} shows on the web`);
   for (const id of W.WEB_HIDDEN) assert.equal(W.webShows(id), false, `${id} hidden`);

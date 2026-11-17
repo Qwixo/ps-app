@@ -137,6 +137,11 @@ These read things on your Mac and never send them anywhere:
   country lookup from a file inside the app (`mac/geo/ip-country.bin`). Nothing is uploaded; its history is kept
   encrypted on the Mac (`mac/Sources/NetMonitor.swift`). The only network use is the "Last online" lookup above,
   and Apple's speed test when you press Speed test.
+- **Activity monitor** (PS 1.65): only while its window is open, your own processes (name, CPU time, memory, disk bytes,
+  energy), the whole Mac's CPU, memory, disk, network, GPU and battery numbers, and your launch agents. 1Password and
+  Signal are dropped at the first read. Nothing is uploaded. App history keeps CPU time per app per day on this Mac only
+  (`activity-history.json` in PS's Application Support folder, 8 days), counted once a minute while PS runs and screen time is on
+  (`mac/Sources/ActivityMonitor.swift`).
 - **Are you sure**: the title of the front browser window, to notice sites you asked it to watch.
 - **AFK timer, screen time counting, the mixer, the Tab overlay keyboard watch**: all local. Screen time totals
   are saved in your encrypted vault, and the daily total goes to The G Squad unless you switch it off.

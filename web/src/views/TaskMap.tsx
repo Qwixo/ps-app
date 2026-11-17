@@ -132,6 +132,8 @@ import { CalGear } from "./CalPicker";
 import { useMacUpdate } from "../macupdate";
 import { macUpdateBadge } from "../core/macupdate";
 import { NetButton } from "./NetMonitor";
+import { ActivityButton } from "./ActivityMonitor";
+import { ACTIVITY_FEATURE } from "../core/activitymon";
 import { NotesLeftovers } from "./NotesLeftovers";
 import { NewBadge } from "./NewBadge";
 import { MixerButton } from "./Mixer";
@@ -1186,6 +1188,9 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
   // The network monitor's on/off switch lives in the vault settings; PS's native side follows it.
   const netOn = st.netMonitor !== false;
   useEffect(() => { if (PS && !docked) psPost({ type: "net", op: "enable", on: netOn }); }, [netOn, docked]);
+  // PS 1.65 Activity monitor (views/ActivityMonitor.tsx): its feature switch and the person's own switch in Settings, Mac.
+  const activityOn = PS && feature(ACTIVITY_FEATURE) && st.activityMonitor !== false;
+  useEffect(() => { if (PS && !docked) psPost({ type: "activity", op: "enable", on: activityOn }); }, [activityOn, docked]);
   useEffect(() => { if (preview && preview === p1Design(st.tmP1Style)) setP1Preview(null); }, [preview, st.tmP1Style]);
   useEffect(() => { if (bgPrev && bgPrev === bgDesign(shownBg(st))) setBgPreview(null); }, [bgPrev, st.tmBg, st.tmBgPhone]); // eslint-disable-line react-hooks/exhaustive-deps
   const cstats = campaignStats(s)?.data ?? null;
@@ -1385,6 +1390,7 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
         {red && <Slot id="brief"><BriefButton docked={docked} /></Slot>}
         <Slot id="endday"><EndDay dayEnds={st.dayEndsHour ?? DAY_ENDS_DEFAULT} docked={docked} /></Slot>
         {PS && st.netMonitor !== false && <Slot id="net"><NetButton /></Slot>}
+        {activityOn && !docked && <Slot id="activity"><ActivityButton speed={st.activitySpeed} cols={st.activityCols} save={(p) => void taskMapActions.looks(p)} /></Slot>}
         {shows("mixer") && <Slot id="mixer"><MixerButton /></Slot>}
         <Slot id="clipboard"><ClearClipboard /></Slot>
         {/* The gear: on the floating list a click opens the full screen Settings (V1.32); the phone keeps its sheet
