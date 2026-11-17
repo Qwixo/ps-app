@@ -137,6 +137,9 @@ check("tomorrow night pack", { title: "pack", due: "2026-11-18", time: "21:00" }
 check("this afternoon review", { title: "review", due: "2026-11-17", time: "14:00" });
 check("this evening at 7 call", { title: "call", due: "2026-11-17", time: "19:00" });
 check("tomorrow at 9 in the morning", { title: "", due: "2026-11-18", time: "09:00" });
+// The owner, 17 Nov 2026: "next Friday" is the coming Friday (on a Tuesday, this week's), as built. On a Friday it is a week on.
+check("deck next Friday", { title: "deck", due: "2026-11-20" });
+check("deck next Friday", { title: "deck", due: "2026-11-27" }, Date.UTC(2026, 10, 20, 6, 0));
 // Quality pass 1.65: the part of the day BEFORE the number gives its am or pm, and its word leaves the title.
 check("call mum tomorrow evening at 8", { title: "call mum", due: "2026-11-18", time: "20:00", label: "Tomorrow, 20:00" });
 check("demo Friday afternoon at 3", { title: "demo", due: "2026-11-20", time: "15:00" });

@@ -1,7 +1,7 @@
 // Dates in plain words in the add boxes (PS 1.65, rules in core/nldates.ts). useNlDates follows one box's text: the words it
 // recognises are painted and shown as a small chip ("Tomorrow, 10:00", "Every other Fri, 15:00") by PrioInput
 // (views/TypedPrio.tsx), Add takes the date, the repeat and the cleaned title, and a click on the chip keeps the words as text.
-// A typed time also puts a reminder on the new task at that time (core/nlremind.ts, sent with the add), unless Settings, Your
+// A typed time also puts ONE reminder on the new task, 15 minutes before that time (core/nlremind.ts, sent with the add), unless Settings, Your
 // list, "A typed time adds a reminder" is off. Switch for it all: Settings, Your list, "Dates in plain words" (feature
 // "nl-dates", on by default).
 import { useCallback, useEffect, useRef, useState } from "react";
