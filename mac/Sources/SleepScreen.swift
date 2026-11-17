@@ -83,6 +83,9 @@ struct SleepPlanN {
   /// V1.52: the AI Sentry mode button's part of the plan, as the page sent it (SleepSentryN.parse reads it). Nil: an
   /// older page, or an alarm with Sleep mode off.
   var sentry: [String: Any]?
+  /// PS 1.65 "Just tomorrow" (SleepOnceCore.swift): the line under the alarm and its words. Nil: the feature is off, or
+  /// there is no alarm, or an alarm with Sleep mode off (only Stop shows there): nothing is drawn.
+  var once: SleepOnce.Plan?
 
   /// V1.42 Customise (web core/sleepmode.ts PlanLook): how the screen looks, checked again here. An older
   /// page sends none: the V1.40 look.
@@ -158,8 +161,9 @@ struct SleepPlanN {
                       wake: (d["wake"] as? NSNumber)?.doubleValue, panel: (d["panel"] as? NSNumber)?.doubleValue,
                       details: details, count: max(0, (t?["count"] as? NSNumber)?.intValue ?? 0), titles: titles,
                       squad: (d["squad"] as? NSNumber).map { max(0, $0.intValue) }, words: words, look: Look.parse(d["look"]), lock: d["lock"] as? Bool ?? true)
-    .with(styles: st, wakeIn: d["wakeIn"], timer: d["timer"]).with(list: d["list"]).with(alarmOnly: d["alarmOnly"] as? Bool ?? false).with(sentry: d["sentry"])
+    .with(styles: st, wakeIn: d["wakeIn"], timer: d["timer"]).with(list: d["list"]).with(alarmOnly: d["alarmOnly"] as? Bool ?? false).with(sentry: d["sentry"]).with(once: d["once"])
   }
+  func with(once: Any?) -> SleepPlanN { var p = self; p.once = alarmOnly ? nil : SleepOnce.parse(once); return p }
   func with(sentry: Any?) -> SleepPlanN { var p = self; p.sentry = alarmOnly ? nil : sentry as? [String: Any]; return p }
   func with(alarmOnly: Bool) -> SleepPlanN { var p = self; p.alarmOnly = alarmOnly; return p }
   /// V1.47: the playlist from the plan, checked.
@@ -386,10 +390,15 @@ final class SleepView: NSView {
   var onPoke: (() -> Void)?
   /// V1.41: Esc always leaves (SleepScreen.escape), with no Touch ID.
   var onEsc: (() -> Void)?
+  /// PS 1.65: true while the "Just tomorrow" time field has the keyboard: its digits and arrows reach it (Esc never does).
+  var typing: (() -> Bool)?
   override var acceptsFirstResponder: Bool { true }
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
   override func keyDown(with e: NSEvent) { if e.keyCode == 53 { onEsc?() } else { onPoke?() } }
-  override func performKeyEquivalent(with e: NSEvent) -> Bool { if e.type == .keyDown { if e.keyCode == 53 { onEsc?() } else { onPoke?() } }; return true }   // Cmd Q and every shortcut: swallowed
+  override func performKeyEquivalent(with e: NSEvent) -> Bool {
+    if e.type == .keyDown, e.keyCode != 53, !e.modifierFlags.contains(.command), typing?() == true { onPoke?(); return false }
+    if e.type == .keyDown { if e.keyCode == 53 { onEsc?() } else { onPoke?() } }; return true
+  }   // Cmd Q and every shortcut: swallowed
   override func cancelOperation(_ sender: Any?) { onEsc?() }
   override func mouseDown(with e: NSEvent) { onPoke?() }
   override func rightMouseDown(with e: NSEvent) { onPoke?() }
@@ -497,6 +506,17 @@ final class SleepScreen: NSObject {
   private var dialV = SleepDial()
   // V1.47: the gear, and the alarms that ring with Sleep mode off (their plan, the timer for the next one, the rung)
   private var gearBtn: SleepButton?
+  // PS 1.65 "Just tomorrow": the line under the alarm, its row of pills, and the one Touch ID sheet at a time
+  private var onceL = SleepButton(frame: .zero)
+  private var onceBox: NSView?
+  private var onceText: String?
+  private var onceActs: [SleepOnce.Act?] = []   // a pill's choice by its tag (nil: open the time field)
+  private var oncePicker: NSDatePicker?, oncePicking = false
+  private var onceLatch = SleepOnce.Latch()
+  private var onceTry = 0
+  private var onceIdle: Timer?
+  private var onceMon: Any?
+  private var oncePlayer: AVAudioPlayer?
   private var alarmPlan: SleepPlanN?
   private var alarmTimer: Timer?
   private var alarmFired = Set<String>()
@@ -554,6 +574,10 @@ final class SleepScreen: NSObject {
       alarmPlan = SleepPlanN.parse(msg["plan"]).map { var p = $0; p.alarmOnly = true; return p }
       psLog("PS sleep: alarms with Sleep mode off \(alarmPlan.map { "\($0.rings.count)" } ?? "off")")
       scheduleAlarm()
+    // PS 1.65: the page (Settings) asks for Touch ID or the Mac password and gets authOk back.
+    case "sleep:auth":
+      guard let id = SleepOnce.okAuthId(msg["id"]) else { psLog("PS sleep: sleep:auth with a bad id"); return true }
+      pageAuth(id: id, reason: SleepOnce.cleanReason((msg["reason"] as? String) ?? ""))
     case "sleep:idle":
       let idle = SleepScreen.idleMs()
       deliver?("window.__psSleep && window.__psSleep({\"idleMs\":\(Int64(idle))})")
@@ -620,6 +644,11 @@ final class SleepScreen: NSObject {
     w.contentView = v
     w.acceptsMouseMovedEvents = true
     laidFor = ""
+    closeOnce(animated: false)
+    v.typing = { [weak self] in
+      guard let self, let b = self.onceBox, let r = self.window?.firstResponder as? NSView else { return false }
+      return r.isDescendant(of: b)
+    }
     build(in: v)
     window = w; isUp = true; stepAside = false
     guardian?.attach(to: v, plan: p)
@@ -657,6 +686,7 @@ final class SleepScreen: NSObject {
     lightTick?.invalidate(); lightTick = nil
     dialTick?.invalidate(); dialTick = nil
     wiPanel?.removeFromSuperview(); wiPanel = nil
+    closeOnce(animated: false)
     unwatch()
     showPointer()
     if let m = moveMon { NSEvent.removeMonitor(m); moveMon = nil }
@@ -692,7 +722,7 @@ final class SleepScreen: NSObject {
     let name = why == "customise" ? "Customise" : why == "settings" ? "Settings" : "Wake up"
     let leave = { [weak self] in self?.close(why: why, woke: why == "wake" ? Date().timeIntervalSince1970 * 1000 : nil) }
     psLog("PS sleep: \(name) pressed (asking=\(asking ? 1 : 0))")
-    guard isUp, !asking else { return }
+    guard isUp, !asking, !onceLatch.busy else { return }
     // V1.52: protected by Sentry mode: only the real lock screen (Touch ID or the password there ends both modes).
     if protected { stopRing(); guardian?.leave(why); return }
     if guardian?.isBusy == true { psLog("PS sleep: \(name) waits, Sentry mode is engaging"); return }
@@ -1021,6 +1051,212 @@ final class SleepScreen: NSObject {
     draw()
   }
 
+  // MARK: "Just tomorrow" (PS 1.65): one calm line under the alarm; a click opens thin pills. Every choice asks for
+  // Touch ID or the Mac password first, and only a passed answer reaches the page (SleepOnce.gate). The words are all
+  // the page's own (plan.once.words).
+
+  /// The soft confirm: the island's chime tones (SetupIslandSound.chime), played quietly.
+  static let onceChime: [Sfx.Tone] = [Sfx.Tone(f: 1046.5, to: nil, dur: 0.2, peak: 0.16, wave: 0, at: 0),
+                                      Sfx.Tone(f: 1568, to: nil, dur: 0.5, peak: 0.14, wave: 0, at: 0.09),
+                                      Sfx.Tone(f: 3136, to: nil, dur: 0.25, peak: 0.03, wave: 0, at: 0.09)]
+
+  @objc private func onceTapped() {
+    guard isUp, plan?.once != nil else { return }
+    poke()
+    if onceBox != nil { closeOnce(animated: true) } else { openOnce(picking: false) }
+  }
+  @objc private func oncePillTapped(_ b: NSButton) {
+    guard b.tag >= 0, b.tag < onceActs.count else { return }
+    poke(); armOnceIdle()
+    if let act = onceActs[b.tag] { onceChoose(act) } else { openOnce(picking: true) }
+  }
+  @objc private func onceSaveTapped() {
+    guard let dp = oncePicker else { return }
+    let c = Calendar.current.dateComponents([.hour, .minute], from: dp.dateValue)
+    poke(); armOnceIdle()
+    onceChoose(.pick(SleepOnce.clock((c.hour ?? 0) * 60 + (c.minute ?? 0))))
+  }
+  @objc private func onceTimeChanged() { armOnceIdle() }
+
+  private func onceChoose(_ act: SleepOnce.Act) {
+    guard let o = plan?.once else { return }
+    onceAuth(reason: SleepOnce.reason(for: act, words: o.words)) { [weak self] ok, _ in
+      guard let self else { return }
+      if let js = SleepOnce.gate(authPassed: ok, act) {
+        psLog("PS sleep: Just tomorrow, a choice passed Touch ID")
+        self.deliver?("window.__psSleep && window.__psSleep(\(js))")
+        self.onceConfirm()
+        self.closeOnce(animated: true)
+      } else {
+        psLog("PS sleep: Just tomorrow, not passed, nothing sent")
+        if let b = self.onceBox, !self.sys.reduceMotion() {
+          let k = CAKeyframeAnimation(keyPath: "transform.translation.x")
+          k.values = [0, -7, 7, -5, 5, -2, 0]; k.duration = 0.34
+          b.layer?.add(k, forKey: "shake")
+        }
+        self.armOnceIdle()
+      }
+    }
+  }
+
+  /// Touch ID or the Mac password, one sheet at a time (the pills and the page's sleep:auth share it), asked off the
+  /// main thread. done(ok, none) comes back on the main thread: none is true when this Mac cannot ask at all. While the
+  /// sheet is up the sleep screen steps back (as Wake up does) so the sheet is never under it. No answer in a minute: not passed.
+  private func onceAuth(reason: String, _ done: @escaping (_ ok: Bool, _ none: Bool) -> Void) {
+    dispatchPrecondition(condition: .onQueue(.main))
+    guard !asking, onceLatch.begin() else { psLog("PS sleep: a Touch ID request was refused, one is already open"); done(false, false); return }
+    onceTry &+= 1
+    let me = onceTry
+    let hid = isUp && !stepAside && window != nil
+    if hid { behind(true) }
+    let finish: (Bool, Bool) -> Void = { [weak self] ok, none in
+      guard let self, self.onceTry == me else { return }
+      self.onceTry &+= 1
+      self.onceLatch.end()
+      if hid, self.isUp { self.behind(false) }
+      done(ok, none)
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + SleepScreen.authTimeout) { finish(false, false) }
+    let auth = sys.auth, why = SleepOnce.cleanReason(reason)
+    DispatchQueue.global(qos: .userInitiated).async {
+      auth(why) { ok, _, code in
+        let none = !ok && SleepRules.authOutcome(ok: ok, code: code) == "letGo"
+        DispatchQueue.main.async { finish(ok, none) }
+      }
+    }
+  }
+  /// The page asked for Touch ID (Settings): the answer goes back with the same id.
+  private func pageAuth(id: String, reason: String) {
+    onceAuth(reason: reason) { [weak self] ok, none in
+      if let js = SleepOnce.authReply(id: id, ok: ok, none: none) { self?.deliver?("window.__psSleep && window.__psSleep(\(js))") }
+    }
+  }
+  private func onceConfirm() {
+    guard !test, !DND.shared.mutes("sounds") else { return }
+    if oncePlayer == nil { oncePlayer = try? AVAudioPlayer(data: Sfx.wav(SleepScreen.onceChime)); oncePlayer?.prepareToPlay() }
+    oncePlayer?.volume = 0.25
+    oncePlayer?.currentTime = 0
+    oncePlayer?.play()
+  }
+
+  /// The row of thin pills (or, after "pick", the hour and minute field with Save) under the line.
+  private func openOnce(picking: Bool) {
+    guard isUp, let v = window?.contentView, let p = plan, let o = p.once, !onceL.isHidden else { return }
+    let swap = onceBox != nil
+    onceBox?.removeFromSuperview(); onceBox = nil; oncePicker = nil; onceActs = []
+    oncePicking = picking
+    let ink = { (a: CGFloat) in SleepScreen.color(p.look.text, a) }
+    let box = NSView(frame: .zero)
+    box.wantsLayer = true
+    box.layer?.cornerRadius = 20; box.layer?.borderWidth = 1
+    box.layer?.backgroundColor = SleepScreen.color(p.look.bg, 0.97).cgColor; box.layer?.borderColor = ink(0.22).cgColor
+    box.toolTip = o.words.title.isEmpty ? nil : o.words.title
+    let H: CGFloat = 40, ph: CGFloat = 26, gap: CGFloat = 6, pad: CGFloat = 8
+    func pill(_ title: String, _ action: Selector, tag: Int = 0) -> SleepButton {
+      let b = SleepButton(title, target: self, action: action)
+      b.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+      b.fill = ink(0.07); b.edge = ink(0.22); b.ink = ink(0.92); b.tag = tag
+      let w = (title as NSString).size(withAttributes: [.font: b.font as Any]).width + 26
+      b.frame = NSRect(x: 0, y: (H - ph) / 2, width: ceil(w), height: ph)
+      return b
+    }
+    var parts: [NSView] = []
+    if picking {
+      let dp = NSDatePicker(frame: NSRect(x: 0, y: (H - 24) / 2, width: 108, height: 24))
+      dp.datePickerStyle = .textFieldAndStepper
+      dp.datePickerElements = .hourMinute
+      dp.datePickerMode = .single
+      dp.isBezeled = false; dp.isBordered = false; dp.drawsBackground = false
+      dp.font = NSFont.monospacedDigitSystemFont(ofSize: 15, weight: .semibold)
+      dp.textColor = ink(0.95)
+      dp.appearance = NSAppearance(named: lightDark ? .aqua : .darkAqua)
+      dp.calendar = Calendar.current; dp.timeZone = Calendar.current.timeZone
+      let m = SleepOnce.minutes(SleepOnce.pickStart(usual: o.usual) ?? o.usual) ?? 9 * 60
+      dp.dateValue = Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date()) ?? Date()
+      dp.target = self; dp.action = #selector(onceTimeChanged)
+      oncePicker = dp
+      parts = [dp]
+      if !o.words.save.isEmpty { parts.append(pill(o.words.save, #selector(onceSaveTapped))) }
+    } else {
+      var specs: [(String, SleepOnce.Act?)] = []
+      if !o.words.skip.isEmpty { specs.append((o.words.skip, .skip)) }
+      for m in o.words.mins { specs.append((m.label, .later(m.mins))) }
+      if !o.words.pick.isEmpty { specs.append((o.words.pick, nil)) }
+      if o.set, !o.words.undo.isEmpty { specs.append((o.words.undo, .undo)) }
+      onceActs = specs.map { $0.1 }
+      parts = specs.enumerated().map { pill($0.element.0, #selector(oncePillTapped(_:)), tag: $0.offset) }
+    }
+    var x = pad
+    for part in parts { part.setFrameOrigin(NSPoint(x: x, y: part.frame.minY)); box.addSubview(part); x += part.frame.width + gap }
+    box.setFrameSize(NSSize(width: min(v.bounds.width - 24, max(60, x - gap + pad)), height: H))
+    v.addSubview(box)
+    onceBox = box
+    placeOnce()
+    armOnceIdle()
+    if onceMon == nil {
+      // A click anywhere else closes it (the click itself still does what it always did).
+      onceMon = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] e in
+        guard let self, let b = self.onceBox, let cv = self.window?.contentView, e.window === self.window else { return e }
+        let pt = cv.convert(e.locationInWindow, from: nil)
+        if !b.frame.contains(pt) && !self.onceL.convert(self.onceL.bounds, to: cv).contains(pt) { self.closeOnce(animated: true) }
+        return e
+      }
+    }
+    springOnce(box, swap: swap)
+  }
+  private func placeOnce() {
+    guard let box = onceBox, let v = window?.contentView, !onceL.isHidden else { return }
+    let f = onceL.convert(onceL.bounds, to: v)
+    var y = f.minY - box.frame.height - 8
+    if y < 12 { y = f.maxY + 8 }
+    let x = max(12, min(v.bounds.width - box.frame.width - 12, f.midX - box.frame.width / 2))
+    box.setFrameOrigin(NSPoint(x: x, y: y))
+  }
+  /// Opens with a tiny squeeze, then springs open; with Reduce Motion only a short fade.
+  private func springOnce(_ box: NSView, swap: Bool) {
+    guard let l = box.layer else { return }
+    let fade = CABasicAnimation(keyPath: "opacity"); fade.fromValue = swap ? 0.5 : 0; fade.toValue = 1
+    if sys.reduceMotion() { fade.duration = 0.15; l.add(fade, forKey: "once"); return }
+    fade.duration = 0.14
+    let squeeze = CABasicAnimation(keyPath: "transform.scale"); squeeze.fromValue = swap ? 1.0 : 0.9; squeeze.toValue = 0.86; squeeze.duration = 0.07
+    squeeze.timingFunction = CAMediaTimingFunction(name: .easeOut)
+    let grow = CASpringAnimation(keyPath: "transform.scale"); grow.fromValue = 0.86; grow.toValue = 1
+    grow.mass = 1; grow.stiffness = 240; grow.damping = 14; grow.initialVelocity = 0
+    grow.beginTime = 0.07; grow.duration = grow.settlingDuration
+    let g = CAAnimationGroup(); g.animations = [squeeze, grow, fade]; g.duration = 0.07 + grow.settlingDuration
+    l.add(g, forKey: "once")
+  }
+  /// 20 seconds with no touch: it closes by itself (never while a sheet is open).
+  private func armOnceIdle() {
+    onceIdle?.invalidate()
+    onceIdle = Timer.scheduledTimer(withTimeInterval: SleepOnce.idleSeconds, repeats: false) { [weak self] _ in
+      guard let self else { return }
+      if self.onceLatch.busy { self.armOnceIdle(); return }
+      self.closeOnce(animated: true)
+    }
+  }
+  private func closeOnce(animated: Bool) {
+    onceIdle?.invalidate(); onceIdle = nil
+    if let m = onceMon { NSEvent.removeMonitor(m); onceMon = nil }
+    oncePicker = nil; oncePicking = false; onceActs = []
+    guard let box = onceBox else { return }
+    onceBox = nil
+    // The keyboard goes back to the screen (never left in a field that is going away).
+    if let w = window, let r = w.firstResponder as? NSView, r.isDescendant(of: box) { w.makeFirstResponder(w.contentView) }
+    guard animated, let l = box.layer else { box.removeFromSuperview(); return }
+    let calm = sys.reduceMotion()
+    CATransaction.begin()
+    CATransaction.setCompletionBlock { box.removeFromSuperview() }
+    let f = CABasicAnimation(keyPath: "opacity"); f.fromValue = 1; f.toValue = 0; f.duration = calm ? 0.12 : 0.16
+    l.opacity = 0
+    l.add(f, forKey: "out")
+    if !calm {
+      let s = CABasicAnimation(keyPath: "transform.scale"); s.fromValue = 1; s.toValue = 0.92; s.duration = 0.16
+      l.add(s, forKey: "outScale")
+    }
+    CATransaction.commit()
+  }
+
   // MARK: drawing
 
   private func label(_ l: NSTextField, size: CGFloat, weight: NSFont.Weight, mono: Bool = false) {
@@ -1037,6 +1273,11 @@ final class SleepScreen: NSObject {
     v.addSubview(lightV)
     for l in [clock, dateL, sub, alarm, countL, swL] { label(l, size: 15, weight: .regular); l.autoresizingMask = [.width]; face.addSubview(l) }
     dialV = SleepDial(frame: .zero); dialV.isHidden = true; face.addSubview(dialV)
+    // PS 1.65: "Just tomorrow", a calm line (plain text, no pill) that opens the row.
+    onceL.title = ""; onceL.target = self; onceL.action = #selector(onceTapped)
+    onceL.isBordered = false; onceL.bezelStyle = .regularSquare; onceL.wantsLayer = true; onceL.focusRingType = .none
+    onceL.font = NSFont.systemFont(ofSize: 14, weight: .regular); onceL.isHidden = true
+    face.addSubview(onceL)
     v.addSubview(face)
 
     let pw: CGFloat = min(480, W - 40)
@@ -1090,7 +1331,7 @@ final class SleepScreen: NSObject {
   /// look, the screen size or the clock's width changes, so the second by second redraw stays cheap.
   private func layFace(_ L: SleepPlanN.Look, chars: Int, ringing: Bool, sides: Double, in v: NSView) {
     let W = v.bounds.width, H = v.bounds.height
-    let key = "\(L.face)|\(L.digi)|\(L.font)|\(L.size)|\(L.weight)|\(L.spacing)|\(L.watch)|\(L.pos)|\(L.shows("date"))|\(L.shows("count"))|\(L.shows("asleep") || ringing)|\(L.shows("alarm"))|\(chars)|\(Int(sides))|\(Int(W))x\(Int(H))"
+    let key = "\(L.face)|\(L.digi)|\(L.font)|\(L.size)|\(L.weight)|\(L.spacing)|\(L.watch)|\(L.pos)|\(L.shows("date"))|\(L.shows("count"))|\(L.shows("asleep") || ringing)|\(L.shows("alarm"))|\(onceText ?? "")|\(chars)|\(Int(sides))|\(Int(W))x\(Int(H))"
     guard key != laidFor else { return }
     laidFor = key
     let big = CGFloat(SleepRules.clockPoints(width: W, size: L.size, chars: chars, spacing: L.spacing, sides: sides))
@@ -1118,9 +1359,11 @@ final class SleepScreen: NSObject {
       swL.frame = NSRect(x: 0, y: y, width: W, height: lh); swL.alignment = .center
       y += lh + 8
     }
-    for (l, h, on) in [(countL, CGFloat(26), L.shows("count")), (alarm, CGFloat(22), L.shows("alarm")), (sub, CGFloat(36), L.shows("asleep") || ringing), (dateL, CGFloat(30), L.shows("date"))] {
+    // PS 1.65: the "Just tomorrow" line sits right under the alarm line, as wide as its words (so only they are a click).
+    let onceW = onceText.map { ceil(($0 as NSString).size(withAttributes: [.font: onceL.font as Any]).width) + 28 } ?? 0
+    for (l, h, on) in [(countL as NSView, CGFloat(26), L.shows("count")), (onceL as NSView, CGFloat(22), onceText != nil), (alarm as NSView, CGFloat(22), L.shows("alarm")), (sub as NSView, CGFloat(36), L.shows("asleep") || ringing), (dateL as NSView, CGFloat(30), L.shows("date"))] {
       l.isHidden = !on
-      if on { l.frame = NSRect(x: 0, y: y, width: W, height: h); y += h + 4 }
+      if on { l.frame = l === onceL ? NSRect(x: (W - min(W, onceW)) / 2, y: y, width: min(W, onceW), height: h) : NSRect(x: 0, y: y, width: W, height: h); y += h + 4 }
     }
     if L.face == "analogue" {
       // V1.43: the face, sized by the same slider, never over 92% of the width or 64% of the height; the time small under it.
@@ -1164,6 +1407,7 @@ final class SleepScreen: NSObject {
     let peek = now < peekUntil
     let cal = Calendar.current, d = Date()
     let c = SleepRules.clockText(hour: cal.component(.hour, from: d), minute: cal.component(.minute, from: d), second: cal.component(.second, from: d), h12: L.h12, secs: L.secs)
+    onceText = p.once.flatMap { L.shows("alarm") ? "\($0.line)  \u{203A}" : nil }
     layFace(L, chars: c.time.count + (c.ampm == nil ? 0 : 2), ringing: ringing, sides: guardian?.sideReserve(plan: p) ?? 0, in: v)
     // V1.43: the other words have their own colour; on a bright light (Bright white, a full sunrise) they turn dark.
     let darkInk = NSColor(srgbRed: 26 / 255, green: 15 / 255, blue: 6 / 255, alpha: 1)
@@ -1184,6 +1428,17 @@ final class SleepScreen: NSObject {
     sub.textColor = ringing ? SleepScreen.glow(0.86) : ink(b * 0.744)
     alarm.stringValue = p.word("alarm", p.rings.isEmpty ? "No alarm, silent all night" : "Alarm \(p.rings[0].label)")
     alarm.textColor = ink(b * 0.46)
+    // PS 1.65: the line is a little dimmer than the alarm line, and brightens with the controls (a key or a click).
+    if let t = onceText {
+      let a = ink(((ring != nil || peek || dawn != nil) ? 0.5 : 0.36) * b / 0.78)
+      if onceL.title != t {
+        if !onceL.title.isEmpty, let l = onceL.layer { let tr = CATransition(); tr.type = .fade; tr.duration = sys.reduceMotion() ? 0.12 : 0.35; l.add(tr, forKey: "onceFade") }
+        onceL.title = t
+      }
+      onceL.fill = .clear; onceL.edge = .clear; onceL.ink = a; onceL.needsDisplay = true
+    }
+    onceL.isHidden = onceText == nil
+    if onceText == nil, onceBox != nil { closeOnce(animated: false) }
     dateL.stringValue = SleepScreen.dateFmt.string(from: d)
     dateL.textColor = ink(b * 0.744)
     // The stopwatch.
@@ -1230,6 +1485,7 @@ final class SleepScreen: NSObject {
     hint.stringValue = lit && !p.alarmOnly ? (gl?.hint ?? p.word("locked", "Wake up asks for Touch ID or your Mac password.")) : ""
     hint.textColor = ink(b * 0.436)
     guardian?.draw(plan: p, lit: lit, ink: ink(1), drift: dr)
+    placeOnce()
   }
   private func layoutPanel() {
     let pw = panel.frame.width

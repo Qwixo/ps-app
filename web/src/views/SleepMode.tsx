@@ -33,6 +33,7 @@ import { SleepSettingsHost, openSleepSettings, sleepSettingsOpen, useSleepSettin
 import { onSleepSquad } from "../sleepmode/squad";
 import { dayIn as listDay } from "../core/alarmlist";
 import { taskMapActions } from "./TaskMap";
+import { AlarmOnce } from "./AlarmOnce";
 import "./sleepmode.css";
 
 const hm = (ms: number) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
@@ -288,6 +289,8 @@ function WebSleepScreen({ since, wakeLock }: { since: number; wakeLock: "on" | "
             {timer ? `${plan.words.wakeIn}: ${hm(timer.at)}` : plan.words.wakeIn}</button>}
           {!s.customising && <button type="button" className="slp-cust-btn" onClick={(e) => { e.stopPropagation(); sfx.click(); openCustomise(); }}>{plan.words.customise}</button>}
         </span>
+        {/* PS 1.65 Just tomorrow (views/AlarmOnce.tsx): the next morning only. A browser cannot ask Touch ID, so it says where to change it. */}
+        {!s.customising && plan.once && <div className="slp-once" onClick={(e) => e.stopPropagation()}><AlarmOnce screen /></div>}
         <span className="slp-honest">
           {plan.rings.length > 0 ? "Alarms only ring while this page stays open and on screen. " : ""}
           {wakeLock === "on" ? "The screen stays on while this page is open." : wakeLock === "off" ? "This browser may let the screen turn off. Keep it plugged in." : "This browser cannot keep the screen on by itself."}

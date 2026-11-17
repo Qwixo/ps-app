@@ -29,7 +29,7 @@ ok("cleanSleepMode drops junk, keeps 5 alarms sorted, clamps the panel", () => {
   assert.equal(c.alarms!.find((a) => a.id === "a")!.on, false);
 });
 ok("defaults: shown, no alarms, counts only, panel 30 min, asks to log", () => {
-  assert.deepEqual(M.sleepModeOf(undefined), { show: true, alarms: [], details: false, panel: 30, ask: true, look: M.LOOK_DEF, lock: true, wake: W.WAKE_DEF, ringAlways: true });
+  assert.deepEqual(M.sleepModeOf(undefined), { show: true, alarms: [], details: false, panel: 30, ask: true, look: M.LOOK_DEF, lock: true, wake: W.WAKE_DEF, ringAlways: true, once: null });
 });
 
 ok("a night sleeper: 23:40 bedtime, 07:30 alarm rings the next morning", () => {

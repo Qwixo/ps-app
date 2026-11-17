@@ -5,6 +5,7 @@ func psLog(_ s: String) {}
 enum UpdatePaths { static let test = true }
 enum Protected { static var front = false; static func matches(_ bundleId: String?) -> Bool { false } }
 enum TouchLock { static func evaluate(_ reason: String, _ done: @escaping (Bool, String) -> Void) { done(false, "fake") } }
+final class DND { static let shared = DND(); func mutes(_ kind: String) -> Bool { false } }
 enum Sfx {
   struct Tone { let f: Double; let to: Double?; let dur: Double; let peak: Double; let wave: Int; let at: Double }
   static func wav(_ tones: [Tone]) -> Data { Data() }

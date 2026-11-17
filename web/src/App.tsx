@@ -120,6 +120,7 @@ function route(): "demo" | "join" | "join-owner" | "app" | "overlay" | "campaign
     void Promise.all([import("./dev/fake"), import("./dev/receipts-fake"), import("./core/vault"), import("./core/features")]).then(([f, r, v, ft]) => { v.__devLoad([...f.fakeDocs(), ...r.fakeReceipts()]); (window as unknown as { __dbg: unknown }).__dbg = () => ({ on: ft.feature("receipts"), reg: ft.registry().length, st: v.vaultStore.get().status }); setTimeout(() => void import("./views/Purchases").then((pu) => pu.openPurchases()), 1500); });
     return "app";
   }
+  if (import.meta.env.DEV && p === "/dev-alarm-once") { void import("./dev/alarmonce-fake").then((f) => f.startAlarmOnceFake()); return "app"; }   // Just tomorrow with made up alarms (src/dev/alarmonce-fake.ts)
   if (import.meta.env.DEV && p === "/dev-expics") return "expics";
   if (import.meta.env.DEV && p === "/dev-activity") return "activity-dev";
   if (p === "/demo") return "demo";

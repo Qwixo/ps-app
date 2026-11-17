@@ -53,6 +53,9 @@ export const SLEEP_ENTRIES: SleepEntry[] = [
 
   // ---------- Wake me up and alarms ----------
   { id: "alarms", group: "alarms", name: "Alarms", line: "Up to five wake times, each with its own sound and wake style.", words: ["alarm", "alarms", "wake up", "ring", "morning", "time", "add alarm"] },
+  // PS 1.65 (the developer's friend, 17 Nov 2026): the next morning only, moved or skipped, behind Touch ID (core/alarmonce.ts).
+  // The control itself sits in the Alarms row ("the same in Settings, Sleep mode, the alarm row"); this row is its switch.
+  { id: "once", group: "alarms", more: true, name: "Just tomorrow", line: "Skip tomorrow's alarm or set it later, for that one morning, under your alarms. It asks for Touch ID first.", words: ["just tomorrow", "tomorrow only", "skip", "skip tomorrow", "later", "snooze", "sleep in", "lie in", "one time", "once", "next alarm", "only tomorrow", "went to bed late", "change alarm"] },
   { id: "ring-always", group: "alarms", name: "Alarms ring even when Sleep mode is off", line: "On: your alarms ring at their time on your Mac and phone, whether or not you pressed Sleep.", words: ["ring", "always", "without sleep mode", "sleep mode off", "alarm clock", "every day", "no matter what"] },
   { id: "wake-in", group: "alarms", name: "Wake me up in", line: "A timer from the sleep cycles: sleep now and it rings after a nap or a full night.", words: ["timer", "nap", "power nap", "sleep cycle", "cycles", "sleep now", "rings after", "wake me up in"] },
   // The alarm sound's place: V1.47 alarm playlists and libraries put their picker here.
