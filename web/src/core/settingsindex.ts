@@ -150,7 +150,7 @@ export const SETTINGS: SetEntry[] = [
   { id: "add-button", group: "list", name: "Add task button", line: "Its colour, and what it does when you click it.", more: true, words: ["new task", "plus", "add", "colour", "color", "spin"] },
   { id: "typed-prio", group: "list", name: "Typed priority", line: "Type P1, P2 or P3 in a new task to set its priority.", more: true, words: ["p1", "p2", "p3", "priority", "type", "urgent"] },
   { id: "nl-dates", group: "list", name: "Dates in plain words", line: "Type tomorrow 9am or every weekday in a new task to set its date. Click the chip to keep the words.", words: ["date", "dates", "natural language", "plain words", "tomorrow", "next week", "repeat", "every", "due", "parse", "smart", "chip"] },
-  { id: "nl-remind", group: "list", parent: "nl-dates", name: "A typed time adds a reminder", line: "Tomorrow 9am also reminds you at 9:00 on that day.", more: true, words: ["reminder", "time", "remind", "9am", "alarm"] },
+  { id: "nl-remind", group: "list", parent: "nl-dates", name: "A typed time adds a reminder", line: "Tomorrow 9am also reminds you once, at 8:45 that day.", more: true, words: ["reminder", "time", "remind", "9am", "alarm"] },
   { id: "new-badge", group: "list", name: "NEW badges", line: "A NEW badge on tasks added in the last few minutes.", more: true, words: ["new", "badge", "label", "tag", "fresh"] },
 
   // ---------- Appearance ----------

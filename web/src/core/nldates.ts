@@ -469,6 +469,11 @@ function pick(lower: string, all: Cand[], keep: readonly string[]): { date?: Can
   // "morning at 9" the other way round.
   const nextT = time && times.find((x) => x !== time && x.bias && gapOnly(lower, time!.end, x.start));
   if (nextT && !time!.bias) { extra.push(nextT); time = { ...time!, bias: nextT.bias }; }
+  // "tomorrow evening at 8": the part of the day right before the number says am or pm (20:00, not 08:00), and both words go.
+  if (time && !time.bias) {
+    const prev = times[times.indexOf(time) - 1];
+    if (prev?.bias && gapOnly(lower, prev.end, time.start)) { extra.push(prev); time = { ...time, bias: prev.bias }; }
+  }
   return { date, time: date?.dt ? undefined : time, rep, extra };
 }
 
@@ -630,13 +635,23 @@ export function cleanTimeRemind(v: unknown): TimeRemind | null {
   return days.length ? { at: o.at, days, tz } : null;
 }
 
-/** The reminder to add: the usual one on a task (Done in one click, three hours of nudges), at the typed time. */
+/** How many minutes before the typed time its one reminder pops up (the owner, 17 Nov 2026: "call David at 3pm" reminds once at
+ *  2:45 pm, not the 15 minute nag). */
+export const NL_REMIND_LEAD = 15;
+const hmOf = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+/** The reminder to add: ONE pop up on the task (Done in one click) NL_REMIND_LEAD minutes before the typed time. Its window runs
+ *  from then to the typed time and its "Remind me in" is that long too, so it rings once and never nags (core/remind.ts
+ *  remNextRing: the next ring would land on the window's end). A time just after midnight starts the day before. */
 export function timeReminder(id: string, taskId: string, w: TimeRemind, now: number, deviceTz = DEVICE_TZ): Reminder {
   const [h, m] = w.at.split(":").map(Number);
-  const end = (h * 60 + m + 180) % 1440;
-  const until = `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+  const startMin = h * 60 + m - NL_REMIND_LEAD;
+  const back = startMin < 0;   // 00:10 reminds at 23:55 the evening before
+  const at = hmOf((startMin + 1440) % 1440);
   const base = newTaskReminder(id, taskId, now, deviceTz);
-  return w.date ? { ...base, at: w.at, until, tz: w.tz ?? "", date: w.date } : { ...base, at: w.at, until, tz: w.tz ?? "", date: undefined, days: w.days ?? base.days };
+  const one = { ...base, at, until: w.at, snooze: NL_REMIND_LEAD, tz: w.tz ?? "" };
+  if (w.date) return { ...one, date: back ? plusDays(w.date, -1) : w.date };
+  const days = w.days ?? base.days;
+  return { ...one, date: undefined, days: back ? [...new Set(days.map((d) => (d + 6) % 7))].sort() : days };
 }
 
 // ---------- the Add task window (core/quickadd.ts) ----------

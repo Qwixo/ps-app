@@ -41,6 +41,13 @@ function Provider({ pick }: { pick: AiPick }) {
   const box = useRef<HTMLInputElement>(null);
   const keyable = pick !== "apple";
   const how = prov?.how;
+  const saveKey = () => {
+    const el = box.current; const k = el?.value.trim() ?? "";
+    if (!el || !k) return;
+    sfx.click();
+    setKey(pick as "claude" | "chatgpt", k);
+    el.value = "";   // never kept in the page
+  };
   return (
     <div className={`as-prov${chosen ? " on" : ""}`}>
       <div className="as-prov-h">
@@ -58,13 +65,9 @@ function Provider({ pick }: { pick: AiPick }) {
       {keyable && <p className="as-note">{W.sendsTo[pick as "claude" | "chatgpt"]}</p>}
       {keyable && (
         <div className="as-key">
-          <input ref={box} className="as-in" type="password" autoComplete="off" spellCheck={false} placeholder={W.keyHint} aria-label={`${PICK_NAME[pick]} key`} defaultValue="" />
-          <button type="button" className="as-go" onClick={() => {
-            const el = box.current; const k = el?.value.trim() ?? "";
-            if (!el || !k) return;
-            setKey(pick as "claude" | "chatgpt", k);
-            el.value = "";   // never kept in the page
-          }}>{W.setKey}</button>
+          <input ref={box} className="as-in as-keyin" type="password" autoComplete="off" spellCheck={false} placeholder={W.keyHint} aria-label={`${PICK_NAME[pick]} key`} defaultValue=""
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveKey(); } }} />
+          <button type="button" className="as-go" onClick={saveKey}>{W.setKey}</button>
           <button type="button" className="as-sec quiet" onClick={() => { removeKey(pick as "claude" | "chatgpt"); if (box.current) box.current.value = ""; }}>{W.remove}</button>
         </div>
       )}

@@ -2,7 +2,7 @@
 // The Settings assistant's rules (core/assist.ts): the tools over the settings list, the allowed values, the answer re-check that drops
 // invented settings, the confirm words, the simple fallback and the outside guides. Fake data only.
 import { readFileSync } from "node:fs";
-import { ASSIST_WORDS, CHANGEABLE, PAGE_WAIT_MS, coverage, closestFor, islandMsg, confirmButtons, walkModeFor, OUTSIDE_GUIDES, TOOLS, allowedWords, asksForSecret, assistPrefs, canChange, changeLine, cleanSay, cleanValue, digest, pathOf, recheck, simplePlan, toggleWord, numberWord } from "../src/core/assist.ts";
+import { ASSIST_WORDS, CHANGEABLE, PAGE_WAIT_MS, coverage, closestFor, islandMsg, confirmButtons, walkModeFor, OUTSIDE_GUIDES, TOOLS, allowedWords, asksForSecret, assistRoute, holdsSecret, assistPrefs, canChange, changeLine, cleanSay, cleanValue, digest, pathOf, recheck, simplePlan, toggleWord, numberWord } from "../src/core/assist.ts";
 import { SETTINGS, settingById, visibleTo, type Ctx } from "../src/core/settingsindex.ts";
 import type { Settings } from "../src/core/model.ts";
 
@@ -104,6 +104,11 @@ ok("simple: a value the setting does not allow is not changed", (() => { const p
 ok("simple: every changeable toggle works by name", Object.entries(CHANGEABLE).filter(([, s]) => s.kind === "toggle").every(([id]) => { const nm = settingById(id)!.name; const p = simplePlan(`turn off ${nm}`, mac).plan; return p.kind === "change" ? p.value === false : p.kind === "show"; }));
 ok("simple: a secret ask never becomes a plan with the secret", asksForSecret("what is my api key") && asksForSecret("password") && !asksForSecret("posture"));
 
+// ---- quality pass 1.65: a pasted secret is blocked, words about a key are answered here (simple version), never sent anywhere
+ok("a pasted key or password is blocked", [["s", "k-an", "t-api03-abcdefghijklmnop"], ["my password is hunter22"], ["tok", "en: ", "123456:", "ABCdefGhIJKlmnOPQ"], ["gh", "p_abcdefghijklmnop1234"], ["AK", "IAABCDEFGHIJKL"], ["paste e", "yJhbGci", "OiJIUzI1", "NiJ9abc here"], ["use ", "9f8e7d6c5b4a3928", "1706f5e4d3c2b1a0", " please"]].map((x) => x.join("")).every((t) => holdsSecret(t) && assistRoute(t) === "block"));
+ok("words about a key or a pin are not a secret: they stay on this device", ["where do I put my telegram bot token", "what is my api key", "how do I pin the time zones", "change my passcode"].every((t) => !holdsSecret(t) && assistRoute(t) === "local"));
+ok("an ordinary request goes to the AI", assistRoute("turn off the posture reminder") === "ai" && assistRoute("pomodoro work 30 minutes") === "ai" && !holdsSecret("set pomodoro to 25 minutes every weekday morning please"));
+ok("the simple version finds the bot key setting from words about a token", simplePlan("where do I put my telegram bot token", mac).matches.length > 0);
 // ---- outside guides never ask for a password or key
 ok("whatsapp has an outside guide", OUTSIDE_GUIDES.some((g) => g.settingId === "whatsapp" && settingById(g.settingId)));
 ok("no outside step asks for a password, key, token or code", OUTSIDE_GUIDES.every((g) => g.steps.every((s) => !/(give|send|tell|type|enter|share) (me|us)? ?(your|the)? ?(password|key|token|code)/i.test(s.line))));

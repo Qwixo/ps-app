@@ -26,7 +26,7 @@ ok("nothing from the vault: extra fields are never carried", (() => { const c = 
 ok("a bad id or version is no request", cleanRequest({ ...r, id: "x" }) === null && cleanRequest({ ...r, v: 2 }) === null && cleanRequest(null) === null);
 
 // ---- sealed with the squad key
-const rec = { v: 1, squadId: "223e4567-e89b-12d3-a456-426614174000", memberId: "323e4567-e89b-12d3-a456-426614174000", me: "Me", keys: [{ gen: 1, k: await newSquadKey() }], sign: await newSignPair(), box: await newSignPair(), secret: "s", joinedAt: NOW.toISOString() } as SquadRec;
+const rec = { v: 1, squadId: "223e4567-e89b-12d3-a456-426614174000", memberId: "323e4567-e89b-12d3-a456-426614174000", me: "Quentin Example Person", keys: [{ gen: 1, k: await newSquadKey() }], sign: await newSignPair(), box: await newSignPair(), secret: "s", joinedAt: NOW.toISOString() } as SquadRec;
 const sealed = await sealRequest(rec, r);
 ok("sealed: the hub sees an id, a key generation and scrambled text", Object.keys(sealed).sort().join() === "ct,gen,id" && !sealed.ct.includes("pop-up") && sealed.gen === 1);
 ok("sealed: the squad key opens it, with its own aad", JSON.stringify(await open(rec.keys[0].k, sealed.ct, frAad(V, rec.squadId, rec.memberId, r.id))) === JSON.stringify(r));
@@ -80,6 +80,7 @@ ok("hub: signed requests only, with a replay guard and a clock check", fn.includ
 ok("hub: only members who were let in", fn.includes('.eq("admitted", true)') && fn.includes('.is("left_at", null)'));
 ok("hub: undo deletes only your own", /case "fr_del"[\s\S]*?\.eq\("member_id", me\.id\)/.test(fn));
 ok("hub: a pull is change only and capped", /case "fr_pull"[\s\S]*?gt\("updated_at", since\)[\s\S]*?/.test(fn) && fn.includes(".limit(200)"));
+ok("hub: a full page of 200 hands back its last row's time, so the next read carries on (quality pass 1.65)", /rows\.length >= 200 \? rows\[rows\.length - 1\]\.updated_at : now/.test(fn));
 ok("hub: tables locked like the rest (RLS forced, no client access)", sql.includes("force row level security") && sql.includes('"no client access"') && sql.includes("featreq_items_squad"));
 ok("hub: the table stores only scrambled text, ids and times", !/\b(text|words|part|name)\s+text\b/.test(sql.replace(/--.*$/gm, "")));
 

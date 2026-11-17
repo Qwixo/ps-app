@@ -81,7 +81,9 @@ async function handle(body: Record<string, unknown>) {
       const now = new Date().toISOString();
       let q = db.from("featreq_items").select("id, member_id, ct, gen, deleted, created_at, updated_at").eq("squad_id", me.squad_id).order("updated_at").limit(200);
       q = since ? q.gt("updated_at", since) : q.eq("deleted", false);
-      return { now, rows: must(await q) };
+      const rows = must(await q) as { updated_at: string }[];
+      // A full page: the next read starts after its last row, so a busy squad never loses the rows past the first 200.
+      return { now: rows.length >= 200 ? rows[rows.length - 1].updated_at : now, rows };
     }
   }
   throw new Fail(400, "unknown act");
