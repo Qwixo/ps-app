@@ -61,7 +61,9 @@ object ReceiptScan {
         val t0 = System.currentTimeMillis()
         try {
             val t = api(c) ?: return answer(id).put("error", "model")
-            t.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
+            // One column: a receipt is a list, and the automatic layout often reads the prices as a second block after all the
+            // names, which breaks "name ... price" apart. Single column keeps each printed line whole.
+            t.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_COLUMN)
             t.setImage(bmp)
             t.getUTF8Text()   // runs the reader
             val lines = ArrayList<ReceiptText.Line>()
@@ -86,21 +88,27 @@ object ReceiptScan {
         }
     }
 
-    /** The reader, made once: the models are copied out of the APK the first time (Tesseract reads files, not assets). */
+    /** The reader, made once: the models are copied out of the APK the first time (Tesseract reads files, not assets).
+     *  The APK stores them compressed, and a compressed asset cannot be opened with openFd (it throws), so the size is not read
+     *  from the APK: a stamp with the app's install time says the copies are from this build, and they are copied again after
+     *  an update or when one is missing. */
     private fun api(c: Context): TessBaseAPI? {
         tess?.let { return it }
         val root = File(c.noBackupFilesDir, "ocr")
         val dir = File(root, "tessdata").apply { mkdirs() }
+        val stamp = File(dir, ".receipt-models")
+        val build = runCatching { c.packageManager.getPackageInfo(c.packageName, 0).lastUpdateTime.toString() }.getOrDefault("")
+        val had = runCatching { stamp.readText() }.getOrNull()
         for (lang in LANGS.split("+")) {
             val name = "$lang.traineddata"
             val f = File(dir, name)
-            val size = c.assets.openFd("tessdata/$name").use { it.length }
-            if (f.length() != size) {
-                val tmp = File(dir, "$name.part")
+            if (ReceiptText.needsCopy(had, build, f.length())) {
+                val tmp = File(dir, "$name.receipt.part")
                 c.assets.open("tessdata/$name").use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
                 if (!tmp.renameTo(f)) { tmp.delete(); return null }
             }
         }
+        if (had != build) runCatching { stamp.writeText(build) }
         val t = TessBaseAPI()
         if (!t.init(root.absolutePath, LANGS, TessBaseAPI.OEM_LSTM_ONLY)) { t.recycle(); Plog.i("receiptscan: the reader did not start"); return null }
         t.setVariable("user_defined_dpi", "300")
@@ -122,6 +130,9 @@ object ReceiptText {
         lines.map { it.copy(text = it.text.replace(Regex("[ \\t\\u00A0]+"), " ").trim()) }
             .filter { it.text.isNotEmpty() && (it.conf >= 15f || it.text.any { c -> c.isLetterOrDigit() }) }
             .joinToString("\n") { it.text }
+
+    /** Copy a model out of the APK again: no copy yet (or an empty one), or the copies are not stamped with this build. */
+    fun needsCopy(stamp: String?, build: String, length: Long): Boolean = length <= 0L || build.isEmpty() || stamp != build
 
     /** The average sureness of the lines with something in them, 0 when there are none. */
     fun confidence(lines: List<Line>): Float {
