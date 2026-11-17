@@ -124,6 +124,8 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (typeof p.receiptCur === "string") o.receiptCur = cleanCurrency(p.receiptCur);   // the currency a new receipt starts with
   if (typeof p.replyInPanel === "boolean") o.replyInPanel = p.replyInPanel;   // Settings, Reply in the email panel (V1.59)
   if (p.chkRemind && typeof p.chkRemind === "object") o.chkRemind = cleanChk(p.chkRemind);   // Settings, Checklist Reminder (PS 1.65, core/chkremind.ts)
+  if (p.timeEst && typeof p.timeEst === "object") o.timeEst = cleanTe(p.timeEst);   // Settings, Your list, time estimates (PS 1.65, core/timeest.ts)
+  if (p.estWarnDay === null || (typeof p.estWarnDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.estWarnDay))) o.estWarnDay = p.estWarnDay as string | null;   // the overload line, once a day
   if (typeof p.swipeInvert === "boolean") o.swipeInvert = p.swipeInvert;   // Settings, Controls, Invert swipe (V1.57)
   if (p.squadFeatures && typeof p.squadFeatures === "object") o.squadFeatures = cleanSwitches(p.squadFeatures);   // Settings, From the squad (V1.58, core/features.ts)
   // V1.56 Saved looks: only the device kinds this change names, merged into the vault's newest (core/looksprofiles.ts).
@@ -201,6 +203,8 @@ import { cleanRemindOp, mergeRemind } from "./core/remind";
 import { remShellMessage, remWake, startRemWatch } from "./remwatch";
 import { postureShellMessage, startPostureWatch } from "./posturewatch";
 import { startChkWatch } from "./chkwatch";
+import { cleanTimeOp, runTimeOp } from "./core/timesave";
+import { cleanEst, cleanTe } from "./core/timeest";
 import { cleanSleepMode } from "./core/sleepmode";
 import { dirCardMessage, runSquadOp, squadStore, squadView, startSquad } from "./squad/engine";
 import { boardWake, runBoardOp, startSquadBoard } from "./squad/board";
@@ -430,6 +434,9 @@ function cleanPatch(p: Record<string, unknown>) {
   if (typeof p?.aiInbox === "boolean") o.aiInbox = p.aiInbox;
   if (p?.group === null || (typeof p?.group === "string" && /^[a-z0-9]{4,24}$/.test(p.group))) o.group = (p.group as string | null) || null;
   if ("repeat" in (p || {})) o.repeat = cleanRepeat(p.repeat, o.due || todayISO());
+  // Time estimates (PS 1.65, core/timeest.ts): minutes or none, and whether it was learned from past times.
+  if ("est" in (p || {})) o.est = cleanEst(p.est);
+  if (p?.estBy === null || p?.estBy === "past") o.estBy = p.estBy as "past" | null;
   return o;
 }
 
@@ -730,6 +737,8 @@ export function startPsBridge() {
         if (patch.fitCard) fitCard(patch.fitCard);
         // Pomodoro in the Tab list (V1.58, src/pomodoro.ts): Start, Pause, Resume, Skip, Stop, on the newest run and the time now.
         { const op = cleanOp(patch.pomoOp); if (op) void runPomoOp(op).catch(() => psPost({ type: "log", text: "pomodoro: a button from the Tab list failed to save" })); }
+        // Time spent (PS 1.65, core/timesave.ts): Start and Stop on a task, from its menu or Edit in the Tab list.
+        { const o = cleanTimeOp(patch.timeOp); if (o) void runTimeOp(o); }
         if (patch.standTest === true) islandStandTest();   // Settings, Stand-up reminders, Try it now (src/island.ts)
         // The Time zones screen in the Tab list: a person added, renamed, moved or taken off.
         if (patch.tzZonesOp) void runTzZonesOp(patch.tzZonesOp).catch(() => psPost({ type: "log", text: "time zones: a list change from the Tab list failed" }));
@@ -933,6 +942,7 @@ export function startPsBridge() {
       || d.kind === "tablayout" // Edit mode: where the Tab list's panels sit and which are removed
       || d.kind === "phonelayout" || d.kind === "phonedev" || d.kind === "bgdev"   // V1.56 the phone layout editor: each phone's layout, and which phones you have
       || d.kind === "remind"    // Settings > Annoying 15 min reminder: the reminders and their answers (a few KB)
+      || d.kind === "ttime"     // Time spent (PS 1.65, core/timeest.ts): the clocks and each month's finished times, for Edit's past times and the overload line (a few KB)
       || (d.kind === "stline" && Number((d.data as { hour?: number }).hour) > Date.now() - 25 * 3600_000)) : [];
     if (cal) docs.push(cal);
     // V1.59 Reply in the email panel (core/inlinereply.ts): how each reply went ("Replied", "Not sent"), never its words.

@@ -63,12 +63,14 @@ export interface SetEntry {
   pf?: true;
   /** Only where the Checklist reminder feature is on in this build (core/features.ts "checklist-reminder"). */
   ck?: true;
+  /** Only where time estimates are on in this build (core/features.ts "time-estimates"). */
+  te?: true;
   /** Only in this phone shell: the GrapheneOS app ("gos") or the iPhone web app ("mweb"). V1.47. */
   shell?: Shell;
 }
 /** Which phone shell: the GrapheneOS app (ps-gos, a WebView with the native bridge) or the iPhone web app. */
 export type Shell = "gos" | "mweb";
-export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean; ck?: boolean }
+export interface Ctx { red: boolean; where: Where; mail?: boolean; mailCan?: boolean; shell?: Shell; sr?: boolean; pf?: boolean; ck?: boolean; te?: boolean }
 
 export const GROUPS: SetGroup[] = [
   // V1.51 (the developer, 12 Nov 2026): About and updates is the top item of the Settings menu, above everything else, so the
@@ -134,6 +136,11 @@ export const SETTINGS: SetEntry[] = [
   { id: "tick-mode", group: "list", name: "When I tick a task", line: "Slide it into Completed, or let it leave the list.", words: ["done", "complete", "finish", "check", "tick", "disappear"] },
   // PS 1.65 Receipts: on unless switched off, on every device (views/Purchases.tsx, views/ReceiptScan.tsx, core/receipts.ts).
   { id: "receipts", group: "list", name: "Receipts and Purchases", line: "Scan paper receipts on your phone and see what you spend. Nothing leaves your devices.", words: ["receipt", "receipts", "purchases", "spending", "money", "finance", "scan", "shop", "shopping", "expenses", "budget", "currency", "lari", "gel"] },
+  // ---------- Time estimates (PS 1.65, core/timeest.ts) ----------
+  { id: "te-est", group: "list", name: "Time estimates", line: "Give a task an estimate. A new task with a name you used before gets its usual time.", te: true, words: ["estimate", "estimates", "how long", "duration", "minutes", "time", "learn", "usually"] },
+  { id: "te-track", group: "list", name: "Time spent", line: "How long a task really takes, Working on or Start to the tick, less breaks. Only in your own vault.", te: true, words: ["time spent", "tracking", "timer", "track", "how long", "start", "stop", "clock", "actual"] },
+  { id: "te-warn", group: "list", name: "Too much planned", line: "A quiet line at the top of your list when today's estimates are more than your free time.", te: true, words: ["overload", "warning", "too much", "planned", "free time", "busy", "rethink", "capacity"] },
+  { id: "te-hours", group: "list", name: "Working hours", line: "Free time is these hours minus your meetings. An end before the start runs past midnight.", te: true, words: ["working hours", "work hours", "hours", "from", "to", "free time", "schedule", "midnight"] },
   { id: "completed-show", group: "list", name: "Completed section", line: "The grey Completed area at the bottom, with Resurrect.", words: ["done", "finished", "resurrect", "history", "ticked"] },
   { id: "completed-keep", group: "list", name: "Completed keeps ticks for", line: "Today, the last 7 days or the last 30 days.", words: ["done", "keep", "days", "history"] },
   { id: "task-size", group: "list", name: "Task size", line: "How big the tasks are on this list.", words: ["size", "big", "small", "zoom", "scale", "bigger", "smaller"] },
@@ -425,6 +432,7 @@ export function visibleTo(e: SetEntry, ctx: Ctx): boolean {
   if (e.sr && !ctx.sr) return false;
   if (e.pf && !ctx.pf) return false;
   if (e.ck && !ctx.ck) return false;
+  if (e.te && !ctx.te) return false;
   if (e.shell && e.shell !== ctx.shell) return false;
   if (e.on && !e.on.includes(ctx.where)) return false;
   const g = groupById(e.group);
