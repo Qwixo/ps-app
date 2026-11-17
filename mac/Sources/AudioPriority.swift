@@ -303,6 +303,7 @@ final class CoreAudioAP: APBackend {
   private var f: ((APEvent) -> Void)?
   private var watched: Set<AudioObjectID> = []      // the listen queue only
   private var micWatched = AudioObjectID(kAudioObjectUnknown)
+  private var micListened: Set<AudioObjectID> = []   // the listen queue only: devices that already have the running listener
   private func addr(_ s: AudioObjectPropertySelector, _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) -> AudioObjectPropertyAddress {
     AudioObjectPropertyAddress(mSelector: s, mScope: scope, mElement: kAudioObjectPropertyElementMain)
   }
@@ -399,6 +400,7 @@ final class CoreAudioAP: APBackend {
     guard f != nil else { return }
     let all = Set(allIDs())
     watched.formIntersection(all)                      // gone devices take their listeners with them
+    micListened.formIntersection(all)
     for d in ids where !watched.contains(d) {
       var a = addr(kAudioDevicePropertyDeviceIsAlive)
       if AudioObjectAddPropertyListenerBlock(d, &a, lq, { [weak self] _, _ in self?.f?(.devices) }) == noErr { watched.insert(d) }
@@ -409,6 +411,9 @@ final class CoreAudioAP: APBackend {
     let id = defaultID(.mics)
     guard id != 0, id != micWatched else { return }
     micWatched = id
+    // One listener per device, ever: switching back to a microphone already watched (A, then B, then A) reuses it, so
+    // listeners never pile up on a device as the default moves around (the block checks it is still the default).
+    guard micListened.insert(id).inserted else { return }
     var a = addr(kAudioDevicePropertyDeviceIsRunningSomewhere)
     AudioObjectAddPropertyListenerBlock(id, &a, lq) { [weak self] _, _ in
       guard let self, self.micWatched == id else { return }

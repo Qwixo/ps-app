@@ -141,7 +141,11 @@ object Sleep {
     fun sendOnce(c: Context, json: String) {
         val m = runCatching { JSONObject(json) }.getOrNull() ?: return
         if (m.optString("type") != "sleep:once") return
-        sp(c).edit().putString("pendingOnce", json).putLong("pendingOnceAt", System.currentTimeMillis()).apply()
+        // Kept for a page that is not up yet. A page that is up gets it now and never again: a copy kept anyway was sent
+        // a second time when the page reloaded, after the person may have changed it again elsewhere (an Undo on the Mac
+        // came undone, with no unlock asked).
+        if (WebHost.pageUp()) sp(c).edit().remove("pendingOnce").remove("pendingOnceAt").apply()
+        else sp(c).edit().putString("pendingOnce", json).putLong("pendingOnceAt", System.currentTimeMillis()).apply()
         WebHost.post(m)
         Plog.i("sleep: just tomorrow ${m.optString("act")}")
     }

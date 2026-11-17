@@ -185,6 +185,17 @@ final class VoiceCapture {
         self?.core.protectedFront()
       }
     }
+    // The gap: the app in front was read on the main thread when the page asked to listen, and this watch only starts
+    // once listening began. One of them coming to the front in between sends no notification here, so look once more,
+    // on the main thread after Protected's own observer (it runs first, in order), and stop if one is in front now.
+    DispatchQueue.main.async { [weak self] in
+      guard Protected.front || Protected.matches(NSWorkspace.shared.frontmostApplication) else { return }
+      self?.queue.async {
+        guard let self, self.frontWatch != nil else { return }
+        psLog("PS voice capture: stopped, a protected app was already in front")
+        self.core.protectedFront()
+      }
+    }
   }
 
   // MARK: to the page

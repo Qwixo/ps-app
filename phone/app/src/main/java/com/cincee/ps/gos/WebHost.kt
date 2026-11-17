@@ -245,6 +245,8 @@ object WebHost {
 
     // ---------- messages to the page (always answered from the main thread, never waited on) ----------
     fun post(o: JSONObject) { val s = o.toString(); main.post { if (ready && proxy != null) proxy?.postMessage(s) else queue.add(s) } }
+    /** The page is up and takes messages now (main thread). V1.65 Just tomorrow keeps a choice for a later page only when not. */
+    fun pageUp(): Boolean = ready && proxy != null
     fun sendPrefs() = post(JSONObject().put("type", "prefs").put("prefs", Prefs.json(app)))
     fun sendPerms() { if (::app.isInitialized) { val c = app; Work.post { post(JSONObject().put("type", "perms").put("perms", Prefs.perms(c))) } } }
 

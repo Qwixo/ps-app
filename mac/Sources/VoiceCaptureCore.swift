@@ -115,6 +115,9 @@ final class VoiceSessionCore {
   /// The page asked to listen. `block` from VoiceRules.block.
   func start(block: VoiceBlock?) {
     if let block { send(["type": "voice:blocked", "why": block.rawValue]); return }
+    // Already listening (the page was reloaded or a second window asked): the one recording goes on and the page is told,
+    // so it never waits on "starting" for ever. While the last words are awaited the stop that follows tells it.
+    if state == .recording { send(["type": "voice:started"]); return }
     if state != .idle { return }
     gen += 1
     let g = gen
