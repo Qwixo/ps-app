@@ -1,29 +1,19 @@
-/* Tab list, top right: the volume mixer (views/Mixer.tsx) */
+/* Tab list, top right: the volume mixer (views/Mixer.tsx). PS 1.65: one look (the roomy one), no gear. */
 .mix-wrap { position: relative; }
-.mix-pop { width: 380px; max-height: min(78vh, 720px); overflow: auto; gap: calc(8px * var(--k-dn, 1)); --mix: var(--k-acc2-t, #A78BFA); }
+.tm-pop.mix-pop { width: 380px; background: rgba(28, 20, 26, .96); max-height: min(78vh, 720px); overflow: auto; gap: calc(8px * var(--k-dn, 1)); --mix: var(--k-acc2-t, #A78BFA); }
 .mix-head { display: flex; align-items: center; justify-content: space-between; }
 .mix-head b { font-size: calc(14px * var(--k-fs, 1)); font-weight: 800; }
-.mix-gear-btn { width: 28px; height: 28px; border-radius: calc(99px * var(--k-rd, 1)); border: 0; display: inline-flex; align-items: center; justify-content: center; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); cursor: pointer; }
-.mix-gear-btn.on, .mix-gear-btn:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(15% * var(--k-ia, 1))), transparent); }
-.mix-gear { display: grid; gap: calc(6px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
 .mix-gr { display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); flex-wrap: wrap; }
 .mix-gr > span { width: 72px; flex: none; font-size: calc(11.5px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
 .mix-chip { border: 0; border-radius: calc(99px * var(--k-rd, 1)); padding: calc(4px * var(--k-dn, 1)) calc(8px * var(--k-dn, 1)); font: inherit; font-size: calc(11px * var(--k-fs, 1)); font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); cursor: pointer; white-space: nowrap; }
 .mix-chip.on { color: var(--k-fg, #FFFFFF); background: var(--mix); }
-.mix-sw { width: 18px; height: 18px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(25% * var(--k-ia, 1))), transparent); padding: 0; cursor: pointer; }
-.mix-sw.on { border-color: var(--k-fg, #FFFFFF); box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(30% * var(--k-ia, 1))), transparent); }
 .mix-ask { display: grid; gap: calc(6px * var(--k-dn, 1)); padding: calc(10px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-acc2-t, #A78BFA) 12%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc2-t, #A78BFA) 35%, transparent); font-size: calc(12px * var(--k-fs, 1)); line-height: 1.4; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(85% * var(--k-ia, 1))), transparent); }
 .mix-ask b { font-size: calc(12.5px * var(--k-fs, 1)); }
 .mix-list { display: grid; gap: calc(4px * var(--k-dn, 1)); }
-/* roomy: icon, then name and slider; Mute and Keep out of recordings on a line under the slider */
 .mix-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: calc(10px * var(--k-dn, 1)); row-gap: calc(5px * var(--k-dn, 1)); padding: calc(8px * var(--k-dn, 1)) calc(6px * var(--k-dn, 1)); border-radius: calc(12px * var(--k-rd, 1)); }
 .mix-row .mix-ic { grid-row: span 2; align-self: start; margin-top: 2px; }
 .mix-row.master { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent); }
-/* compact: one line per app, the buttons on the right */
-.mix-pop.compact .mix-row { grid-template-columns: auto minmax(0, 1fr) auto; padding: calc(3px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)); column-gap: calc(8px * var(--k-dn, 1)); }
-.mix-pop.compact .mix-row .mix-ic { grid-row: auto; margin-top: 0; align-self: center; }
 .mix-ic { width: 28px; height: 28px; border-radius: calc(7px * var(--k-rd, 1)); flex: none; }
-.mix-pop.compact .mix-ic { width: 20px; height: 20px; border-radius: calc(5px * var(--k-rd, 1)); }
 .mix-ic.none { display: inline-flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(75% * var(--k-ia, 1))), transparent); font-weight: 800; font-size: calc(12px * var(--k-fs, 1)); }
 .mix-mid { display: grid; gap: calc(3px * var(--k-dn, 1)); min-width: 0; }
 .mix-name { display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -37,7 +27,6 @@
 .mix-row.master .mix-btns { grid-column: auto; }
 .mix-row.master { grid-template-columns: auto minmax(0, 1fr) auto; }
 .mix-row.master .mix-ic { grid-row: auto; align-self: center; margin-top: 0; }
-.mix-pop.compact .mix-btns { grid-column: auto; }
 .mix-b { border: 0; border-radius: calc(99px * var(--k-rd, 1)); padding: calc(4px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)); font: inherit; font-size: calc(11px * var(--k-fs, 1)); font-weight: 750; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); cursor: pointer; white-space: nowrap; }
 .mix-b:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent); }
 .mix-b.on { color: var(--k-fg, #FFFFFF); background: var(--mix); }
@@ -46,14 +35,10 @@
 .mix-meter { height: 3px; border-radius: calc(2px * var(--k-rd, 1)); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); overflow: hidden; }
 .mix-meter i { display: block; height: 100%; background: var(--mix); transition: width .12s linear; }
 .mix-hint { font-size: calc(11.5px * var(--k-fs, 1)); line-height: 1.35; color: var(--k-warn-t, #FDE68A); }
-/* the sliders: thin, thick or pill, in the chosen colour */
+/* the sliders: one thin look (PS 1.65) */
 .mix-range { -webkit-appearance: none; appearance: none; flex: 1; height: 4px; border-radius: calc(4px * var(--k-rd, 1)); cursor: pointer;
   background: linear-gradient(90deg, var(--mix) var(--pct, 50%), color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(14% * var(--k-ia, 1))), transparent) var(--pct, 50%)); }
 .mix-range::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--k-fg, #FFFFFF); box-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
-.mix-pop.slider-thick .mix-range { height: 8px; }
-.mix-pop.slider-thick .mix-range::-webkit-slider-thumb { width: 18px; height: 18px; }
-.mix-pop.slider-pill .mix-range { height: 16px; border-radius: calc(99px * var(--k-rd, 1)); }
-.mix-pop.slider-pill .mix-range::-webkit-slider-thumb { width: 16px; height: 16px; border: 3px solid var(--mix); box-sizing: border-box; }
 .mix-airpods { display: grid; gap: calc(6px * var(--k-dn, 1)); padding-top: calc(6px * var(--k-dn, 1)); border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); }
 .mix-airpods em { font-style: normal; font-size: calc(11px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(55% * var(--k-ia, 1))), transparent); }
 .mix-air-note { font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); padding-left: calc(78px * var(--k-dn, 1)); }

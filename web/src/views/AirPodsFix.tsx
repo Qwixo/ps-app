@@ -1,9 +1,9 @@
-// The volume mixer's gear (PS only): "Switch to AirPods Max when connected" and "Give AirPods button
+// The volume mixer's AirPods row (PS only, in its gear until 1.65): "Switch to AirPods Max when connected" and "Give AirPods button
 // back to Spotify" (called "Reconfigure AirPods Max" until 4 Nov 2026, which the developer found unclear).
 // One click hands the AirPods play and pause button back to Spotify (or Music): PS makes it the Now
 // Playing app without a sound (Sources/MediaGuard.swift). Click only.
 // Every account has the button (V1.40, the developer: only Numerology and the PS rules stay his). "Switch to AirPods Max when
-// connected" is the developer's own (AutoRoute.swift, his AirPods Max and USB mic): anyone else has Headphones mode instead.
+// connected" is the developer's own (AutoRoute.swift, his AirPods Max and USB mic): anyone else has Audio priority (the ordered lists in the mixer, PS 1.65) instead.
 import { useEffect, useState } from "react";
 import { PS, psPost } from "../ps";
 import { sfx } from "../ui/sfx";
@@ -28,7 +28,7 @@ export function AirPodsFix({ red = false }: { red?: boolean }) {
   }, [red]);
   useEffect(() => { if (!note?.ok) return; const k = window.setTimeout(() => setNote(null), 5000); return () => window.clearTimeout(k); }, [note]);
   if (!PS) return null;
-  // Inside the volume mixer's own gear (views/Mixer.tsx), with the other audio settings.
+  // At the bottom of the volume mixer (views/Mixer.tsx; PS 1.65 took its gear away).
   return (
     <div className="mix-airpods">
       {red && <div className="mix-gr tm-airpods-auto"><span>AirPods</span>

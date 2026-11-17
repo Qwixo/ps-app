@@ -1,3 +1,5 @@
+// NO LONGER USED since PS 1.65 (Audio priority, core/audiopriority.ts, replaced Headphones mode). Kept only so the
+// synced settings an older PS saves are still cleaned on the way in (ps.ts) and old data never breaks.
 // Headphones mode (V1.40, G Squad): the Speakers | Headphones switch in the volume mixer. Per mode, a sound
 // output and a microphone, each with a fallback order (first choice, then the next one connected). The Mac
 // does the switching (ps-mac Sources/Headphones.swift); this file keeps the preferences, saved as

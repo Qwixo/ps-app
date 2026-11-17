@@ -114,7 +114,7 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   if (p.tgBot && typeof p.tgBot === "object") o.tgBot = cleanTgPrefs(p.tgBot);          // Add Telegram Bot: start word and linked chat (core/tgbot.ts, V1.47)             // typed P1, P2, P3 in a new task (core/typedprio.ts, V1.40)
   Object.assign(o, cleanNoteLook(p));                                                // notification cards: colour and sound per kind (core/notelook.ts, V1.36)
   Object.assign(o, cleanListLooks(p));                                               // To do list behaviour: Completed or Disappear, shown, how long (core/completed.ts, V1.34)
-  if (p.tmAudio && typeof p.tmAudio === "object") o.tmAudio = cleanAudio(p.tmAudio);   // Headphones mode's lists and auto switch (core/audiomode.ts, V1.40)
+  if (p.tmAudio && typeof p.tmAudio === "object") o.tmAudio = cleanAudio(p.tmAudio);   // Headphones mode's old lists (core/audiomode.ts, V1.40 to 1.64): still cleaned when an older PS saves them; 1.65 uses Audio priority on the Mac
   if (p.updateEvery !== undefined && p.updateEvery !== null) o.updateEvery = cleanUpdateEvery(p.updateEvery);   // Check for updates every: 5, 10, 15, 30 or 0 = Off (core/updateevery.ts)
   // Open source off switches (missing = on): G Squad auto join, the "PS app is open" presence, the first use tips.
   if (typeof p.squadAutoJoin === "boolean") o.squadAutoJoin = p.squadAutoJoin;
@@ -146,7 +146,6 @@ import { cleanLooksStore, mergeLooksKinds } from "./core/looksprofiles";
 import { cleanLookData } from "./core/maclook";
 import { okResetAt } from "./core/resetday";
 import { startDnd } from "./dnd";
-import { startAudioMode } from "./audiomode";
 import { cleanAudio } from "./core/audiomode";
 import { startPsStatus } from "./psstatus";
 import { cleanDndOp } from "./core/dnd";
@@ -1032,7 +1031,6 @@ export function startPsBridge() {
   startNoteLook(psPost);   // notification card colours and the Other alerts sound to the Mac (src/notelook.ts, core/notelook.ts)
   startSentryPrefs(psPost);   // Sentry mode's restart if not unlocked to the Mac, for the restart helper pop up (src/sentryprefs.ts, V1.49)
   startDnd(psPost, "mac");   // Do Not Disturb: what the native side mutes (src/dnd.ts, core/dnd.ts)
-  startAudioMode(psPost);   // Headphones mode: the synced lists and auto switch to the Mac (src/audiomode.ts, Headphones.swift)
   startExamples(true);   // a brand new account starts with example tasks (src/examples.ts, core/examples.ts)
   startPsStatus(psPost);   // the "PS is active" pop-up: synced, next meeting (src/psstatus.ts, ps-mac Popup.swift)
   startSquad(psPost);   // G Squad (V1.40): working heartbeat, shared tasks, the pop-up's data, all with the hub (src/squad/engine.ts)

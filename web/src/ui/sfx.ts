@@ -5,6 +5,7 @@ import { nativeTickName, tonesOf, type TickSoundId } from "../core/ticksound";
 import { noteSampleName, noteSoundTones, type NoteSoundId } from "../core/notelook";
 import { ISLAND_TONES } from "../core/islandtimers";
 import { TZ_TONES } from "../core/tzfocus";
+import { AP_TONES } from "../core/audiopriority";
 import { EDIT_SOUNDS, editSoundOk, type EditSound, type EditTone } from "../core/editsounds";
 
 let ctx: AudioContext | null = null;
@@ -176,6 +177,12 @@ export const sfx = {
   tz(kind: "open" | "back" | "up" | "down") {
     if (viaApp(`tz-${kind}`)) return;
     for (const t of TZ_TONES[kind]) tone(t.f, t.dur, t.peak, t.wave === 0 ? "sine" : "triangle", t.at, t.to);
+  },
+  /** Audio priority (PS 1.65, core/audiopriority.ts): soft sounds as a device row is picked up, passes a place, settles,
+   *  is used now or forgotten. PS plays its own copy. */
+  ap(kind: "lift" | "slot" | "drop" | "use" | "forget") {
+    if (viaApp(`ap-${kind}`)) return;
+    for (const t of AP_TONES[kind]) tone(t.f, t.dur, t.peak, t.wave === 0 ? "sine" : "triangle", t.at, t.to);
   },
   /** Settings preview. */
   test() { this.hover(); window.setTimeout(() => this.click(), 160); },

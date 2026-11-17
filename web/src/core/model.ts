@@ -505,7 +505,7 @@ export interface Settings {
   newBadgeMin?: number;          // how long a task shows NEW, minutes (5 to 240, default 30)
   newGone?: Record<string, number>;   // badges the developer clicked away: task id to its created time in seconds (pruned after 240 minutes)
   tmTickMode?: "completed" | "vanish";   // To do list behaviour (core/completed.ts, V1.34): a ticked one-off moves to Completed (default) or just leaves the list
-  tmAudio?: import("./audiomode").AudioPrefs;   // Headphones mode (core/audiomode.ts, V1.40): per mode an output and a microphone in fallback order, and the auto switch (default off). Which mode is on stays per Mac
+  tmAudio?: import("./audiomode").AudioPrefs;   // Headphones mode (core/audiomode.ts, V1.40 to 1.64), no longer used: PS 1.65 Audio priority keeps its order on each Mac (Sources/AudioPriority.swift, moved over from that Mac's copy). Kept so an older PS still reads it
   tmShowDone?: boolean;          // the Completed section at the bottom of the Tab list: false hides it. Default shown
   tmTickSound?: "classic" | "pop" | "sparkle" | "marimba" | "rise" | "bell" | "off";   // the sound a tick makes (core/ticksound.ts, V1.34). Default classic
   tmAddColor?: string | null;    // the Add task button's colour, #rrggbb (core/addbutton.ts, V1.34). Unset = Mint

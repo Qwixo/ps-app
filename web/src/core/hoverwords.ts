@@ -35,7 +35,6 @@ const W: Record<string, Words> = {
   "open your series map: title each month, note each day": ["Series map", "Title each month and note each day"],
   "network monitor (this mac only)": ["Network monitor", "Speeds and apps using the network on this Mac"],
   "volume mixer": ["Volume mixer", "Each app's volume on its own"],
-  "mixer settings": ["Mixer settings", "Which apps show and how"],
   "their clock next to yours, and the converter": ["Time zones", "Their clock next to yours, and a converter"],
   "add a person and their time zone": ["Add a person", "Their name and time zone"],
   "click to keep it open": ["Time zones", "Hover to peek. Click to keep it open"],

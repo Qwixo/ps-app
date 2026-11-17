@@ -99,7 +99,7 @@ export const GROUPS: SetGroup[] = [
   { id: "keys", label: "Keyboard and Tab", line: "Keep the list open, middle click, apps", on: ["mac"], icon: "M3 7h18v10H3zM7 11h.01M11 11h.01M15 11h.01M8 14h8" },
   // V1.58 (the developer, 13 Nov 2026): the Dynamic Island's own tab, holding its settings themselves (views/IslandSettings.tsx).
   { id: "island", label: "Dynamic Island", line: "Look, position, full screen, notifications", on: ["mac"], icon: "M3 8h18v8H3zM16.5 12h.01" },
-  { id: "mac", label: "Mac", line: "AFK timer, AirPods, microphone, app name", on: ["mac"], icon: "M4 5h16v11H4zM2 20h20M9 16v4M15 16v4" },
+  { id: "mac", label: "Mac", line: "AFK timer, AirPods, audio priority, microphone, app name", on: ["mac"], icon: "M4 5h16v11H4zM2 20h20M9 16v4M15 16v4" },
   // PS 1.60 (pull request 12a): record sales calls and client calls. Off until the person says yes (core/screenrec.ts).
   { id: "screenrec", label: "Screen recording", line: "Record sales calls and client calls. Off until you switch it on", on: ["mac"], icon: "M4 6h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM18 10l4-2v8l-4-2M10 12h.01" },
   { id: "sync", label: "Sync and account", line: "Your project, your vault, other devices", icon: "M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4" },
@@ -278,6 +278,8 @@ export const SETTINGS: SetEntry[] = [
   { id: "screenrec-off", group: "screenrec", parent: "screenrec", name: "Switch screen recording off", line: "Stops any recording and shows how to remove PS from macOS Privacy settings.", on: MAC, sr: true, words: ["off", "remove", "privacy", "revoke", "permission"] },
   { id: "afk", group: "mac", name: "AFK timer", line: "Counts how long you are away from the keyboard and mouse.", on: MAC, words: ["afk", "away", "idle", "break", "stopwatch", "inactive"] },
   { id: "airpods", group: "mac", name: "AirPods card", line: "Gives the AirPods play button back to Spotify when a tab takes it.", on: MAC, words: ["airpods", "headphones", "spotify", "play", "pause", "media", "button"] },
+  // PS 1.65 Audio priority (core/audiopriority.ts, views/AudioPriority.tsx): the switch; the lists live in the volume mixer.
+  { id: "audio-priority", group: "mac", name: "Audio priority", line: "Uses the top connected speaker and microphone from your order in the volume mixer.", on: MAC, words: ["audio", "sound", "output", "input", "speakers", "speaker", "microphone", "mic", "airpods", "headphones", "bluetooth", "jbl", "order", "priority", "default", "switch", "auto switch", "device", "devices"] },
   { id: "mic", group: "mac", name: "Microphone", line: "The default microphone for every app.", on: MAC, words: ["mic", "microphone", "input", "audio", "voice"] },
   { id: "network", group: "mac", name: "Network monitor", line: "The Network button and the VPN leak alarm.", on: MAC, words: ["vpn", "network", "leak", "internet", "wifi", "connection", "traffic"] },
   { id: "app-name", group: "mac", name: "App name", line: "What PS app is called in Applications, Finder and Spotlight.", on: MAC, more: true, words: ["rename", "name", "title", "folder"] },
