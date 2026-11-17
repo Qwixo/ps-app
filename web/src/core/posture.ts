@@ -114,6 +114,15 @@ export function nextSlot(p: PosturePrefs, now: number): number | null {
   return null;
 }
 
+/** The setting as one short key (on, how often, the hours). When it changes the watch starts fresh (posturePrime). */
+export const postureKey = (p: PosturePrefs): string => `${p.on ? 1 : 0}|${p.every}|${p.from}|${p.to}`;
+/** The first look, and every look after the setting changed (switched on, a new interval, new hours): the slot that is already
+ *  running counts as dealt with, so a pop-up never lands the moment PS opens or a setting is touched. The next slot comes as usual. */
+export function posturePrime(p: PosturePrefs, now: number, handled: number): number {
+  const l = latestSlot(p, now);
+  return l !== null && l > handled ? l : handled;
+}
+
 /** What the page sees at a tick. `idleMs`: no keyboard or mouse for this long. `awayMs`: the longest unbroken time away
  *  (a Mac only knows the idle time, so it is the same number). */
 export interface PostureEnv {

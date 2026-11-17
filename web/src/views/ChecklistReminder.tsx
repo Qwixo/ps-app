@@ -10,6 +10,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { createPortal } from "react-dom";
 import { remLook } from "../core/remind";
 import { sfx } from "../ui/sfx";
+import { useLeave } from "../ui/leave";
 import { startChkWatch, chkAnswered, useChkCard } from "../chkwatch";
 import { closeChkScreen, openChkScreen, useChkScreen } from "../chkscreen";
 import { feature } from "../core/features";
@@ -27,10 +28,12 @@ const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-r
 export function ChecklistReminderHost() {
   useEffect(() => { startChkWatch(null); }, []);
   const c = useChkCard();
-  return c.open ? <ChkCard test={c.test} /> : null;
+  // It fades out like the Mac's card (ui/leave.ts); Esc and the buttons only work while it is really open.
+  const { shown, out } = useLeave(c.open ? (c.test ? "test" : "live") : null);   // a plain value: the card object is new every render
+  return shown ? <ChkCard test={shown === "test"} out={out} /> : null;
 }
 
-function ChkCard({ test }: { test: boolean }) {
+function ChkCard({ test, out }: { test: boolean; out: boolean }) {
   const [box, setBox] = useState(false);
   const [typed, setTyped] = useState("");
   const [wrong, setWrong] = useState(0);
@@ -45,6 +48,7 @@ function ChkCard({ test }: { test: boolean }) {
   const boxRef = useRef(box);
   boxRef.current = box;
   useEffect(() => {
+    if (out) return;
     const k = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.preventDefault(); e.stopImmediatePropagation();
@@ -52,9 +56,9 @@ function ChkCard({ test }: { test: boolean }) {
     };
     window.addEventListener("keydown", k, true);
     return () => window.removeEventListener("keydown", k, true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [out]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className="chk-pop" role="dialog" aria-label={CHK_WORDS.headline}>
+    <div className={`chk-pop${out ? " out" : ""}`} role="dialog" aria-label={CHK_WORDS.headline}>
       <div className={`rm-card live chk-card${box ? " box" : ""}`} style={style}>
         <span className="rm-card-pill"><i />{CHK_WORDS.pill}{test ? " · test" : ""}</span>
         <button type="button" className="chk-x" aria-label="Close (Esc)" onClick={() => answer("esc")}>&times;</button>

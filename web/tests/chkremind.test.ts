@@ -196,4 +196,22 @@ ok("the Mac drops a held card when the person is away or a quiet spell is on", (
   assert.match(m, /chkItem != nil, !up\.contains\(Reminders\.chkId\), quiet \|\| !here/);
   assert.match(m, /onChk\?\("away"\)/);
 });
+ok("a Posture pop-up in the same spot holds a due card without restarting the count", () => {
+  const c = chkStart(T0);
+  const held = chkStep(c, facts({ now: T0 + 121 * MIN, held: true }));
+  assert.equal(held.fire, false);
+  assert.equal(held.clock.since, T0, "the count is kept");
+  assert.equal(chkStep(held.clock, facts({ now: T0 + 122 * MIN })).fire, true, "it comes once the other pop-up is gone");
+  assert.equal(chkStep(c, facts({ now: T0 + 60 * MIN, held: true })).clock.since, T0, "not due: nothing changes");
+});
+ok("the page hears a card the Mac dropped (away), and the website reads Sentry and the Posture card", () => {
+  const m = readFileSync(new URL("../../mac/Sources/main.swift", import.meta.url), "utf8");
+  assert.match(m, /guard RemMath\.chkOutcomes\.contains\(outcome\)/);
+  const r = readFileSync(new URL("../../mac/Sources/RemMath.swift", import.meta.url), "utf8");
+  assert.match(r, /chkOutcomes: Set<String> = \[[^\]]*"away"/);
+  const t = readFileSync(new URL("../src/chkwatch.ts", import.meta.url), "utf8");
+  assert.match(t, /sentry: sentryNow\(\)/);
+  assert.match(t, /held: !post && postureUp\(\)/);
+  assert.match(t, /memo\.s === s && memo\.day === day && memo\.min === min/);
+});
 console.log(`${n} passed`);

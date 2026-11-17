@@ -9,9 +9,9 @@
 import { vaultStore } from "./core/vault";
 import { settingsData } from "./core/select";
 import { feature } from "./core/features";
-import { posturePrefs, postureStep, postureAskDue, postureAskPatch, POSTURE_WORDS, POSTURE_ASK_WORDS, AWAY_MS, latestSlot, type PostureEnv } from "./core/posture";
+import { posturePrefs, postureStep, postureAskDue, postureAskPatch, postureKey, posturePrime, POSTURE_WORDS, POSTURE_ASK_WORDS, AWAY_MS, type PostureEnv } from "./core/posture";
 import { saveSettings } from "./core/actions";
-import { FIGURE_SVG, FIGURE_CSS } from "./core/posturefigure";
+import { FIGURE_SVG, FIGURE_CSS, FIGURE_TOTAL_MS } from "./core/posturefigure";
 import { meetingEvents } from "./core/calpick";
 import { visibleEvents } from "./core/meethide";
 import { isMeeting } from "./core/notescard";
@@ -31,12 +31,12 @@ let handled = 0;
 let lastTick = 0;
 let shown = false;
 let askOn = false;
-let testing = false;
 let macEnv: { at: number; idleMs: number; covered: boolean } | null = null;
 let lastInput = Date.now();
 let macOn: boolean | null = null;
-let primed = false;
-/** Sleep mode or Sentry mode on this page. Loaded after start (a plain import would make a loop with ps.ts). */
+/** The setting the watch last started from (core/posture.ts postureKey). Empty: not started yet, so the next look primes. */
+let primedKey = "";
+/** Sleep mode or Sentry mode on this page (the website: or the Checklist reminder card). Loaded after start (a plain import would make a loop with ps.ts). */
 let pageCovered: () => boolean = () => false;
 
 // ---------- what the website draws ----------
@@ -72,18 +72,18 @@ function envNow(now: number): PostureEnv {
 }
 
 function open(test: boolean) {
-  shown = true; testing = test;
+  shown = true;
   // The first real pop-up carries the one-time question (never "Try it now"). It counts as seen once the pop-up is over.
   const s = vaultStore.get();
   askOn = !test && s.status === "unlocked" && postureAskDue(settingsData(s));
-  if (MAC) post({ type: "posture:show", svg: FIGURE_SVG, css: FIGURE_CSS, pill: POSTURE_WORDS.pill, title: POSTURE_WORDS.title, button: POSTURE_WORDS.button, test,
+  if (MAC) post({ type: "posture:show", svg: FIGURE_SVG, css: FIGURE_CSS, pill: POSTURE_WORDS.pill, title: POSTURE_WORDS.title, button: POSTURE_WORDS.button, test, wait: FIGURE_TOTAL_MS,
     ...(askOn ? { ask: { title: POSTURE_ASK_WORDS.title, off: POSTURE_ASK_WORDS.off, keep: POSTURE_ASK_WORDS.keep } } : {}) });
   else setView({ open: true, test, key: view.key + 1, ask: askOn });
 }
 /** The pop-up is over. If it carried the question, that was seen: saved once for every device (a Turn off answer saved it already). */
 function settle() {
   const was = askOn;
-  shown = false; testing = false; askOn = false;
+  shown = false; askOn = false;
   if (was) void saveSettings({ postureAsk: true }).catch(() => {});
 }
 function close() {
@@ -115,9 +115,11 @@ function tick() {
   const on = enabled();
   // The Mac runs its sensor only while the reminder is on (nothing reads the idle time otherwise).
   if (MAC && macOn !== on) { macOn = on; post({ type: "posture:plan", on }); }
-  if (!on) { if (shown && !testing) close(); lastTick = now; return; }
-  // A first look after the page opened: today's slot that is already running is never shown late on launch.
-  if (!primed) { primed = true; const l = latestSlot(prefs, now); if (l) handled = l; }
+  // Off: any card goes, a Try it now one too (the Mac closes its card when the sensor stops, so the page must not keep waiting on it).
+  if (!on) { if (shown) close(); lastTick = now; primedKey = ""; return; }
+  // A first look after the page opened, or after the setting changed: the slot already running is never shown late.
+  const key = postureKey(prefs);
+  if (key !== primedKey) { primedKey = key; handled = posturePrime(prefs, now, handled); }
   const out = postureStep(prefs, handled, envNow(now));
   handled = out.handled;
   lastTick = now;
@@ -151,13 +153,14 @@ export function postureTest() {
 export function startPostureWatch(p: Post) {
   if (started || PHONE) return;
   started = true; post = p;
-  void Promise.all([import("./sleepmode/engine"), import("./views/Sentry")]).then(([a, b]) => { pageCovered = () => a.sleepState().here || b.sentryUp(); }).catch(() => {});
+  // The website's Checklist reminder card sits in the same spot: the slot waits while it is up (both never stack).
+  void Promise.all([import("./sleepmode/engine"), import("./views/Sentry"), import("./chkwatch")]).then(([a, b, c]) => { pageCovered = () => a.sleepState().here || b.sentryUp() || (!MAC && c.chkCard().open); }).catch(() => {});
   if (!MAC) {
     const seen = () => { lastInput = Date.now(); };
     for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"]) window.addEventListener(ev, seen, { passive: true, capture: true });
     document.addEventListener("visibilitychange", seen);
   }
   window.setInterval(tick, TICK_MS);
-  vaultStore.subscribe(() => { if (!primed) tick(); });
+  vaultStore.subscribe(() => { if (!primedKey) tick(); });
   tick();
 }
