@@ -25,6 +25,11 @@ const LOCALE = (() => { try { return Intl.DateTimeFormat().resolvedOptions().loc
 const HOUR12 = (() => { try { return /h1[12]/.test(new Intl.DateTimeFormat(LOCALE, { hour: "numeric" }).resolvedOptions().hourCycle ?? ""); } catch { return false; } })();
 const DAY_FIRST = (() => { try { return new Intl.DateTimeFormat(LOCALE).formatToParts(new Date(2026, 10, 20)).findIndex((p) => p.type === "day") < new Intl.DateTimeFormat(LOCALE).formatToParts(new Date(2026, 10, 20)).findIndex((p) => p.type === "month"); } catch { return false; } })();
 
+/** The parser's zone and options for this person (the same as the add boxes use), for other callers (views/VoiceCapture.tsx). */
+export function nlParseCtx(st: Pick<Settings, "tmHomeTz" | "dayEndsHour">) {
+  return { tz: overdueZone(st.tmHomeTz), opts: { dayEndsHour: st.dayEndsHour ?? DAY_ENDS_DEFAULT, hour12: HOUR12, dayFirst: DAY_FIRST } };
+}
+
 export type NlCtl = {
   /** The chip to show now (null: nothing recognised, said no to, still settling, or switched off). */
   offer: ParsedTask | null;

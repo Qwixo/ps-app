@@ -219,6 +219,12 @@ export const CONTROLS: Controls = {
     const mine = cleanSwitches(settingsData(v).squadFeatures);
     return <SetRow e={e} right={<OnOff label={e.name} on={feature("nl-dates")} ready={v.status === "unlocked"} set={(on) => save({ squadFeatures: { ...mine, "nl-dates": on } })} />} />;
   },
+  // PS 1.65 voice capture (views/VoiceCapture.tsx, core/voicecapture.ts). The same switch as in From the squad (squadFeatures).
+  "voice-capture": function VoiceCaptureRow({ e }) {
+    const v = useVault();
+    const mine = cleanSwitches(settingsData(v).squadFeatures);
+    return <SetRow e={e} right={<OnOff label={e.name} on={feature("voice-capture")} ready={v.status === "unlocked"} set={(on) => save({ squadFeatures: { ...mine, "voice-capture": on } })} />} />;
+  },
   "nl-remind": function NlRemind({ e }) {
     const v = useVault();
     return <SetRow e={e} right={<OnOff label={e.name} on={settingsData(v).tmNlRemind !== false} ready={v.status === "unlocked"} set={(on) => save({ tmNlRemind: on })} />} />;

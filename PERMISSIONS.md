@@ -103,6 +103,19 @@ notice there, where Turn off switches them off on every one of your Macs. A choi
   Data Access entry.
 - **Turn it off**: Settings, Keyboard and Tab, "Force Touch middle click" (off by default).
 
+## Microphone and Speech Recognition (Speak your tasks)
+
+- **Why**: the microphone button in the Add task window turns what you say into tasks (PS 1.65,
+  `mac/Sources/VoiceCapture.swift`, rules in `VoiceCaptureCore.swift`). Speech is recognised on this Mac only
+  (`requiresOnDeviceRecognition`): nothing is sent to Apple's servers. Where this Mac cannot recognise your language
+  on device, PS says so and does not listen. The words are split into tasks by Apple's on device model when Apple
+  Intelligence is on, else by PS itself. The sound is never saved and the words are never logged.
+- **When it asks**: only the first time you click the microphone button, with one plain line why. It listens only
+  while you hold the button or until you click Stop (two minutes at most), with a red dot and a level meter while it
+  does, and never while 1Password or Signal is in front (it stops at once if one comes to the front).
+- **If you say no**: the button says so and offers "Open System Settings". Nothing else changes.
+- **Turn it off**: Settings, Your list, "Speak your tasks".
+
 ## Touch ID
 
 - **Why**: unlock PS after Lock, and wake it from Sleep mode, with your fingerprint (`mac/Sources/TouchLock.swift`).
@@ -116,8 +129,8 @@ project and let PS keep it, and keys for features you set up yourself (Telegram 
 
 ## What PS does NOT ask for
 
-Input Monitoring, screen recording, camera, microphone, contacts, location, Bluetooth, Full Disk Access and
-notifications. (PS's pop ups are its own windows, not macOS notifications.) You can confirm this: search
+Input Monitoring, screen recording, camera, contacts, location, Bluetooth, Full Disk Access and
+notifications (the microphone only for the features above that say so, on their own click). (PS's pop ups are its own windows, not macOS notifications.) You can confirm this: search
 `mac/Sources/` for `AVCaptureDevice`, `CNContactStore`, `CLLocationManager`, `CBCentralManager`,
 `SCShareableContent`, `CGRequestScreenCaptureAccess`, `IOHIDRequestAccess` and `UNUserNotificationCenter`. None
 appear.
