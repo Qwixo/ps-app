@@ -5,6 +5,7 @@
 import { signRequest } from "../core/squadcrypto.ts";
 import type { TaskRow } from "../core/squadshare.ts";
 import type { HubAskRow, HubWaitRow } from "../core/squaddir.ts";
+import { lowPower } from "../core/lowpower.ts";
 
 export const HUB_URL = "https://zxhvchchfrkfqxuyorqo.supabase.co";
 export const HUB_FN = `${HUB_URL}/functions/v1/squad`;
@@ -26,9 +27,13 @@ function limited(f: Fetcher): Fetcher {
   };
 }
 
+/** Low power mode (core/lowpower.ts): every call to the G Squad hub throws while G Squad is asleep, so nothing pings it. */
+export function hubAwake() { if (lowPower.asleep("gsquad")) throw new HubError(0, "low power mode"); }
+
 export interface HubIdent { member: string; priv: string }
 
 export async function hubCall<T = unknown>(who: HubIdent, act: string, args: unknown, fetcher: Fetcher = (u, i) => fetch(u, i)): Promise<T> {
+  hubAwake();   // PS 1.65 Low power mode: no hub call at all while G Squad sleeps
   const req = await signRequest(who.priv, act, who.member, args);
   const body = JSON.stringify(req);
   const res = await limited(fetcher)(HUB_FN, { method: "POST", headers: { "Content-Type": "application/json" }, body });

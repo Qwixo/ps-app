@@ -139,6 +139,8 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
 }
 import { cleanChk } from "./core/chkremind";
 import { islandMessage, islandNow, islandStandTest, startIsland } from "./island";
+import { lowPower } from "./core/lowpower.ts";
+import { bindLowPowerShell, lowPowerPatch, lowPowerShellMessage, lpForShell, setLowPowerMirror, startLowPowerMirror } from "./lowpower";
 import { runPomoOp, startPomodoro } from "./pomodoro";
 import { cleanOp, pomoPrefs } from "./core/pomodoro";
 import { standPrefs } from "./core/standup";
@@ -303,6 +305,7 @@ function fitCard(o: unknown) {
 let overlayPage = false;
 /** This page is the Tab list (it holds no keys; the main page does the saving). */
 export const psInOverlay = () => overlayPage;
+bindLowPowerShell((m) => psPost(m), psInOverlay);   // PS 1.65 Low power mode (src/lowpower.ts): its way to the Mac shell
 
 type W = Window & {
   webkit?: { messageHandlers?: { ps?: { postMessage(m: string): void } } };
@@ -495,6 +498,7 @@ export function startPsSecondWindow() {
 export function startPsOverlay() {
   if (!PS) return;
   overlayPage = true;
+  startLowPowerMirror();   // PS 1.65 Low power mode: the main page decides, the Tab list shows it (src/lowpower.ts)
   startLineShare();
   // Fitness writes go to the main page (runFitOp checks them again there).
   setMirrorWriter((w) => {
@@ -544,6 +548,7 @@ export function startPsOverlay() {
       setLiveMirror(st.clive);      // Cincee Campaigns live numbers, read by the main page (core/campaignsLive.ts)
       setLeadMirror(st.unlocked ? st.leads : null);   // open lead replies for the email panel (core/overlaymail.ts)
       setPairMirror(st.unlocked ? st.pair : null);    // V1.57: Link your phone, the main window's pairing (core/pairmac.ts)
+      setLowPowerMirror((st as { lp?: unknown }).lp);   // PS 1.65 Low power mode: on or off, why, what is asleep (src/lowpower.ts)
       if (opening === false) return;
       primeSfx();
       setPsOverlayShown(true);
@@ -604,8 +609,8 @@ function shareTimeline(tl: Timeline) {
 }
 function startLineShare() {
   const ask = () => { if (Date.now() - lineShared >= 9 * 60_000) psPost({ type: "timeline:get", hours: LINE_HOURS }); };
-  window.setTimeout(ask, 20_000);
-  window.setInterval(ask, 10 * 60_000);
+  window.setTimeout(() => { if (!lowPower.asleep("screentime")) ask(); }, 20_000);
+  lowPower.every("screentime", 10 * 60_000, ask);   // PS 1.65: asleep in Low power mode, one catch up on wake
 }
 export function useTimeline() {
   return useSyncExternalStore((l) => { iconListeners.add(l); return () => { iconListeners.delete(l); }; }, () => timeline);
@@ -642,6 +647,7 @@ export function startPsBridge() {
   psPost({ type: "proton:get" });   // PS 1.65: the main window needs the status too (Settings)
   (window as W).__ps = {
     apply(m) {
+      if (lowPowerShellMessage(m as { type?: string })) return;   // PS 1.65: macOS Low Power Mode went on or off (src/lowpower.ts)
       if (localKeyMessage(m as { type?: string })) return;   // local first: the Keychain's answer for the local vault key (src/core/localholders.ts)
       if (protonShellMessage(m as { type?: string })) return;   // PS 1.65 Proton Mail through Bridge (core/protonmail.ts)
       if (tgShellMessage(m as { type?: string })) return;   // Add Telegram Bot: Telegram's answers through PS, the Tab list's buttons (src/tgbot.ts)
@@ -673,6 +679,7 @@ export function startPsBridge() {
       else if (m.type === "p1Style" && typeof m.id === "string") void saveSettings({ tmP1Style: p1Design(m.id) });
       else if (m.type === "looks" && m.patch && typeof m.patch === "object") {
         const patch = m.patch as Record<string, unknown>;
+        if (patch.lowPower) lowPowerPatch(patch.lowPower);   // PS 1.65: the Tab list's Low power button or its Settings (src/lowpower.ts)
         // Follow-up Radar (Tab list): the developer's handled / snoozed marks, and a draft request (Rule Zero: a draft only).
         if (patch.radar && typeof patch.radar === "object") void saveSettings({ radar: tidyRadarState(patch.radar as RadarState) });
         if (patch.radarDraft && typeof patch.radarDraft === "object") {
@@ -976,7 +983,7 @@ export function startPsBridge() {
     const leads = unlocked && mailOnSnap(s) ? leadRows(leadCards(irepFeed(s), settingsData(s).leadCards)) : null;
     // And Link your phone's pairing (core/pairmac.ts): its phase, the six digit code and the QR's public offer part.
     const pair = unlocked ? pairForMirror() : null;
-    const json = JSON.stringify({ type: "state", unlocked, red: unlocked && s.red, primary: unlocked && s.primary, lastSync: s.lastSync, docs, second: secondLocal(), clive, cal: calStatus.get(), squad, sqchat, gym, sbsq, local, lf, leads, pair });
+    const json = JSON.stringify({ type: "state", lp: lpForShell(), unlocked, red: unlocked && s.red, primary: unlocked && s.primary, lastSync: s.lastSync, docs, second: secondLocal(), clive, cal: calStatus.get(), squad, sqchat, gym, sbsq, local, lf, leads, pair });
     if (json !== last) { last = json; psPost({ type: "state", unlocked, payload: json }); }
   };
   // At most 120 ms after the first change (not after the last one), so a busy vault (sync, screen
@@ -985,6 +992,7 @@ export function startPsBridge() {
   vaultStore.subscribe(later);
   secondStore.subscribe(later);
   liveStore.subscribe(later);
+  lowPower.subscribe(later);    // PS 1.65 Low power mode: the Tab list's button and Settings show the main page's answer
   calStatus.subscribe(later);   // the calendar read's status for the Meetings panel (a few dozen bytes more)
   squadStore.subscribe(later);  // G Squad: working count, members, shared tasks (src/squad/engine.ts)
   chatStore.subscribe(later);   // G Squad chat: unread count, votes, and the lines while open (src/squad/chatengine.ts)

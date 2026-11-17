@@ -33,6 +33,7 @@ import { pendingSummary, summaryPrefs } from "./core/workoutsummary";
 import { feature } from "./core/features";
 import type { FitWorkout } from "./core/fitness";
 import { workoutPatch } from "./fitness/store";
+import { asleepNames, lowPower } from "./core/lowpower.ts";
 
 type Post = (m: object) => void;
 let post: Post = () => {};
@@ -109,7 +110,10 @@ function sync(force = false) {
   welcomeTold = welcome;
   const workout = feature("workout-summary") && !st.privateMode ? pendingSummary(fitWorkouts(s), now, summaryPrefs(st.workoutMac)) : null;
   // V1.60 Fitness on the phone's island (src/fitness/fitisland.ts): Scanning, Found, Workout added, rest, progress hints. Null off the phone.
-  send({ ...shown, meets, pomo, stand, meet, welcome, workout, fit: fitIslandPart(now) }, force);
+  // PS 1.65 Low power mode (core/lowpower.ts): the leaf, and what is asleep for its card. The island itself stays fully active.
+  const lps = lowPower.state();
+  const lp = lps.on ? { names: asleepNames(lps, lowPower.feeds()), why: lps.why } : null;
+  send({ ...shown, meets, pomo, stand, meet, welcome, workout, fit: fitIslandPart(now), lp }, force);
 }
 function fitWorkouts(s: Snapshot): { id: string; data: FitWorkout }[] {
   const out: { id: string; data: FitWorkout }[] = [];
@@ -149,6 +153,8 @@ export function islandMessage(m: { type?: string; action?: string; id?: string }
     if (d && (d.kind as string) === "fwork" && !(d.data as unknown as FitWorkout).macShown) void workoutPatch(d.id, { macShown: new Date().toISOString() }).then(() => sync(true));
     return true;
   }
+  // PS 1.65 Low power mode: the leaf card's Wake everything.
+  if (m.action === "lowPowerWake") { lowPower.wakeAll(); return true; }
   if (m.action === "privateOff") {
     if (canPrivateOff(shown, settingsData(s).privateMode)) void saveSettings({ privateMode: false }).then(() => sync(true));
     return true;
@@ -179,7 +185,8 @@ export function startIsland(p: Post) {
   post = p;
   let t = 0;
   vaultStore.subscribe(() => { clearTimeout(t); t = window.setTimeout(() => sync(), 300); });
-  window.setInterval(() => sync(true), 60_000);   // a restarted island catches up within a minute
+  window.setInterval(() => sync(true), 60_000);   // a restarted island catches up within a minute (stays on in Low power mode: the island is fully active)
+  lowPower.subscribe(() => sync());   // PS 1.65: the leaf comes and goes at once
   // Back from sleep, a lock or the network: send at once rather than up to a minute later (V1.44 #10).
   const now = () => sync(true);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") now(); });

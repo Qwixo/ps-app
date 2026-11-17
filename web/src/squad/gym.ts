@@ -26,6 +26,7 @@ import { fitnessNow, savePrefs } from "../fitness/store";
 import { activitiesNow } from "../fitness/activity-store";
 import { sleepNow } from "../fitness/sleep-store";
 import { GYM_EMPTY, type GymOp, type GymSquadView, type GymPostV } from "./gymview";
+import { lpClear, lpInterval } from "../core/lowpower.ts";   // PS 1.65 Low power mode: these timers stop while asleep
 
 const PUSH_DELAY_MS = 15_000, OPEN_PULL_MS = 45_000, LEASE_MS = 100_000, BATCH_BYTES = 300_000;
 
@@ -181,8 +182,8 @@ async function pull() {
 }
 function keepPulling() {
   if (pullTimer !== undefined) return;
-  pullTimer = window.setInterval(() => {
-    if (!open()) { window.clearInterval(pullTimer); pullTimer = undefined; exKeyOn = null; return; }
+  pullTimer = lpInterval("squad-gym", () => {
+    if (!open()) { lpClear(pullTimer); pullTimer = undefined; exKeyOn = null; return; }
     if (document.visibilityState !== "hidden" || PS_PAGE) void pull();
   }, OPEN_PULL_MS);
 }
@@ -284,7 +285,7 @@ export function startGymSquad() {
   squadStore.subscribe(() => { if (rec && ins.length) rebuild(); });
   window.addEventListener("online", () => { schedulePush(2_000); if (open()) void pull(); });
   // A new day moves the boards' windows: check once an hour (nothing is sent unless a card changed).
-  window.setInterval(() => schedulePush(1_000), 3600_000);
+  lpInterval("squad-gym", () => schedulePush(1_000), 3600_000);
 }
 
 // ---------- the dev server only: a fictional squad (src/dev/gym-fake.ts) ----------

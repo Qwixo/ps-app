@@ -35,6 +35,7 @@ import { waOnSnap } from "./core/wasnap";
 import { isWaCard, nextWaRemind, prefsOf, waCards } from "./core/whatsapp";
 import { saveWaPrefs, setWaRemind, setWaSeen } from "./core/waactions";
 import { cleanLedger, ledgerDecide, noteKey, type Ledger } from "./core/maildedupe";
+import { lpInterval } from "./core/lowpower.ts";
 
 /** The Instantly reply feed (one "irep" record: replies and the developer's own Unibox sends). */
 export function irepFeed(s: Snapshot): { replies?: IRep[]; sent?: IRep[] } | null {
@@ -265,6 +266,6 @@ export function startMailCards(p: Post, next?: (at: number) => void) {
   if (next) onNext = next;
   let t = 0;
   vaultStore.subscribe(() => { clearTimeout(t); t = window.setTimeout(sync, 400); });
-  window.setInterval(() => sync(true), 60_000);   // self healing: whatever happened to the stack, it matches the vault within a minute
+  lpInterval("mail-cards", () => sync(true), 60_000);   // PS 1.65: asleep in Low power mode. Self healing: whatever happened to the stack, it matches the vault within a minute
   sync();
 }

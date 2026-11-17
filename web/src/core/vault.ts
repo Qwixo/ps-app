@@ -25,6 +25,7 @@ import { noteDevice } from "./whatsnew";
 import { sealForPhone, type LinkPayload, type MacSide } from "./phonepair";
 import { forgetPhoneKeys, readPhoneKeys, savePhoneKeys } from "./phonekeys";
 import { feedOfAccount, isFeedSource, okFeedId } from "./calfeeds";
+import { lowPower } from "./lowpower.ts";
 
 // The Supabase project: the build's own (the developer's vault), or in the PS Mac app the one this Mac was linked to
 // in PS's "Connect your own Supabase" setup (core/project.ts; the shell sets window.__psProject first).
@@ -1880,7 +1881,7 @@ function pace(): number {
 export function nudge() {
   if (snap.status !== "unlocked" || (pulling && !pullStuck())) return;
   if (localOnly()) { if (outbox.size) void flush(); return; }
-  if (Date.now() - lastPull < pace()) { if (outbox.size) void flush(); return; }
+  if (Date.now() - lastPull < lowPower.syncEvery(pace())) { if (outbox.size) void flush(); return; }   // PS 1.65 Low power mode: every 4 minutes, still change only
   void runSync();
 }
 

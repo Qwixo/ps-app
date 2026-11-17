@@ -93,13 +93,14 @@ final class ScreenTime {
         self.last = Date()
       }
     }
-    Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in self?.account() }
-    Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+    // PS 1.65 Low power mode (LowPower.swift): screen time sleeps with the rest; the send catches up once on wake.
+    LowPower.shared.every("screentime", 10, catchUp: false) { [weak self] in self?.account() }
+    LowPower.shared.every("screentime", 60, catchUp: false) { [weak self] in
       self?.save()
       // PS 1.65: the Activity monitor's App history rides this minute (no timer of its own; its own queue, only while screen time is on).
       if self?.enabled == true { ActivityMonitor.shared.historyTick() }
     }
-    Timer.scheduledTimer(withTimeInterval: 3 * 60, repeats: true) { [weak self] _ in self?.send() }
+    LowPower.shared.every("screentime", 3 * 60) { [weak self] in self?.send() }
   }
 
   private func setCurrent(_ app: NSRunningApplication?) {

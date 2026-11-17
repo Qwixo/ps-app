@@ -74,6 +74,8 @@ final class NetMonitor {
   /// Starts the light leak watch (when the alarm is on). `testDir`: a self test copy keeps its
   /// history there, never touches the Keychain or the developer's saved settings, and never pops up alarms.
   func start(testDir: String? = nil) {
+    // PS 1.65 Low power mode: no sampling and no uptime check while asleep, both back (one look each) on wake.
+    if testDir == nil { LowPower.shared.onChange { [weak self] _ in self?.q.async { self?.reschedule(); self?.rescheduleUp() } } }
     q.async { [self] in
       self.testDir = testDir
       if testDir == nil, let saved = UserDefaults.standard.dictionary(forKey: "net.settings") { settings = Self.clean(saved) }
@@ -164,7 +166,7 @@ final class NetMonitor {
   private func reschedule() {
     timer?.cancel(); timer = nil
     let every: Double
-    if !enabled { saveHistoryIfNeeded(force: true); return }
+    if !enabled || LowPower.shared.asleep("net") { saveHistoryIfNeeded(force: true); return }   // PS 1.65: asleep in Low power mode
     if isOpen { every = Double(settings["refresh"] as? Int ?? 2) }
     else if borrowed { every = 2 }   // PS 1.65: the Activity monitor is open
     else if Owner.red && (flag("alarm") || flag("cardVpn")) { every = 6 }   // the leak watch is the developer's own (his VPN)
@@ -972,7 +974,7 @@ final class NetMonitor {
   /// One light check every 10 s while the monitor and "Last online" are on (window open or not).
   private func rescheduleUp() {
     upTimer?.cancel(); upTimer = nil
-    guard testDir == nil, upStarted, enabled, flag("uptime") else { saveUptime(force: true); return }
+    guard testDir == nil, upStarted, enabled, flag("uptime"), !LowPower.shared.asleep("net") else { saveUptime(force: true); return }
     let t = DispatchSource.makeTimerSource(queue: q)
     t.schedule(deadline: .now() + 3, repeating: 10, leeway: .seconds(1))
     t.setEventHandler { [weak self] in self?.upTick() }

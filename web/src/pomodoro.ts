@@ -7,6 +7,7 @@ import { saveSettings } from "./core/actions";
 import { applyOp, cleanRun, pomoPrefs, resolve, type PomoOp, type PomoRun } from "./core/pomodoro";
 import { workingIdsOf } from "./core/model";
 import { notePomo } from "./core/timesave";
+import { lpInterval } from "./core/lowpower.ts";
 
 const same = (a: PomoRun | null, b: PomoRun | null) => JSON.stringify(a) === JSON.stringify(b);
 const canWrite = () => { const s = vaultStore.get(); return s.status === "unlocked" && s.role === "owner"; };
@@ -47,7 +48,7 @@ export function startPomodoro(onChange?: () => void) {
   };
   let t = 0;
   vaultStore.subscribe(() => { window.clearTimeout(t); t = window.setTimeout(() => void check(), 250); });
-  window.setInterval(() => void check(), 30_000);
+  lpInterval("alarms", () => void check(), 30_000);   // PS 1.65: rings in Low power mode while Keep reminders ringing is on (core/lowpower.ts)
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void check(); });
   window.addEventListener("focus", () => void check());
   window.addEventListener("online", () => void check());

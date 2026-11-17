@@ -11,6 +11,7 @@ import { calStatus, calStatusFrom } from "./core/calstatus";
 import { appName } from "./core/appname";
 import { settingsData } from "./core/select";
 import { calMayAsk, calMode } from "./core/localcal";
+import { lpInterval } from "./core/lowpower.ts";
 
 export const CAL_REFRESH = { every: 2 * 60_000, staleOnOpen: 60_000, minGap: 15_000, pressGap: 3_000 } as const;
 let askedAt = 0;
@@ -76,7 +77,7 @@ let started = false;
 export function startCalRefresh(active: () => boolean = () => true) {
   if (started) return;
   started = true;
-  window.setInterval(() => { if (active()) calRefreshIfStale(CAL_REFRESH.every); }, 30_000);
+  lpInterval("calendar", () => { if (active()) calRefreshIfStale(CAL_REFRESH.every); }, 30_000);   // PS 1.65: asleep in Low power mode, one catch up on wake (core/lowpower.ts)
   let was = false;
   vaultStore.subscribe(() => {
     const now = allowed() || localAllowed();

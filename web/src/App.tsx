@@ -56,6 +56,8 @@ import { startDeviceBeat } from "./devicebeat";
 import { useAppearanceEngine } from "./looks/engine";
 import { addProgram, fitnessNow } from "./fitness/store";
 import { programFromPlan, type PlanIn } from "./fitness/lib";
+import { lpClear, lpInterval } from "./core/lowpower.ts";
+import { startLowPower } from "./lowpower";
 
 // V1.44 Add friend: a scanned QR code opens cincee.com/client/#add=... (or #ask=...). Read it before anything else
 // looks at the address (the hash router would take it for a page), keep it, and take the key out of the address bar.
@@ -176,6 +178,8 @@ export default function App() {
   const [r, setR] = useState(route);
   useTheme();
   useEffect(() => { if (r !== "overlay" && r !== "second-window" && r !== "reply-window") { startPsBridge(); startPsPresence(); } }, [r]);
+  // PS 1.65 Low power mode (src/lowpower.ts): this page decides (the Tab list on the Mac mirrors it, see ps.ts).
+  useEffect(() => { if (r !== "overlay" && r !== "second-window" && r !== "reply-window" && r !== "fitview") startLowPower(); }, [r]);
   // Rewind (PS 1.64): the private history for the yearly recap, in the main page only (src/rewind.ts, core/rewind.ts).
   useEffect(() => { if (r !== "overlay" && r !== "second-window" && r !== "reply-window" && r !== "fitview" && r !== "expics" && r !== "activity-dev") startRewind(); }, [r]);
   if (r === "overlay") { startPsOverlay(); return <PsOverlay />; }
@@ -244,8 +248,8 @@ function useUpdateAvailable() {
     if (!PS) return;
     const check = () => setAvail(psUpdateReady());
     check();
-    const t = setInterval(check, 20_000);
-    return () => clearInterval(t);
+    const t = lpInterval("updates", check, 20_000);   // PS 1.65: asleep in Low power mode
+    return () => lpClear(t);
   }, []);
   return avail;
 }
@@ -357,8 +361,8 @@ function OwnerShell() {
       } catch { /* try again on the next tick */ }
     };
     void check();
-    const t = setInterval(() => void check(), 15_000);
-    return () => { stop = true; clearInterval(t); };
+    const t = lpInterval("checks", () => void check(), 15_000);   // PS 1.65: asleep in Low power mode
+    return () => { stop = true; lpClear(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingInvites]);
   // Notification pop-ups (Tab list gear > Notification pop-ups): a toast here, a small pop-up at the

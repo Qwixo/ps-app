@@ -6,6 +6,7 @@ import { calendarSnap, settingsData } from "./core/select";
 import { visibleEvents } from "./core/meethide";
 import { meetingEvents } from "./core/calpick";
 import { psStatus } from "./core/psstatus";
+import { lpInterval } from "./core/lowpower.ts";
 
 let last = "";
 
@@ -23,6 +24,6 @@ export function startPsStatus(post: (m: object) => void) {
     post({ type: "psStatus", state });
   };
   vaultStore.subscribe(send);
-  window.setInterval(send, 60_000);
+  lpInterval("devices", send, 60_000);   // PS 1.65: asleep in Low power mode, one catch up on wake (core/lowpower.ts)
   send();
 }

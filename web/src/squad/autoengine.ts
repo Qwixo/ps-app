@@ -25,6 +25,7 @@ import { HubError, type HubApi } from "./hub";
 import { askAdmin, autoCheck, autoJoin, handOut, theSquadId } from "./autoflows";
 import { checkCode } from "../core/squaddir";
 import type { SquadView } from "./view";
+import { lpClear, lpInterval } from "../core/lowpower.ts";   // PS 1.65 Low power mode: these timers stop while asleep
 
 export interface AutoCtx {
   rec: () => SquadRec | null;
@@ -185,12 +186,12 @@ async function notIn() {
 }
 
 function restart() {
-  if (timer !== undefined) window.clearInterval(timer);
+  if (timer !== undefined) lpClear(timer);
   timer = undefined;
   if (!ctx || ctx.rec() || !join.rec?.pending && !problem) return;
   if (join.rec?.left || join.rec?.removed) return;
   if (!autoOn()) return;   // "Join The G Squad automatically" Off: no 3 minute wait while not in
-  timer = window.setInterval(() => void autoStep(), open ? OPEN_MS : WAIT_MS);
+  timer = lpInterval("squad-auto", () => void autoStep(), open ? OPEN_MS : WAIT_MS);
 }
 
 // ---------- what the engine tells this part ----------

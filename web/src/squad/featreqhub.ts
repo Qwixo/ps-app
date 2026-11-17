@@ -8,11 +8,13 @@ import { signRequest } from "../core/squadcrypto.ts";
 import { currentKey, keyFor, type SquadRec } from "../core/squadrec.ts";
 import { cleanRequest, frAad, mergeSquadList, type FeatureRequest, type SquadRow } from "../core/featreq.ts";
 import { HUB_URL, HubError, hubBytes } from "./hub.ts";
+import { hubAwake } from "./hub";
 
 export const FR_FN = `${HUB_URL}/functions/v1/featreq`;
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
 export async function frCall<T = unknown>(rec: Pick<SquadRec, "memberId" | "sign">, act: string, args: unknown, fetcher: Fetcher = (u, i) => fetch(u, i)): Promise<T> {
+  hubAwake();   // PS 1.65 Low power mode: no hub call at all while G Squad sleeps
   const body = JSON.stringify(await signRequest(rec.sign.priv, act, rec.memberId, args));
   const init: RequestInit = { method: "POST", headers: { "Content-Type": "application/json" }, body };
   if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") init.signal = AbortSignal.timeout(20_000);

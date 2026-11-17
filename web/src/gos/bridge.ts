@@ -201,6 +201,12 @@ function onMessage(m: Record<string, unknown>) {
     case "perms": set({ perms: m.perms as GosPerms }); break;
     case "update": set({ update: m.update as GosUpdate }); break;
     case "net": set({ online: m.online !== false }); break;
+    case "lowpowerOs": {   // PS 1.65: Battery Saver (src/lowpower.ts); kept for a page that starts Low power mode later
+      const w = window as Window & { __psLowPowerOs?: (on: unknown) => void; __psLowPowerOsNow?: boolean };
+      w.__psLowPowerOsNow = m.on === true;
+      w.__psLowPowerOs?.(m.on === true);
+      break;
+    }
     case "visible": set({ visible: m.on === true }); if (m.on === true) { void sync(); calRefreshIfStale(); } break;
     case "insets": {
       const i = { top: Number(m.top) || 0, bottom: Number(m.bottom) || 0, left: Number(m.left) || 0, right: Number(m.right) || 0 };

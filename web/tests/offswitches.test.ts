@@ -40,7 +40,7 @@ ok("G Squad: the engine checks the switch before joining and before the 3 minute
   const notIn = e.slice(e.indexOf("async function notIn"), e.indexOf("function restart"));
   assert.ok(notIn.indexOf("if (!autoOn())") > -1 && notIn.indexOf("if (!autoOn())") < notIn.indexOf("newPending("), "checked before any join");
   const restart = e.slice(e.indexOf("function restart"), e.indexOf("// ---------- what the engine tells"));
-  assert.ok(restart.indexOf("if (!autoOn()) return;") > -1 && restart.indexOf("if (!autoOn()) return;") < restart.indexOf("setInterval"), "no 3 minute wait while off");
+  assert.ok(restart.indexOf("if (!autoOn()) return;") > -1 && restart.indexOf("if (!autoOn()) return;") < restart.search(/setInterval|lpInterval\(/), "no 3 minute wait while off");
   assert.match(e, /if \(!autoOn\(\)\) await saveSettings\(\{ squadAutoJoin: true \}\)/);
   assert.match(e, /autoStage\(join\.rec, problem\?\.kind \?\? null, autoOn\(\)\)/);
   const v = rd("../src/views/GSquad.tsx");

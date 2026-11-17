@@ -11,6 +11,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { listenFitPoke, sync, vaultStore, type Snapshot } from "../core/vault";
 import { PS, psInOverlay, psPost } from "../ps";
 import { createPusher, nextLabelIn, syncLabel, type SyncInfo } from "./sync-logic";
+import { lpClear, lpInterval } from "../core/lowpower.ts";
 
 const FIT = new Set(["fprog", "fwork", "fit", "fsleep", "fact"]);
 const overlay = () => PS && psInOverlay();
@@ -107,7 +108,7 @@ export function useFitPulls(on: boolean, live: boolean) {
     pull();
     window.addEventListener("focus", pull);
     document.addEventListener("visibilitychange", pull);
-    const t = live ? window.setInterval(pull, 15_000) : 0;
-    return () => { window.removeEventListener("focus", pull); document.removeEventListener("visibilitychange", pull); if (t) clearInterval(t); };
+    const t = live ? lpInterval("fitness", pull, 15_000) : 0;   // PS 1.65: asleep in Low power mode
+    return () => { window.removeEventListener("focus", pull); document.removeEventListener("visibilitychange", pull); if (t) lpClear(t); };
   }, [on, live]);
 }

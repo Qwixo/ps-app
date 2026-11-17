@@ -83,6 +83,7 @@ final class Backgrounds {
   }
   /// Every 2 minutes: the cheap look, and the full check when 12 hours have passed since the last one.
   private func tick() {
+    if !test && LowPower.shared.asleep("backgrounds") { return }   // PS 1.65 Low power mode: no folder look while asleep
     let last = pref("bg.lastFull") as? Double ?? 0
     scan(full: haveAsked && Date().timeIntervalSince1970 - last >= Backgrounds.fullEvery)
   }

@@ -52,7 +52,7 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   private func setSensor(on: Bool) {
     if !on { timer?.invalidate(); timer = nil; close(tell: false); return }
     guard timer == nil else { return }
-    let t = Timer(timeInterval: 10, repeats: true) { [weak self] _ in self?.tick() }
+    let t = Timer(timeInterval: 10, repeats: true) { [weak self] _ in if !LowPower.shared.asleep("alarms") { self?.tick() } }   // PS 1.65 Low power mode
     t.tolerance = 2
     RunLoop.main.add(t, forMode: .common)
     timer = t
