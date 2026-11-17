@@ -2,8 +2,7 @@
 // Signed exactly like the chat (core/squadcrypto.ts signRequest, the member's own key); nothing here seals or opens
 // anything. A hub that has not deployed `dm` answers 404: the callers treat that as "not there yet" and stay quiet.
 import { signRequest } from "../core/squadcrypto.ts";
-import { HUB_URL, HubError, hubBytes, type HubIdent } from "./hub.ts";
-import { hubAwake } from "./hub";
+import { HUB_URL, HubError, hubBytes, type HubIdent, hubAwake } from "./hub.ts";
 
 export const DM_FN = `${HUB_URL}/functions/v1/dm`;
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;

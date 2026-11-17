@@ -40,7 +40,7 @@ ok("developer-only features are off for every other owner and client", () => {
     assert.equal(canUse(other, f), false, f);
     assert.equal(canUse(client, f), false, f);
   }
-  for (const f of ["gmail", "mailcards", "telegram", "fireflies", "radar", "followupCard", "instantly", "brief", "claude", "airpods", "backgroundVideos", "secondComputer"]) {
+  for (const f of ["gmail", "mailcards", "telegram", "fireflies", "radar", "followupCard", "instantly", "brief", "claude", "airpods", "backgroundVideos"]) {
     assert.ok((RED_ONLY as readonly string[]).includes(f), `${f} is on the developer-only list`);
   }
   // Everyone's since 7 Nov 2026: meetings come from the person's own Mac Calendar.

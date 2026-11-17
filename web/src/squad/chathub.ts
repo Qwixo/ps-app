@@ -2,8 +2,7 @@
 // `squad`). Signed exactly like the core (core/squadcrypto.ts signRequest, the member's own key); nothing here
 // seals or opens anything.
 import { signRequest } from "../core/squadcrypto.ts";
-import { HUB_URL, HubError, hubBytes, type HubIdent, type HubMemberRow } from "./hub.ts";
-import { hubAwake } from "./hub";
+import { HUB_URL, HubError, hubBytes, type HubIdent, type HubMemberRow, hubAwake } from "./hub.ts";
 
 export const CHAT_FN = `${HUB_URL}/functions/v1/chat`;
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;

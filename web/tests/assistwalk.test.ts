@@ -4,6 +4,9 @@
 import { STEP_MS, buildWalk, nextTimeLine, startWalk, walkSay, walkStep, type Effect, type Mode, type WalkState } from "../src/core/assistwalk.ts";
 import { GROUPS, SETTINGS, groupById, landingOf, visibleTo, type Ctx } from "../src/core/settingsindex.ts";
 import { pathOf } from "../src/core/assist.ts";
+// PS 1.65: rows marked second (Your Macs) show once Second Computer is switched on (core/mailflag.ts, set by the vault).
+import { setSecondAllowed } from "../src/core/mailflag.ts";
+setSecondAllowed(true);
 
 let fails = 0, n = 0;
 const ok = (name: string, c: boolean) => { n++; if (!c) { fails++; console.log(`FAIL ${name}`); } };

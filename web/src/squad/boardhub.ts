@@ -6,8 +6,7 @@ import { signRequest } from "../core/squadcrypto.ts";
 import { keyFor, type SquadRec } from "../core/squadrec.ts";
 import { boardAad, cleanCard, type BoardKind, type BoardRow, type HeldCard } from "../core/squadboard.ts";
 import type { PastRow } from "../core/squadpast.ts";
-import { HUB_URL, HubError, hubBytes } from "./hub.ts";
-import { hubAwake } from "./hub";
+import { HUB_URL, HubError, hubBytes, hubAwake } from "./hub.ts";
 export const BOARD_FN = `${HUB_URL}/functions/v1/board`;
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
