@@ -98,6 +98,8 @@ export interface ChkFacts {
   /** A pop-up of this reminder is up now. */
   cardOpen: boolean;
   block: ChkBlock | null;
+  /** Another PS pop-up sits where this card would go (the website's Posture reminder): it waits, without restarting the count. */
+  held?: boolean;
 }
 /** The clock: when counting began. It starts when PS opens and starts again after every pop-up, answer and quiet spell. */
 export interface ChkClock { since: number }
@@ -125,7 +127,7 @@ export function chkStep(c: ChkClock, f: ChkFacts): { clock: ChkClock; fire: bool
   if (!f.enabled || !f.ready || f.cardOpen || f.block || f.openTasks < 1) return reset;
   if (c.since > f.now) return reset;
   const ref = Math.max(c.since, Math.min(f.lastTickAt, f.now));   // a tick stamped by a clock that runs ahead counts as now, never as none
-  if (f.now - ref < f.everyMin * 60_000) return { clock: c, fire: false };
+  if (f.now - ref < f.everyMin * 60_000 || f.held) return { clock: c, fire: false };
   return { clock: { since: f.now }, fire: true };
 }
 

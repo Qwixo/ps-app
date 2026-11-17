@@ -195,4 +195,35 @@ ok("the Mac card refuses and says so, the button waits for its fade, the questio
   assert.match(w, /o\.act === "skipped"/);
   assert.match(w, /o\.type === "postureAsk"/);
 });
+ok("a changed setting starts fresh: no pop-up the moment it is switched on or the interval or hours change", () => {
+  const p45 = prefs({ every: 45 }), p30 = prefs({ every: 30 });
+  assert.notEqual(P.postureKey(p45), P.postureKey(p30));
+  assert.notEqual(P.postureKey(prefs({ from: "08:00" })), P.postureKey(prefs()));
+  assert.notEqual(P.postureKey(prefs({ on: false })), P.postureKey(prefs()));
+  // 10:05 with every 45 minutes: 09:45 was dealt with. Switching to 30 makes 10:00 the running slot, 5 minutes old and fresh.
+  const now = at(10, 5), handled45 = at(9, 45);
+  assert.equal(P.postureStep(p30, handled45, env(now)).show, true, "without a fresh start it would pop up at once");
+  const h = P.posturePrime(p30, now, handled45);
+  assert.equal(h, at(10, 0));
+  assert.equal(P.postureStep(p30, h, env(now)).show, false);
+  assert.equal(P.postureStep(p30, h, env(at(10, 30))).show, true, "the next slot comes as usual");
+  // Never moves back, and outside the hours nothing changes.
+  assert.equal(P.posturePrime(p30, now, at(10, 0)), at(10, 0));
+  assert.equal(P.posturePrime(p30, at(20, 0), 7), 7);
+});
+ok("the watch re-primes on a changed setting and when it is off", async () => {
+  const { readFileSync } = await import("node:fs");
+  const w = readFileSync(new URL("../src/posturewatch.ts", import.meta.url), "utf8");
+  assert.match(w, /if \(key !== primedKey\) \{ primedKey = key; handled = posturePrime\(/);
+  assert.match(w, /if \(!on\) \{ if \(shown\) close\(\); lastTick = now; primedKey = ""; return; \}/);
+  assert.match(w, /wait: FIGURE_TOTAL_MS/);
+});
+ok("the Mac card lets go of a closing card at once (a new one is never taken away by the old fade)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const sw = readFileSync(new URL("../../mac/Sources/Posture.swift", import.meta.url), "utf8");
+  const close = sw.slice(sw.indexOf("private func close(tell"), sw.indexOf("func place()"));
+  assert.ok(close.indexOf("panel = nil; web = nil; ready = false") < close.indexOf("runAnimationGroup"));
+  assert.doesNotMatch(close, /self\?\.panel === p/);
+  assert.match(sw, /didFinish navigation: WKNavigation!\) \{ guard webView === web/);
+});
 console.log(`${n} passed`);

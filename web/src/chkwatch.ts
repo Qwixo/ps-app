@@ -30,6 +30,11 @@ let clock = chkStart(Date.now());
 let up = false, upSince = 0, testing = false;
 let lastInput = Date.now();
 let started = false;
+/** The Sentry cover and the website's Posture pop-up. Loaded after start (plain imports would make a loop with ps.ts). */
+let sentryNow: () => boolean = () => false;
+let postureUp: () => boolean = () => false;
+/** The checklist and its newest tick, worked out again only when the tasks change or a minute passed (not every 5 seconds). */
+let memo: { s: unknown; day: string; min: number; v: { tasks: Doc<Todo>[]; lastTickAt: number } } | null = null;
 const subs = new Set<() => void>();
 const emit = () => subs.forEach((f) => f());
 
@@ -43,10 +48,13 @@ export function useChkCard(): { open: boolean; test: boolean } {
 
 /** The tasks on the checklist now, and the newest tick. */
 export function checklistNow(): { tasks: Doc<Todo>[]; lastTickAt: number } {
-  const s = vaultStore.get(), st = settingsData(s), now = Date.now();
-  const all = todos(s);
-  const lists = tabLists(all, cleanGroups(st.tmGroups), todayISO(), { now, tz: overdueZone(st.tmHomeTz) });
-  return { tasks: checklistTasks(lists), lastTickAt: lastTickOf(all) };
+  const s = vaultStore.get(), now = Date.now(), day = todayISO(), min = Math.floor(now / 60_000);
+  if (memo && memo.s === s && memo.day === day && memo.min === min) return memo.v;
+  const st = settingsData(s), all = todos(s);
+  const lists = tabLists(all, cleanGroups(st.tmGroups), day, { now, tz: overdueZone(st.tmHomeTz) });
+  const v = { tasks: checklistTasks(lists), lastTickAt: lastTickOf(all) };
+  memo = { s, day, min, v };
+  return v;
 }
 
 function show(cfg: ChkSettings, now: number) {
@@ -78,13 +86,14 @@ function tick() {
     protectedFront: false,      // the Mac's shell checks 1Password and Signal itself; this page never looks
     inMeeting: !!st && afkMeetWindows(meetingEvents(cal ? (cal.data as CalendarSnap).events : [], st.calChoices), st.meetHidden, now).some(([a, b]) => now >= a && now < b),
     sleepMode: sleepState().here,
-    sentry: false,              // the Mac's shell knows (Sentry.swift)
+    sentry: sentryNow(),        // the page's own Sentry cover (the Mac's shell also checks Sentry.swift)
     dnd: !!st && dndActive(st.dnd, now),
     away: !post && away(now),
     setup: false,
   });
   const r = chkStep(clock, {
     now, enabled, ready: unlocked && (!!s.lastSync || !!s.local || s.role === "owner"), everyMin: cfg.every, lastTickAt, openTasks: tasks.length, cardOpen: up, block,
+    held: !post && postureUp(),
   });
   clock = r.clock;
   if (r.fire) show(cfg, now);
@@ -124,5 +133,6 @@ export function startChkWatch(p: Post | null) {
   const input = () => { lastInput = Date.now(); };
   for (const e of ["keydown", "pointerdown", "pointermove", "wheel", "touchstart"]) document.addEventListener(e, input, { passive: true, capture: true });
   (window as Window & { __psChkAnswered?: (o: unknown) => void }).__psChkAnswered = chkAnswered;
+  void Promise.all([import("./views/Sentry"), import("./posturewatch")]).then(([a, b]) => { sentryNow = a.sentryUp; postureUp = () => b.postureView().open; }).catch(() => {});
   window.setInterval(tick, 5000);
 }
