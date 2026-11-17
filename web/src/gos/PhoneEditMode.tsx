@@ -33,7 +33,7 @@ import { DeletePage, UndoDelete } from "../views/PhoneDeletePage";
 import { deletePage, pageAfterDelete, restorePage, type RemovedPage } from "../core/phonepagedelete";
 import { sidewaysWheel, wheelPages } from "../core/phonepan";
 import { PhoneLooks } from "../views/PhoneLooks";
-import { dragDelta, dragSig, frameQueue, ghostFor, outsideBox } from "../core/tiledrag";
+import { dragDelta, dragSig, endKind, frameQueue, ghostFor, outsideBox, samePointer } from "../core/tiledrag";
 import { carriedEl, carry, carryNav, release, releaseNav, settle } from "../views/tiledrive";
 import { haptic } from "./bridge";
 import { usePhoneNow, viewOf } from "./phonepage";
@@ -399,10 +399,12 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
   const live = useRef<TileDrag | null>(null);
   const sigRef = useRef("");
   const curBox = useRef<DOMRect | null>(null);
+  const held = useRef<number | null>(null);   // V1.65 quality pass: the finger carrying a panel or the navbar (core/tiledrag.ts samePointer)
   const tileDown = (e: RPE, id: string, mode: "move" | "size") => {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    held.current = e.pointerId;
     haptic("drag");
     curBox.current = roomRef.current?.querySelector(".pm-card.cur")?.getBoundingClientRect() ?? null;
     const d: TileDrag = { id, mode, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0, over: null };
@@ -428,12 +430,14 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     if (sig !== sigRef.current) { sigRef.current = sig; if (over && over !== d.over) haptic("tick"); setTile(next); }
   };
   const tileMove = (e: RPE) => {
-    if (!live.current) return;
+    if (!live.current || !samePointer(held.current, e.pointerId)) return;
     ptr.current = { x: e.clientX, y: e.clientY };
     frames.push(tileFrame);
   };
   const ghostOf = (t: Tile, d: TileDrag) => ghostFor(t, d.mode, d.dx, d.dy, W);
-  const tileUp = () => {
+  const tileUp = (e?: RPE) => {
+    if (!samePointer(held.current, e?.pointerId)) return;
+    held.current = null;
     frames.flush();
     const d = live.current;
     if (!d) return;
@@ -442,6 +446,7 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     live.current = null;
     setTile(null);
     if (!t || (Math.abs(d.dx) < 3 && Math.abs(d.dy) < 3)) { release(el); return; }
+    if (endKind(e?.type) === "cancel") { settle(el, t, d.mode, d.dx, d.dy, t, W); return; }   // Android took the touch (back gesture, shade): back where it was, nothing saved
     sound("edit-drop"); haptic("drop");
     if (d.mode === "move" && d.over) {
       const dest = pages.find((p) => p.id === d.over);
@@ -461,6 +466,7 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    held.current = e.pointerId;
     haptic("drag");
     navLive.current = d; navSig.current = "";
     ptr.current = { x: e.clientX, y: e.clientY };
@@ -477,7 +483,7 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     if (sig !== navSig.current) { navSig.current = sig; setNav(next); }
   };
   const navMove = (e: RPE) => {
-    if (!navLive.current) return;
+    if (!navLive.current || !samePointer(held.current, e.pointerId)) return;
     ptr.current = { x: e.clientX, y: e.clientY };
     frames.push(navFrame);
   };
@@ -493,13 +499,16 @@ export function PhoneEditMode({ kind, red, onClose }: { kind: PhoneKind; red: bo
     const align: NavAlign = Math.abs(d.dx) < 24 ? layout.nav.align : x < W * 0.36 ? "left" : x > W * 0.64 ? "right" : layout.nav.align === "full" ? "full" : "center";
     return { edge, align } as const;
   };
-  const navUp = () => {
+  const navUp = (e?: RPE) => {
+    if (!samePointer(held.current, e?.pointerId)) return;
+    held.current = null;
     frames.flush();
     const d = navLive.current;
     if (!d) return;
     navLive.current = null;
     setNav(null);
     releaseNav(roomRef.current);
+    if (endKind(e?.type) === "cancel") return;   // Android took the touch: the bar stays where it was
     if (d.kind === "bar") {
       if (Math.abs(d.dx) < 3 && Math.abs(d.dy) < 3) return;
       const t = barDrop(d);

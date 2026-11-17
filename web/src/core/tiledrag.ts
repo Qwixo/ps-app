@@ -73,3 +73,14 @@ export function navTransform(d: { kind: "bar"; dx: number; dy: number } | { kind
 /** A move is a transform written straight onto the element (a CSS variable would restyle everything inside the panel
  *  on every frame); only a size uses the variables, because the width and height are laid out by the cell sizes. */
 export const moveTransform = (dx: number, dy: number): string => `translate3d(${dx}px, ${dy}px, 0)`;
+
+/** The one finger a drag listens to (V1.65 quality pass): the pointer that started it. A second finger, or a stray mouse, never
+ *  moves or drops it. `held` null: nothing is being carried; an event without an id (older callers) is taken as the same finger. */
+export function samePointer(held: number | null, id: number | undefined): boolean {
+  return held !== null && (id === undefined || id === held);
+}
+/** How a carried panel or navbar ends. The finger lifted: "drop" (it lands where it is). The system took the touch away (Android's
+ *  back gesture, the notification shade, a call): "cancel", it glides back where it was and nothing is saved. */
+export function endKind(type: string | undefined): "drop" | "cancel" {
+  return type === "pointercancel" ? "cancel" : "drop";
+}
