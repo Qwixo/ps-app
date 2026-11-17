@@ -91,7 +91,8 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     // Never over Sleep mode, Sentry mode or Do Not Disturb (the page checks too). Say so, or the page waits for an answer that never comes.
     guard !coveredNow() else { onMessage?("{\"type\":\"postureAct\",\"act\":\"skipped\"}"); return }
     func s(_ k: String, _ max: Int) -> String { String(((msg[k] as? String) ?? "").prefix(max)) }
-    var o: [String: Any] = ["svg": s("svg", 4000), "css": s("css", 4000), "pill": s("pill", 40), "title": s("title", 60), "button": s("button", 40), "test": (msg["test"] as? Bool) == true]
+    var o: [String: Any] = ["svg": s("svg", 4000), "css": s("css", 4000), "pill": s("pill", 40), "title": s("title", 60), "button": s("button", 40), "test": (msg["test"] as? Bool) == true,
+                          "wait": min(10_000, max(0, (msg["wait"] as? NSNumber)?.intValue ?? 3500))]
     // The first pop-up's one-time question (words come from the page, plain text only).
     if let a = msg["ask"] as? [String: Any] {
       func t(_ k: String) -> String { String(((a[k] as? String) ?? "").prefix(60)) }
@@ -113,15 +114,16 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     up = false
     IslandColumn.shared.leave(Posture.id)
     if let p = panel {
+      // Let go of this card at once and fade it out on its own: a card asked for during the fade (Try it now while one is up,
+      // or the next slot) is always a fresh one, never this one taken away a moment later with the page still waiting on it.
       let w = web
+      panel = nil; web = nil; ready = false; pending = nil
       w?.evaluateJavaScript("window.__pf && window.__pf.out()", completionHandler: nil)
-      let gone = { [weak self] in
+      if p.isKeyWindow { p.resignKey() }
+      NSAnimationContext.runAnimationGroup({ ctx in ctx.duration = 0.18; p.animator().alphaValue = 0 }, completionHandler: {
         p.orderOut(nil)
         w?.configuration.userContentController.removeScriptMessageHandler(forName: "pf")
-        if self?.panel === p { self?.panel = nil; self?.web = nil; self?.ready = false }
-      }
-      if p.isKeyWindow { p.resignKey() }
-      NSAnimationContext.runAnimationGroup({ ctx in ctx.duration = 0.18; p.animator().alphaValue = 0 }, completionHandler: gone)
+      })
     }
     if tell && was { onMessage?("{\"type\":\"postureAct\",\"act\":\"\(act)\"}") }
     psLog("PS posture: \(tell ? act : "closed")")
@@ -148,7 +150,7 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   /// Esc (EscAlways.swift): only reaches the card after a click gave it the keyboard. It ends the reminder for this time.
   func escape() { guard up else { return }; close(tell: true, act: "esc") }
 
-  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { ready = true; push() }
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { guard webView === web else { return }; ready = true; push() }
   func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     decisionHandler(action.navigationType == .other ? .allow : .cancel)
   }
@@ -189,10 +191,10 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   #fig{margin:4px 0 8px}
   #b:not(.rdy){pointer-events:none}
   button{border:0;border-radius:99px;padding:9px 22px;font:700 13px -apple-system,sans-serif;color:#fff;cursor:pointer;transition:transform .1s;
-    background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 80%,#fff),color-mix(in srgb,var(--acc) 85%,#000));box-shadow:0 8px 20px color-mix(in srgb,var(--acc) 35%,transparent);animation:btnin .45s ease 3500ms both}
+    background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 80%,#fff),color-mix(in srgb,var(--acc) 85%,#000));box-shadow:0 8px 20px color-mix(in srgb,var(--acc) 35%,transparent);animation:btnin .45s ease var(--w,3500ms) both}
   button:active{transform:scale(.97)}
   @keyframes btnin{from{opacity:0;transform:translateY(4px)}}
-  #ask{display:none;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.14);animation:btnin .45s ease 3500ms both}
+  #ask{display:none;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.14);animation:btnin .45s ease var(--w,3500ms) both}
   #ask.on{display:block}
   #ask p{margin:0 0 8px;font-size:12.5px;color:var(--sub)}
   #ask span{display:inline-flex;gap:8px}
@@ -222,7 +224,9 @@ final class Posture: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
       const b = $('b'); b.classList.remove('rdy'); ask.classList.remove('rdy');
       clearTimeout(window.__rt);
       const go = () => { b.classList.add('rdy'); ask.classList.add('rdy'); };
-      if (matchMedia('(prefers-reduced-motion:reduce)').matches) go(); else window.__rt = setTimeout(go, 3500);
+      const wait = typeof o.wait === 'number' ? o.wait : 3500;   // the figure's animation (web core/posturefigure.ts FIGURE_TOTAL_MS)
+      document.documentElement.style.setProperty('--w', wait + 'ms');
+      if (matchMedia('(prefers-reduced-motion:reduce)').matches) go(); else window.__rt = setTimeout(go, wait);
       document.body.classList.remove('in', 'out'); void document.body.offsetWidth; document.body.classList.add('in');
       size();
     },

@@ -446,7 +446,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // PS 1.65 Checklist reminder: a choice on its card. Rethink and I forgot open the Tab list on their screen; the page (engine) is told
     // which one it was either way, so it starts counting again.
     Reminders.shared.onChk = { [weak self] outcome in
-      guard ["rethink", "forgot", "sure", "esc"].contains(outcome) else { return }
+      guard RemMath.chkOutcomes.contains(outcome) else { return }   // "away" too: a card dropped before it came up (RemMath.swift)
       if outcome == "rethink" || outcome == "forgot" { self?.openList(then: "window.__psChk && window.__psChk('\(outcome)')") }
       Reminders.shared.deliver?("window.__psChkAnswered && window.__psChkAnswered('\(outcome)')")
     }

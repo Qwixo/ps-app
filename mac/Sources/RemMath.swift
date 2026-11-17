@@ -212,6 +212,9 @@ enum RemMath {
     return t.min()
   }
   /// Does what was typed clear it? Any case, spaces at the ends trimmed; one click when `click`.
+  /// PS 1.65 Checklist reminder: what its card tells the page. "away" is a card dropped before it came up; the page must hear it too, or
+  /// it waits on a card that is not there and the reminder never comes again.
+  static let chkOutcomes: Set<String> = ["rethink", "forgot", "sure", "esc", "away"]
   static func confirms(_ i: Item, _ typed: String) -> Bool {
     i.click || typed.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == i.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
   }

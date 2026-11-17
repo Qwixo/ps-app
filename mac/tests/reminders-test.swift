@@ -94,6 +94,7 @@ ok("a checklist card keeps three choices, the typed one and its question", chk.c
 ok("a normal reminder has no choices", RemMath.item(["id": "n"])!.choices.isEmpty && RemMath.item(["id": "n"])!.sure == -1)
 ok("a typed choice that is not in the list is dropped", RemMath.item(["id": "n", "choices": ["A", "B"], "sure": 5])!.sure == -1)
 ok("blank choices are left out", RemMath.item(["id": "n", "choices": ["A", "  ", "C"]])!.choices == ["A", "C"])
+ok("the page hears every checklist outcome, a dropped card (away) too", RemMath.chkOutcomes == ["rethink", "forgot", "sure", "esc", "away"] && !RemMath.chkOutcomes.contains("done"))
 ok("the typed yes is checked in any case", RemMath.confirms(chk, " YES ") && !RemMath.confirms(chk, "y") && !RemMath.confirms(chk, "yes please"))
 
 print("\n\(n - bad) of \(n) passed")
