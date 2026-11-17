@@ -469,6 +469,11 @@ function pick(lower: string, all: Cand[], keep: readonly string[]): { date?: Can
   // "morning at 9" the other way round.
   const nextT = time && times.find((x) => x !== time && x.bias && gapOnly(lower, time!.end, x.start));
   if (nextT && !time!.bias) { extra.push(nextT); time = { ...time!, bias: nextT.bias }; }
+  // "tomorrow evening at 8": the part of the day right before the number says am or pm (20:00, not 08:00), and both words go.
+  if (time && !time.bias) {
+    const prev = times[times.indexOf(time) - 1];
+    if (prev?.bias && gapOnly(lower, prev.end, time.start)) { extra.push(prev); time = { ...time, bias: prev.bias }; }
+  }
   return { date, time: date?.dt ? undefined : time, rep, extra };
 }
 

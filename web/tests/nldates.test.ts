@@ -137,6 +137,13 @@ check("tomorrow night pack", { title: "pack", due: "2026-11-18", time: "21:00" }
 check("this afternoon review", { title: "review", due: "2026-11-17", time: "14:00" });
 check("this evening at 7 call", { title: "call", due: "2026-11-17", time: "19:00" });
 check("tomorrow at 9 in the morning", { title: "", due: "2026-11-18", time: "09:00" });
+// Quality pass 1.65: the part of the day BEFORE the number gives its am or pm, and its word leaves the title.
+check("call mum tomorrow evening at 8", { title: "call mum", due: "2026-11-18", time: "20:00", label: "Tomorrow, 20:00" });
+check("demo Friday afternoon at 3", { title: "demo", due: "2026-11-20", time: "15:00" });
+check("tomorrow morning at 9 gym", { title: "gym", due: "2026-11-18", time: "09:00" });
+check("every Friday evening at 7 drinks", { title: "drinks", kind: "repeat", due: "2026-11-20", time: "19:00", repeat: { every: 1, unit: "week" } });
+check("tomorrow night at 11 backup", { title: "backup", due: "2026-11-18", time: "23:00" });
+check("Morning pages tomorrow at 7", { title: "Morning pages", due: "2026-11-18", time: "07:00" });
 check("tomorrow at 7 in the evening", { title: "", due: "2026-11-18", time: "19:00" });
 check("Friday at 3pm deck", { title: "deck", due: "2026-11-20", time: "15:00" });
 check("Friday at 9 deck", { title: "deck", due: "2026-11-20", time: "09:00" }); // a day given: no rollover
