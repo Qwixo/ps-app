@@ -68,7 +68,10 @@
 @keyframes pc-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .pc-layer { animation: none; } }
 @media (max-width: 720px) {
-  .pc-cards, .pc-grid { grid-template-columns: 1fr; }
+  .pc-grid { grid-template-columns: 1fr; }
+  .pc-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }   /* this month and last month side by side, the count under them */
+  .pc-cards .pc-card:last-child { grid-column: 1 / -1; }
+  .pc-card b { font-size: calc(18px * var(--k-fs, 1)); }
   .pc-head { padding: 10px 14px; flex-wrap: wrap; }
   .pc-scroll { padding: 12px 14px 40px; }
 }
