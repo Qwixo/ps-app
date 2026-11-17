@@ -19,9 +19,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import { PS, psPost, type MailSendStatus } from "../ps";
 import {
   DEFAULT_SEND, LIMITS, PLACEHOLDERS, QUICK, SCHED, SEND_RANGE, UNDO_SECONDS, cleanSendMode, clampMins, fillOf, fillPlaceholders, firstWords, inText,
-  isGeneral, makeJob, parseWhen, queueOrder, randomDelayMs, reSubject, responsesFor, rowText, sendSetupHint, sendsAtText, sigFor, stepMins, stepRange,
+  isGeneral, makeJob, parseWhen, queueOrder, randomDelayMs, reSubject, responsesFor, rowText, sendReady, sendSetupHint, sendsAtText, sigFor, stepMins, stepRange,
   type MailReplyOp, type OutRow, type ReplyCtx, type ReplyJob, type SavedResponse, type SendMode,
 } from "../core/mailreply";
+import { protonProblemWords } from "../core/protonmail";
 import "./reply.css";
 
 type Prefs = { sig: string; sigs: Record<string, string>; responses: SavedResponse[]; send?: SendMode; clients?: { id: string; name: string }[]; accounts?: string[] };
@@ -130,10 +131,10 @@ function Panel({ open, prefs, status, queue }: { open: Open; prefs: Prefs; statu
   const shown = useRef<SavedResponse[]>([]);      // the quick replies on the right, in order (Cmd+1 to Cmd+9)   // sheets open inside (a reply being edited, a typed time): Esc asks them first
   const fill = useMemo(() => fillOf({ first: ctx?.first || "", name: ctx?.name || "", company: ctx?.company || "", to }), [ctx, to]);
 
-  const conn = ctx?.via === "gmail" ? status?.gmail.find((g) => g.account.toLowerCase() === ctx.account) : null;
-  // Proton: the Mac checks the link itself when the send is due (a problem shows in the waiting list), so Send is open.
-  const ready = !ctx ? false : ctx.via === "proton" ? true : ctx.via === "gmail" ? !!conn?.connected : !!status?.instantly.saved;
-  const problem = !ctx ? "" : ctx.via === "proton" ? "" : ctx.via === "gmail" ? conn?.problem : status?.instantly.problem;
+  // Proton (1.65): Send opens once Bridge is linked on this Mac; its problem comes as a code and shows in the Settings words.
+  const can = ctx ? sendReady(ctx.via, ctx.account, status) : { ready: false, problem: "" };
+  const ready = can.ready;
+  const problem = ctx?.via === "proton" ? protonProblemWords(can.problem) : can.problem;
   const dirty = !!ctx && message.trim() !== start.current.message.trim();
   const setupHint = ctx ? sendSetupHint(ctx.via, ready, !!status, problem) : "";
 
@@ -204,7 +205,7 @@ function Panel({ open, prefs, status, queue }: { open: Open; prefs: Prefs; statu
    *  schedule picker's own time for this one email. */
   function send(mins: number | null) {
     if (!ctx) return;
-    if (!ready) { setErr(ctx.via === "gmail" ? "Connect this Gmail account for sending first (the button on the From line)." : "Add your Instantly API key first (the button on the From line)."); return; }
+    if (!ready) { setErr(ctx.via === "proton" ? sendSetupHint("proton", false, true) : ctx.via === "gmail" ? "Connect this Gmail account for sending first (the button on the From line)." : "Add your Instantly API key first (the button on the From line)."); return; }
     const now = Date.now();
     const random = mins === null && mode.random;
     const at = mins !== null ? now + clampMins(mins) * 60_000 : random ? now + randomDelayMs(mode) : now + UNDO_SECONDS * 1000;
@@ -237,6 +238,7 @@ function Panel({ open, prefs, status, queue }: { open: Open; prefs: Prefs; statu
                 <span className="rw-v"><b>{ctx.via === "gmail" && ctx.replyFrom ? ctx.replyFrom : ctx.account}</b><span className={`rw-via rw-${ctx.via}`}>{viaName(ctx.via)}</span>
                   {ctx.via === "gmail" && ctx.replyFrom && <span className="rw-via" data-tip="Sent from the address the email came to" data-tip-line={`This Gmail alias is set up in ${ctx.account}. If Gmail will not send from it, PS stops and tells you, it never switches address.`}>{`through ${ctx.account}`}</span>}</span>
                 {ready ? <span className="rw-ok">Ready to send</span>
+                  : ctx.via === "proton" ? null   // linked in Settings, Client emails (the line below says so): no button here
                   : <button className="rw-btn rw-connect" onClick={() => post({ type: "reply:connect", via: ctx.via, account: ctx.account })}
                       data-tip={ctx.via === "gmail" ? "Connect Gmail for sending" : "Add your Instantly API key"}
                       data-tip-line={ctx.via === "gmail" ? "Opens Google's own sign in in your browser. PS app keeps the sign in in this Mac's Keychain." : "PS app asks for it in a Mac window and keeps it in this Mac's Keychain."}>

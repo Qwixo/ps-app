@@ -169,7 +169,16 @@ final class MailSend {
     DispatchQueue.main.async { [self] in status = st; rows = rs; onChange?() }
   }
   /// Mac settings (main.swift sendSettings): mailSend.
-  func settingsJSON() -> [String: Any] { status }
+  /// 1.65: plus Proton Mail Bridge's link on this Mac (linked and a problem code, never the password), so the reply window
+  /// opens Send for a Proton email only once Bridge is linked. Both are main thread copies.
+  func settingsJSON() -> [String: Any] {
+    var s = status
+    let p = ProtonBridge.shared.settingsJSON()
+    var pr: [String: Any] = ["linked": (p["linked"] as? Bool) == true]
+    if let code = p["problem"] as? String { pr["problem"] = code }
+    s["proton"] = pr
+    return s
+  }
 
   // MARK: the queue (from the compose window, main thread)
 

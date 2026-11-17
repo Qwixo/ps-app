@@ -254,6 +254,7 @@ final class ProtonBridge: NSObject {
       cachedStatus = st
       tellNow(["type": "proton:rows", "rows": Array(rs), "status": st])
       app?.sendSettings()
+      app?.replyWin.status()   // an open reply to a Proton email opens or closes Send as the link changes
     }
   }
   private func tell(_ o: [String: Any]) { DispatchQueue.main.async { [self] in tellNow(o) } }

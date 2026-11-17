@@ -1171,6 +1171,8 @@ export interface PsSettings {
 export interface MailSendStatus {
   gmail: { account: string; connected: boolean; problem?: string }[];
   instantly: { saved: boolean; problem?: string };
+  /** 1.65: Proton Mail Bridge linked on this Mac, and a problem code (core/protonmail.ts PROTON_PROBLEMS). */
+  proton?: { linked: boolean; problem?: string | null };
   waiting: number;
 }
 let psSettings: PsSettings | null = null;

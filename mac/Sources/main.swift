@@ -1653,7 +1653,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     case "reply:prefs" where fromMain:          // signatures and saved responses changed
       if let p = msg["prefs"] { replyWin.lastPrefs = p; replyWin.prefs(p) }
     case "reply:cannot" where fromMain:
-      Toast.shared.show(title: "PS app cannot reply to this one here", body: "Use Open in Gmail or Open in Instantly on its card.")
+      Toast.shared.show(title: "PS app cannot reply to this one here", body: ReplyCannot.line(via: msg["via"] as? String))
     case "reply:connect" where fromMain || fromOverlay:   // Settings, Reply from PS: Connect (Gmail) or Add key (Instantly)
       if fromOverlay && shown { hideOverlay(force: true, giveBack: false) }   // the browser or the key window must not open under the list
       replyWin.connect(msg)

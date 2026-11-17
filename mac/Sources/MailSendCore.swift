@@ -422,3 +422,11 @@ enum GmailOAuth {
     return (e.lowercased(), (j["name"] as? String).map(MailMime.oneLine))
   }
 }
+
+/// The small card's line when PS cannot open the reply window for an email (main.swift "reply:cannot"). The page says which
+/// service the email came through, so the line names the right place to answer it.
+enum ReplyCannot {
+  static func line(via: String?) -> String {
+    via == "proton" ? "Open it in Proton Mail to reply." : "Use Open in Gmail or Open in Instantly on its card."
+  }
+}
