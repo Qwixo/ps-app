@@ -6,7 +6,6 @@ import android.os.Handler
 import android.os.HandlerThread
 import com.googlecode.tesseract.android.TessBaseAPI
 import org.json.JSONObject
-import java.io.File
 
 /*
  * Receipt scan (PS 1.65, the developer, 17 Nov 2026: "scan receipts, mostly Georgian, nothing leaves my devices"). The page
@@ -88,27 +87,10 @@ object ReceiptScan {
         }
     }
 
-    /** The reader, made once: the models are copied out of the APK the first time (Tesseract reads files, not assets).
-     *  The APK stores them compressed, and a compressed asset cannot be opened with openFd (it throws), so the size is not read
-     *  from the APK: a stamp with the app's install time says the copies are from this build, and they are copied again after
-     *  an update or when one is missing. */
+    /** The reader, made once: the models are copied out of the APK the first time (OcrModels, shared with the gym scan). */
     private fun api(c: Context): TessBaseAPI? {
         tess?.let { return it }
-        val root = File(c.noBackupFilesDir, "ocr")
-        val dir = File(root, "tessdata").apply { mkdirs() }
-        val stamp = File(dir, ".receipt-models")
-        val build = runCatching { c.packageManager.getPackageInfo(c.packageName, 0).lastUpdateTime.toString() }.getOrDefault("")
-        val had = runCatching { stamp.readText() }.getOrNull()
-        for (lang in LANGS.split("+")) {
-            val name = "$lang.traineddata"
-            val f = File(dir, name)
-            if (ReceiptText.needsCopy(had, build, f.length())) {
-                val tmp = File(dir, "$name.receipt.part")
-                c.assets.open("tessdata/$name").use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
-                if (!tmp.renameTo(f)) { tmp.delete(); return null }
-            }
-        }
-        if (had != build) runCatching { stamp.writeText(build) }
+        val root = OcrModels.root(c, LANGS, "receipt") ?: return null
         val t = TessBaseAPI()
         if (!t.init(root.absolutePath, LANGS, TessBaseAPI.OEM_LSTM_ONLY)) { t.recycle(); Plog.i("receiptscan: the reader did not start"); return null }
         t.setVariable("user_defined_dpi", "300")
@@ -130,9 +112,6 @@ object ReceiptText {
         lines.map { it.copy(text = it.text.replace(Regex("[ \\t\\u00A0]+"), " ").trim()) }
             .filter { it.text.isNotEmpty() && (it.conf >= 15f || it.text.any { c -> c.isLetterOrDigit() }) }
             .joinToString("\n") { it.text }
-
-    /** Copy a model out of the APK again: no copy yet (or an empty one), or the copies are not stamped with this build. */
-    fun needsCopy(stamp: String?, build: String, length: Long): Boolean = length <= 0L || build.isEmpty() || stamp != build
 
     /** The average sureness of the lines with something in them, 0 when there are none. */
     fun confidence(lines: List<Line>): Float {
