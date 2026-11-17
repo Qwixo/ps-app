@@ -25,6 +25,8 @@ function ProtonBridgeBody() {
   useEffect(() => { if (!sure) return; const t = setTimeout(() => setSure(false), 5000); return () => clearTimeout(t); }, [sure]);
   // A finished try (linked, or a problem) ends the waiting.
   useEffect(() => { setBusy(false); }, [status]);
+  // No answer at all (PS on this Mac busy or too old): the button comes back after a while instead of saying Linking for ever.
+  useEffect(() => { if (!busy) return; const t = setTimeout(() => setBusy(false), 45_000); return () => clearTimeout(t); }, [busy]);
   const portNum = Number(port.trim());
   const good = /^\S+$/.test(host.trim()) && Number.isInteger(portNum) && portNum >= 1 && portNum <= 65535 && /^\S+@\S+\.\S+$/.test(user.trim());
   const link = () => { sfx.click(); setBusy(true); psPost({ type: "proton:link", host: host.trim(), port: portNum, user: user.trim() }); };

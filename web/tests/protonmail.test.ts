@@ -114,4 +114,8 @@ ok("the panel sends a Proton reply only from inside the Undo callback, and the p
   assert.match(tm, /startUndoSend\(\(\) => \{ dropUndo\(r\.cardId\); clearProtonSent\(pk\); psPost\(\{ type: "proton:reply", key: pk, text \}\); \}\)/);
   assert.ok(!/proton:reply[^\n]*\bto:/.test(tm), "the page never says who it goes to: PS uses its own copy of the email");
 });
+ok("Settings: Link never says Linking for ever when PS does not answer (the button comes back)", () => {
+  const v = readFileSync(new URL("../src/views/ProtonBridgeSettings.tsx", import.meta.url), "utf8");
+  assert.match(v, /if \(!busy\) return; const t = setTimeout\(\(\) => setBusy\(false\), 45_000\)/);
+});
 console.log(`${n} passed`);
