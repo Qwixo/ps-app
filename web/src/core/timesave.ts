@@ -71,15 +71,19 @@ export function clockStopAll(): Promise<void> {
 }
 
 /** A tick: what the round took goes into its month, the clock is cleared. A task never started records nothing. */
-export function clockFinish(id: string): Promise<void> {
+export function clockFinish(id: string, at?: number): Promise<void> {
   return inLane(async () => {
     const s = vaultStore.get();
     if (!trackOn(s)) return;
     const d = s.docs.get(id);
     const t = d?.kind === "todo" ? (d.data as Todo) : null;
     if (!t || t.example) return;
-    const now = Date.now(), st = settingsData(s);
+    // The tick's own time (the task's doneAt) when it is the tick just made: then this device and one that catches the tick later
+    // (lookTicked) write the very same finish key, and the merge keeps one, never two.
+    const tickAt = t.done && t.doneAt ? Date.parse(t.doneAt) : Number.NaN;
+    const now = at ?? (Number.isFinite(tickAt) && Math.abs(Date.now() - tickAt) < 60_000 ? tickAt : Date.now()), st = settingsData(s);
     const all = T.foldTime(docs(T.TE_KIND, null));
+    if (at !== undefined && !T.isRunning(all.live, id)) return;   // a catch up (below) that another device or tick already did
     const f = T.finishClock(all.live, id, now, T.awaySpans(st.awayLog));
     if (f.minutes === null) return;
     await writeLive(s, f.live, all.liveIds);
@@ -106,6 +110,37 @@ export function clockUntick(id: string): Promise<void> {
     await writeLive(s, T.carryBack(all.live, id, last.d.m, now), all.liveIds);
   });
 }
+
+/** A task ticked on another device that had not seen its clock start yet: the clock here is finished as of that tick (or just
+ *  stopped), so it never runs on for days. Looked at after vault changes, a moment later, only while a clock is running. Two devices
+ *  doing it make the same records (the same finish key), so the merge keeps one. */
+let lookTimer: ReturnType<typeof setTimeout> | null = null;
+function lookTicked() {
+  lookTimer = null;
+  const s = vaultStore.get();
+  if (!trackOn(s)) return;
+  const { live } = T.foldTime(docs(T.TE_KIND, null));
+  if (!T.runningIds(live).length) return;
+  const doneAt = (id: string) => {
+    const d = s.docs.get(id);
+    const t = d?.kind === "todo" ? (d.data as Todo) : null;
+    if (!t?.done || !t.doneAt) return null;
+    const ms = Date.parse(t.doneAt);
+    return Number.isFinite(ms) ? ms : null;
+  };
+  const now = Date.now();
+  let later = Infinity;
+  for (const x of T.tickedElsewhere(live, doneAt)) {
+    // The device that ticked may have had the clock after all: its own finish (under its own key) reaches this one with the tick or
+    // just after. Only a tick older than TICK_GRACE_MS with the clock still running here is one that recorded nothing.
+    if (now - x.at < TICK_GRACE_MS) { later = Math.min(later, x.at + TICK_GRACE_MS - now); continue; }
+    if (x.how === "finish") void clockFinish(x.id, x.at);
+    else void changeLive((l) => T.stopClock(l, x.id, Math.max(Date.now(), x.at)));
+  }
+  if (later !== Infinity && lookTimer === null) lookTimer = setTimeout(lookTicked, later + 500);
+}
+const TICK_GRACE_MS = 2 * 60_000;
+if (typeof window !== "undefined") vaultStore.subscribe(() => { if (lookTimer === null) lookTimer = setTimeout(lookTicked, 1500); });
 
 /** A Pomodoro phase changed on this device (src/pomodoro.ts): the phase that ended becomes a piece, with the tasks worked on. */
 export function notePomo(was: Parameters<typeof T.pomoPiece>[0], next: Parameters<typeof T.pomoPiece>[1], working: string[]): void {

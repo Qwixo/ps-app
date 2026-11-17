@@ -100,6 +100,9 @@ ok("two copies of one app are two rows", twoCopies.isEmpty)
 func facts(_ pid: Int32, uid: UInt32 = me, path: String?, bundle: String? = nil, name: String = "x", top: Int32? = nil) -> ActivityCore.EndFacts {
   ActivityCore.EndFacts(pid: pid, uid: uid, myUid: me, myPid: 900, path: path, bundle: bundle, name: name, groupTop: top, psBundlePath: "/Applications/PS.app", psBundleId: "com.cincee.ps")
 }
+ok("the same start time after a trip through JSON is the same process", ActivityCore.sameStart(1_763_350_000_123.456, 1_763_350_000_123.4561))
+ok("a different start time is another process", !ActivityCore.sameStart(1_763_350_000_123.0, 1_763_350_000_124.0))
+ok("a missing start time never matches", !ActivityCore.sameStart(5, 0) && !ActivityCore.sameStart(.nan, .nan))
 ok("an ordinary app can be ended", ActivityCore.canEnd(facts(10, path: "/Applications/Sample Browser.app/Contents/MacOS/Sample Browser", bundle: "com.example.browser")))
 ok("an app's helper can be ended", ActivityCore.canEnd(facts(11, path: "/Applications/Sample Browser.app/Contents/Frameworks/H.app/Contents/MacOS/H", top: 10)))
 ok("a background program of the person's own can be ended", ActivityCore.canEnd(facts(40, path: "/opt/sample/bin/syncagent")))

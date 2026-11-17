@@ -28,6 +28,8 @@ final class LowPower {
     if Thread.isMainThread { hooks[k] = (id, fn) } else { DispatchQueue.main.async { [weak self] in self?.hooks[k] = (id, fn) } }
   }
   private var catchUp: [DispatchWorkItem] = []
+  /// Uptime second the last waiting catch up runs at (nil: none waiting).
+  private var lastSlot: TimeInterval?
 
   /// Is this feed asleep right now? Main thread or any thread (a plain read of a value type).
   func asleep(_ id: String) -> Bool { Features.on("low-power") && state.asleep(id) }
@@ -59,24 +61,25 @@ final class LowPower {
     let before = state
     lock.lock(); current = next; lock.unlock()
     psLog("PS low power: \(next.on ? "on (\(next.why)), \(next.asleep.count) asleep" : "off")")
-    for w in catchUp { w.cancel() }
-    catchUp = []
-    var i = 0
+    // Before 17 Nov (quality pass): every new answer cancelled the catch ups still waiting, so a second answer inside the stagger
+    // (a feed registering, the alarms switch) lost the wake's catch ups for good. Now only falling asleep again drops them.
+    let up = ProcessInfo.processInfo.systemUptime
+    if LowPowerState.dropsCatchUps(before: before, next: next) { for w in catchUp { w.cancel() }; catchUp = []; lastSlot = nil }
+    if let l = lastSlot, l < up { lastSlot = nil; catchUp = [] }   // every one waiting has had its turn (each checks asleep itself)
+    func queue(_ run: @escaping () -> Void) {
+      let at = LowPowerState.nextSlot(now: up, last: lastSlot)
+      lastSlot = at
+      let w = DispatchWorkItem(block: run)
+      catchUp.append(w)
+      DispatchQueue.main.asyncAfter(deadline: .now() + (at - up), execute: w)
+    }
     for e in everys {
       let wasAsleep = Features.on("low-power") && before.asleep(e.id)
       arm(e)
-      if wasAsleep && !asleep(e.id) && e.catchUp {
-        let w = DispatchWorkItem { [weak self] in if self?.asleep(e.id) != true { e.fn() } }
-        catchUp.append(w)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + Double(i) * 1.5, execute: w)
-        i += 1
-      }
+      if wasAsleep && !asleep(e.id) && e.catchUp { queue { [weak self] in if self?.asleep(e.id) != true { e.fn() } } }
     }
     for h in hooks.values where Features.on("low-power") && before.asleep(h.id) && !asleep(h.id) {
-      let w = DispatchWorkItem { [weak self] in if self?.asleep(h.id) != true { h.fn() } }
-      catchUp.append(w)
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + Double(i) * 1.5, execute: w)
-      i += 1
+      queue { [weak self] in if self?.asleep(h.id) != true { h.fn() } }
     }
     for l in listeners { l(next) }
   }

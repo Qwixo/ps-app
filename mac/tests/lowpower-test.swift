@@ -26,4 +26,11 @@ check("line", LowPowerState.line([]) == "Nothing is asleep" && LowPowerState.lin
   && LowPowerState.line(["A", "B"]) == "Asleep: A and B" && LowPowerState.line(["A", "B", "C", "D", "E"]) == "Asleep: A, B, C and 2 more")
 check("the same answer twice is equal (no extra work)", LowPowerState.from(["on": true, "asleep": ["net"]]) == LowPowerState.from(["on": true, "asleep": ["net"]]))
 
+let offS = LowPowerState(), onS = LowPowerState.from(["on": true, "why": "hand", "asleep": ["net"]])
+check("catch ups dropped only when it falls asleep again", LowPowerState.dropsCatchUps(before: offS, next: onS)
+  && !LowPowerState.dropsCatchUps(before: onS, next: offS) && !LowPowerState.dropsCatchUps(before: offS, next: offS)
+  && !LowPowerState.dropsCatchUps(before: onS, next: LowPowerState.from(["on": true, "why": "mac", "asleep": ["net"]])))
+check("catch ups staggered after the ones already waiting", LowPowerState.nextSlot(now: 100, last: nil) == 100.8
+  && LowPowerState.nextSlot(now: 100, last: 104) == 105.5 && LowPowerState.nextSlot(now: 100, last: 90) == 100.8)
+
 if fails.isEmpty { print("lowpower: \(n) passed") } else { print("lowpower: \(fails.count) failed: \(fails.joined(separator: ", "))"); exit(1) }

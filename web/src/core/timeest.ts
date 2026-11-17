@@ -288,6 +288,21 @@ export function finishClock(l: TLive, id: string, now: number, away: Span[]): { 
   out.at = now;
   return { live: out, minutes, title };
 }
+/** Clocks still running on tasks that are already ticked: the tick happened on a device that had not yet seen the clock start (it
+ *  recorded nothing), so this device's clock would run on for days and the next tick of a repeating task would count all of it.
+ *  "finish": the clock started before the tick, so the round ends at the tick. "stop": it started after the tick (a start on a copy
+ *  that did not know yet), so it just stops. */
+export function tickedElsewhere(l: TLive, doneAt: (id: string) => number | null): { id: string; at: number; how: "finish" | "stop" }[] {
+  const out: { id: string; at: number; how: "finish" | "stop" }[] = [];
+  for (const id of runningIds(l)) {
+    const at = doneAt(id);
+    if (at === null || !Number.isFinite(at) || at <= 0) continue;
+    const start = Math.min(...afterEnd(l.run[id].sp, l.end[id]).filter(([, e]) => e === 0).map(([s0]) => s0));
+    if (!Number.isFinite(start)) continue;
+    out.push({ id, at, how: start < at ? "finish" : "stop" });
+  }
+  return out;
+}
 /** An untick soon after a tick: the minutes recorded come back as a carry, added to the next finish. */
 export function carryBack(l: TLive, id: string, minutes: number, now: number): TLive {
   const out = structuredClone(l);
@@ -434,11 +449,23 @@ export function allDone(months: Iterable<TMonth>): (TDone & { id: string })[] {
 export function pastTimes(done: (TDone & { id: string })[], title: string, o: { n?: number; id?: string } = {}): number[] {
   const n = o.n ?? 6, key = nameKey(title);
   if (!key) return [];
-  const exact = done.filter((d) => (o.id && d.id === o.id) || nameKey(d.n) === key);
+  // Runs on every new task (core/actions.ts addTodo, on the main thread) over up to 24 months of finishes: each title's key is
+  // worked out once, and each distinct name is compared once (not twice per finish, as before 17 Nov).
+  const keyOf = new Map<string, string>();
+  const k = (t: string) => { let v = keyOf.get(t); if (v === undefined) { v = nameKey(t); keyOf.set(t, v); } return v; };
+  const exact = done.filter((d) => (o.id && d.id === o.id) || k(d.n) === key);
   if (exact.length) return exact.slice(0, n).map((d) => d.m);
   let best = 0, bestKey = "";
-  for (const d of done) { if (!similar(d.n, title)) continue; const l = likeness(d.n, title); if (l > best) { best = l; bestKey = nameKey(d.n); } }
-  return bestKey ? done.filter((d) => nameKey(d.n) === bestKey).slice(0, n).map((d) => d.m) : [];
+  const seen = new Set<string>();
+  for (const d of done) {
+    const dk = k(d.n);
+    if (!dk || seen.has(dk)) continue;
+    seen.add(dk);
+    if (!similar(d.n, title)) continue;
+    const l = likeness(d.n, title);
+    if (l > best) { best = l; bestKey = dk; }
+  }
+  return bestKey ? done.filter((d) => k(d.n) === bestKey).slice(0, n).map((d) => d.m) : [];
 }
 /** "Usually takes about": the middle of the past times, rounded (to 5 minutes under 2 hours, then 10, then 15 from 4 hours). Null with none. */
 export function usualMin(times: number[]): number | null {

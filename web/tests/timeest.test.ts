@@ -2,7 +2,7 @@
 // with AFK breaks and Pomodoro, two devices merging, similar names, free time with overlapping meetings and working hours past
 // midnight, and the warning once per day.
 import assert from "node:assert/strict";
-import {
+import { tickedElsewhere,
   TE_DEFAULT, TE_WORDS, addDone, addPomo, allDone, carryBack, cleanEst, cleanLive, cleanTe, cleanTMonth, emptyLive, estLabel, estShort,
   finishClock, foldTime, freeMin, hoursWords, isRunning, lastDoneOf, likeness, mergeLive, mergeTMonth, monthOf, nameKey, overlapMs,
   overloadLine, parseEst, pastTimes, pastWords, plannedMin, pomoPiece, pruneLive, runningIds, similar, spanTotal, spentMin, startClock,
@@ -192,6 +192,34 @@ ok("similar names: the same words match, a different task does not", () => {
   assert.ok(likeness("abc", "abc") === 1);
 });
 
+ok("a clock still running on a task ticked on another device is caught: finished at the tick, or just stopped", () => {
+  const t0 = Date.parse("2026-11-17T09:00:00Z");
+  let l = startClock(emptyLive(), "a", "Write the report", t0)!;
+  l = startClock(l, "b", "Call back", t0 + 3_600_000)!;
+  l = startClock(l, "c", "Plan the week", t0)!;
+  const ticked: Record<string, number> = { a: t0 + 40 * 60_000, b: t0 + 30 * 60_000 };
+  const got = tickedElsewhere(l, (id) => ticked[id] ?? null);
+  assert.deepEqual(got, [{ id: "a", at: t0 + 40 * 60_000, how: "finish" }, { id: "b", at: t0 + 30 * 60_000, how: "stop" }]);
+  const f = finishClock(l, "a", got[0].at, []);
+  assert.equal(f.minutes, 40, "the round ends at the tick, not when this device noticed it days later");
+  assert.deepEqual(tickedElsewhere(f.live, (id) => ticked[id] ?? null).map((x) => x.id), ["b"], "once finished it is not caught again");
+  assert.deepEqual(tickedElsewhere(stopClock(l, "a", t0 + 5)!, (id) => ticked[id] ?? null).map((x) => x.id), ["b"], "a stopped clock is left alone");
+  assert.deepEqual(tickedElsewhere(l, () => Number.NaN), [], "a bad tick time is ignored");
+});
+ok("two devices recording the same tick (same task, same tick time) keep one finish", () => {
+  const at = Date.parse("2026-11-17T09:40:00Z");
+  const a = addDone(null, "2026-11", "a", { n: "Write the report", m: 40, e: 0, at });
+  const b = addDone(null, "2026-11", "a", { n: "Write the report", m: 40, e: 0, at });
+  assert.equal(allDone([mergeTMonth(a, b)]).length, 1);
+});
+ok("learning stays quick on a full history (every new task asks, on the main thread)", () => {
+  const done = Array.from({ length: 14_400 }, (_, i) => ({ id: `t${i}`, n: `Task number ${i % 300} for client`, m: 10 + (i % 50), e: 0, at: 1_700_000_000_000 + i * 60_000 }));
+  const t0 = performance.now();
+  for (let i = 0; i < 5; i++) pastTimes(done, `Task numbr ${i} for clint`);
+  const ms = (performance.now() - t0) / 5;
+  assert.ok(ms < 30, `pastTimes took ${ms.toFixed(0)} ms`);
+  assert.equal(pastTimes(done, "Task number 5 for client").length, 6, "the same name still wins, newest six");
+});
 ok("learning: past times newest first, the usual time, words", () => {
   const months = [
     addDone(addDone(null, "2026-10", "t1", { n: "Weekly report", m: 35, e: 30, at: Date.parse("2026-10-01T10:00:00Z") }), "2026-10", "t2", { n: "Weekly reports", m: 50, e: 0, at: Date.parse("2026-10-08T10:00:00Z") }),

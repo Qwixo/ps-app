@@ -748,6 +748,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     if webView === main { sendTapState() }
     // The page that held the What's new panel is gone (a reload): it can never say it is done, so the island queue lets go.
     if webView === overlay { IslandQueue.shared.finish("whatsnew") }
+    if webView === overlay { ActivityMonitor.shared.pageGone() }   // PS 1.65: a reloaded Tab list never leaves the Activity monitor reading
   }
 
   // ---------- V1.47 Tab overlay shortcuts ----------
