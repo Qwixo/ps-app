@@ -41,7 +41,11 @@ export function planMissed(list: Doc<Todo>[], o: { day: string; nowMs: number; d
     // once, on the day its own 24 hours (core/squadp1.ts, from p1At) ran out without it being done. No start time: like a one off.
     const start = ms(t.p1At);
     const p1Late = t.p1 === true && Number.isFinite(start) && start + TH.p1WindowMs <= o.nowMs && dayOf(start + TH.p1WindowMs) === o.day;
-    const hit = rep ? (isEveryDay(t) || dueDay === o.day) : (p1Late || dueDay === o.day);
+    // An every day task counts only from its first day on: not one that starts later (its date is after the day), and not one
+    // made after the day was over (a task added this morning is not "missed" yesterday when the automatic Reset closes it).
+    const madeDay = Number.isFinite(ms(t.createdAt)) ? dayOf(ms(t.createdAt)) : "";
+    const everyDay = isEveryDay(t) && !(dueDay && dueDay > o.day) && !(madeDay && madeDay > o.day);
+    const hit = rep ? (everyDay || dueDay === o.day) : (p1Late || dueDay === o.day);
     if (!hit) continue;
     const m: MissedItem = { id: d.id, t: trim(t.title) };
     if (t.p1) m.p1 = 1;

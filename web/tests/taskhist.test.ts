@@ -229,4 +229,15 @@ ok("done totals come from the ticks when read (an older PS adds ticks without to
   const r = readDay(log);
   assert.equal(r.totals!.done, 2); assert.equal(r.totals!.p1Done, 1);
 });
+ok("an every day task is not missed before it starts or on a day before it was made", () => {
+  const nowMs = Date.parse("2026-11-11T00:05:00Z");   // the automatic Reset just after midnight closes 10 Nov
+  const m = planMissed([
+    task("old", { type: "daily", createdAt: "2026-11-01T08:00:00Z" }),
+    task("later", { type: "daily", due: "2026-11-15", createdAt: "2026-11-01T08:00:00Z" }),
+    task("today", { type: "daily", createdAt: "2026-11-11T00:01:00Z" }),
+    task("nodate", { type: "daily" }),
+  ], { day: DAY, nowMs });
+  assert.deepEqual(m.map((x) => x.id).sort(), ["nodate", "old"]);
+});
+
 console.log(`taskhist: ${n} passed`);
