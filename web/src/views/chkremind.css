@@ -4,6 +4,8 @@
 
 /* ---------- the pop-up (website) ---------- */
 .chk-pop { position: fixed; z-index: 2147483000; top: 14px; left: 50%; width: min(460px, calc(100vw - 24px)); transform: translateX(-50%); }
+.chk-pop { transition: opacity .18s ease, transform .18s ease; }
+.chk-pop.out { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(.98); pointer-events: none; }
 .chk-card { position: relative; }
 .chk-x { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; font: inherit; font-size: 17px; line-height: 26px;
   color: var(--rc-ink); background: color-mix(in srgb, var(--rc-ink) var(--rc-btn), transparent); }
@@ -59,5 +61,5 @@
 @keyframes chk-fade { from { opacity: 0; } }
 @keyframes chk-rise { from { opacity: 0; transform: translateY(12px) scale(.98); } }
 @media (max-width: 560px) { .chk-win { padding: 28px 18px 20px; } .chk-row { flex-wrap: wrap; } .chk-t { flex-basis: 100%; } }
-@media (prefers-reduced-motion: reduce) { .chk-layer, .chk-win, .chk-in.wrong { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .chk-layer, .chk-win, .chk-in.wrong { animation: none; } .chk-pop { transition: none; } }
 .chk-layer.still, .chk-layer.still .chk-win { animation: none; }
