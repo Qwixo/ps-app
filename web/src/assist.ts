@@ -20,7 +20,7 @@ import { feature } from "./core/features";
 import { squadRecNow } from "./squad/engine";
 import { sendRequest, deleteRequest } from "./squad/featreqhub";
 import { assistSound } from "./ui/sfx";
-import { ASSIST_FEATURE, ASSIST_WORDS, PAGE_WAIT_MS, walkModeFor, CHANGEABLE, PICKS, TOOLS, asksForSecret, assistPrefs, cleanSay, closestFor, confirmButtons, digest, islandMsg, outsideGuideFor, recheck, simplePlan, type AiPick, type IslandState, type Match, type Plan, type Via } from "./core/assist";
+import { ASSIST_FEATURE, ASSIST_WORDS, PAGE_WAIT_MS, walkModeFor, CHANGEABLE, PICKS, TOOLS, assistPrefs, assistRoute, cleanSay, closestFor, confirmButtons, digest, islandMsg, outsideGuideFor, recheck, simplePlan, type AiPick, type IslandState, type Match, type Plan, type Via } from "./core/assist";
 import { buildWalk, nextTimeLine, startWalk, walkSay, walkStep, type Effect, type Mode, type WalkState } from "./core/assistwalk";
 import { afterSend, buildRequest, canUndo, cleanEntries, due, hold, retryable, undo, UNDO_MS, type FrEntry } from "./core/featreq";
 import { settingById, type Ctx } from "./core/settingsindex";
@@ -66,9 +66,9 @@ const islandMode = (): string => { const i = settingsData(vaultStore.get()).isla
 // ---------- asking ----------
 let askTimer = 0;
 const aiReady = (): boolean => !!PS && !!st.status && st.status.providers[st.status.pick]?.ready === true;
-function plainAnswer(text: string, note = "") {
+function plainAnswer(text: string, note = "", mayRequest = assistRoute(text) === "ai") {
   const r = simplePlan(text, ctxNow);
-  finish(r.plan, "simple", r.matches, note);
+  finish(r.plan, "simple", r.matches, note, mayRequest);
 }
 export function ask(text: string) {
   const t = cleanSay(text, 200);
@@ -77,9 +77,12 @@ export function ask(text: string) {
   window.clearTimeout(askTimer);
   const id = Math.random().toString(36).slice(2, 10);
   set({ text: t, plan: null, matches: [], note: "", nextTime: null, request: null, reqId: id, glow: null, guide: 0 });
-  // Someone pasting a password or a key: it never goes anywhere, not to an AI and not into a feature request.
-  if (asksForSecret(t)) { set({ phase: "result", plan: { kind: "none", say: ASSIST_WORDS.guideNote }, via: "simple" }); island("answer", ASSIST_WORDS.guideNote); return; }
-  if (!aiReady()) { plainAnswer(t); return; }
+  // Someone pasting a password or a key: it never goes anywhere, not to an AI and not into a feature request. Words about a key
+  // with no key in them ("where does the bot token go", "pin the time zones") are answered here by the simple version, and they
+  // never become a feature request either.
+  const route = assistRoute(t);
+  if (route === "block") { set({ phase: "result", plan: { kind: "none", say: ASSIST_WORDS.guideNote }, via: "simple" }); island("answer", ASSIST_WORDS.guideNote); return; }
+  if (route === "local" || !aiReady()) { plainAnswer(t, "", route === "ai"); return; }
   set({ phase: "thinking" });
   island("thinking", ASSIST_WORDS.thinking);
   psPost({ type: "assist:ask", id, text: t, tools: TOOLS, settings: digest(ctxNow) });
@@ -90,12 +93,12 @@ export function ask(text: string) {
     plainAnswer(t, ASSIST_WORDS.slow);
   }, PAGE_WAIT_MS);
 }
-function finish(plan: Plan, via: Via, matches: Match[], note = "") {
+function finish(plan: Plan, via: Via, matches: Match[], note = "", mayRequest = true) {
   window.clearTimeout(askTimer);
   const phase: Phase = plan.kind === "none" ? "result" : "confirm";
   set({ plan, via, matches, note: cleanSay(note, 160), phase, guide: 0 });
   if (plan.kind === "none") {
-    const sent = featureRequest(plan, matches);
+    const sent = featureRequest(plan, matches, mayRequest);
     const c = st.plan?.closest ? settingById(st.plan.closest.settingId) : undefined;
     island("answer", sent ? `${ASSIST_WORDS.frSent} ${c ? `${ASSIST_WORDS.frCant} ${c.name}.` : ASSIST_WORDS.frNoClosest}` : plan.say);
   }
@@ -274,10 +277,11 @@ const writeBox = (l: FrEntry[]) => { try { localStorage.setItem(KEY, JSON.string
 export const requestList = (): FrEntry[] => readBox();
 const frTimers = new Map<string, number>();
 /** True when a request was made (held for Undo, then sealed and sent). */
-function featureRequest(plan: Plan, matches: Match[]): boolean {
+function featureRequest(plan: Plan, matches: Match[], mayRequest: boolean): boolean {
   const closest = closestFor(plan, matches, ctxNow);
-  const req = buildRequest(st.text, settingsWanted(), new Date(), globalThis.crypto.randomUUID());
   set({ plan: { ...plan, ...(closest ? { closest } : {}) } });
+  if (!mayRequest) return false;
+  const req = buildRequest(st.text, settingsWanted(), new Date(), globalThis.crypto.randomUUID());
   if (!req) return false;
   const entry = hold(req, Date.now());
   writeBox([...readBox(), entry]);
@@ -353,7 +357,7 @@ export function installBridge(): () => void {
 /** The bot button in Settings: on a Mac with an island it brings the island card back, and the card's box takes the focus. */
 export function botButton() {
   if (PS && islandHere()) island(st.phase === "idle" ? "ask" : st.phase === "confirm" ? "confirm" : "answer", st.phase === "idle" ? ASSIST_WORDS.ask : st.plan?.say ?? ASSIST_WORDS.ask);
-  document.querySelector<HTMLInputElement>(".as-in")?.focus();
+  document.querySelector<HTMLInputElement>(".as-form .as-in")?.focus();   // the ask box, never a key box in the AI rows
 }
 export const resetAssist = () => { window.clearInterval(tick); window.clearTimeout(askTimer); st = FRESH; islandShown = false; opened = false; subs.forEach((f) => f()); };
 export { nextTimeLine };

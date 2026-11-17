@@ -318,6 +318,20 @@ export const OUTSIDE_GUIDES: OutsideGuide[] = [
 export function outsideGuideFor(id: string): OutsideGuide | undefined { return OUTSIDE_GUIDES.find((g) => g.settingId === id); }
 /** True when a line would ask for a password, key, token or code. */
 export const asksForSecret = (line: string): boolean => SECRET_ASK.test(line);
+/** True when typed text CARRIES a secret: a long key shaped string, a known key prefix, or "password is ...". Only words about
+ *  a key ("where do I put the bot token") carry none: those are answered on this device by the simple version (assistRoute). */
+export function holdsSecret(text: string): boolean {
+  if (/\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{8,}|\b(?:ghp|gho|ghs|github_pat|xox[abprs])[-_A-Za-z0-9]{8,}|\bA[K]IA[A-Z0-9]{8,}|\bey[J][A-Za-z0-9_-]{10,}/.test(text)) return true;
+  if (/[A-Za-z0-9_+/=-]{24,}/.test(text) && /\d/.test(text.match(/[A-Za-z0-9_+/=-]{24,}/)![0])) return true;
+  return /\b(?:password|passcode|passphrase|pin|token|key|secret)\s*(?:is|=|:)\s*\S{3,}/i.test(text);
+}
+/** Where a typed request goes. "block": it holds a secret, nothing is sent anywhere, not even a feature request. "local": it is
+ *  about a password, key or token (no value in it), so the simple version answers on this device and no feature request is made.
+ *  "ai": the chosen AI (or the simple version when none is ready). */
+export function assistRoute(text: string): "block" | "local" | "ai" {
+  if (holdsSecret(text)) return "block";
+  return asksForSecret(text) ? "local" : "ai";
+}
 
 // ---------- what the card says (every fixed word, for the owner to approve) ----------
 export const ASSIST_WORDS = {
