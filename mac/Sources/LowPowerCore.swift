@@ -47,6 +47,12 @@ struct LowPowerState: Equatable {
     return true
   }
 
+  /// A new answer from the page: the catch ups still waiting from the last wake are dropped only when it fell asleep again (they
+  /// wait for the next wake). Any other change (a name, the alarms switch, why) keeps them, so a wake never loses its catch ups.
+  static func dropsCatchUps(before: LowPowerState, next: LowPowerState) -> Bool { next.on && !before.on }
+  /// When the next catch up may run (seconds of uptime): 0.8 s from now, and 1.5 s after the last one already waiting.
+  static func nextSlot(now: TimeInterval, last: TimeInterval?) -> TimeInterval { max(now + 0.8, (last ?? -.infinity) + 1.5) }
+
   /// How often the Mac asks the page for a vault sync: slower while on (the owner: "every few minutes").
   static func syncEvery(_ normal: TimeInterval, on: Bool) -> TimeInterval { on ? max(normal, 240) : normal }
 

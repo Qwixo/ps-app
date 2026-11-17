@@ -221,7 +221,11 @@ export type EndEvent =
   | { t: "start"; p: Proc }
   | { t: "confirm" }
   | { t: "cancel" }
-  | { t: "ended"; pid: number; ok: boolean; alive: boolean };
+  | { t: "ended"; pid: number; ok: boolean; alive: boolean }
+  /** No answer from the Mac in END_WAIT_MS (the message was dropped, the monitor closed under it): never stuck on "Asking...". */
+  | { t: "timeout" };
+/** How long a quit or a force quit waits for the Mac's answer before it says it could not end it (the Mac answers in 1 to 3 s). */
+export const END_WAIT_MS = 8000;
 /** What the Mac is asked to do after an event, if anything. */
 export type EndSend = { pid: number; st: number; step: "quit" | "force" } | null;
 
@@ -245,6 +249,8 @@ export function endStep(cur: EndState, e: EndEvent): { next: EndState; send: End
       if (!e.ok) return { next: { s: "failed", pid: cur.pid, name: cur.name }, send: null };
       if (!e.alive) return { next: { s: "done", pid: cur.pid, name: cur.name }, send: null };
       return cur.s === "quitting" ? { next: { ...cur, s: "stuck" }, send: null } : { next: { s: "failed", pid: cur.pid, name: cur.name }, send: null };
+    case "timeout":
+      return cur.s === "quitting" || cur.s === "forcing" ? { next: { s: "failed", pid: cur.pid, name: cur.name }, send: null } : keep;
   }
 }
 /** The confirm strip's words for each step (null: nothing to show). */

@@ -20,7 +20,7 @@ import { morph, reduced } from "./DimensionX";
 import { useVault } from "../ui/kit";
 import { screenTimeDays } from "../core/select";
 import {
-  AM_SOUNDS, AM_WORDS, COLUMNS, burstFrames, DEFAULT_SORT, GRAPH_POINTS, PRESSURE_WORD, SPEEDS, applySnap, bytes, canEnd, cleanCols, cleanSpeed, duration, easeAt, endStep, endWords,
+  AM_SOUNDS, AM_WORDS, COLUMNS, burstFrames, DEFAULT_SORT, GRAPH_POINTS, PRESSURE_WORD, SPEEDS, applySnap, bytes, canEnd, cleanCols, cleanSpeed, duration, easeAt, END_WAIT_MS, endStep, endWords,
   graphPaths, heat, historyRows, holdOrder, islandBox, mem, nextSort, niceMax, pct, perfItems, pushPoint, rate, startupRows, tableLines, watts,
   type Col, type EndEvent, type EndState, type HistoryMsg, type Line, type MetaMap, type PerfId, type Proc, type Snap, type Sort, type Speed, type StartupItem,
 } from "../core/activitymon";
@@ -311,6 +311,12 @@ function Processes({ snap, cols, save, inner }: { snap: Snap; cols: Col[]; save:
     if (r.send) { play("am-end"); ask("end", r.send); }
   };
   useEffect(() => { if (ended) fire({ t: "ended", pid: ended.pid, ok: ended.ok, alive: ended.alive }); }, [ended?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A quit or force quit the Mac never answered (dropped, or the monitor closed under it) ends as "could not be ended".
+  useEffect(() => {
+    if (end.s !== "quitting" && end.s !== "forcing") return;
+    const t = window.setTimeout(() => fire({ t: "timeout" }), END_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [end.s]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (end.s !== "done" && end.s !== "failed") return;
     const t = window.setTimeout(() => fire({ t: "cancel" }), 3200);

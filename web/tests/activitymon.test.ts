@@ -114,6 +114,12 @@ e = { s: "idle" }; step({ t: "start", p: brave }); step({ t: "confirm" }); step(
 ok("PS refused: failed, no force offered", e.s === "failed" && !endWords(e)?.button);
 e = { s: "idle" }; step({ t: "start", p: brave }); step({ t: "confirm" }); step({ t: "ended", pid: 10, ok: true, alive: true }); step({ t: "confirm" }); step({ t: "ended", pid: 10, ok: true, alive: true });
 ok("still there after a force quit: failed, nothing more", e.s === "failed");
+e = { s: "idle" }; step({ t: "start", p: brave }); step({ t: "confirm" }); step({ t: "timeout" });
+ok("no answer to a quit: failed, never stuck on Asking, a new End task can start", e.s === "failed" && (step({ t: "start", p: brave }), e.s === "ask"));
+e = { s: "idle" }; step({ t: "start", p: brave }); step({ t: "confirm" }); step({ t: "ended", pid: 10, ok: true, alive: true }); step({ t: "confirm" }); step({ t: "timeout" });
+ok("no answer to a force quit: failed", e.s === "failed");
+e = { s: "idle" }; step({ t: "start", p: brave }); step({ t: "timeout" });
+ok("a late timeout at the question changes nothing", e.s === "ask");
 const sysP = procs.find((p) => p.pid === 50)!, psP = procs.find((p) => p.pid === 60)!;
 ok("never offered for macOS's own processes", !canEnd(sysP) && (e = { s: "idle" }, step({ t: "start", p: sysP }) === null && e.s === "idle"));
 ok("never offered for PS", !canEnd(psP) && (e = { s: "idle" }, step({ t: "start", p: psP }), e.s === "idle"));

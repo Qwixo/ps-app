@@ -205,6 +205,10 @@ enum ActivityCore {
     if let b = bundle?.lowercased(), !psBundleId.isEmpty, b == psBundleId.lowercased() || b.hasPrefix(psBundleId.lowercased() + ".") { return true }
     return false
   }
+  /// The same process: its start time (ms) as read now and as the page sent it back. The page's copy went through JSON and a JS number,
+  /// so an exact == can miss by a rounding step and End task would then never end anything; half a millisecond is still far tighter than
+  /// any number macOS hands to a new process.
+  static func sameStart(_ a: Double, _ b: Double) -> Bool { a.isFinite && b.isFinite && b > 0 && abs(a - b) < 0.5 }
   /// The two steps of End task: a normal quit first, a force quit only after a second click.
   enum EndStep: String { case quit, force }
   static func endStep(_ s: Any?) -> EndStep? { (s as? String).flatMap(EndStep.init(rawValue:)) }

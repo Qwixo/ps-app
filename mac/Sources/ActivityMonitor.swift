@@ -105,6 +105,12 @@ final class ActivityMonitor {
     DispatchQueue.main.async { ActivityIsland.shared.closed() }
   }
 
+  /// The Tab list page loaded again (a reload, or its web process was replaced) with the monitor open: the new page never asked for
+  /// numbers and can never send "close", so without this the reader kept sampling every process each second until the list hid.
+  func pageGone() {
+    q.async { [self] in if isOpen { close() } }
+  }
+
   private func close() {
     isOpen = false
     reschedule()
@@ -360,6 +366,9 @@ final class ActivityMonitor {
                       mem: ru.ri_phys_footprint, dr: ru.ri_diskio_bytesread, dw: ru.ri_diskio_byteswritten, energy: ru.ri_billed_energy, threads: threads))
     }
     if known.count > 6000 { known = known.filter { seenPids.contains($0.key) || protectedPids.contains($0.key) } }
+    // A long read stops at its deadline, so this sample may not have reached 1Password or Signal themselves (pids come newest first,
+    // their helpers before them). The protected ones read before still count, so what macOS holds them responsible for stays out.
+    for (pid, k) in known where k.protected { protectedPids.insert(pid) }
     // Anything whose parent or responsible process turned out to be protected goes too.
     let kept = Set(ActivityCore.keep(out.map(\.proc), myUid: myUid, protectedPids: protectedPids, named: true).map(\.pid))
     return out.filter { kept.contains($0.proc.pid) }
@@ -527,7 +536,7 @@ final class ActivityMonitor {
   private func end(pid: Int32, start: Double, step: ActivityCore.EndStep) {
     // Read the process again right now: same process (its start time), still the person's, still allowed.
     guard testDir == nil else { send(["kind": "ended", "pid": Int(pid), "step": step.rawValue, "ok": true, "alive": false]); return }
-    guard let fresh = readProcesses(deadline: DispatchTime.now().uptimeNanoseconds + 400_000_000).first(where: { $0.proc.pid == pid }), fresh.start == start else {
+    guard let fresh = readProcesses(deadline: DispatchTime.now().uptimeNanoseconds + 400_000_000).first(where: { $0.proc.pid == pid }), ActivityCore.sameStart(fresh.start, start) else {
       send(["kind": "ended", "pid": Int(pid), "step": step.rawValue, "ok": false, "alive": false]); return
     }
     let all = readProcesses(deadline: DispatchTime.now().uptimeNanoseconds + 400_000_000)
@@ -548,7 +557,7 @@ final class ActivityMonitor {
       self?.q.asyncAfter(deadline: .now() + (step == .quit ? 2.5 : 1)) { [weak self] in
         var bi = proc_bsdinfo()
         let alive = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bi, Int32(MemoryLayout<proc_bsdinfo>.size)) == Int32(MemoryLayout<proc_bsdinfo>.size)
-          && Double(bi.pbi_start_tvsec) * 1000 + Double(bi.pbi_start_tvusec) / 1000 == start
+          && ActivityCore.sameStart(Double(bi.pbi_start_tvsec) * 1000 + Double(bi.pbi_start_tvusec) / 1000, start)
         self?.send(["kind": "ended", "pid": Int(pid), "step": step.rawValue, "ok": sent, "alive": alive])
       }
     }
