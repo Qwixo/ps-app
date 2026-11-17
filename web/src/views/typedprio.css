@@ -16,8 +16,11 @@
 .tp-mark.lose { opacity: .45; background: transparent; box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--tp-c) 60%, transparent); }
 @keyframes tp-mark-in { from { opacity: 0; } }
 
+/* The chips sit together at the right end (PS 1.65: the date chip, then the priority one). */
+.tp-chips { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 6px; max-width: min(60%, calc(100% - 64px)); pointer-events: none; }
+.tp-chips > * { pointer-events: auto; }
 .tp-chip {
-  position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: inline-flex; align-items: center; gap: calc(5px * var(--k-dn, 1)); white-space: nowrap;
+  position: relative; flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: calc(5px * var(--k-dn, 1)); white-space: nowrap;
   padding: calc(3px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(3px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: 999px; font-size: calc(12px * var(--k-fs, 1)); line-height: 1.25; font-weight: 700;
   color: color-mix(in srgb, var(--k-fg, #FFFFFF) 80%, transparent);
   background: color-mix(in srgb, var(--k-surface, #1A1016) 70%, color-mix(in srgb, var(--tp-c) 30%, transparent));
@@ -26,8 +29,8 @@
 }
 .tp-chip b { color: var(--tp-c); font-weight: 850; letter-spacing: .03em; transition: color .2s ease; }
 .tp-chip.leaving { animation: tp-chip-out .2s ease both; pointer-events: none; }
-@keyframes tp-chip-in { from { opacity: 0; transform: translateY(-50%) translateX(6px) scale(.9); } to { opacity: 1; transform: translateY(-50%); } }
-@keyframes tp-chip-out { to { opacity: 0; transform: translateY(-50%) translateX(4px) scale(.94); } }
+@keyframes tp-chip-in { from { opacity: 0; transform: translateX(6px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes tp-chip-out { to { opacity: 0; transform: translateX(4px) scale(.94); } }
 .tp-chip-x {
   display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; margin-left: 1px; border: 0; border-radius: 50%; cursor: pointer;
   color: inherit; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 10%, transparent); transition: background-color .15s ease, color .15s ease;
@@ -36,7 +39,8 @@
 /* A narrow box (Dimension X, the phone's boards) keeps just the P number. */
 .tp-wrap.tp-compact .tp-chip-l { display: none; }
 /* The big Add task window has bigger words. */
-.tm-add-win .tp-chip { right: 12px; font-size: calc(13px * var(--k-fs, 1)); padding: calc(4px * var(--k-dn, 1)) calc(5px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
+.tm-add-win .tp-chips { right: 12px; }
+.tm-add-win .tp-chip { font-size: calc(13px * var(--k-fs, 1)); padding: calc(4px * var(--k-dn, 1)) calc(5px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(12px * var(--k-dn, 1)); }
 .tm-add-win .tp-chip-x { width: 22px; height: 22px; }
 
 /* Dimension X: the box's own sizing moves to the wrapper. */
@@ -47,6 +51,24 @@ html.gos .tp-wrap.dx-addw { flex: 1 1 100%; max-width: none; min-width: 0; }
 
 /* Light themes: the chip on a light surface. */
 .tm-light .tp-chip, html[data-nb] .tp-chip { box-shadow: 0 3px 10px rgba(0, 0, 0, .12); }
+
+/* Dates in plain words (PS 1.65, views/NlDates.tsx): the words get a quiet dotted underline in the accent, and the chip is a
+   button: one click keeps the words as typed. */
+.tp-nl { --tp-c: var(--k-acc, #EC4E86); --tp-a: 14%; }
+.tp-mark.tp-nl { box-shadow: none; background: color-mix(in srgb, var(--tp-c) var(--tp-a), transparent);
+  background-image: linear-gradient(90deg, var(--tp-c) 50%, transparent 0); background-size: 4px 1.5px; background-repeat: repeat-x; background-position: 0 100%; }
+.nl-chip { cursor: pointer; font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; gap: calc(5px * var(--k-dn, 1)); padding-left: calc(8px * var(--k-dn, 1));
+  border-color: color-mix(in srgb, var(--tp-c) 40%, transparent); }
+.nl-chip b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 700; color: color-mix(in srgb, var(--k-fg, #FFFFFF) 88%, var(--tp-c)); letter-spacing: 0; }
+.nl-chip .nl-ico { flex: none; color: var(--tp-c); opacity: .9; }
+.nl-chip .nl-x { width: 18px; height: 18px; flex: none; opacity: .7; transition: opacity .15s ease, background-color .15s ease; }
+.nl-chip:hover { border-color: color-mix(in srgb, var(--tp-c) 70%, transparent); }
+.nl-chip:hover .nl-x { opacity: 1; background: color-mix(in srgb, var(--k-fg, #FFFFFF) 22%, transparent); }
+.nl-chip:focus-visible { outline: 2px solid var(--tp-c); outline-offset: 2px; }
+.tm-add-win .nl-chip { padding-left: calc(10px * var(--k-dn, 1)); }
+.tm-add-win .nl-chip .nl-x { width: 20px; height: 20px; }
+.tp-wrap.tp-compact .nl-chip b { max-width: 9em; }
+.tm-light .nl-chip b, html[data-nb] .nl-chip b { color: color-mix(in srgb, var(--k-fg, #1A1016) 85%, var(--tp-c)); }
 
 @media (prefers-reduced-motion: reduce) {
   .tp-mark, .tp-chip, .tp-chip.leaving { animation: none; transition: none; }

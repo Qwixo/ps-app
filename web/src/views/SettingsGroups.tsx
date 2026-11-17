@@ -203,6 +203,16 @@ export const CONTROLS: Controls = {
   "edit-sounds": row(() => <EditSoundsSwitch />),
   "add-button": block(() => <AddButtonControls />),
   "typed-prio": row(() => <TypedPrioSwitch save={save} />),
+  // PS 1.65 dates in plain words (views/NlDates.tsx, core/nldates.ts). The same switch as in From the squad (squadFeatures).
+  "nl-dates": function NlDates({ e }) {
+    const v = useVault();
+    const mine = cleanSwitches(settingsData(v).squadFeatures);
+    return <SetRow e={e} right={<OnOff label={e.name} on={feature("nl-dates")} ready={v.status === "unlocked"} set={(on) => save({ squadFeatures: { ...mine, "nl-dates": on } })} />} />;
+  },
+  "nl-remind": function NlRemind({ e }) {
+    const v = useVault();
+    return <SetRow e={e} right={<OnOff label={e.name} on={settingsData(v).tmNlRemind !== false} ready={v.status === "unlocked"} set={(on) => save({ tmNlRemind: on })} />} />;
+  },
   "new-badge": row(() => <NewBadgeControls />),
 
   // Pomodoro (V1.58, views/Pomodoro.tsx)

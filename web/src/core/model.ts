@@ -507,6 +507,7 @@ export interface Settings {
   tmAddAnim?: "spin" | "pop" | "bounce" | "pulse" | "none";   // its click animation. Default spin (a 360)
   tmOverdue?: import("./overduelook").OverdueLook | null;   // the Overdue card: background and text colour (#rrggbb or null) and an effect (core/overduelook.ts, V1.44). Unset = as before
   tmTypedPrio?: boolean;         // P1, P2 or P3 typed in a new task sets its priority (core/typedprio.ts, V1.40). false = off. Default on
+  tmNlRemind?: boolean;          // PS 1.65 dates in plain words (core/nldates.ts): a typed time ("tomorrow 9am") also puts a reminder on the task. false = off. Default on
   noteLook?: import("./notelook").NoteLookPrefs | null;   // notification cards per kind: colour, sound on, which sound (core/notelook.ts, V1.36). Unset = as before
   tmDoneKeep?: "today" | "7d" | "30d";   // how long Completed keeps ticks: since the start of today in the developer's zone (default), 7 or 30 days
   privateMode?: boolean;         // PS (V1.57: every Mac pop up is a small pill with no sound, ps-mac PrivateCore.swift): notification cards hide names and words (the mask on the Meetings panel, or Yes to "Start private mode?"), until the developer turns it off (the developer, 29 Oct 2026)
