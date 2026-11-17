@@ -1369,6 +1369,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     if type.hasPrefix("torch:") && !MINECRAFT_ENABLED { return }   // Minecraft mode is off (MinecraftSwitch.swift): no torch
     if (fromMain || fromOverlay) && TorchLight.shared.handle(type, msg, from: message.webView) { return }   // torch:* (Torch.swift)
     if (fromMain || fromOverlay) && type.hasPrefix("assist:") && AssistService.shared.handle(type, msg, from: message.webView) { return }   // PS 1.65 Settings assistant (AssistProviders.swift)
+    if (fromMain || fromOverlay) && type.hasPrefix("voice:") && VoiceCapture.shared.handle(type, msg, from: message.webView) { return }   // PS 1.65 voice capture (VoiceCapture.swift)
     if (fromMain || fromOverlay) && SleepSound.shared.handle(type, msg) { return }
     if (fromMain || fromOverlay) && AlarmListStore.shared.handle(type, msg) { return }   // V1.47 alarm playlists
     if (fromMain || fromOverlay) && type.hasPrefix("rem:") && Reminders.shared.handle(type, msg) { return }    // reminders: own sounds, Test (Reminders.swift)    // V1.44 alarm sound: own sound, Test (SleepSound.swift)

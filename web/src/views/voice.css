@@ -1,0 +1,80 @@
+/* Voice capture in the Add task window (PS 1.65, views/VoiceCapture.tsx). Thin and calm: the same surface, accent and
+   radius as the window, a red dot only while listening, the meter in soft bars. Reduced motion: nothing moves. */
+.vc-titlerow { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); min-width: 0; }
+.vc-titlerow > :first-child { flex: 1; min-width: 0; }
+
+.vc-mic { flex: none; position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; padding: 0;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(80% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent);
+  border: 1.5px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(16% * var(--k-ia, 1))), transparent);
+  transition: background .2s ease, border-color .2s ease, color .2s ease, transform .25s cubic-bezier(.34, 1.56, .64, 1); touch-action: none; }
+.vc-mic svg { width: 20px; height: 20px; }
+.vc-mic:hover:not(:disabled) { color: var(--k-fg, #FFFFFF); border-color: var(--k-acc, #EC4E86); }
+.vc-mic:active:not(:disabled) { transform: scale(.92); }
+.vc-mic:disabled { opacity: .45; cursor: default; }
+.vc-mic:focus-visible { outline: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); }
+.vc-mic.live { color: #FFFFFF; background: #E5484D; border-color: #E5484D; transform: scale(1.04); }
+.vc-mic.live::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid color-mix(in srgb, #E5484D 55%, transparent); animation: vc-ring 1.6s ease-out infinite; pointer-events: none; }
+@keyframes vc-ring { from { opacity: .9; transform: scale(.9); } to { opacity: 0; transform: scale(1.35); } }
+
+/* Listening and thinking: one slim bar under the name. */
+.vc-bar { display: flex; align-items: center; gap: calc(10px * var(--k-dn, 1)); min-width: 0; padding: calc(9px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)) calc(9px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1));
+  border-radius: 999px; font-size: calc(13px * var(--k-fs, 1)); font-weight: 700;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(6% * var(--k-ia, 1))), transparent);
+  border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+  animation: vc-in .28s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes vc-in { 0% { opacity: 0; transform: translateY(-4px) scaleX(.97); } 100% { opacity: 1; transform: none; } }
+.vc-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #E5484D; box-shadow: 0 0 0 0 color-mix(in srgb, #E5484D 60%, transparent); animation: vc-pulse 1.6s ease-in-out infinite; }
+@keyframes vc-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #E5484D 50%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.vc-l { flex: none; letter-spacing: .01em; }
+.vc-time { flex: none; opacity: .7; font-variant-numeric: tabular-nums; }
+.vc-words { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; direction: rtl; text-align: left; font-weight: 550; opacity: .75; }
+.vc-words:empty { direction: ltr; }
+.vc-meter { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 18px; }
+.vc-meter i { display: block; width: 3px; height: 18px; border-radius: 2px; background: var(--k-acc, #EC4E86); transform-origin: center; transition: transform .09s linear; }
+.vc-hint { flex: none; opacity: .65; font-weight: 650; padding-right: calc(6px * var(--k-dn, 1)); }
+.vc-stop { flex: none; font: inherit; font-weight: 800; cursor: pointer; padding: calc(5px * var(--k-dn, 1)) calc(14px * var(--k-dn, 1)); border-radius: 999px; border: 0; color: #FFFFFF; background: #E5484D; }
+.vc-stop:hover { background: #D13B40; }
+.vc-spin { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--k-acc, #EC4E86) 30%, transparent); border-top-color: var(--k-acc, #EC4E86); animation: vc-spin .8s linear infinite; }
+@keyframes vc-spin { to { transform: rotate(360deg); } }
+
+/* A plain line: why it cannot listen, or what just happened. */
+.vc-note { display: flex; align-items: center; flex-wrap: wrap; gap: calc(8px * var(--k-dn, 1)); font-size: calc(13px * var(--k-fs, 1)); font-weight: 600; line-height: 1.4;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(78% * var(--k-ia, 1))), transparent); animation: vc-in .28s cubic-bezier(.22, 1, .36, 1) both; }
+.vc-note.asking::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--k-acc, #EC4E86); }
+.vc-link { font: inherit; font-weight: 800; cursor: pointer; padding: 0; border: 0; background: none; color: var(--k-acc, #EC4E86); text-decoration: underline; text-underline-offset: 3px; }
+
+/* The review list. */
+.vc-review { display: grid; gap: calc(10px * var(--k-dn, 1)); animation: vc-in .3s cubic-bezier(.22, 1, .36, 1) both; }
+.vc-review-h { font-size: calc(13px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .02em; opacity: .75; }
+.vc-rows { display: grid; gap: calc(6px * var(--k-dn, 1)); max-height: min(46vh, 360px); overflow-y: auto; }
+.vc-row { position: relative; display: flex; align-items: center; gap: calc(6px * var(--k-dn, 1)); min-width: 0; padding: calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1)) calc(4px * var(--k-dn, 1));
+  border-radius: calc(12px * var(--k-rd, 1)); border: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(12% * var(--k-ia, 1))), transparent);
+  background: color-mix(in srgb, var(--k-base, #000000) 30%, transparent);
+  animation: vc-row-in .34s cubic-bezier(.34, 1.4, .64, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+@keyframes vc-row-in { 0% { opacity: 0; transform: translateY(8px) scale(.98); } 100% { opacity: 1; transform: none; } }
+.vc-row.leaving { animation: vc-row-out .18s ease both; pointer-events: none; }
+@keyframes vc-row-out { to { opacity: 0; transform: translateX(14px) scale(.97); } }
+.vc-row:focus-within { border-color: var(--k-acc, #EC4E86); }
+.vc-row.empty { opacity: .6; }
+.vc-row input { flex: 1; min-width: 0; font: inherit; font-size: calc(15px * var(--k-fs, 1)); font-weight: 600; color: var(--k-fg, #FFFFFF); background: transparent; border: 0; outline: none; padding: calc(7px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); }
+.vc-chip { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: inherit; font-size: calc(12px * var(--k-fs, 1)); font-weight: 750; cursor: pointer;
+  padding: calc(4px * var(--k-dn, 1)) calc(10px * var(--k-dn, 1)); border-radius: 999px; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--k-acc, #EC4E86) 20%, transparent); border: 1px solid color-mix(in srgb, var(--k-acc, #EC4E86) 55%, transparent); transition: background .15s ease; }
+.vc-chip:hover { background: color-mix(in srgb, var(--k-acc, #EC4E86) 32%, transparent); text-decoration: line-through; }
+.vc-need { flex: none; font-size: calc(12px * var(--k-fs, 1)); font-weight: 650; opacity: .7; padding-right: 4px; }
+.vc-x { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 0; cursor: pointer; font-size: calc(18px * var(--k-fs, 1)); line-height: 1;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); background: transparent; transition: background .15s ease, color .15s ease; }
+.vc-x:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(10% * var(--k-ia, 1))), transparent); }
+.vc-empty { font-size: calc(13px * var(--k-fs, 1)); opacity: .7; padding: calc(6px * var(--k-dn, 1)) 0; }
+.vc-review-foot { display: flex; align-items: center; justify-content: flex-end; gap: calc(10px * var(--k-dn, 1)); }
+.vc-addall:disabled { opacity: .5; cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vc-bar, .vc-note, .vc-review, .vc-row, .vc-row.leaving { animation: none; }
+  .vc-mic.live::after, .vc-dot, .vc-spin { animation: none; }
+  .vc-meter i, .vc-mic { transition: none; }
+}
+
+/* While the review list is up, the window's own Advanced and Add task wait (the list has its own Add all). */
+.tm-add-win.vc-reviewing .tm-add-foot, .tm-add-win.vc-reviewing .tm-add-adv { display: none; }

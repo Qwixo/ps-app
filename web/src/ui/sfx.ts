@@ -6,6 +6,7 @@ import { noteSampleName, noteSoundTones, type NoteSoundId } from "../core/notelo
 import { ISLAND_TONES } from "../core/islandtimers";
 import { TZ_TONES } from "../core/tzfocus";
 import { AP_TONES } from "../core/audiopriority";
+import { VOICE_TONES } from "../core/voicecapture";
 import { EDIT_SOUNDS, editSoundOk, type EditSound, type EditTone } from "../core/editsounds";
 
 let ctx: AudioContext | null = null;
@@ -194,6 +195,12 @@ export const sfx = {
   ap(kind: "lift" | "slot" | "drop" | "use" | "forget") {
     if (viaApp(`ap-${kind}`)) return;
     for (const t of AP_TONES[kind]) tone(t.f, t.dur, t.peak, t.wave === 0 ? "sine" : "triangle", t.at, t.to);
+  },
+  /** Voice capture (PS 1.65, core/voicecapture.ts): a soft rising pair as it starts listening, falling as it stops. PS plays its own copy. */
+  voice(kind: "start" | "stop") {
+    primeSfx();
+    if (viaApp(`voice-${kind}`)) return;
+    for (const t of VOICE_TONES[kind]) tone(t.f, t.dur, t.peak, t.wave === 0 ? "sine" : "triangle", t.at, t.to);
   },
   /** Settings preview. */
   test() { this.hover(); window.setTimeout(() => this.click(), 160); },

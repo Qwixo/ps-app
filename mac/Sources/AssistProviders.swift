@@ -196,25 +196,45 @@ struct AssistAppleProvider: AssistProvider {
     if let why = Self.whyNot() { throw AssistFailure.unavailable(why) }
     #if canImport(FoundationModels)
     if #available(macOS 26.0, *) {
-      let sem = DispatchSemaphore(value: 0)
-      var text: String?
-      let task = Task.detached {
-        do {
-          let session = LanguageModelSession(model: SystemLanguageModel.default,
-                                             tools: [AssistFindTool(request: r), AssistDetailsTool(request: r)],
-                                             instructions: AssistCore.appleInstructions)
-          text = try await session.respond(to: AssistCore.applePrompt(r)).content
-        } catch { text = nil }
-        sem.signal()
+      return try Self.wait(cancel) {
+        let session = LanguageModelSession(model: SystemLanguageModel.default,
+                                           tools: [AssistFindTool(request: r), AssistDetailsTool(request: r)],
+                                           instructions: AssistCore.appleInstructions)
+        return try await session.respond(to: AssistCore.applePrompt(r)).content
       }
-      cancel.onCancel { task.cancel(); sem.signal() }
-      sem.wait()
-      if cancel.isCancelled { throw AssistFailure.cancelled }
-      guard let t = text else { throw AssistFailure.failed }
-      return t
     }
     #endif
     throw AssistFailure.unavailable(AssistApple.whyNot("oldMac"))
+  }
+
+  /// The same model with plain instructions and no tools, for other parts of PS (PS 1.65 voice capture splits spoken words
+  /// into tasks, VoiceCapture.swift). Off the main thread only; throws like `complete`.
+  static func respond(instructions: String, prompt: String, cancel: AssistCancel) throws -> String {
+    if let why = whyNot() { throw AssistFailure.unavailable(why) }
+    #if canImport(FoundationModels)
+    if #available(macOS 26.0, *) {
+      return try wait(cancel) {
+        let session = LanguageModelSession(model: SystemLanguageModel.default, instructions: instructions)
+        return try await session.respond(to: prompt).content
+      }
+    }
+    #endif
+    throw AssistFailure.unavailable(AssistApple.whyNot("oldMac"))
+  }
+
+  /// Runs one model call and waits for it on this (background) thread; the person's cancel stops it.
+  private static func wait(_ cancel: AssistCancel, _ ask: @escaping () async throws -> String) throws -> String {
+    let sem = DispatchSemaphore(value: 0)
+    var text: String?
+    let task = Task.detached {
+      do { text = try await ask() } catch { text = nil }
+      sem.signal()
+    }
+    cancel.onCancel { task.cancel(); sem.signal() }
+    sem.wait()
+    if cancel.isCancelled { throw AssistFailure.cancelled }
+    guard let t = text else { throw AssistFailure.failed }
+    return t
   }
 }
 

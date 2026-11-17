@@ -31,6 +31,8 @@ import { addDraft, addGate, addShape, cleanTitle, enterAction, quickDefaults, re
 import { typedEdit, typedOrder } from "../core/typedprio";
 import { PrioInput, useTypedPrio } from "./TypedPrio";
 import { useNlDates } from "./NlDates";
+import { useVoiceCapture, VoiceMic, VoicePanel } from "./VoiceCapture";
+import type { ReviewRow } from "../core/voicecapture";
 import { nlAddOpts, nlRule } from "../core/nldates";
 import { addTimeReminder, type TimeRemind } from "../core/nlremind";
 import { addTodo, approveSuggestion, awareDone, awareToList, awareUndone, suggestionToAware, suggestionToDimx, resetTodos, deleteTodo, noteDimxMove, dismissSuggestion, saveSettings, setReplyHandled, setTodoOrder, setWorkingOn, subtaskOp, toggleTodo, setTodoDone, setTodosDone, clearTodos, reviveTodos, buryTodos, restoreTodo, updateTodo, moveTasks, ungroupTasks, setDnd, setJournal } from "../core/actions";
@@ -1928,12 +1930,36 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
   const [gate] = useState(() => addGate());
   const titleRef = useRef<HTMLInputElement>(null);
   const win = useRef<HTMLDivElement>(null);
+  // PS 1.65 voice capture (views/VoiceCapture.tsx, core/voicecapture.ts): the review list's Add all click adds its tasks here,
+  // each with the date or repeat its words said, no priority, like the quick form. Esc closes the voice part first.
+  const addVoice = (rows: ReviewRow[]) => {
+    const end = orderForPriority(prio, prio.length + 1);
+    let last = "", n = 0;
+    rows.forEach((r, i) => {
+      const v = cleanTitle(r.title);
+      if (!v) return;
+      const p = r.parsed;
+      const sh = addShape(p ? nlAddOpts(quickDefaults(todayISO()), p) : quickDefaults(todayISO()));
+      const group = addGroupHere(sh.type);
+      taskMapActions.add({
+        title: v, type: sh.type, due: p && p.kind !== "daily" ? p.due : null, repeat: p?.kind === "repeat" ? p.repeat : null,
+        order: sh.type === "daily" ? undefined : end + i, p1: false, clientId: null, notes: null, ...(sh.unranked ? { unranked: true } : {}),
+        ...(group ? { group, order: undefined } : {}),
+        ...(p?.time ? { remind: nl.reminderFor(p) } : {}),
+      });
+      last = v; n++;
+    });
+    if (n) setAdded((a) => ({ n: (a?.n ?? 0) + n, last }));
+  };
+  const voice = useVoiceCapture(addVoice);
+  const voiceEsc = useRef(voice.esc);
+  voiceEsc.current = voice.esc;
   // While it is open the list stays up and has the keyboard (PS pins it), and Esc closes only this.
   useEffect(() => {
     if (PS) psPost({ type: "dimx", open: true }); else taskMapActions.editing(true);
     const w = window as Window & { __psDimxClose?: () => boolean };
-    const esc = () => { onClose(); return true; };
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); onClose(); } };
+    const esc = () => { if (!voiceEsc.current()) onClose(); return true; };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); if (!voiceEsc.current()) onClose(); } };
     window.addEventListener("keydown", key, true);
     w.__psDimxClose = esc;
     // Focus inside the tap that opened it, so a phone's keyboard opens together with the window and
@@ -2025,7 +2051,7 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
       {/* A tap beside the window closes it (what was typed waits for next time). On the click, not the press, so
           the rest of the tap can never land on the list underneath. */}
       <div className="tm-add-dim" onMouseDown={keep} onClick={onClose} aria-hidden="true" />
-      <div ref={win} className="tm-add-win" role="dialog" aria-modal="true" aria-label="Add a task" onKeyDown={keys}>
+      <div ref={win} className={`tm-add-win${voice.st.phase === "review" ? " vc-reviewing" : ""}`} role="dialog" aria-modal="true" aria-label="Add a task" onKeyDown={keys}>
         <div className="tm-add-top">
           <h2 className="tm-add-h">Add a task</h2>
           {added && (
@@ -2036,8 +2062,13 @@ function AddTaskWindow({ prio, clients, docked, onClose }: { prio: Doc<Todo>[]; 
           )}
           <button type="button" className="tm-add-x" onMouseDown={keep} onClick={onClose} aria-label="Close" title="Close (Esc)">×</button>
         </div>
-        <PrioInput ref={titleRef} prio={tp} nl={nl} className="tm-add-title" value={title} onChange={(e) => type(e.target.value)} placeholder="What needs doing?" aria-label="Task" maxLength={500}
-          enterKeyHint="go" autoComplete="off" autoCapitalize="sentences" spellCheck />
+        {(() => {
+          const field = <PrioInput ref={titleRef} prio={tp} nl={nl} className="tm-add-title" value={title} onChange={(e) => type(e.target.value)} placeholder="What needs doing?" aria-label="Task" maxLength={500}
+            enterKeyHint="go" autoComplete="off" autoCapitalize="sentences" spellCheck />;
+          // On the Mac page the name always sits in this row (so the field is never remounted when the microphone appears).
+          return PS ? <div className="vc-titlerow">{field}<VoiceMic v={voice} /></div> : field;
+        })()}
+        <VoicePanel v={voice} />
         <SquadAddRow title={title} clientId={o.clientId} value={sq} onChange={setSq} />
         {adv && (
           <div className="tm-add-adv">

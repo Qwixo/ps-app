@@ -81,6 +81,9 @@ final class Sfx {
     "am-close": [Tone(f: 2200, to: 700, dur: 0.24, peak: 0.045, wave: 3, at: 0), Tone(f: 784, to: 440, dur: 0.18, peak: 0.05, wave: 0, at: 0.04)],
     "am-tab": [Tone(f: 1760, to: 1480, dur: 0.03, peak: 0.04, wave: 1, at: 0)],
     "am-end": [Tone(f: 330, to: 140, dur: 0.16, peak: 0.12, wave: 0, at: 0), Tone(f: 1200, to: 600, dur: 0.06, peak: 0.03, wave: 1, at: 0.01)],
+    // PS 1.65 voice capture (web src/core/voicecapture.ts VOICE_TONES, the same numbers): starts listening, stops.
+    "voice-start": [Tone(f: 660, to: nil, dur: 0.12, peak: 0.06, wave: 0, at: 0), Tone(f: 990, to: nil, dur: 0.18, peak: 0.055, wave: 0, at: 0.07)],
+    "voice-stop": [Tone(f: 990, to: nil, dur: 0.12, peak: 0.05, wave: 0, at: 0), Tone(f: 660, to: nil, dur: 0.2, peak: 0.05, wave: 0, at: 0.07)],
     "edit-reset": [Tone(f: 880, to: 440, dur: 0.3, peak: 0.08, wave: 0, at: 0), Tone(f: 1500, to: 300, dur: 0.28, peak: 0.04, wave: 3, at: 0)],
   ]
 
