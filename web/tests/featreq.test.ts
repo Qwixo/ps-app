@@ -26,7 +26,7 @@ ok("nothing from the vault: extra fields are never carried", (() => { const c = 
 ok("a bad id or version is no request", cleanRequest({ ...r, id: "x" }) === null && cleanRequest({ ...r, v: 2 }) === null && cleanRequest(null) === null);
 
 // ---- sealed with the squad key
-const rec = { v: 1, squadId: "223e4567-e89b-12d3-a456-426614174000", memberId: "323e4567-e89b-12d3-a456-426614174000", me: "Me", keys: [{ gen: 1, k: await newSquadKey() }], sign: await newSignPair(), box: await newSignPair(), secret: "s", joinedAt: NOW.toISOString() } as SquadRec;
+const rec = { v: 1, squadId: "223e4567-e89b-12d3-a456-426614174000", memberId: "323e4567-e89b-12d3-a456-426614174000", me: "Quentin Example Person", keys: [{ gen: 1, k: await newSquadKey() }], sign: await newSignPair(), box: await newSignPair(), secret: "s", joinedAt: NOW.toISOString() } as SquadRec;
 const sealed = await sealRequest(rec, r);
 ok("sealed: the hub sees an id, a key generation and scrambled text", Object.keys(sealed).sort().join() === "ct,gen,id" && !sealed.ct.includes("pop-up") && sealed.gen === 1);
 ok("sealed: the squad key opens it, with its own aad", JSON.stringify(await open(rec.keys[0].k, sealed.ct, frAad(V, rec.squadId, rec.memberId, r.id))) === JSON.stringify(r));
