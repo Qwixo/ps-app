@@ -313,6 +313,7 @@ object WebHost {
             "sleep:list:read" -> AlarmListStore.read(c, m.optString("id"), m.optLong("off", 0), m.optInt("len", 1 shl 20))
             "sleep:list:keep" -> AlarmListStore.keep(c, (0 until (m.optJSONArray("ids")?.length() ?: 0)).mapNotNull { i -> m.optJSONArray("ids")?.optString(i)?.takeIf { ListClock.okId(it) } }.toSet())
             "sleep:testStop" -> Sleep.stopTest(c)
+            "sleep:auth" -> SleepOwner.fromPage(activity, m)   // V1.65 the owner check for Settings in the app
             "sleep:wakeInSeen" -> Sleep.wakeInSeen(c)   // V1.43 "Wake me up in" set on the clock reached the page
             // The Annoying 15 min reminder (Remind.kt, web src/core/remind.ts): its own thread, never the main one.
             "remPlan" -> m.optJSONObject("plan")?.let { Remind.setPlan(c, it) }

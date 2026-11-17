@@ -23,6 +23,7 @@ import { breakOpen, breakStage, buildPlan, moreOpen, pauseOpen, propose, resumeO
 import { okWakeIn, wakeInAt, type SleepTimer } from "../core/sleepwake";
 import type { OpenSleep } from "../core/fitness";
 import { onSleepSquad, sleepSquadNow } from "./squad";
+import { clearSpentOnce, onceAuthAnswer, onceFromShell, onceOn } from "./once";
 
 export type Where = "mac" | "phone" | "web";
 export const WHERE: Where = PS ? "mac" : GOS ? "phone" : "web";
@@ -81,7 +82,7 @@ export function currentPlan(since: number): SleepPlan {
   const timer = live(o) ? o!.timer ?? null : pendingTimer;
   // V1.52: on a Mac the plan carries the AI Sentry mode button's settings and the same restart check as the AI button.
   const sentry = WHERE === "mac" ? { prefs: sentryOf(settingsData(s)), reboot: psSettingsNow()?.reboot } : null;
-  return buildPlan({ since, tz: localTz(), prefs, usualWake, tasks: todayTasks(list, todayISO()), squad: sleepSquadNow(), psBase: sleepPsBase(), timer, now: Date.now(), sentry });
+  return buildPlan({ since, tz: localTz(), prefs, usualWake, tasks: todayTasks(list, todayISO()), squad: sleepSquadNow(), psBase: sleepPsBase(), timer, now: Date.now(), sentry, onceOn: onceOn() });
 }
 
 // ---------- "Wake me up in" (V1.43) ----------
@@ -314,8 +315,11 @@ export async function discardSleep() {
 }
 
 // ---------- the shells' answers ----------
-type MacState = { idleMs?: unknown; wakeIn?: unknown; wakeFrom?: unknown; alarmOnly?: unknown; running?: unknown; since?: unknown; onBattery?: unknown; pct?: unknown; stopped?: unknown; woke?: unknown; refused?: unknown };
+type MacState = { authId?: unknown; authOk?: unknown; authNone?: unknown; once?: unknown; idleMs?: unknown; wakeIn?: unknown; wakeFrom?: unknown; alarmOnly?: unknown; running?: unknown; since?: unknown; onBattery?: unknown; pct?: unknown; stopped?: unknown; woke?: unknown; refused?: unknown };
 function fromMac(m: MacState) {
+  // PS 1.65 Just tomorrow: the Mac's answer to a Touch ID ask from Settings, or a choice made on its clock (Touch ID already passed).
+  if (typeof m.authId === "string") { onceAuthAnswer(m.authId, m.authOk, m.authNone); return; }
+  if (m.once && typeof m.once === "object") { sleepLog("Just tomorrow set on the clock"); onceFromShell(m.once); return; }
   if (typeof m.idleMs === "number") { const f = idleWait; idleWait = null; f?.(m.idleMs); return; }   // V1.43: the Mac's idle time
   // V1.43: "Wake me up in" set on the Mac's clock (from the Mac's own moment, so both ring at the same minute).
   // V1.47: the Mac rang an alarm with Sleep mode off (its own screen, Stop closes it): no sleep to record or end.
@@ -344,6 +348,8 @@ function fromMac(m: MacState) {
   if (m.stopped === "wake" && Number.isFinite(Number(m.woke))) void wokeUp(Number(m.woke));
 }
 function fromPhone(m: Record<string, unknown>) {
+  if (m.type === "sleep:auth") { onceAuthAnswer(m.id, m.ok, m.none); return; }   // PS 1.65 Just tomorrow: the phone's unlock answer
+  if (m.type === "sleep:once") { sleepLog("Just tomorrow set on the clock"); onceFromShell(m); return; }   // chosen on the phone's clock, unlock passed
   if (m.type === "sleep:state" && m.alarmOnly === true) {
     sleepLog(`alarm with Sleep mode off: ${m.running === true ? "ringing" : "over"}`);   // V1.47: nothing to record or end
   } else if (m.type === "sleep:settings") {
@@ -487,7 +493,8 @@ function sendAlarms() {
   const prefs = sleepModeOf(settingsData(s));
   const now = Date.now();
   const on = prefs.show && prefs.ringAlways && prefs.alarms.some((a) => a.on);
-  const plan = on ? buildPlan({ since: now, tz: localTz(), prefs, tasks: [], squad: null, psBase: sleepPsBase(), now, alarmOnly: true }) : null;
+  const plan = on ? buildPlan({ since: now, tz: localTz(), prefs, tasks: [], squad: null, psBase: sleepPsBase(), now, alarmOnly: true, onceOn: onceOn() }) : null;
+  if (prefs.once) clearSpentOnce(now);   // PS 1.65: a Just tomorrow whose morning is over clears itself
   const key = plan ? JSON.stringify({ rings: plan.rings, list: plan.list, styles: plan.styles, look: plan.look, lock: plan.lock }) : "off";
   if (key === lastAlarms) return;
   lastAlarms = key;

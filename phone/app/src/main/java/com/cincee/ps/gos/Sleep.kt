@@ -34,7 +34,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.OnBackPressedCallback
 import org.json.JSONObject
 
@@ -132,6 +132,24 @@ object Sleep {
         if (sp(c).getBoolean("pendingSet", false)) WebHost.post(JSONObject().put("type", "sleep:settings"))
         sp(c).getString("pendingBrk", null)?.let { runCatching { WebHost.post(JSONObject(it)) } }
         sp(c).getString("pendingWakeIn", null)?.let { runCatching { WebHost.post(JSONObject(it)) } }
+        onceResend(c)
+    }
+
+    // ---------- V1.65 "Just tomorrow", chosen on the clock ----------
+    /** A choice that passed the owner check goes to the page. The one latest choice is also kept here, so a page that is not up
+     *  yet (the clock can show over the lock screen first) gets it when it asks (sleep:get). Kept only a few minutes. */
+    fun sendOnce(c: Context, json: String) {
+        val m = runCatching { JSONObject(json) }.getOrNull() ?: return
+        if (m.optString("type") != "sleep:once") return
+        sp(c).edit().putString("pendingOnce", json).putLong("pendingOnceAt", System.currentTimeMillis()).apply()
+        WebHost.post(m)
+        Plog.i("sleep: just tomorrow ${m.optString("act")}")
+    }
+    private fun onceResend(c: Context) {
+        val json = sp(c).getString("pendingOnce", null) ?: return
+        val fresh = System.currentTimeMillis() - sp(c).getLong("pendingOnceAt", 0) in 0..3 * 60_000L
+        sp(c).edit().remove("pendingOnce").remove("pendingOnceAt").apply()
+        if (fresh) runCatching { WebHost.post(JSONObject(json)) }
     }
 
     // ---------- V1.43 "Wake me up in", set on the clock ----------
@@ -618,7 +636,7 @@ class SleepAction : BroadcastReceiver() {
 }
 
 /** The clock over the lock screen: near black, warm, dim, drifting a few pixels against burn in. */
-class SleepActivity : ComponentActivity() {
+class SleepActivity : FragmentActivity() {
     companion object {
         private val open = HashSet<SleepActivity>()
         fun closeAll() { open.toList().forEach { it.finish() } }
@@ -636,6 +654,7 @@ class SleepActivity : ComponentActivity() {
     private lateinit var root: FrameLayout; private lateinit var dateV: TextView
     private lateinit var swRow: LinearLayout; private lateinit var swT: TextView; private lateinit var swGo: Button; private lateinit var swReset: Button
     private lateinit var cust: Button
+    private lateinit var once: SleepOnceUi   // V1.65 Just tomorrow
     private lateinit var gear: Button   // V1.47: Settings in a corner
     // V1.43: the countdown, "Wake me up in", the wake styles' light
     private lateinit var countV: TextView; private lateinit var wiBtn: Button; private lateinit var lightV: View
@@ -655,7 +674,7 @@ class SleepActivity : ComponentActivity() {
         open.add(this)
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
-        root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(5, 3, 2)); setOnClickListener { poke() } }
+        root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(5, 3, 2)); setOnClickListener { if (::once.isInitialized) once.close(); poke() } }
         lightV = View(this).apply { alpha = 0f; isClickable = false }
         root.addView(lightV, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         face = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
@@ -675,7 +694,11 @@ class SleepActivity : ComponentActivity() {
         swRow.addView(swT); swRow.addView(swBtns)
         dialV = SleepDialView(this).apply { visibility = View.GONE }
         face.addView(dialV, LinearLayout.LayoutParams(dp(260), dp(260)).apply { gravity = Gravity.CENTER_HORIZONTAL })
-        listOf(clock, dateV, sub, alarm, countV, swRow).forEach(face::addView)
+        once = SleepOnceUi(this, { json, reason -> chooseOnce(json, reason) }, { poke(SleepOnceCore.IDLE_MS) })
+        listOf(clock, dateV, sub, alarm).forEach(face::addView)
+        face.addView(once.line, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        face.addView(once.row, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        listOf(countV, swRow).forEach(face::addView)
         root.addView(face, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply { bottomMargin = dp(120) })
         cust = pill().apply { setOnClickListener { performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM); unlockThen("Customise") { Sleep.customise(applicationContext) } } }
         root.addView(cust, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).apply { topMargin = dp(72); marginEnd = dp(18) })
@@ -715,12 +738,46 @@ class SleepActivity : ComponentActivity() {
         setContentView(root)
         // Back does nothing here: only Wake up ends Sleep mode (the phone stays locked underneath).
         // V1.47: an alarm with Sleep mode off: Back stops it (it is not Sleep mode, there is nothing to unlock).
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() { if (Sleep.alarmOnly(applicationContext)) Sleep.stopRing(applicationContext) else poke() } })
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() { if (once.isOpen) once.close() else if (Sleep.alarmOnly(applicationContext)) Sleep.stopRing(applicationContext) else poke() } })
         root.alpha = 0f; root.animate().alpha(1f).setDuration(1200).start()
         peekUntil = System.currentTimeMillis() + 8000
     }
 
-    private fun poke() { peekUntil = System.currentTimeMillis() + 8000; draw() }
+    private fun poke(ms: Long = 8000) { peekUntil = System.currentTimeMillis() + ms; draw() }
+
+    /** V1.65 "Just tomorrow": a choice first passes the phone's own check (the unlock when the phone is locked, the fingerprint
+     *  or screen lock when it is already unlocked). Only then it goes to the page. Not passed: nothing is sent and the row stays.
+     *  A phone with no screen lock at all has nothing to ask for, so the choice goes through. */
+    private var asking = false
+    private fun chooseOnce(json: String, reason: String) {
+        if (asking) return
+        asking = true
+        val done = { passed: Boolean ->
+            asking = false
+            SleepOnceCore.gate(passed, json)?.let { out ->
+                if (!isFinishing) {
+                    root.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                    Sleep.sendOnce(applicationContext, out)
+                    once.close()
+                }
+            }
+            if (!passed) poke(SleepOnceCore.IDLE_MS)
+        }
+        val km = getSystemService(KeyguardManager::class.java)
+        if (!km.isDeviceSecure) { done(true); return }
+        if (km.isKeyguardLocked) {
+            var answered = false
+            fun end(ok: Boolean) { if (!answered) { answered = true; h.removeCallbacksAndMessages("onceGiveUp"); done(ok) } }
+            h.postDelayed({ end(false) }, "onceGiveUp", SleepClock.UNLOCK_WAIT)
+            runCatching {
+                km.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
+                    override fun onDismissSucceeded() { end(true) }
+                    override fun onDismissCancelled() { end(false) }
+                    override fun onDismissError() { end(false) }
+                })
+            }.onFailure { end(false) }
+        } else SleepOwner.ask(this, reason) { ok, _ -> done(ok) }
+    }
 
     /** V1.43 "Wake me up in": the page's sleep cycle suggestions (with the time each lands on), your own hours and
      *  minutes, or no timer. It rings on this phone at once; the page keeps it for every device. */
@@ -875,6 +932,7 @@ class SleepActivity : ComponentActivity() {
         sub.visibility = if (ringing || L.shows("asleep")) View.VISIBLE else View.GONE
         alarm.text = p.word("alarm", ""); alarm.setTextColor(ink(b * .46f))
         alarm.visibility = if (L.shows("alarm")) View.VISIBLE else View.GONE
+        once.bind(p.once, !ringing && !p.alarmOnly, ::ink, b)
         dateV.text = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM"))
         dateV.setTextColor(ink(b * .744f)); dateV.visibility = if (L.shows("date")) View.VISIBLE else View.GONE
         val next = p.rings.firstOrNull { it.at > now }
@@ -938,7 +996,7 @@ class SleepActivity : ComponentActivity() {
         if (!Sleep.running(applicationContext)) { finish(); return }
         h.removeCallbacks(tick); h.post(tick)
     }
-    override fun onPause() { h.removeCallbacks(tick); h.removeCallbacks(lightTick); super.onPause() }
+    override fun onPause() { if (::once.isInitialized) once.close(false); h.removeCallbacks(tick); h.removeCallbacks(lightTick); super.onPause() }
     override fun onDestroy() { open.remove(this); h.removeCallbacks(tick); super.onDestroy() }
 }
 

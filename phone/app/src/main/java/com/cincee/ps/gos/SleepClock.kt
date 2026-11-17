@@ -43,6 +43,7 @@ data class SleepPlan(
     val level: Double = SleepClock.LEVEL_DEF,
     val wakeIn: List<WakeChoice> = SleepClock.WAKE_IN_FALLBACK, val timer: Pair<Long, Int>? = null,
     val alarmOnly: Boolean = false,   // V1.47: an alarm with Sleep mode off: only Stop, nothing logged
+    val once: SleepOnce? = null,      // V1.65 "Just tomorrow": the line under the alarm line and its choices (absent: draw nothing)
 ) {
     fun word(k: String, fallback: String) = words[k]?.takeIf { it.isNotBlank() } ?: fallback
 }
@@ -110,6 +111,7 @@ object SleepClock {
             level = okLevel(st?.opt("level")),
             wakeIn = choices.ifEmpty { WAKE_IN_FALLBACK },
             alarmOnly = j.opt("alarmOnly") as? Boolean ?: false,
+            once = SleepOnceCore.decode(j.optJSONObject("once")),
             timer = tj?.let { t -> val at = t.optLong("at"); val m = t.optInt("mins"); if (at > since && okWakeIn(m) != null) at to m else null },
         )
     }

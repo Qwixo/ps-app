@@ -1,0 +1,51 @@
+/* Just tomorrow (PS 1.65, views/AlarmOnce.tsx): one thin line, two quiet pills, a Later row that springs open. */
+.aon { --aon-fg: var(--k-fg, #FFFFFF); --aon-line: color-mix(in srgb, var(--aon-fg) 14%, transparent); display: grid; gap: 6px; margin-top: 2px; }
+.aon:not(.aon-screen) { border-top: 1px solid color-mix(in srgb, var(--aon-fg) 9%, transparent); padding-top: 10px; margin-top: 10px; }
+.aon-screen { --aon-fg: var(--slp-a82, #E7A35E); justify-items: center; margin-top: 10px; }
+.aon-row { display: flex; align-items: center; gap: 8px; min-height: 30px; flex-wrap: wrap; }
+.aon-screen .aon-row { justify-content: center; }
+.aon-ic { flex: none; color: color-mix(in srgb, var(--aon-fg) 55%, transparent); transition: color .3s ease; }
+.aon.is-set .aon-ic { color: color-mix(in srgb, var(--aon-fg) 85%, transparent); }
+.aon-line { flex: 1 1 180px; font-size: calc(12.5px * var(--k-fs, 1)); line-height: 1.35; letter-spacing: .01em;
+  color: color-mix(in srgb, var(--aon-fg) 72%, transparent); animation: aon-in .42s cubic-bezier(.2, .9, .25, 1.15) both; }
+.aon-screen .aon-line { flex: 0 1 auto; text-align: center; }
+.aon.is-set .aon-line { color: color-mix(in srgb, var(--aon-fg) 92%, transparent); }
+.aon-acts { display: inline-flex; gap: 6px; flex: none; }
+.aon-pill { appearance: none; font: inherit; font-size: calc(11.5px * var(--k-fs, 1)); line-height: 1; padding: 6px 11px; border-radius: 999px;
+  color: color-mix(in srgb, var(--aon-fg) 86%, transparent); background: color-mix(in srgb, var(--aon-fg) 5%, transparent);
+  border: 1px solid var(--aon-line); cursor: pointer; white-space: nowrap;
+  transition: background .18s ease, border-color .18s ease, transform .22s cubic-bezier(.3, 1.6, .5, 1), opacity .2s ease; }
+.aon-pill:hover:not(:disabled) { background: color-mix(in srgb, var(--aon-fg) 11%, transparent); border-color: color-mix(in srgb, var(--aon-fg) 26%, transparent); }
+.aon-pill:active:not(:disabled) { transform: scale(.94); }
+.aon-pill:focus-visible { outline: 2px solid color-mix(in srgb, var(--aon-fg) 45%, transparent); outline-offset: 2px; }
+.aon-pill.on { background: color-mix(in srgb, var(--aon-fg) 14%, transparent); }
+.aon-pill:disabled { opacity: .45; cursor: default; }
+.aon-ghost { background: transparent; }
+.aon-go { color: var(--k-base, #0B0B0C); background: color-mix(in srgb, var(--aon-fg) 88%, transparent); border-color: transparent; }
+.aon-screen .aon-go { color: #050302; }
+/* on the sleep screen: the screen's own ink, like Wake me up in and Customise */
+.aon-screen .aon-pill { font-weight: 700; color: var(--slp-a82); background: var(--slp-a08); border-color: var(--slp-a22); }
+.aon-screen .aon-line, .aon-screen.is-set .aon-line, .aon-screen .aon-ic { color: var(--slp-a82); }
+.aon-screen .aon-note { color: var(--slp-a45, var(--slp-a82)); }
+/* the Later row: grows with a tiny squeeze first, then settles (grid rows animate its height) */
+.aon-more { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .38s cubic-bezier(.2, .9, .25, 1.08), opacity .24s ease; }
+.aon-more.open { grid-template-rows: 1fr; opacity: 1; }
+.aon-more-in { min-height: 0; overflow: hidden; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-left: 23px; transform-origin: top left; }
+.aon-screen .aon-more-in { padding-left: 0; justify-content: center; transform-origin: top center; }
+.aon-more.open .aon-more-in { animation: aon-squeeze .44s cubic-bezier(.2, .9, .25, 1.15) both; }
+.aon-time { font: inherit; font-size: calc(12px * var(--k-fs, 1)); padding: 4px 8px; border-radius: 8px; color: var(--aon-fg);
+  background: color-mix(in srgb, var(--aon-fg) 6%, transparent); border: 1px solid var(--aon-line); color-scheme: dark; }
+.aon-note { font-size: calc(11.5px * var(--k-fs, 1)); color: color-mix(in srgb, var(--aon-fg) 55%, transparent); padding-left: 23px; animation: aon-fade .3s ease both; }
+.aon-screen .aon-note { padding-left: 0; }
+.aon.is-busy .aon-note { animation: aon-fade .3s ease both, aon-breathe 1.6s ease-in-out .3s infinite; }
+.aon-row[data-shake] { animation: aon-shake .36s cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes aon-in { from { opacity: 0; transform: translateY(3px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes aon-squeeze { 0% { transform: scale(.96, .9); opacity: .4; } 22% { transform: scale(.94, .86); } 70% { transform: scale(1.01, 1.02); opacity: 1; } 100% { transform: none; } }
+@keyframes aon-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes aon-breathe { 50% { opacity: .5; } }
+@keyframes aon-shake { 20%, 80% { transform: translateX(-2px); } 40%, 60% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .aon-line, .aon-more.open .aon-more-in, .aon-row[data-shake], .aon.is-busy .aon-note { animation: none; }
+  .aon-more { transition: opacity .15s linear; }
+  .aon-pill { transition: none; }
+}

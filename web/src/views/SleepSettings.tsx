@@ -29,6 +29,12 @@ import { PinnedPreview } from "../ui/PinnedPreview";
 import { LookPiece, SleepPreview, useDraftLook, type LookKey } from "./SleepCustomise";
 import { AlarmLoudness, OwnSoundRow, PlaylistSettings, StrobeSwitch, SunrisePick, WakeStyleList, WaveColour, wakeDeviceLine, wakeOverlayUp } from "./SleepWake";
 import { AlarmList, WakeInSettings, savePrefs, sleepDeviceNote } from "./SleepMode";
+import { AlarmOnce } from "./AlarmOnce";
+import { onceOn, onceRowOpen } from "../sleepmode/once";
+import { ONCE_FEATURE } from "../core/alarmonce";
+import { cleanSwitches } from "../core/features";
+import { saveSettings } from "../core/actions";
+import type { Settings } from "../core/model";
 import { askFitness } from "../fitness/fitask";
 
 // ---------- open or closed, and a setting to land on ----------
@@ -137,7 +143,7 @@ function SleepSettingsScreen({ want: w, closing, onGone }: { want: Want | null; 
   backRef.current = back;
   useEffect(() => {
     if (closing) return;
-    const busy = () => wakeOverlayUp() || sleepState().customising;
+    const busy = () => wakeOverlayUp() || sleepState().customising || onceRowOpen();
     const key = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || busy()) return;
       e.preventDefault(); e.stopImmediatePropagation(); backRef.current(true);
@@ -316,7 +322,9 @@ function control(id: string, { p, look, change }: Ctl, onGo: () => void): { righ
     // V1.52 (the developer): the same synced value as Settings, Sentry mode (core/sentry.ts restartSleepH).
     case "sentry-auto": return { right: <SentrySleepAutoSetting /> };
     case "sentry-restart": return { body: <SentryRestartSleepSetting /> };
-    case "alarms": return { body: <AlarmList p={p} /> };
+    case "alarms": return { body: <><AlarmList p={p} /><AlarmOnce /></> };
+    // PS 1.65 Just tomorrow: the same switch as in From the squad (squadFeatures), and the control itself (views/AlarmOnce.tsx).
+    case "once": return { right: <OnceSwitch />, line: onceOn() ? undefined : "Off: no Just tomorrow on the sleep screen or under your alarms. They ring as usual." };
     case "ring-always": return {
       right: seg("Alarms ring even when Sleep mode is off", p.ringAlways, [[true, "On"], [false, "Off"]], (v) => savePrefs(p, { ringAlways: v })),
       line: p.ringAlways ? "On: your alarms ring at their time on your Mac and phone, whether or not you pressed Sleep. Stop ends it." : "Off: alarms ring only while Sleep mode is on.",
@@ -354,4 +362,12 @@ function control(id: string, { p, look, change }: Ctl, onGo: () => void): { righ
     case "here": return { body: <p className="gs-set-note">{sleepDeviceNote()}</p> };
     default: return {};
   }
+}
+
+/** PS 1.65: Just tomorrow on or off (the feature switch, the same one as Settings, G Squad, From the squad). */
+function OnceSwitch() {
+  const v = useVault();
+  const mine = cleanSwitches(settingsData(v).squadFeatures);
+  const on = onceOn();
+  return seg("Just tomorrow", on, [[true, "On"], [false, "Off"]], (x) => { if (v.status === "unlocked") void saveSettings({ squadFeatures: { ...mine, [ONCE_FEATURE]: x } } as Partial<Settings>); });
 }

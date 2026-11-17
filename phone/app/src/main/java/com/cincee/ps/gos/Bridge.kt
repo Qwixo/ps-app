@@ -39,6 +39,7 @@ object BridgeRoutes {
         "remember:save", "remember:unlock", "cmd:sign",
         "gymPlan",
         "sleep:start", "sleep:plan", "sleep:stop", "sleep:get", "sleep:wokeSaved", "sleep:customiseSeen", "sleep:settingsSeen", "sleep:alarms", "sleep:break", "sleep:breakEnd", "sleep:breakSeen", "sleep:wakeInSeen",
+        "sleep:auth",   // V1.65 the owner check (SleepOwner.kt): a system prompt, so the main thread
         "sleep:test", "sleep:testStop",   // V1.44 Test (Sleep.kt); the own sound's file work (sleep:sound:*) runs on the bridge thread
         "fitness:start", "fitness:add", "fitness:skip", "fitness:cancel", "fitness:awake", "fitness:get",
         // Not here on purpose: the Annoying 15 min reminder (remPlan, rem:test, rem:testStop, rem:sound:*). Remind.kt

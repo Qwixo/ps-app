@@ -20,6 +20,7 @@ import { zonedToTs, wall } from "./tz.ts";
 import { okLevel } from "./alarmsound.ts";
 import { planList, ringMs, ringWantsList, type PlanList } from "./alarmlist.ts";
 import { SENTRY_SPOT_DEF, okSpot, sleepSentry, type RestartFacts, type SentryPrefs, type SentrySpot, type SleepSentry } from "./sentry.ts";
+import { cleanOnce, onceLine, onceRing, onceTimes, onceView, onceWords, type AlarmOnce } from "./alarmonce.ts";
 import { WAKE_DEF, cleanTimer, cleanWake, countdownLine, okStyle, okWakeIn, styleOf, wakeInAt, wakeInChoices, type SleepTimer, type WakePrefs, type WakeStyle } from "./sleepwake.ts";
 
 /** at: "HH:MM" on this device's clock; V1.43 style: how it wakes you (the light); V1.47 sound: what it plays (AlarmSound). */
@@ -40,11 +41,12 @@ export interface SleepModePrefs {
   lock?: boolean;          // V1.43: Wake up asks for Touch ID or the password (the phone: its own unlock). Default on.
   wake?: WakePrefs;        // V1.43: the wake styles' settings (core/sleepwake.ts)
   ringAlways?: boolean;    // V1.47: alarms ring at their time even when Sleep mode is off (Mac and phone). Default on.
+  once?: AlarmOnce | null; // PS 1.65 Just tomorrow: the next morning only, moved or skipped (core/alarmonce.ts). The main alarms are untouched.
 }
-export interface SleepModeView { show: boolean; alarms: SleepAlarm[]; details: boolean; panel: number; ask: boolean; look: SleepLook; lock: boolean; wake: WakePrefs; ringAlways: boolean }
+export interface SleepModeView { show: boolean; alarms: SleepAlarm[]; details: boolean; panel: number; ask: boolean; look: SleepLook; lock: boolean; wake: WakePrefs; ringAlways: boolean; once: AlarmOnce | null }
 /** The whole settings record from the view, for a save (a save replaces sleepMode, so every field goes every time). */
 export function prefsOf(v: SleepModeView): SleepModePrefs {
-  return { show: v.show, alarms: v.alarms, details: v.details, panel: v.panel, ask: v.ask, look: v.look, lock: v.lock, wake: v.wake, ringAlways: v.ringAlways };
+  return { show: v.show, alarms: v.alarms, details: v.details, panel: v.panel, ask: v.ask, look: v.look, lock: v.lock, wake: v.wake, ringAlways: v.ringAlways, once: v.once };
 }
 
 // ---------- the sleep screen's look (V1.42, the developer: "I want everything to be very customisable on the sleep screen") ----------
@@ -243,6 +245,7 @@ export function cleanSleepMode(v: unknown): SleepModePrefs {
   if (typeof o.lock === "boolean") out.lock = o.lock;
   if (typeof o.ringAlways === "boolean") out.ringAlways = o.ringAlways;
   if (o.look !== undefined && o.look !== null) out.look = cleanLook(o.look);
+  if (o.once !== undefined) out.once = cleanOnce(o.once);
   if (o.wake !== undefined && o.wake !== null) out.wake = cleanWake(o.wake);
   if (o.panel !== undefined && Number.isFinite(Number(o.panel))) out.panel = Math.max(PANEL_MIN, Math.min(PANEL_MAX, Math.round(Number(o.panel))));
   if (Array.isArray(o.alarms)) {
@@ -259,7 +262,7 @@ export function cleanSleepMode(v: unknown): SleepModePrefs {
 /** The settings with their defaults filled in. */
 export function sleepModeOf(st: { sleepMode?: SleepModePrefs | null } | null | undefined): SleepModeView {
   const p = cleanSleepMode(st?.sleepMode);
-  return { show: p.show !== false, alarms: p.alarms ?? [], details: p.details === true, panel: p.panel ?? PANEL_DEF, ask: p.ask !== false, look: p.look ?? cleanLook(null), lock: p.lock !== false, wake: p.wake ?? { ...WAKE_DEF }, ringAlways: p.ringAlways !== false };
+  return { show: p.show !== false, alarms: p.alarms ?? [], details: p.details === true, panel: p.panel ?? PANEL_DEF, ask: p.ask !== false, look: p.look ?? cleanLook(null), lock: p.lock !== false, wake: p.wake ?? { ...WAKE_DEF }, ringAlways: p.ringAlways !== false, once: p.once ?? null };
 }
 /** A new alarm id (short, unique enough inside one list of five). */
 export function newAlarmId(now = Date.now(), rnd = Math.random()): string { return `a${now.toString(36)}${Math.floor(rnd * 1296).toString(36)}`; }
@@ -278,18 +281,25 @@ export function nextAt(hhmm: string, after: number, tz: string): number | null {
   return null;
 }
 /** V1.43: `style` is how it wakes you, `from` when its light starts (Sunrise: before the alarm; else the alarm time). */
-export interface Ring { id: string; at: number; label: string; style?: WakeStyle; from?: number; sound?: AlarmSound }
+export interface Ring { id: string; at: number; label: string; style?: WakeStyle; from?: number; sound?: AlarmSound; once?: true }
 export const TIMER_ID = "timer";
 /** Every switched on alarm, once, at its first time after you went to sleep, plus "Wake me up in" (V1.43), soonest
  *  first. `wake` resolves each style (Strobe flash only once switched on) and the sunrise's lead. */
-export function ringsFor(alarms: SleepAlarm[], since: number, tz: string, wake: WakePrefs = WAKE_DEF, timer?: SleepTimer | null): Ring[] {
+/** PS 1.65 `once`: Just tomorrow (core/alarmonce.ts): the next morning's rings moved or skipped, the main alarms untouched. */
+export function ringsFor(alarms: SleepAlarm[], since: number, tz: string, wake: WakePrefs = WAKE_DEF, timer?: SleepTimer | null, once?: AlarmOnce | null): Ring[] {
   const out: Ring[] = [];
   const ring = (id: string, at: number, label: string, s: unknown, sound?: AlarmSound): Ring => {
     const style = styleOf(s, wake);
     return { id, at, label, style, from: style === "sunrise" ? Math.max(since, at - wake.sunrise * 60_000) : at, ...(sound && sound !== "auto" ? { sound } : {}) };
   };
+  const moved = onceTimes(alarms, once, tz);
   for (const a of alarms) {
     if (!a.on) continue;
+    if (moved.has(a.id)) {
+      const r = onceRing(a, since, tz, moved);
+      if (r) out.push(r.moved ? { ...ring(a.id, r.at, clockOf(r.at, tz), a.style, a.sound), once: true } : ring(a.id, r.at, a.at, a.style, a.sound));
+      continue;
+    }
     const at = nextAt(a.at, since, tz);
     if (at != null) out.push(ring(a.id, at, a.at, a.style, a.sound));
   }
@@ -397,8 +407,19 @@ export interface SleepPlan {
   timer: { at: number; mins: number } | null;                  // V1.43: "Wake me up in" set for this sleep
   list: PlanList | null;     // V1.47: the alarm playlist: each day's file, the ending and the fade (null: no files; `on`: every "auto" alarm plays it)
   alarmOnly?: boolean;       // V1.47: an alarm while Sleep mode is off: the screen only rings, Stop closes it, nothing is logged
+  once?: PlanOnce;           // PS 1.65 Just tomorrow: the line and the choices for the sleep screen (an older shell ignores it)
   sentry?: SleepSentry;      // V1.52: the AI Sentry mode button's settings, restart check and words (the Mac only; never with alarmOnly)
   words: SleepWords;         // every sentence the shells draw, so they all say the same thing
+}
+/** PS 1.65 Just tomorrow, for the Mac's and the phone's sleep screens: the line, and the words of the choices. A shell asks its own
+ *  Touch ID or unlock (with `words.reason`) and only then sends the choice back ({once: {act, mins, at}} on a Mac,
+ *  {type: "sleep:once", act, mins, at} on a phone); the page saves it. */
+export interface PlanOnce {
+  set: boolean;              // an override is in place (Undo shows)
+  skipped: boolean;
+  line: string;              // "Just tomorrow: 09:00" or "Tomorrow only: 10:30 (your usual 09:00 is back the day after)"
+  usual: string;             // the first alarm's usual time, "09:00" (Pick a time starts there)
+  words: ReturnType<typeof onceWords>;
 }
 export interface SleepWords {
   title: string; wakeUp: string; stop: string; ringing: string; tasks: string; squad: string | null; alarm: string;
@@ -431,9 +452,13 @@ export function buildPlan(o: {
   tasks: TaskLite[]; squad: number | null; psBase?: string | null; timer?: SleepTimer | null; now?: number; alarmOnly?: boolean;
   /** V1.52: on a Mac, Sentry mode's settings and the restart helper's state (ps.ts RebootSettings), for the button. */
   sentry?: { prefs: SentryPrefs; reboot: RestartFacts | null | undefined } | null;
+  /** PS 1.65: Just tomorrow is switched on (feature "alarm-once"): the override counts and the plan carries its line. */
+  onceOn?: boolean;
 }): SleepPlan {
   const timer = cleanTimer(o.timer);
-  const rings = ringsFor(o.prefs.alarms, o.since, o.tz, o.prefs.wake, timer);
+  const once = o.onceOn ? o.prefs.once : null;
+  const rings = ringsFor(o.prefs.alarms, o.since, o.tz, o.prefs.wake, timer, once);
+  const ov = o.onceOn ? onceView(o.prefs.alarms, once, o.now ?? o.since, o.tz) : null;
   const wake = wakeAt(rings, o.since, o.tz, o.usualWake);
   const titles = o.prefs.details ? o.tasks.slice(0, 6).map((t) => t.title.replace(/\s+/g, " ").trim().slice(0, 90)) : [];
   return {
@@ -448,6 +473,7 @@ export function buildPlan(o: {
       return pl ? { ...pl, on: o.prefs.wake.list.on } : null;
     })(),
     ...(o.alarmOnly ? { alarmOnly: true } : {}),
+    ...(ov && !o.alarmOnly ? { once: { set: ov.state === "set", skipped: ov.state === "set" && ov.skipped, line: onceLine(ov), usual: ov.usual[0], words: onceWords(ov.day) } } : {}),
     ...(o.sentry && !o.alarmOnly ? { sentry: sleepSentry(o.sentry.prefs, o.sentry.reboot) } : {}),
     words: sleepWords({ rings, tasks: o.tasks.length, squad: o.squad, lock: o.prefs.lock, now: o.now }),
   };
