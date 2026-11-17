@@ -80,6 +80,7 @@ ok("hub: signed requests only, with a replay guard and a clock check", fn.includ
 ok("hub: only members who were let in", fn.includes('.eq("admitted", true)') && fn.includes('.is("left_at", null)'));
 ok("hub: undo deletes only your own", /case "fr_del"[\s\S]*?\.eq\("member_id", me\.id\)/.test(fn));
 ok("hub: a pull is change only and capped", /case "fr_pull"[\s\S]*?gt\("updated_at", since\)[\s\S]*?/.test(fn) && fn.includes(".limit(200)"));
+ok("hub: a full page of 200 hands back its last row's time, so the next read carries on (quality pass 1.65)", /rows\.length >= 200 \? rows\[rows\.length - 1\]\.updated_at : now/.test(fn));
 ok("hub: tables locked like the rest (RLS forced, no client access)", sql.includes("force row level security") && sql.includes('"no client access"') && sql.includes("featreq_items_squad"));
 ok("hub: the table stores only scrambled text, ids and times", !/\b(text|words|part|name)\s+text\b/.test(sql.replace(/--.*$/gm, "")));
 
