@@ -75,7 +75,7 @@ do {
   r.core.start(block: nil)
   ok("start: listening, the page is told", r.types() == ["voice:started"] && r.rec.started && r.core.state == .recording && r.listening == [true])
   r.core.start(block: nil)
-  ok("a second start while listening does nothing", r.recs.count == 1)
+  ok("a second start while listening keeps the one recording and says it is listening", r.recs.count == 1 && r.types() == ["voice:started", "voice:started"] && r.listening == [true])
   r.rec.text?("call the bank", false)
   ok("words so far go to the page", (r.last()["text"] as? String) == "call the bank" && r.types().last == "voice:partial")
   r.rec.level?(1); r.clock = 0.01; r.rec.level?(1); r.clock = 0.2; r.rec.level?(1)
@@ -113,6 +113,14 @@ do {
   r.core.stop()
   r.core.protectedFront()
   ok("it also comes to the front while the last words are awaited: stopped at once", r.rec.cancelled && (r.last()["reason"] as? String) == "protected")
+}
+do {
+  let r = Rig()
+  r.core.start(block: nil)
+  r.core.stop()
+  let before = r.sent.count
+  r.core.start(block: nil)
+  ok("a start while the last words are awaited: nothing new, the stop that follows tells the page", r.sent.count == before && r.recs.count == 1)
 }
 do {
   let r = Rig()
