@@ -7,6 +7,7 @@
 //   shell -> page:  window.__ps.apply(msg)  (main window)  /  window.__psOverlay.load(state)  (overlay)
 import { cleanCurrency } from "./core/receiptparse";
 import { addTimeReminder, cleanTimeRemind } from "./core/nlremind";
+import { cleanCols, cleanSpeed } from "./core/activitymon";
 import { RCPT_KIND, cleanReceipt } from "./core/receipts";
 import { removeReceipt } from "./receipts";
 import { useSyncExternalStore } from "react";
@@ -92,6 +93,9 @@ export function cleanLooks(p: Record<string, unknown>): Partial<Settings> {
   Object.assign(o, cleanPagesLooks(p));                                              // V1.55: the developer's lists, their names, the swipe direction (core/lists.ts)
   if (Array.isArray(p.tmSubOpen)) o.tmSubOpen = p.tmSubOpen.filter((x): x is string => typeof x === "string" && x.length <= 64).slice(-200);
   if (typeof p.netMonitor === "boolean") o.netMonitor = p.netMonitor;
+  if (typeof p.activityMonitor === "boolean") o.activityMonitor = p.activityMonitor;   // PS 1.65 Activity monitor (core/activity.ts)
+  if (p.activitySpeed !== undefined) o.activitySpeed = cleanSpeed(p.activitySpeed);
+  if (Array.isArray(p.activityCols)) o.activityCols = cleanCols(p.activityCols);
   // Mac settings in the Tab list (V1.23, the main window is gone): the midnight reset. (The "Shall I end my day
   // now?" prompt and its settings were removed on 2 Nov 2026, the developer: "Remove it completely".)
   if (p.autoReset === "midnight" || p.autoReset === "off") o.autoReset = p.autoReset;

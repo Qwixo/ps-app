@@ -124,6 +124,17 @@ export function editSfx(name: EditSound, preview = false) {
   }
 }
 
+/** PS 1.65: a named sound made of tones (the Activity monitor's, core/activitymon.ts AM_SOUNDS). Inside PS the Mac plays it by name
+ *  (Sfx.swift has the same numbers); the website plays the tones. The Tab list's sound volume applies, 0 is off. */
+export function toneSfx(name: string, tones: readonly EditTone[]) {
+  if (volume <= 0) return;
+  if (viaApp(name)) return;
+  for (const t of tones) {
+    if (t.wave === 3) noise(t.f, t.dur, t.peak, t.at, t.to);
+    else tone(t.f, t.dur, t.peak, t.wave === 0 ? "sine" : t.wave === 1 ? "triangle" : "square", t.at, t.to);
+  }
+}
+
 // The tick sound the developer chose (core/ticksound.ts, Settings, To do list), set by the list each time it draws.
 let tickSound: TickSoundId = "classic";
 export function setTickSound(id: TickSoundId) { tickSound = id; }

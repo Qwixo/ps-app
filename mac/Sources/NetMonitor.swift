@@ -42,6 +42,10 @@ final class NetMonitor {
   private let dnsQ = DispatchQueue(label: "PS net reverse dns", qos: .utility, attributes: .concurrent)
   private var timer: DispatchSourceTimer?
   private var isOpen = false
+  /// PS 1.65: the Activity monitor is open and wants the per app network numbers. The Network monitor then samples (one nettop,
+  /// never a second one) every 2 seconds while it is open, and hands its per process rates over (pidRates).
+  private var borrowed = false
+  private var lastPidRates: [Int32: (rx: Double, tx: Double)] = [:]
   /// The developer can switch the whole monitor off (More settings > Network monitor): then nothing runs at
   /// all, not even the light leak watch, until he switches it back on. Saved on this Mac.
   private(set) var enabled = true
@@ -129,13 +133,40 @@ final class NetMonitor {
     }
   }
   /// The Tab list went away: stop live polling at once (the light leak watch carries on).
-  func listHidden() { q.async { [self] in if isOpen { isOpen = false; reschedule() } } }
+  func listHidden() { q.async { [self] in if isOpen || borrowed { isOpen = false; borrowed = false; reschedule() } } }
+
+  /// PS 1.65 Activity monitor: start or stop lending the per process numbers. Nothing happens while the Network monitor is switched off.
+  func borrow(_ on: Bool) {
+    q.async { [self] in
+      guard on != borrowed else { return }
+      borrowed = on
+      if !on { lastPidRates = [:] }
+      reschedule()
+      if on && enabled && !isOpen { sample() }
+    }
+  }
+  /// The last per process rates (bytes a second received and sent; 1Password and Signal were already dropped by parse), and whether
+  /// the Network monitor is on at all. Answered on the Network monitor's own queue; `done` runs there too.
+  func pidRates(_ done: @escaping ([Int32: (rx: Double, tx: Double)], Bool) -> Void) { q.async { [self] in done(lastPidRates, enabled) } }
+  /// The per app network history (day -> app name -> [received, sent]) for the last `days` days, for the Activity monitor's App history.
+  /// Empty while the history is switched off. Answered on the Network monitor's own queue.
+  func appDays(_ days: Int, _ done: @escaping ([String: [String: [Double]]]) -> Void) {
+    q.async { [self] in
+      guard enabled, flag("history") else { done([:]); return }
+      loadHistory()
+      let keep = Set((0..<days).map { dayKey(Date().addingTimeInterval(Double(-$0) * 86400)) })
+      var out: [String: [String: [Double]]] = [:]
+      for (d, v) in self.days where keep.contains(d) { out[d] = v["a"] ?? [:] }
+      done(out)
+    }
+  }
 
   private func reschedule() {
     timer?.cancel(); timer = nil
     let every: Double
     if !enabled { saveHistoryIfNeeded(force: true); return }
     if isOpen { every = Double(settings["refresh"] as? Int ?? 2) }
+    else if borrowed { every = 2 }   // PS 1.65: the Activity monitor is open
     else if Owner.red && (flag("alarm") || flag("cardVpn")) { every = 6 }   // the leak watch is the developer's own (his VPN)
     else { saveHistoryIfNeeded(force: true); return }
     let t = DispatchSource.makeTimerSource(queue: q)
@@ -527,6 +558,7 @@ final class NetMonitor {
     var appRows: [String: [String: Any]] = [:]
     var connRows: [[String: Any]] = []
     var seen = Set<String>(), seenConn = Set<String>()
+    var pidRates: [Int32: (rx: Double, tx: Double)] = [:]
     var leaks: [[String: Any]] = []
     for p in procs {
       let pk = "\(p.name).\(p.pid)"
@@ -537,6 +569,7 @@ final class NetMonitor {
       addDay("a", p.app, drx, dtx)
       var row = appRows[p.app] ?? ["name": p.app, "id": p.bundle ?? "", "system": p.system, "rx": 0.0, "tx": 0.0, "conns": 0, "procs": 0]
       let prx: Double = dt > 0 ? drx / dt : 0, ptx: Double = dt > 0 ? dtx / dt : 0
+      if borrowed { let o = pidRates[p.pid] ?? (0, 0); pidRates[p.pid] = (o.rx + prx, o.tx + ptx) }
       row["rx"] = ((row["rx"] as? NSNumber)?.doubleValue ?? 0) + prx
       row["tx"] = ((row["tx"] as? NSNumber)?.doubleValue ?? 0) + ptx
       row["conns"] = (row["conns"] as? Int ?? 0) + p.conns.count
@@ -574,6 +607,7 @@ final class NetMonitor {
     firstSeen = firstSeen.filter { seenConn.contains($0.key) }
     if infoCache.count > 1500 { infoCache = infoCache.filter { seen.contains($0.key) } }
     leaksNow = leaks
+    lastPidRates = borrowed ? pidRates : [:]
     // The app that runs the tunnel: whoever talks to the VPN server, else a known VPN app by name.
     let known = ["wireguard", "openvpn", "nordvpn", "protonvpn", "expressvpn", "tunnelblick", "surfshark", "tailscale", "windscribe", "ivpn"]
     let daemon = procs.first { $0.conns.contains { vpnServers.contains($0.remote) } }?.app

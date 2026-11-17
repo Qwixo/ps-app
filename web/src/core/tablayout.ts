@@ -62,6 +62,7 @@ export const SLOTS: readonly SlotInfo[] = [
   { id: "brief", label: "Morning brief", red: true },
   { id: "endday", label: "End day" },
   { id: "net", label: "Network" },
+  { id: "activity", label: "Activity monitor", ps: true },   // PS 1.65 (views/ActivityMonitor.tsx): the chart button next to Network, Mac only
   { id: "mixer", label: "Volume mixer" },
   { id: "clipboard", label: "Clear clipboard" },
   { id: "gear", label: "Settings", keep: true },

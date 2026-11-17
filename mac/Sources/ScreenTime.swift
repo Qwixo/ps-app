@@ -94,7 +94,11 @@ final class ScreenTime {
       }
     }
     Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in self?.account() }
-    Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.save() }
+    Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+      self?.save()
+      // PS 1.65: the Activity monitor's App history rides this minute (no timer of its own; its own queue, only while screen time is on).
+      if self?.enabled == true { ActivityMonitor.shared.historyTick() }
+    }
     Timer.scheduledTimer(withTimeInterval: 3 * 60, repeats: true) { [weak self] _ in self?.send() }
   }
 

@@ -492,6 +492,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     MinecraftMode.shared.deliver = { [weak self] j in self?.overlay?.callAsyncJavaScript("window.__psMc && window.__psMc(JSON.parse(m))", arguments: ["m": j], in: nil, in: .page, completionHandler: nil) }
     if MINECRAFT_ENABLED { MinecraftMode.shared.start(testDir: ProcessInfo.processInfo.environment["PS_SELFTEST"]) }   // off: no translator (MinecraftSwitch.swift)
     NetMonitor.shared.alarmPopup = { t, b in Toast.shared.show(title: t, body: b) }
+    // PS 1.65 Activity monitor (Sources/ActivityMonitor.swift): its numbers go to the Tab list page only, only while it is open.
+    ActivityMonitor.shared.deliver = { [weak self] j in self?.overlay?.callAsyncJavaScript("window.__psActivity && window.__psActivity(JSON.parse(m))", arguments: ["m": j], in: nil, in: .page, completionHandler: nil) }
     NetMonitor.shared.start(testDir: ProcessInfo.processInfo.environment["PS_SELFTEST"])
     Owner.whenRed { NetMonitor.shared.ownerKnown() }   // the VPN leak watch is the developer's own
     // PS no longer shows a lag symbol or reads anything from another app (the developer, 4 Nov 2026: "These are two
@@ -1285,6 +1287,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     Island.shared.setEditing(false)       // the Tab list's Edit mode ends with the list (views/EditMode.tsx)
     dimxOpen = false
     NetMonitor.shared.listHidden()
+    ActivityMonitor.shared.listHidden()   // PS 1.65: the Activity monitor stops reading at once
     Toast.shared.reveal(false)
     guard shown else { return }
     shown = false
@@ -1610,6 +1613,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       MinecraftMode.shared.handle(msg)
     case "net" where fromOverlay:             // the network monitor (Sources/NetMonitor.swift)
       NetMonitor.shared.handle(msg)
+    case "activity" where fromOverlay:        // PS 1.65: the Activity monitor (Sources/ActivityMonitor.swift), clicks only
+      ActivityMonitor.shared.handle(msg, overlay: panel)
     // Fitness (2 Nov 2026) is a screen inside the Tab list: no window of its own any more. It opens like
     // Dimension X ("dimx" below), and its saves go to the main page through "looks".
     case "dimx" where fromOverlay:            // Dimension X opened or closed inside the list

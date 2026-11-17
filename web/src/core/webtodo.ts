@@ -9,6 +9,7 @@ export const WEB_HIDDEN: ReadonlySet<string> = new Set([
   "screentime",   // screen time is counted by PS on the Mac (or the phone app)
   "mixer",        // the audio mixer and headphones talk to macOS audio
   "net",          // the network monitor reads the Mac's connections
+  "activity",     // PS 1.65: the Activity monitor reads the Mac's processes
   "security",     // the padlock: auto reboot, Are you sure, sign out of this Mac
   "second",       // Second Computer pairs two Macs (the developer only anyway)
   "glass",        // Keep overlay and Hover mode belong to holding Tab

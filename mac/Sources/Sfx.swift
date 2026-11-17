@@ -75,6 +75,12 @@ final class Sfx {
     "ap-drop": [Tone(f: 660, to: 440, dur: 0.09, peak: 0.06, wave: 0, at: 0), Tone(f: 1320, to: nil, dur: 0.05, peak: 0.015, wave: 0, at: 0.01)],
     "ap-use": [Tone(f: 784, to: nil, dur: 0.18, peak: 0.05, wave: 0, at: 0), Tone(f: 1174.66, to: nil, dur: 0.3, peak: 0.045, wave: 0, at: 0.06)],
     "ap-forget": [Tone(f: 880, to: 520, dur: 0.16, peak: 0.04, wave: 0, at: 0)],
+    // PS 1.65 the Activity monitor (web src/core/activitymon.ts AM_SOUNDS, the same numbers): opening (a rising whoosh with a soft
+    // two note lift), closing (it falls back), a tab (a tiny tick) and End task (a low soft thud). Short and quiet on purpose.
+    "am-open": [Tone(f: 900, to: 2400, dur: 0.26, peak: 0.05, wave: 3, at: 0), Tone(f: 523.25, to: 784, dur: 0.16, peak: 0.06, wave: 0, at: 0.05), Tone(f: 1568, to: nil, dur: 0.22, peak: 0.035, wave: 0, at: 0.17)],
+    "am-close": [Tone(f: 2200, to: 700, dur: 0.24, peak: 0.045, wave: 3, at: 0), Tone(f: 784, to: 440, dur: 0.18, peak: 0.05, wave: 0, at: 0.04)],
+    "am-tab": [Tone(f: 1760, to: 1480, dur: 0.03, peak: 0.04, wave: 1, at: 0)],
+    "am-end": [Tone(f: 330, to: 140, dur: 0.16, peak: 0.12, wave: 0, at: 0), Tone(f: 1200, to: 600, dur: 0.06, peak: 0.03, wave: 1, at: 0.01)],
     "edit-reset": [Tone(f: 880, to: 440, dur: 0.3, peak: 0.08, wave: 0, at: 0), Tone(f: 1500, to: 300, dur: 0.28, peak: 0.04, wave: 3, at: 0)],
   ]
 

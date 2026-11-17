@@ -11,6 +11,7 @@ import { PROTON_WORDS } from "./protonmail.ts";
 import { ASSIST_WORDS } from "./assist.ts";
 import { TOUR_FOLDS, TOUR_ID, TOUR_WORDS } from "./tour.ts";
 import { APPROVE_INTRO, APPROVE_PICKS } from "./autoapprove.ts";
+import { AM_WORDS } from "./activitymon.ts";
 
 // The rules (all in nextIntro):
 //  - Not right after an update: only after about 1 minute of ACTIVE use of the to do list on this version (idle time does not
@@ -110,6 +111,16 @@ export const INTROS: IntroDef[] = [
     headline: "New in G Squad: reply to any message and see who is online.",
     ask: "Hover over a message and click Reply, or click the people at the top.",
     show: "Ok",
+    mark: "spark",
+    choice: true,
+  },
+  {
+    // PS 1.65 Activity monitor (core/activitymon.ts AM_WORDS.intro; words for the owner to approve). Mac only, folded into the 1.65 tour
+    // (core/tour.ts TOUR_FOLDS): one Ok ends it for good (a `choice` with one button: nothing opens).
+    id: "activity-monitor-165",
+    headline: AM_WORDS.intro.headline,
+    ask: AM_WORDS.intro.ask,
+    show: AM_WORDS.intro.show,
     mark: "spark",
     choice: true,
   },

@@ -68,8 +68,10 @@ startDeviceBeat();   // PS 1.65: this device tells the account it exists, for Ba
 
 // Dev page: every exercise picture in every look (src/dev/expics.tsx). Lazy so it never reaches a release build.
 const ExPicsDev = import.meta.env.DEV ? lazy(() => import("./dev/expics")) : null;
+// Dev page: the Activity monitor over a made up Mac (src/dev/activity-dev.tsx, PS 1.65). Lazy, never in a release build.
+const ActivityDev = import.meta.env.DEV ? lazy(() => import("./dev/activity-dev")) : null;
 
-function route(): "demo" | "join" | "join-owner" | "app" | "overlay" | "campaigns" | "fitview" | "second-window" | "reply-window" | "gsquad" | "expics" {
+function route(): "demo" | "join" | "join-owner" | "app" | "overlay" | "campaigns" | "fitview" | "second-window" | "reply-window" | "gsquad" | "expics" | "activity-dev" {
   const p = location.pathname.replace(BASE, "/").replace(/\/+$/, "");
   // cincee.com/campaigns (also /client/campaigns): the Cincee Campaigns dashboard, owner only.
   if (!PS && (/^\/campaigns(\/|$)/.test(location.pathname) || p === "/campaigns")) return "campaigns";
@@ -119,6 +121,7 @@ function route(): "demo" | "join" | "join-owner" | "app" | "overlay" | "campaign
     return "app";
   }
   if (import.meta.env.DEV && p === "/dev-expics") return "expics";
+  if (import.meta.env.DEV && p === "/dev-activity") return "activity-dev";
   if (p === "/demo") return "demo";
   if (p === "/join") return "join";
   if (p === "/join-owner") return "join-owner";
@@ -173,10 +176,11 @@ export default function App() {
   useTheme();
   useEffect(() => { if (r !== "overlay" && r !== "second-window" && r !== "reply-window") { startPsBridge(); startPsPresence(); } }, [r]);
   // Rewind (PS 1.64): the private history for the yearly recap, in the main page only (src/rewind.ts, core/rewind.ts).
-  useEffect(() => { if (r !== "overlay" && r !== "second-window" && r !== "reply-window" && r !== "fitview" && r !== "expics") startRewind(); }, [r]);
+  useEffect(() => { if (r !== "overlay" && r !== "second-window" && r !== "reply-window" && r !== "fitview" && r !== "expics" && r !== "activity-dev") startRewind(); }, [r]);
   if (r === "overlay") { startPsOverlay(); return <PsOverlay />; }
   if (r === "fitview") { startPsOverlay(); return <Wait><FitnessTestView /></Wait>; }
   if (r === "expics" && ExPicsDev) return <Suspense fallback={null}><ExPicsDev /></Suspense>;
+  if (r === "activity-dev" && ActivityDev) return <Suspense fallback={null}><ActivityDev /></Suspense>;
   if (r === "second-window") { startPsSecondWindow(); return <PsSecondWindow />; }
   if (r === "reply-window") { startReplyWindow(); return <ReplyWindow />; }
   if (r === "demo") return <><Wait><DemoPage /></Wait><Toasts /></>;

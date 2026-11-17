@@ -57,6 +57,8 @@ import { ClientEmailsSettings } from "./ClientEmailsSettings";
 import { WhatsAppSettings } from "./WhatsAppSettings";
 import { ScreenRecSettings } from "./ScreenRec";
 import { cleanSwitches, feature } from "../core/features";
+import { ACTIVITY_FEATURE } from "../core/activitymon";
+import { ActivitySetting, activityNote } from "./ActivityMonitor";
 import { CHK_FEATURE, CHK_EVERY_CHOICES, chkCardItem, cleanChk, everyLabel } from "../core/chkremind";
 import { chkTest } from "../chkwatch";
 import { cleanTe, TE_FEATURE } from "../core/timeest";
@@ -391,6 +393,9 @@ export const CONTROLS: Controls = {
     return <SetRow e={e} right={<OnOff label={e.name} on={feature("audio-priority")} ready={v.status === "unlocked"} set={(on) => save({ squadFeatures: { ...mine, "audio-priority": on } })} />} />;
   },
   "mic": function Mic({ e }) { return usePsMic() ? <SetRow e={e} body={<div className="gs-mic"><MicPicker /></div>} open /> : null; },
+  // PS 1.65 Activity monitor (views/ActivityMonitor.tsx): on or off, and how often it reads the Mac while open.
+  "activity": function Activity({ e }) { const { st } = useGen(); const on = st.activityMonitor !== false;
+    return feature(ACTIVITY_FEATURE) ? <SetRow e={e} right={<ActivitySetting on={on} speed={st.activitySpeed} set={save} />} body={<p className="gs-set-note">{activityNote(on)}</p>} open /> : null; },
   "network": function Net({ e }) { const { st } = useGen(); return <SetRow e={e} right={<NetworkSetting st={st} />} body={<p className="gs-set-note">{networkNote(st)}</p>} open />; },
   "app-name": block(() => <AppNameSetting />, false),
 
