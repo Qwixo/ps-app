@@ -3,10 +3,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  cleanTimeRemind, nlAddOpts, nlBackspace, nlDismiss, nlOnAdd, nlPicked, nlRule, nlStart, nlTyped, parseTaskText, reminderOf, settled, SETTLE_MS, stripHits, timeReminder, type NlOpts,
+  cleanTimeRemind, nlAddOpts, nlBackspace, nlDismiss, nlOnAdd, nlPicked, nlRule, nlStart, nlTyped, parseTaskText, reminderOf, settled, SETTLE_MS, stripHits, timeReminder, NL_REMIND_LEAD, type NlOpts,
 } from "../src/core/nldates.ts";
 import { quickDefaults } from "../src/core/quickadd.ts";
-import { cleanReminder } from "../src/core/remind.ts";
+import { cleanReminder, remNextRing } from "../src/core/remind.ts";
 import { cleanRepeat, daysLabel, nextAfter, repeatLabel, resetPatch, isDueNow, type Repeat } from "../src/core/repeat.ts";
 
 let n = 0;
@@ -314,13 +314,30 @@ ok("cleanTimeRemind: only a real time and a day or days get through (it comes in
   assert.deepEqual(cleanTimeRemind({ at: "07:00", days: [1], tz: "Not/AZone" }), { at: "07:00", days: [1], tz: "" });
   for (const bad of [null, "10:00", { at: "25:00", date: "2026-11-18" }, { at: "9:00", date: "2026-11-18" }, { at: "10:00" }, { at: "10:00", days: [] }, { at: "10:00", date: "18/11" }]) assert.equal(cleanTimeRemind(bad), null);
 });
-ok("timeReminder: a reminder on the task at the typed time, three hours of nudges, past midnight too", () => {
-  const r = timeReminder("r1", "task1", { at: "22:30", date: "2026-11-18", tz: "" }, NOW, TZ);
-  assert.equal(r.task, "task1"); assert.equal(r.at, "22:30"); assert.equal(r.until, "01:30"); assert.equal(r.date, "2026-11-18");
-  assert.ok(cleanReminder(r, NOW), "the reminder rules accept it");
+ok("timeReminder: ONE reminder 15 minutes before the typed time, never the 15 minute nag (owner, 17 Nov)", () => {
+  // "call David at 3pm": pops up once at 14:45, its window ends at 15:00, so it rings once.
+  const r = timeReminder("r1", "task1", { at: "15:00", date: "2026-11-18", tz: "" }, NOW, TZ);
+  assert.equal(r.task, "task1"); assert.equal(r.at, "14:45"); assert.equal(r.until, "15:00"); assert.equal(r.date, "2026-11-18");
+  const c = cleanReminder(r, NOW)!;
+  assert.ok(c, "the reminder rules accept it");
+  assert.equal(c.at, "14:45"); assert.equal(c.until, "15:00");
+  // It rings at 14:45 and never again: the next ring would be at 15:00, the end of its window. A snooze ends there too.
+  const at1445 = Date.UTC(2026, 10, 18, 10, 45);   // 14:45 in Dubai
+  assert.equal(remNextRing(c, undefined, Date.UTC(2026, 10, 18, 9, 0), TZ, 0), at1445, "first ring at 14:45");
+  assert.equal(remNextRing(c, undefined, at1445, TZ, 0), at1445, "it rings at 14:45");
+  assert.equal(remNextRing(c, undefined, at1445 + 60_000, TZ, at1445), 0, "no second ring");
+  assert.equal(remNextRing(c, { snoozeUntil: at1445 + 15 * 60_000, at: at1445 }, at1445 + 60_000, TZ, at1445), 0, "a snooze does not bring it back");
+  // Just after midnight: the evening before.
+  const late = timeReminder("r3", "task3", { at: "00:10", date: "2026-11-19", tz: "" }, NOW, TZ);
+  assert.equal(late.at, "23:55"); assert.equal(late.until, "00:10"); assert.equal(late.date, "2026-11-18");
+  assert.ok(cleanReminder(late, NOW));
+  // A weekly repeat keeps its days, 15 minutes earlier; one just after midnight moves to the day before.
   const w = timeReminder("r2", "task2", { at: "07:00", days: [1, 2, 3, 4, 5], tz: "Asia/Dubai" }, NOW, TZ);
-  assert.equal(w.date, undefined); assert.deepEqual(w.days, [1, 2, 3, 4, 5]); assert.equal(w.tz, "Asia/Dubai");
+  assert.equal(w.date, undefined); assert.deepEqual(w.days, [1, 2, 3, 4, 5]); assert.equal(w.tz, "Asia/Dubai"); assert.equal(w.at, "06:45");
   assert.deepEqual(cleanReminder(w, NOW)?.days, [1, 2, 3, 4, 5]);
+  const wl = timeReminder("r4", "task4", { at: "00:05", days: [0, 1], tz: "" }, NOW, TZ);
+  assert.equal(wl.at, "23:50"); assert.deepEqual(wl.days, [0, 6]);
+  assert.equal(NL_REMIND_LEAD, 15);
 });
 ok("the Add task window: the typed words fill in How often, When and Repeats", () => {
   const o = quickDefaults("2026-11-17");

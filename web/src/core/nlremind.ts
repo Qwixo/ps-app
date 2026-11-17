@@ -1,5 +1,5 @@
 // A typed time on a new task (PS 1.65, dates in plain words, core/nldates.ts): "call the bank tomorrow at 10" also puts a
-// reminder on the task at 10:00 on that day (the reminders on tasks of V1.55, core/remind.ts). The time travels with the
+// reminder on the task, ONCE, 15 minutes before: 09:45 on that day (the owner, 17 Nov 2026; core/nldates.ts timeReminder). The time travels with the
 // add itself (the Mac's floating list sends it in its "add" message, src/ps.ts), and the page that saves the task adds the
 // reminder once the task has its id. Settings, Your list, "A typed time adds a reminder" switches it off (settings.tmNlRemind).
 import { saveRemind } from "./actions";
