@@ -1,0 +1,46 @@
+/* Audio priority at the top of the volume mixer (views/AudioPriority.tsx, PS 1.65). Thin, calm rows; the grabbed row
+   lifts with a tiny squeeze first, the others glide on springs (driven from the view, transforms only). */
+.ap { display: grid; gap: calc(10px * var(--k-dn, 1)); }
+.ap-sec { display: grid; gap: calc(5px * var(--k-dn, 1)); }
+.ap-sec-t { font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(52% * var(--k-ia, 1))), transparent); padding-left: 2px; }
+.ap-list { display: grid; gap: 4px; position: relative; }
+.ap-row { position: relative; display: flex; align-items: center; gap: calc(8px * var(--k-dn, 1)); height: 34px; box-sizing: border-box; padding: 0 calc(8px * var(--k-dn, 1)) 0 calc(4px * var(--k-dn, 1));
+  border-radius: calc(10px * var(--k-rd, 1)); border: 1px solid transparent; cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none;
+  background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(5% * var(--k-ia, 1))), transparent);
+  transition: background .18s ease, border-color .18s ease, opacity .2s ease, box-shadow .2s ease, scale .2s cubic-bezier(.3, 1.4, .5, 1); will-change: transform; }
+.ap-row:hover { background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(9% * var(--k-ia, 1))), transparent); }
+.ap-row.using { border-color: color-mix(in srgb, var(--mix) 55%, transparent); background: color-mix(in srgb, var(--mix) 13%, transparent); }
+.ap-row.gone { opacity: .48; }
+.ap-row.gone:hover { opacity: .72; }
+.ap-row.lifted { z-index: 3; cursor: grabbing; scale: 1.03; opacity: 1; animation: ap-lift .24s ease-out; color: var(--k-fg, #FFFFFF);
+  background: color-mix(in srgb, var(--mix) 22%, #221A20); border-color: color-mix(in srgb, var(--mix) 70%, transparent);
+  box-shadow: 0 14px 30px -6px rgba(0, 0, 0, .6), 0 2px 6px rgba(0, 0, 0, .35); }
+@keyframes ap-lift { 0% { scale: 1; } 35% { scale: .97; } 100% { scale: 1.03; } }
+.ap-sec.dragging .ap-row:not(.lifted) { cursor: grabbing; }
+.ap-row.leaving { animation: ap-leave .2s ease-in forwards; pointer-events: none; }
+@keyframes ap-leave { to { opacity: 0; scale: .94; filter: blur(1px); } }
+.ap-grip { display: inline-flex; width: 12px; justify-content: center; flex: none; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(28% * var(--k-ia, 1))), transparent); transition: color .15s ease; }
+.ap-row:hover .ap-grip, .ap-row.lifted .ap-grip { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(65% * var(--k-ia, 1))), transparent); }
+.ap-num { flex: none; width: 14px; text-align: center; font-size: calc(11px * var(--k-fs, 1)); font-weight: 800; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(45% * var(--k-ia, 1))), transparent); }
+.ap-ic { flex: none; display: inline-flex; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(78% * var(--k-ia, 1))), transparent); }
+.ap-row.using .ap-ic { color: var(--k-fg, #FFFFFF); }
+.ap-name { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: calc(6px * var(--k-dn, 1)); font-size: calc(12.5px * var(--k-fs, 1)); font-weight: 700; }
+.ap-nm { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-name em { flex: none; font-style: normal; font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 650; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(60% * var(--k-ia, 1))), transparent); }
+.ap-use { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; color: var(--k-fg, #FFFFFF); animation: ap-in .32s cubic-bezier(.3, 1.4, .5, 1); }
+.ap-use i { width: 6px; height: 6px; border-radius: 50%; background: var(--mix); box-shadow: 0 0 0 0 color-mix(in srgb, var(--mix) 60%, transparent); animation: ap-pulse 2.4s ease-out infinite; }
+@keyframes ap-in { from { opacity: 0; translate: 6px 0; scale: .9; } to { opacity: 1; translate: 0 0; scale: 1; } }
+@keyframes ap-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mix) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
+.ap-x { flex: none; width: 22px; height: 22px; border: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+  color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(70% * var(--k-ia, 1))), transparent); background: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(7% * var(--k-ia, 1))), transparent); transition: background .15s ease, color .15s ease; }
+.ap-x:hover { color: var(--k-fg, #FFFFFF); background: color-mix(in srgb, var(--k-warn-t, #FDA4AF) 30%, transparent); }
+.ap-note, .ap-why, .ap-empty { font-size: calc(11px * var(--k-fs, 1)); line-height: 1.35; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(50% * var(--k-ia, 1))), transparent); padding-left: 2px; }
+.ap-note { color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(66% * var(--k-ia, 1))), transparent); }
+.ap-note.call { color: var(--k-warn-t, #FDE68A); }
+.ap-why { margin-top: -4px; }
+.mix-sub { font-size: calc(10.5px * var(--k-fs, 1)); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(52% * var(--k-ia, 1))), transparent); padding: calc(4px * var(--k-dn, 1)) 0 0 2px;
+  border-top: 1px solid color-mix(in srgb, var(--k-fg, #FFFFFF) min(100%, calc(8% * var(--k-ia, 1))), transparent); padding-top: calc(10px * var(--k-dn, 1)); }
+@media (prefers-reduced-motion: reduce) {
+  .ap-row, .ap-use, .ap-use i, .ap-row.lifted, .ap-row.leaving { transition: none; animation: none; }
+  .ap-row.lifted { scale: 1; }
+}

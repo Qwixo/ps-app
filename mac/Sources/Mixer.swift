@@ -133,17 +133,6 @@ final class Mixer {
   var deliver: ((String) -> Void)?
 
   struct Level: Codable { var gain: Float = 1; var muted = false; var hide = false }
-  struct Prefs: Codable, Equatable {
-    var density = "roomy"; var icons = true; var slider = "thin"; var color = "#A78BFA"; var filter = "playing"; var sort = "name"; var meters = true; var opacity = 0.96
-    init() {}
-    init(from d: Decoder) throws {
-      let c = try d.container(keyedBy: CodingKeys.self); let z = Prefs()
-      density = (try? c.decode(String.self, forKey: .density)) ?? z.density; icons = (try? c.decode(Bool.self, forKey: .icons)) ?? z.icons
-      slider = (try? c.decode(String.self, forKey: .slider)) ?? z.slider; color = (try? c.decode(String.self, forKey: .color)) ?? z.color
-      filter = (try? c.decode(String.self, forKey: .filter)) ?? z.filter; sort = (try? c.decode(String.self, forKey: .sort)) ?? z.sort
-      meters = (try? c.decode(Bool.self, forKey: .meters)) ?? z.meters; opacity = (try? c.decode(Double.self, forKey: .opacity)) ?? z.opacity
-    }
-  }
   private struct Group {
     var key: String; var bundle: String; var name: String; var pid: pid_t; var tag: String?
     var objects: [AudioObjectID]; var playing: Bool; var lastPlayed: Date?
@@ -151,7 +140,6 @@ final class Mixer {
   private struct Tapped { var tap: MixTap; var voice: MixVoice; var device: String; var objects: [AudioObjectID]; var started: Date; var rate: Double }
 
   private var levels: [String: Level] = [:]
-  private(set) var prefs = Prefs()
   private var groups: [String: Group] = [:]
   private var taps: [String: Tapped] = [:]
   private var cant: [String: Date] = [:]          // can't adjust (protected audio, or the tap never ran): untouched for a while
@@ -185,20 +173,20 @@ final class Mixer {
   private func load() {
     let d = UserDefaults.standard
     if testDir == nil, let x = d.data(forKey: "mixer.levels"), let l = try? JSONDecoder().decode([String: Level].self, from: x) { levels = l }
-    if testDir == nil, let x = d.data(forKey: "mixer.ui"), let p = try? JSONDecoder().decode(Prefs.self, from: x) { prefs = p }
-    if let x = testFile("mixer.json"), let o = try? JSONDecoder().decode(Saved.self, from: x) { levels = o.levels; prefs = o.prefs; asked = o.asked }
+    // PS 1.65: the mixer has one look. Its old look settings ("mixer.ui": rows, icons, slider, colour, show, sort, meters,
+    // see through) are no longer read; the key stays as it was, so an older PS still finds them.
+    if let x = testFile("mixer.json"), let o = try? JSONDecoder().decode(Saved.self, from: x) { levels = o.levels; asked = o.asked }
     else if testDir == nil { asked = d.bool(forKey: "mixer.asked") }
   }
-  private struct Saved: Codable { var levels: [String: Level]; var prefs: Prefs; var asked: Bool }
+  private struct Saved: Codable { var levels: [String: Level]; var asked: Bool }
   private func testFile(_ n: String) -> Data? { testDir.flatMap { try? Data(contentsOf: URL(fileURLWithPath: $0).appendingPathComponent(n)) } }
   private func save() {
     if let dir = testDir {
-      if let x = try? JSONEncoder().encode(Saved(levels: levels, prefs: prefs, asked: asked)) { try? x.write(to: URL(fileURLWithPath: dir).appendingPathComponent("mixer.json")) }
+      if let x = try? JSONEncoder().encode(Saved(levels: levels, asked: asked)) { try? x.write(to: URL(fileURLWithPath: dir).appendingPathComponent("mixer.json")) }
       return
     }
     let d = UserDefaults.standard
     if let x = try? JSONEncoder().encode(levels) { d.set(x, forKey: "mixer.levels") }
-    if let x = try? JSONEncoder().encode(prefs) { d.set(x, forKey: "mixer.ui") }
     d.set(asked, forKey: "mixer.asked")
   }
 
@@ -318,17 +306,14 @@ final class Mixer {
       let l = levels[k] ?? Level()
       var r: [String: Any] = ["key": k, "name": g.name, "playing": g.playing, "gain": Double(l.gain), "muted": l.muted, "hide": l.hide,
                               "cant": cant[k] != nil, "adjusted": taps[k] != nil, "meter": Double(taps[k]?.voice.takePeak() ?? 0)]
-      if prefs.icons, let i = icons[k] { r["icon"] = i }
+      if let i = icons[k] { r["icon"] = i }
       if let t = g.tag { r["instance"] = t }
       rows.append(r)
     }
-    var d: [String: Any] = ["type": "mixer", "rows": rows, "permission": permission, "asked": asked, "prefs": prefsJSON(), "hints": hints()]
+    var d: [String: Any] = ["type": "mixer", "rows": rows, "permission": permission, "asked": asked, "hints": hints()]
     if let m = backend.master() { d["master"] = ["volume": Double(m.volume), "muted": m.muted, "device": backend.defaultOutput()?.name ?? ""] }
     guard let data = try? JSONSerialization.data(withJSONObject: d), let j = String(data: data, encoding: .utf8) else { return }
     DispatchQueue.main.async { self.deliver?(j) }
-  }
-  private func prefsJSON() -> [String: Any] {
-    ["density": prefs.density, "icons": prefs.icons, "slider": prefs.slider, "color": prefs.color, "filter": prefs.filter, "sort": prefs.sort, "meters": prefs.meters, "opacity": prefs.opacity]
   }
   /// What a recording will and will not hear, said plainly (never more protection than there is).
   private func hints() -> [String] {
@@ -368,17 +353,7 @@ final class Mixer {
         if let k = m["key"] as? String { cant[k] = nil; reconcile(); push() }
       case "master":
         backend.setMaster(volume: (m["value"] as? Double).map { Float(max(0, min(1, $0))) }, muted: m["muted"] as? Bool); push()
-      case "prefs":
-        guard let p = m["prefs"] as? [String: Any] else { return }
-        if let v = p["density"] as? String, ["compact", "roomy"].contains(v) { prefs.density = v }
-        if let v = p["icons"] as? Bool { prefs.icons = v }
-        if let v = p["slider"] as? String, ["thin", "thick", "pill"].contains(v) { prefs.slider = v }
-        if let v = p["color"] as? String, v.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil { prefs.color = v.uppercased() }
-        if let v = p["filter"] as? String, ["playing", "recent"].contains(v) { prefs.filter = v }
-        if let v = p["sort"] as? String, ["name", "loud"].contains(v) { prefs.sort = v }
-        if let v = p["meters"] as? Bool { prefs.meters = v }
-        if let v = p["opacity"] as? Double { prefs.opacity = max(0.55, min(1, v)) }
-        save(); push()
+      case "prefs": break                                               // PS 1.65: one look, the old look settings are gone
       default: break
       }
     }
@@ -392,10 +367,9 @@ final class Mixer {
   func level(_ k: String) -> Level? { q.sync { levels[k] } }
   func voice(_ k: String) -> MixVoice? { q.sync { taps[k]?.voice } }
   func cantAdjust(_ k: String) -> Bool { q.sync { cant[k] != nil } }
-  var currentPrefs: Prefs { q.sync { prefs } }
   var hintsNow: [String] { q.sync { hints() } }
   var permissionNow: String { q.sync { permission } }
-  func reloadForTest() { q.sync { levels = [:]; prefs = Prefs(); asked = false; load(); groups = [:]; for (_, t) in taps { t.tap.stop() }; taps = [:]; refresh() } }
+  func reloadForTest() { q.sync { levels = [:]; asked = false; load(); groups = [:]; for (_, t) in taps { t.tap.stop() }; taps = [:]; refresh() } }
   func tickForTest() { q.sync { tick() } }
   var fake: FakeMix? { q.sync { backend as? FakeMix } }
 }

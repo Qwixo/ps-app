@@ -384,6 +384,12 @@ export const CONTROLS: Controls = {
     const g = usePs()?.mediaGuard;
     return <SetRow e={e} className="gs-has-switch" right={<OnOff label={e.name} on={!!g?.on} ready={!!g} set={(on) => psPost({ type: "mediaGuard", on })} />} body={<MediaGuardSettings />} />;
   },
+  // PS 1.65 Audio priority: the same switch as in From the squad (squadFeatures). The order itself is in the volume mixer.
+  "audio-priority": function AudioPrio({ e }) {
+    const v = useVault();
+    const mine = cleanSwitches(settingsData(v).squadFeatures);
+    return <SetRow e={e} right={<OnOff label={e.name} on={feature("audio-priority")} ready={v.status === "unlocked"} set={(on) => save({ squadFeatures: { ...mine, "audio-priority": on } })} />} />;
+  },
   "mic": function Mic({ e }) { return usePsMic() ? <SetRow e={e} body={<div className="gs-mic"><MicPicker /></div>} open /> : null; },
   "network": function Net({ e }) { const { st } = useGen(); return <SetRow e={e} right={<NetworkSetting st={st} />} body={<p className="gs-set-note">{networkNote(st)}</p>} open />; },
   "app-name": block(() => <AppNameSetting />, false),

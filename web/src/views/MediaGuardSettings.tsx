@@ -15,7 +15,7 @@ export function MediaGuardSettings() {
       <p className="muted small" style={{ margin: 0 }}>
         When a browser tab takes your AirPods play and pause button and never answers (you hear the error sound), PS app gives
         the button back to Spotify by itself and shows a short card saying so. Off by default: "Give AirPods button back to
-        Spotify" is always in the volume mixer's gear. PS app only reads the Mac's media log while this is on.
+        Spotify" is always at the bottom of the volume mixer. PS app only reads the Mac's media log while this is on.
       </p>
       <div className="tabs" role="radiogroup" aria-label="AirPods button card on or off" style={{ justifySelf: "start" }}>
         <button className="tab" role="radio" aria-checked={!!g?.on} aria-selected={!!g?.on} disabled={!g} onClick={() => set(true)}>On</button>

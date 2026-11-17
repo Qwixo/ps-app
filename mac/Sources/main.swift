@@ -404,9 +404,10 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     // Switch to AirPods Max when they connect (Sources/AutoRoute.swift): Core Audio listeners, own queue.
     // The developer's own (Owner.swift): on anyone else's PS it never starts.
     Owner.whenRed { AutoRoute.shared.start(testDir: ProcessInfo.processInfo.environment["PS_SELFTEST"]) }
-    // Headphones mode (Sources/Headphones.swift, V1.40): every account, its switch is in the volume mixer. Own queue.
-    HeadphonesMode.shared.deliver = { [weak self] j in self?.overlay?.callAsyncJavaScript("window.__psHpMode && window.__psHpMode(JSON.parse(m))", arguments: ["m": j], in: nil, in: .page, completionHandler: nil) }
-    HeadphonesMode.shared.start(testDir: ProcessInfo.processInfo.environment["PS_SELFTEST"])
+    // Audio priority (Sources/AudioPriority.swift, PS 1.65, replaces Headphones mode): every account, its two ordered
+    // lists are in the volume mixer, its switch in Settings. Core Audio listeners, own queue.
+    AudioPriority.shared.deliver = { [weak self] j in self?.overlay?.callAsyncJavaScript("window.__psAudioPrio && window.__psAudioPrio(JSON.parse(m))", arguments: ["m": j], in: nil, in: .page, completionHandler: nil) }
+    AudioPriority.shared.start(testDir: ProcessInfo.processInfo.environment["PS_SELFTEST"])
     // The Tab list's badge ("AFK 14:32" or "Watcher 42:10 left"): status goes to the overlay page only.
     Afk.shared.onStatus = { [weak self] j in self?.overlay?.callAsyncJavaScript("window.__psAfk && window.__psAfk(JSON.parse(m))", arguments: ["m": j], in: nil, in: .page, completionHandler: nil) }
     Afk.shared.start(testDir: ProcessInfo.processInfo.environment["PS_SELFTEST"])
@@ -1546,8 +1547,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       ScreenRec.shared.handle(msg)
     case "mixer" where fromOverlay:           // the volume mixer pop-up (Sources/Mixer.swift); click only, except slider drags
       Mixer.shared.handle(msg)
-    case "hpmode" where fromOverlay || fromMain:   // Headphones mode (Sources/Headphones.swift): the switch, its lists (synced settings.tmAudio)
-      HeadphonesMode.shared.handle(msg)
+    case "audioprio" where fromOverlay:       // Audio priority (Sources/AudioPriority.swift): the volume mixer's two ordered lists
+      AudioPriority.shared.handle(msg)
     case "power:get" where MINECRAFT_ENABLED: // Minecraft mode's power out stopwatch asks for the state (Sources/PowerWatch.swift)
       PowerWatch.shared.request()
     case "airpods" where fromOverlay:         // mixer gear > Give AirPods button back to Spotify (Sources/MediaGuard.swift), click only
@@ -1634,7 +1635,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     case "mic:get" where fromOverlay || fromMain:   // the microphone picker in Settings
       sendMic()
     case "mic:set" where fromOverlay || fromMain:   // The developer picked a microphone: make it the Mac's default
-      if let uid = msg["uid"] as? String { let ok = Mic.setDefault(uid: uid); psLog("PS mic: set default input ok=\(ok)") }
+      if let uid = msg["uid"] as? String { AudioPriority.shared.notePick(.mics, uid); let ok = Mic.setDefault(uid: uid); psLog("PS mic: set default input ok=\(ok)") }
       sendMic()
     case "thunder" where fromOverlay:           // the lightning backgrounds' thunder: only while the list is showing
       if shown, let name = msg["name"] as? String { Sfx.shared.thunder(name, volume: msg["vol"] as? Double ?? 0) }

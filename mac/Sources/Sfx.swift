@@ -68,6 +68,13 @@ final class Sfx {
     "tz-back": [Tone(f: 1046.5, to: 784, dur: 0.22, peak: 0.05, wave: 0, at: 0)],
     "tz-up": [Tone(f: 2200, to: 2600, dur: 0.022, peak: 0.05, wave: 1, at: 0)],
     "tz-down": [Tone(f: 1900, to: 1500, dur: 0.022, peak: 0.05, wave: 1, at: 0)],
+    // PS 1.65 Audio priority (web src/core/audiopriority.ts AP_TONES, the same numbers): a device row picked up, passing a
+    // place, settling, used now, forgotten.
+    "ap-lift": [Tone(f: 520, to: 660, dur: 0.07, peak: 0.05, wave: 0, at: 0)],
+    "ap-slot": [Tone(f: 1760, to: 1600, dur: 0.018, peak: 0.025, wave: 1, at: 0)],
+    "ap-drop": [Tone(f: 660, to: 440, dur: 0.09, peak: 0.06, wave: 0, at: 0), Tone(f: 1320, to: nil, dur: 0.05, peak: 0.015, wave: 0, at: 0.01)],
+    "ap-use": [Tone(f: 784, to: nil, dur: 0.18, peak: 0.05, wave: 0, at: 0), Tone(f: 1174.66, to: nil, dur: 0.3, peak: 0.045, wave: 0, at: 0.06)],
+    "ap-forget": [Tone(f: 880, to: 520, dur: 0.16, peak: 0.04, wave: 0, at: 0)],
     "edit-reset": [Tone(f: 880, to: 440, dur: 0.3, peak: 0.08, wave: 0, at: 0), Tone(f: 1500, to: 300, dur: 0.28, peak: 0.04, wave: 3, at: 0)],
   ]
 

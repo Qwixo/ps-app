@@ -42,7 +42,7 @@ const PUBLIC_CONTROLS: Record<string, string> = {
   NetButton: "the network monitor (NetMonitor.swift)", CalSwitch: "meetings from this Mac's Calendar (LocalCalendar.swift, src/calrefresh.ts; V1.43 its own row in Settings)", RebootCard: "auto reboot (AutoReboot.swift)", SecurityButton: "the Security panel",
   TypedPrioSwitch: "typed P1, P2, P3 in the add boxes (core/typedprio.ts)",
   TelegramBotSettings: "Add Telegram Bot: the key, Link my Telegram, Test, Remove, the rules (src/tgbot.ts, TelegramBot.swift, ps-gos TgBot.kt, V1.47)",
-  HeadphonesSwitch: "Headphones mode and its auto switch (Headphones.swift, V1.40)",
+  AudioPriorityLists: "Audio priority: the Speakers and Microphones order in the volume mixer (AudioPriority.swift, PS 1.65, replaced Headphones mode)",
   EditButton: "Edit mode: moved and removed panels (views/EditMode.tsx, G Squad)",
   IslandPlace: "the Dynamic Island's position on this Mac (Island.swift island.pos, G Squad)", IslandPosRow: "the same, in the island's own settings",
   IslandAwayRow: "Show it now while the island is away (right click > Disappear, V1.58)", IslandHideRow: "how long a click on the island's top line hides it (settings.island.hide, Island.swift, V1.40)",
@@ -80,7 +80,7 @@ await ok("the gym reminder runs for every owner and starts off for anyone but th
 const NATIVE: Record<string, string> = {
   Reminders: "RemindSettings", Afk: "AfkSettings", AreYouSure: "AysSettings", MiddleClick: "MiddleClickSettings", Mixer: "MixerButton",
   NetMonitor: "NetButton", AutoReboot: "RebootCard", MediaGuard: "MediaGuardSettings", AutoRoute: "AirPodsFix",
-  HeadphonesMode: "HeadphonesSwitch", TelegramBot: "TelegramBotSettings", AutoApprove: "AutoApproveSettings",
+  AudioPriority: "AudioPriorityLists", TelegramBot: "TelegramBotSettings", AutoApprove: "AutoApproveSettings",
 };
 const macDir = process.env.PS_MAC_DIR || join(homedir(), "Projects", "ps-mac");
 const mainSwift = join(macDir, "Sources", "main.swift");

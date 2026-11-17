@@ -61,11 +61,9 @@ ok("the Mac's state is checked before the page uses it", () => {
   assert.deepEqual(s!.ins, []);
   assert.equal(s!.mic, "");
 });
-ok("the Tab list saves it through the looks path and it reaches the Mac (ps.ts, audiomode.ts)", () => {
+ok("PS 1.65: the old synced lists are still cleaned on the looks path, but no longer sent to the Mac (Audio priority replaced them)", () => {
   const ps = readFileSync(new URL("../src/ps.ts", import.meta.url), "utf8");
   assert.match(ps, /o\.tmAudio = cleanAudio\(p\.tmAudio\)/);
-  assert.match(ps, /startAudioMode\(psPost\)/);
-  const am = readFileSync(new URL("../src/audiomode.ts", import.meta.url), "utf8");
-  assert.match(am, /type: "hpmode", op: "prefs"/);
+  assert.doesNotMatch(ps, /startAudioMode/);
 });
 console.log(`audiomode: ${n} passed`);

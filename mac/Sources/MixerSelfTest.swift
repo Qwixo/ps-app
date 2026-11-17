@@ -129,29 +129,16 @@ extension SelfTest {
                             r.append(("signal-never-touched", mx.level("org.whispersystems.signal-desktop") == nil && !f.started.contains { $0.objects.contains(160) || $0.objects.contains(162) }))
                             later(1.2) {
                               snapMixer("mixer") {
-                                // The mixer's own gear: every setting applies at once and is kept.
-                                click(".mix-gear-btn") {
-                                  click(".mix-gear .mix-chip:nth-of-type(1)") {                  // Compact
-                                    js("[].filter.call(document.querySelectorAll('.mix-gear .mix-chip'),function(b){return ['Thick','All recent','Loudness'].indexOf(b.textContent)>=0}).forEach(function(b){b.click()});document.querySelectorAll('.mix-gear .mix-sw')[2].click();[].filter.call(document.querySelectorAll('.mix-gear .mix-gr'),function(g){return g.firstChild.textContent==='Meters'})[0].querySelectorAll('.mix-chip')[1].click();true") { _ in
-                                      later(0.8) {
-                                        let p = mx.currentPrefs
-                                        js("JSON.stringify({cls: document.querySelector('.mix-pop').className, color: getComputedStyle(document.querySelector('.mix-pop')).getPropertyValue('--mix').trim(), meters: document.querySelectorAll('.mix-meter').length})") { ui in
-                                          r.append(("mixer-gear-settings-apply", p.density == "compact" && p.slider == "thick" && p.filter == "recent" && p.sort == "loud" && p.color == "#34D399" && !p.meters
-                                                    && ui.contains("compact") && ui.contains("slider-thick") && ui.contains("#34D399") && ui.contains("\"meters\":0")))
-                                          if !(r.last?.1 ?? true) { print("MIXER DEBUG gear: prefs=\(p) ui=\(ui)") }
-                                          snapMixer("mixer-gear") {
-                                            mx.reloadForTest()                                   // a restart: levels and settings come back
-                                            r.append(("levels-and-settings-persist", mx.level("com.spotify.client")?.gain == 0.1 && mx.level("com.brave.Browser")?.hide == true && mx.currentPrefs == p))
-                                            click(".tm-tr .mix-btn") {                            // close
-                                              onlyWhilePlaying(mx, f) { more in
-                                                r += more
-                                                print("MIXER CHECK:", r.map { "\($0.0)=\($0.1 ? "ok" : "FAIL")" }.joined(separator: " "), "taps=\(f.started.count)")
-                                                done()
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
+                                // PS 1.65: one look, no gear. The levels are kept across a restart.
+                                js("JSON.stringify({gear: document.querySelectorAll('.mix-gear-btn, .mix-gear').length, seg: document.querySelectorAll('.hp-seg').length})") { ui in
+                                  r.append(("one-look-no-gear-no-mode-switch", ui.contains("\"gear\":0") && ui.contains("\"seg\":0")))
+                                  mx.reloadForTest()                                   // a restart: levels come back
+                                  r.append(("levels-persist", mx.level("com.spotify.client")?.gain == 0.1 && mx.level("com.brave.Browser")?.hide == true))
+                                  click(".tm-tr .mix-btn") {                            // close
+                                    onlyWhilePlaying(mx, f) { more in
+                                      r += more
+                                      print("MIXER CHECK:", r.map { "\($0.0)=\($0.1 ? "ok" : "FAIL")" }.joined(separator: " "), "taps=\(f.started.count)")
+                                      done()
                                     }
                                   }
                                 }
