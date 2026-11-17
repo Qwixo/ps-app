@@ -16,6 +16,7 @@ import { meetingEvents } from "./core/calpick";
 import { visibleEvents } from "./core/meethide";
 import { isMeeting } from "./core/notescard";
 import type { CalendarSnap } from "./core/model";
+import { lpInterval } from "./core/lowpower.ts";
 
 export const POSTURE_FEATURE = "posture-reminder";
 type Post = (m: object) => void;
@@ -160,7 +161,7 @@ export function startPostureWatch(p: Post) {
     for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"]) window.addEventListener(ev, seen, { passive: true, capture: true });
     document.addEventListener("visibilitychange", seen);
   }
-  window.setInterval(tick, TICK_MS);
+  lpInterval("alarms", tick, TICK_MS);   // PS 1.65: rings in Low power mode while Keep reminders ringing is on (core/lowpower.ts)
   vaultStore.subscribe(() => { if (!primedKey) tick(); });
   tick();
 }

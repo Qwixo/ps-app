@@ -12,6 +12,7 @@ import { dndAuto, dndEndsAt, dndNative } from "./core/dnd";
 import { setDnd } from "./core/actions";
 import { fitnessNow } from "./fitness/store";
 import { homeTz } from "./core/tz";
+import { lpInterval } from "./core/lowpower.ts";
 
 type Post = (m: object) => void;
 
@@ -44,6 +45,6 @@ export function startDnd(post: Post, device: "mac" | "phone") {
   };
   let t = 0;
   vaultStore.subscribe(() => { clearTimeout(t); t = window.setTimeout(() => sync(), 150); });
-  window.setInterval(() => sync(true), 60_000);
+  lpInterval("checks", () => sync(true), 60_000);   // PS 1.65: asleep in Low power mode, one catch up on wake (core/lowpower.ts)
   sync();
 }

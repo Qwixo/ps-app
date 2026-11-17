@@ -20,6 +20,7 @@ import { alarmRings } from "./core/remind";
 import { DEVICE_TZ } from "./core/tz";
 import { homeTz, setHomeTz } from "./core/tz";
 import { dndMutes } from "./core/dnd";
+import { lowPower } from "./core/lowpower.ts";
 
 type Post = (m: object) => void;
 const PHONE = import.meta.env.MODE === "gos";
@@ -52,6 +53,7 @@ export function ackGymDay(day: string) {
 function hide() { if (shown) { post({ type: "cardHide", id: "gym" }); shown = ""; shownDay = ""; } }
 
 function run() {
+  if (lowPower.asleep("alarms")) { lowPower.onWake("alarms", run); return; }   // PS 1.65 Low power mode: the gym ring rings while Keep reminders ringing is on
   clearTimeout(timer);
   const s = vaultStore.get();
   if (!unlocked()) { if (!PHONE) hide(); return; }

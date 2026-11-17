@@ -24,9 +24,12 @@ import { okWakeIn, wakeInAt, type SleepTimer } from "../core/sleepwake";
 import type { OpenSleep } from "../core/fitness";
 import { onSleepSquad, sleepSquadNow } from "./squad";
 import { clearSpentOnce, onceAuthAnswer, onceFromShell, onceOn } from "./once";
+import { lpInterval } from "../core/lowpower.ts";
 
 export type Where = "mac" | "phone" | "web";
-export const WHERE: Where = PS ? "mac" : GOS ? "phone" : "web";
+// The build mode itself, not ps.ts's PS: this module can load before ps.ts finishes (they import each other), and then
+// PS is not ready yet (the dev server's ?fake page went blank, 17 Nov 2026).
+export const WHERE: Where = import.meta.env.MODE === "ps" ? "mac" : import.meta.env.MODE === "gos" ? "phone" : "web";
 
 export interface SleepState {
   here: boolean;                       // the sleep screen is up on this device
@@ -472,10 +475,10 @@ export function startSleepEngine() {
     document.addEventListener("visibilitychange", () => { if (st.here && document.visibilityState === "visible" && (!lock || lock.released)) void holdWakeLock(); });
   }
   vaultStore.subscribe(() => { refreshPlan(); flushWoke(); flushBreak(); flushWakeIn(); endIfWokeElsewhere(); sendAlarms(); });
-  window.setInterval(sendAlarms, 30_000);
+  lpInterval("alarms", sendAlarms, 30_000);   // PS 1.65: Sleep mode alarms ring in Low power mode while Keep reminders ringing is on
   sendAlarms();
   // V1.43 breaks: checked every 10 seconds; a browser also notes the last touch or key (the last moment of activity).
-  window.setInterval(breakTick, 10_000);
+  lpInterval("alarms", breakTick, 10_000);
   if (WHERE === "web") for (const t of ["pointerdown", "keydown", "mousemove", "touchstart"]) window.addEventListener(t, () => { pageActive = Date.now(); }, { passive: true, capture: true });
   onSleepSquad(refreshPlan);
   if (WHERE === "mac") onPsSettings(refreshPlan);   // V1.52: the restart helper's state feeds the AI Sentry mode button's check

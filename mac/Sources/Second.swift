@@ -397,7 +397,8 @@ final class Second {
     // The heartbeat: every 5 minutes (the protocol's rule), and at once on a change.
     statTimer?.invalidate(); statTimer = nil
     if r != "none" {
-      let t = Timer(timeInterval: test ? (Double(ProcessInfo.processInfo.environment["PS_SELFTEST_SECOND_STATEVERY"] ?? "") ?? 300) : 300, repeats: true) { [weak self] _ in self?.sendStat(force: true) }
+      let t = Timer(timeInterval: test ? (Double(ProcessInfo.processInfo.environment["PS_SELFTEST_SECOND_STATEVERY"] ?? "") ?? 300) : 300, repeats: true) { [weak self] _ in if !LowPower.shared.asleep("second") { self?.sendStat(force: true) } }   // PS 1.65 Low power mode: no heartbeat while asleep, one on wake
+      LowPower.shared.onWake("second") { [weak self] in self?.sendStat(force: true) }
       t.tolerance = test ? 0.5 : 30
       RunLoop.main.add(t, forMode: .common)
       statTimer = t

@@ -134,6 +134,8 @@ import { macUpdateBadge } from "../core/macupdate";
 import { NetButton } from "./NetMonitor";
 import { ActivityButton } from "./ActivityMonitor";
 import { ACTIVITY_FEATURE } from "../core/activitymon";
+import { LowPowerButton } from "./LowPowerButton";
+import { useLpAsleep } from "../lowpower";
 import { NotesLeftovers } from "./NotesLeftovers";
 import { NewBadge } from "./NewBadge";
 import { MixerButton } from "./Mixer";
@@ -1268,12 +1270,13 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
   // colour, and rain in front of them. Something moving or filling the screen gives rows and panels solid backings, so
   // the list itself stays still and readable. (Outlines keep everything inside their own frame.)
   const rainPv = useRainPreview();
-  const rainNow = !floating ? "off" : rainKind(rainPv?.kind ?? st.tmRain);
+  const lpBg = useLpAsleep("backgrounds");   // PS 1.65 Low power mode: no lightning, no rain, no video behind the list
+  const rainNow = !floating ? "off" : lpBg ? "off" : rainKind(rainPv?.kind ?? st.tmRain);
   const rainAmt = rainAmount(rainPv?.amount ?? st.tmRainAmount);
   // The Mouse trail (core/trail.ts, V1.43): Glow is the rows' own CSS light; another effect is one canvas layer.
   const trail = trailOnList(st.tmTrail);
   const layers = bgLayers({ bg: bgLook, docked: !floating, hasP1, fade, sliding, rain: rainNow !== "off", stage });
-  const sceneOn = layers.scene, stormOn = layers.storm, colourCss = layers.colour ? colourBgCss(bgLook) : null;
+  const sceneOn = layers.scene, stormOn = layers.storm && !lpBg, colourCss = layers.colour ? colourBgCss(bgLook) : null;
   const videoBg = layers.video ? bgVideos.find((v) => `video:${v.id}` === bgLook) ?? null : null;
   const calm = floating && (sceneOn || stormOn || !!videoBg || !!colourCss || rainNow !== "off");
   const bgOn = fade > 0 || sliding || stage.forceBg;
@@ -1391,6 +1394,7 @@ export function Overlay({ onClose, controls, docked, web, footer }: { onClose: (
         <Slot id="endday"><EndDay dayEnds={st.dayEndsHour ?? DAY_ENDS_DEFAULT} docked={docked} /></Slot>
         {PS && st.netMonitor !== false && <Slot id="net"><NetButton /></Slot>}
         {activityOn && !docked && <Slot id="activity"><ActivityButton speed={st.activitySpeed} cols={st.activityCols} save={(p) => void taskMapActions.looks(p)} /></Slot>}
+        <Slot id="lowpower"><LowPowerButton /></Slot>
         {shows("mixer") && <Slot id="mixer"><MixerButton /></Slot>}
         <Slot id="clipboard"><ClearClipboard /></Slot>
         {/* The gear: on the floating list a click opens the full screen Settings (V1.32); the phone keeps its sheet
@@ -2221,7 +2225,9 @@ export function Choice({ selected, onPick, children, title }: { selected: boolea
  *  list: on hide it notes the time and the clock, on show the video seeks to where it would be had it played on, and
  *  stays invisible until that frame is ready, so it looks like it never stopped. */
 const bgPlayheads = new Map<string, Playhead>();
-function BgVideoLayer({ id, file, shown, crop }: { id: string; file?: string; shown: boolean; crop?: BgCrop | null }) {
+function BgVideoLayer({ id, file, shown: wantShown, crop }: { id: string; file?: string; shown: boolean; crop?: BgCrop | null }) {
+  // PS 1.65 Low power mode: the video lets go of its file and decoder while backgrounds sleep, as if hidden.
+  const shown = wantShown && !useLpAsleep("backgrounds");
   const v = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
   // `file`: a stand in while a newer copy of this video downloads (core/bgvault.ts); `restart` reloads it (phone keeper).

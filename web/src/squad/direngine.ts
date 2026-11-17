@@ -19,6 +19,7 @@ import type { SquadRec } from "../core/squadrec";
 import type { HubApi } from "./hub";
 import { askToJoin, cancelAsk, checkAsk, listSquads, sayDir } from "./dirflows";
 import type { DirView, SquadOp, SquadView } from "./view";
+import { lpClear, lpInterval } from "../core/lowpower.ts";   // PS 1.65 Low power mode: these timers stop while asleep
 
 type Post = (m: object) => void;
 export interface DirCtx {
@@ -96,10 +97,10 @@ async function check() {
   } catch { /* try again next time */ } finally { checking = false; }
 }
 function restart() {
-  if (timer !== undefined) window.clearInterval(timer);
+  if (timer !== undefined) lpClear(timer);
   timer = undefined;
   if (!ask || ask.state !== "open") return;
-  timer = window.setInterval(() => void check(), open ? OPEN_MS : WAIT_MS);
+  timer = lpInterval("squad-join", () => void check(), open ? OPEN_MS : WAIT_MS);
   void check();
 }
 

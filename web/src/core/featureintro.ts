@@ -239,6 +239,15 @@ export const INTROS: IntroDef[] = [
     mark: "spark",
     choice: true,
   },
+  {
+    // PS 1.65 Low power mode (core/lowpower.ts, views/LowPowerButton.tsx): one Ok ends it for good. Words for the owner to approve.
+    id: "low-power-165",
+    headline: "Low power mode",
+    ask: "The leaf next to Network puts G Squad, email feeds and every background timer to sleep. Your list keeps going.",
+    show: "Ok",
+    mark: "spark",
+    choice: true,
+  },
 ];
 
 /** The widths of the intro card and the guide grown out of the island (points). */

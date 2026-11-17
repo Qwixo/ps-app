@@ -55,6 +55,7 @@ final class ProtonBridge: NSObject {
   private var generation = 0          // a new link or an unlink makes an older timer do nothing
   private var linking: String?        // the last problem of a link attempt, in words' code
   private var started = false
+  private var lpHooked = false
   private lazy var timer = ProtonSingleTimer(queue: q)   // the ONE pending check
   private var lastStart: Double = 0                      // when the last check began (ms)
   private var replying = Set<String>()
@@ -179,6 +180,7 @@ final class ProtonBridge: NSObject {
   }
   /// One check, on q. Never two at once.
   private func checkNow() {
+    if LowPower.shared.asleep("proton") { if !lpHooked { lpHooked = true; LowPower.shared.onWake("proton") { [weak self] in self?.q.async { self?.checkNow() } } }; return }   // PS 1.65 Low power mode: one check on wake
     guard !test, let c = config, !checking else { return }
     guard featureOn, Features.on("client-emails") else { publish(); schedule(after: 300); return }   // switched off: nothing runs, look again later in case it is switched on
     if case .certChanged? = failure { return }

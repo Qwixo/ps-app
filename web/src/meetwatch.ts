@@ -21,6 +21,7 @@ import { notePref, noteSoundName } from "./core/notelook";
 import { afkMeetWindows, sameWindows, type MeetWindow } from "./core/afkmeet";
 import { askScreenRec, screenRecNow } from "./screenrec";
 import { meetingMessage } from "./core/screenrecmeet";
+import { lpInterval } from "./core/lowpower.ts";
 
 /** The phone shows these as notifications; its "Phone notifications" toggle mutes them all (core/dnd.ts). */
 const DEVICE = import.meta.env.MODE === "gos" ? "phone" : "mac";
@@ -196,6 +197,6 @@ export function startMeetAlerts(post: Post) {
     }
   };
   vaultStore.subscribe(() => { clearTimeout(t); t = window.setTimeout(run, 1500); });
-  window.setInterval(run, 30_000);
+  lpInterval("alarms", run, 30_000);   // the meeting 10 minute alert: rings in Low power mode while Keep reminders ringing is on
   run();
 }

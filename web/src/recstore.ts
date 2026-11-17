@@ -57,7 +57,8 @@ async function syncKeys(wantNew: boolean): Promise<void> {
   } catch { /* the vault is busy or offline: the next cloud message tries again */ }
   finally { keying = false; }
 }
-if (PS) vaultStore.subscribe(() => { if (cloud?.enabled && (cloud.encrypt || cloud.needKey)) void syncKeys(false); });
+// The build mode itself, not ps.ts's PS: this module can load before ps.ts finishes (dev server, 17 Nov 2026).
+if (import.meta.env.MODE === "ps") vaultStore.subscribe(() => { if (cloud?.enabled && (cloud.encrypt || cloud.needKey)) void syncKeys(false); });
 
 type Lib = { device: string | null; rows: RecRow[] };
 let syncing = false, again: Lib | null = null;

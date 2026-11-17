@@ -20,6 +20,7 @@ import * as R from "./core/rewind";
 import type { CalendarSnap, ScreenTimeDay, Todo } from "./core/model";
 import type { DayLog } from "./core/daylog";
 import type { FitWorkout } from "./core/fitness";
+import { lowPower } from "./core/lowpower.ts";
 
 const MODE = import.meta.env.MODE;
 const KIND: R.RwDev["k"] = MODE === "ps" ? "mac" : MODE === "gos" ? "gos" : (globalThis as { __psMobile?: unknown }).__psMobile === true ? "mweb" : "web";
@@ -97,9 +98,11 @@ export function rewindAys(t: unknown) {
   bump((d) => { d.ay = [Math.max(d.ay?.[0] ?? 0, x.prompts as number), Math.max(d.ay?.[1] ?? 0, x.passes as number)]; });
 }
 
+const wakeRewind = () => schedule(0);
 function schedule(ms: number) {
   if (!started) return;
   clearTimeout(timer);
+  if (lowPower.asleep("history")) { lowPower.onWake("history", wakeRewind); return; }   // PS 1.65 Low power mode: one look on wake
   const due = Math.max(ms, wantFull ? 0 : lastToday + TODAY_EVERY - Date.now());
   timer = window.setTimeout(() => void run(), Math.min(due, TODAY_EVERY));
 }
@@ -154,6 +157,7 @@ async function run() {
     running = false;
   }
   clearTimeout(timer);
+  if (lowPower.asleep("history")) { lowPower.onWake("history", wakeRewind); return; }
   timer = window.setTimeout(() => void run(), deltas.size ? TODAY_EVERY : Math.max(60_000, Math.min(FULL_EVERY, lastFull + FULL_EVERY - Date.now())));
 }
 

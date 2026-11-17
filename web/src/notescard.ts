@@ -12,6 +12,7 @@ import { meetingEvents } from "./core/calpick";
 import { saveSettings } from "./core/actions";
 import type { CalendarSnap, MeetingNote, Settings } from "./core/model";
 import { NOTES_DEFAULTS, notesCard, pruneLocal, type NotesLocal, type NotesPrefs } from "./core/notescard";
+import { lpInterval } from "./core/lowpower.ts";
 
 const LOCAL = "ps.notesCard";
 type Post = (m: object) => void;
@@ -92,6 +93,6 @@ export function startNotesCard(p: Post) {
   post = p;
   let t = 0;
   vaultStore.subscribe(() => { clearTimeout(t); t = window.setTimeout(sync, 400); });
-  window.setInterval(sync, 15_000);
+  lpInterval("checks", sync, 15_000);   // PS 1.65: asleep in Low power mode, one catch up on wake (core/lowpower.ts)
   sync();
 }

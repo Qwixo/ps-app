@@ -21,6 +21,7 @@ import { sb } from "./core/vault";
 import { feature } from "./core/features";
 import { gymReady } from "./core/gym";
 import { pushClearArgs } from "./core/webpush";
+import { lpInterval } from "./core/lowpower.ts";
 
 type Post = (m: object) => void;
 const PHONE = import.meta.env.MODE === "gos";
@@ -102,7 +103,7 @@ export function startRemWatch(p: Post) {
   vaultStore.subscribe(() => { clearTimeout(timer); timer = window.setTimeout(run, 300); });
   // Once a minute too: a ticked task's "done for now" follows the clock into the next window, and the sweep's wait ends.
   // Only the plan is worked out; it goes to the shell only when it changed.
-  window.setInterval(run, 60_000);
+  lpInterval("alarms", run, 60_000);   // PS 1.65: rings in Low power mode while Keep reminders ringing is on (core/lowpower.ts)
   run();
 }
 /** Woken (a Mac's wake, the phone's background check, new Mac settings): look now. The plan is resent as it is, so

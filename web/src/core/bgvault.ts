@@ -35,6 +35,7 @@ import { bgKey, followReplaced } from "./bgcrop";
 import { followPicks } from "./devicebg";
 import { bgDesign } from "./prio";
 import type { Settings } from "./model";
+import { lpInterval } from "./lowpower.ts";
 
 export type VaultVideo = { id: string; name: string; pieces: string[]; bytes: number; type: string; focus: number; addedAt: string; from?: string };
 export type BgBridge = {
@@ -517,5 +518,5 @@ export function startBgVault(b: BgBridge) {
   });
   // Every 12 hours: the device makes sure it has every video in the vault (the phone's own refresh;
   // the Mac with the folder also runs its full check on its own clock).
-  window.setInterval(() => { nextDown = 0; ask(); }, 12 * 3600_000);
+  lpInterval("backgrounds", () => { nextDown = 0; ask(); }, 12 * 3600_000, { catchUp: false });   // PS 1.65: asleep in Low power mode
 }

@@ -202,6 +202,9 @@ struct IslandState: Equatable {
   var meets: [IslandMeet] = []
   /// V1.58: Pomodoro breaks, Stand-up reminders and the next meeting bubble (IslandTimersCore.swift).
   var timers = TimersIn()
+  /// PS 1.65 Low power mode (web src/island.ts, LowPowerCore.swift): nil while off; on, the plain names of what is asleep.
+  /// The island itself stays fully active: only the leaf and its card are new.
+  var lp: [String]?
 
   /// A hide time from the page: whole seconds from 5 s to 1 hour, anything else the 1 minute default.
   static func hideTime(_ v: Any?) -> Double {
@@ -240,6 +243,9 @@ struct IslandState: Equatable {
     s.tickLeft = (d["tickSide"] as? String) != "right"
     s.meets = IslandAwayCore.meets(d["meets"])
     s.timers = TimersCore.from(d)   // V1.58 island timers
+    if Features.on("low-power"), let l = d["lp"] as? [String: Any] {
+      s.lp = ((l["names"] as? [Any]) ?? []).prefix(40).compactMap { $0 as? String }.map { String($0.replacingOccurrences(of: "\n", with: " ").prefix(40)) }
+    }
     s.cardsTop = ((d["top"] as? [Any]) ?? []).compactMap { $0 as? String }.filter { NoteDrop.kinds.contains($0) }
     if let e = d["event"] as? [String: Any] {
       let id = str(e["id"], 64), kind = e["kind"] as? String ?? "", title = str(e["title"], 160)
@@ -296,6 +302,8 @@ final class IslandModel: ObservableObject {
   @Published var tshow = TShow.idle
   @Published var tin = TimersIn()
   @Published var meetOpen: TMeet?
+  @Published var lpOpen = false             // PS 1.65: the leaf was clicked: what is asleep, and Wake everything
+  var lowPowerWake: () -> Void = {}
   var timerOn: Bool { !tshow.middle.isTask || meetOpen != nil }
   var bigTimer: Bool { tshow.middle.isStand || meetOpen != nil }
   /// V1.59 (the developer: "the island grows like Face ID on an iPhone"): a stand-up opens the island into a rounder, taller
@@ -339,9 +347,9 @@ final class IslandModel: ObservableObject {
   /// Up to 4 rows; 3 in private mode, where the private mode line takes the fourth's room (the names read the same).
   var rows: [IslandTask] { st.tasks.isEmpty ? (st.task.map { [$0] } ?? []) : Array(st.tasks.prefix(st.priv ? 3 : 4)) }
   /// Something of its own to show (a task, counts, news); Edit mode shows it anyway, with a hint, so it can be moved.
-  var hasNews: Bool { st.task != nil || st.mail > 0 || st.leads > 0 || popping != nil || ticked != nil || glowing || tshow.active || meetOpen != nil }
+  var hasNews: Bool { st.task != nil || st.mail > 0 || st.leads > 0 || popping != nil || ticked != nil || glowing || tshow.active || meetOpen != nil || st.lp != nil }
   var hasContent: Bool { hasNews || editing }
-  var expanded: Bool { !dragging && fs != .bar && (popping != nil || bigTimer || (hovering && !restOnly && hasNews && !timerOn) || (fs == .dropped && hasNews)) }
+  var expanded: Bool { !dragging && fs != .bar && (popping != nil || bigTimer || (lpOpen && st.lp != nil && !restOnly) || (hovering && !restOnly && hasNews && !timerOn) || (fs == .dropped && hasNews)) }
   var undoable: Bool { ticked != nil && Date().timeIntervalSince(tickedAt) < 5 }
   /// Dim over a full screen app, unless something just arrived or the pointer is on it.
   var opacity: Double { fullScreen && fs == .off && popping == nil && !hovering && !glowing ? 0.35 : 1 }
@@ -415,6 +423,7 @@ final class IslandModel: ObservableObject {
     if popping != nil { return 78 }
     if faceID { return pill ? IslandTimerLayout.faceH : IslandTimerLayout.faceBody }   // V1.59: the stand-up's Face ID look
     if bigTimer { return IslandTimerLayout.bigBody }   // V1.58: a meeting opened from its bubble
+    if lpOpen, st.lp != nil { return 18 + 28 + 36 + 34 }   // PS 1.65: the leaf's card (title, two lines, the button)
     let badges: CGFloat = st.mail > 0 || st.leads > 0 ? 34 : 0
     let undo: CGFloat = undoable ? 34 : 0
     let rowsH: CGFloat = CGFloat(max(rows.count, 1)) * 42
@@ -769,6 +778,7 @@ struct IslandView: View {
       if m.st.mail > 0 { badge("envelope.fill", m.st.mail, mailC, small: true, via: IslandMailOpen.gmail).opacity(m.opacity) }
       else if m.st.leads > 0 { badge("arrowshape.turn.up.left.fill", m.st.leads, leadC, small: true, via: IslandMailOpen.instantly).opacity(m.opacity) }
       else if m.st.more > 0 { moreText.opacity(m.opacity) }
+      else if m.st.lp != nil { leafMark(small: true).opacity(m.opacity) }
     }
     .frame(width: IslandModel.slimWing, alignment: .center)
   }
@@ -873,6 +883,7 @@ struct IslandView: View {
     .buttonStyle(.plain)
   }
   @ViewBuilder func badges(small: Bool) -> some View {
+    if m.st.lp != nil { leafMark(small: small) }
     if m.st.mail > 0 { badge("envelope.fill", m.st.mail, mailC, small: small, via: IslandMailOpen.gmail) }
     if m.st.leads > 0 { badge("arrowshape.turn.up.left.fill", m.st.leads, leadC, small: small, via: IslandMailOpen.instantly) }
   }
@@ -892,8 +903,49 @@ struct IslandView: View {
     .buttonStyle(.plain)
   }
 
+  // ---------- PS 1.65 Low power mode: the leaf and its card ----------
+  private var leafC: Color { Color(red: 0.37, green: 0.75, blue: 0.48) }
+  /// A small calm leaf: a click opens the card (what is asleep, Wake everything); a second click closes it.
+  func leafMark(small: Bool) -> some View {
+    Button(action: {
+      withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) { m.lpOpen.toggle() }
+      // It closes by itself after 10 s (and on a click on its title, Wake everything, or when Low power mode ends).
+      if m.lpOpen { DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak m] in if m?.lpOpen == true { withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) { m?.lpOpen = false } } } }
+    }) {
+      Image(systemName: "leaf.fill").font(.system(size: small ? 10 : 12, weight: .semibold)).foregroundColor(leafC)
+        .padding(.horizontal, small ? 0 : 6).contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .help("Low power mode is on")
+  }
+  func lowPowerCard(_ names: [String]) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if !m.pill { Color.clear.frame(height: m.geo.notchH - 8) }
+      Button(action: { withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) { m.lpOpen = false } }) {
+        HStack(spacing: 8) {
+          Image(systemName: "leaf.fill").font(.system(size: 13, weight: .semibold)).foregroundColor(leafC)
+          Text("Low power mode").font(.system(size: 13.5, weight: .bold)).foregroundColor(fg)
+          Spacer(minLength: 0)
+        }
+        .frame(height: 22).contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      Text(LowPowerState.line(names, max: 4)).font(.system(size: 12, weight: .medium)).foregroundColor(dimC).lineLimit(2)
+        .frame(maxWidth: .infinity, minHeight: 30, alignment: .topLeading)
+      Button(action: { withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) { m.lpOpen = false }; m.lowPowerWake() }) {
+        Text("Wake everything").font(.system(size: 12, weight: .bold)).padding(.horizontal, 12).padding(.vertical, 5)
+          .background(leafC.opacity(0.2)).clipShape(Capsule()).foregroundColor(fg)
+      }
+      .buttonStyle(.plain)
+    }
+    .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 10)
+  }
+
   // ---------- open (hover) ----------
-  var expandedView: some View {
+  @ViewBuilder var expandedView: some View {
+    if m.lpOpen, let n = m.st.lp { lowPowerCard(n) } else { tasksExpanded }
+  }
+  var tasksExpanded: some View {
     VStack(alignment: .leading, spacing: 8) {
       if !m.pill { Color.clear.frame(height: m.geo.notchH - 8) }
       if m.st.mail > 0 || m.st.leads > 0 {
@@ -1030,6 +1082,7 @@ final class Island {
     model.open = { [weak self] u in self?.open(u) }
     model.openMail = { [weak self] via in self?.openMail(via) }
     model.privateOff = { [weak self] in self?.onAction?("privateOff", "") }
+    model.lowPowerWake = { [weak self] in self?.onAction?("lowPowerWake", "") }   // PS 1.65 (web src/island.ts)
     model.hide = { [weak self] in self?.hideForAWhile() }
     p.dragHook = { [weak self] e in self?.dragEvent(e) ?? false }
     // V1.56 hang fix: many model changes in a row now make one check, not one each (a spring, a glow and a swell
@@ -1062,6 +1115,7 @@ final class Island {
   /// The state ({type:"island"}). Nothing changes on screen when nothing changed (the page re-sends each minute).
   func update(_ d: [String: Any]) {
     let s = IslandState.from(d)
+    if s.lp == nil && model.lpOpen { model.lpOpen = false }   // Low power mode ended: its card goes with it
     IslandTimers.shared.update(s.timers, islandOn: s.mode != "off")   // V1.58: also with the island off (pop-up cards then)
     if s.mode == "off" && panel == nil { return }
     setUp()

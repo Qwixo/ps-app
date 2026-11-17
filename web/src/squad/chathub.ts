@@ -3,12 +3,14 @@
 // seals or opens anything.
 import { signRequest } from "../core/squadcrypto.ts";
 import { HUB_URL, HubError, hubBytes, type HubIdent, type HubMemberRow } from "./hub.ts";
+import { hubAwake } from "./hub";
 
 export const CHAT_FN = `${HUB_URL}/functions/v1/chat`;
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 const LIMIT_MS = 20_000;
 
 export async function chatCall<T = unknown>(who: HubIdent, act: string, args: unknown, fetcher: Fetcher = (u, i) => fetch(u, i)): Promise<T> {
+  hubAwake();   // PS 1.65 Low power mode: no hub call at all while G Squad sleeps
   const req = await signRequest(who.priv, act, who.member, args);
   const body = JSON.stringify(req);
   const init: RequestInit = { method: "POST", headers: { "Content-Type": "application/json" }, body };

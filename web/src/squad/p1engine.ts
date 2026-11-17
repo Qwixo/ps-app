@@ -19,6 +19,7 @@ import { P1_FEATURE, P1_GRACE_MS, alertCard, p1Clockable, p1On, p1PanelOn, p1Sta
 import { sleepState } from "../sleepmode/engine";
 import type { SquadRec } from "../core/squadrec";
 import type { SquadView } from "./view";
+import { lpClear, lpInterval } from "../core/lowpower.ts";   // PS 1.65 Low power mode: these timers stop while asleep
 
 type Post = (m: object) => void;
 const PS_PAGE = import.meta.env.MODE === "ps";
@@ -140,7 +141,7 @@ export function startP1(h: P1Hooks) {
   let timer: number | undefined;
   vaultStore.subscribe(() => { if (timer !== undefined) window.clearTimeout(timer); timer = window.setTimeout(() => { timer = undefined; void reconcile(); }, 1200); });
   h.onPulled(() => { lastPull = Date.now(); alerts(); });
-  window.setInterval(() => {
+  lpInterval("squad-p1", () => {
     const now = Date.now();
     if (graceCrossed(lastTick, now) && sharing()) h.push();
     lastTick = now;

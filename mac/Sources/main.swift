@@ -583,12 +583,18 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in self?.lastKeyAt = Date(); return e }
     // V1.41 Esc always backs out, also with the keyboard tap off (macOS Secure Input): PS's own windows only.
     NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in (self?.localEsc(e) == true) ? nil : e }
-    updateTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in self?.checkLocalUpdate() }
+    // PS 1.65 Low power mode (LowPower.swift): the page's answer, macOS Low Power Mode to the page, and the Mac's own feeds.
+    LowPower.shared.start { [weak self] j in self?.sendToMain(j) }
+    updateTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in if !LowPower.shared.asleep("updates") { self?.checkLocalUpdate() } }
     updateTimer?.tolerance = 3
     // Every 20 s PS itself asks the page for a sync (inbox included), so a task the developer texts lands
     // within seconds even if the page's own timers or Realtime socket stalled.
+    // Low power mode: still change only, every 4 minutes instead (LowPowerCore.syncEvery).
+    var lastPull = Date.distantPast
     let pull = Timer(timeInterval: 20, repeats: true) { [weak self] _ in
       guard let self, self.vaultUnlocked else { return }
+      guard Date().timeIntervalSince(lastPull) >= LowPowerState.syncEvery(20, on: LowPower.shared.on) - 1 else { return }
+      lastPull = Date()
       self.sendToMain(#"{"type":"pull"}"#)
     }
     pull.tolerance = 2
@@ -607,7 +613,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     }
     if !selfTest {   // a test copy never goes online
       checkWebsite()
-      Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in self?.checkWebsite() }.tolerance = 60
+      LowPower.shared.every("updates", 15 * 60, tolerance: 60) { [weak self] in self?.checkWebsite() }   // asleep in Low power mode
     }
     // The keyboard tap's watchdog: the main thread says it is alive every 0.4 s (at most 0.5 s apart,
     // well inside the watchdog's 1 s; was 0.25 s, 27 Oct 2026, fewer wake ups for the battery).
@@ -1675,6 +1681,10 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
       if let id = msg["id"] as? String { Toast.shared.hideCard(id) }
     case "dnd" where fromMain:                  // Do Not Disturb: what is muted right now (src/dnd.ts, DND.swift)
       if let st = msg["state"] as? [String: Any] { DND.shared.fromPage(st) }
+    case "lowpower" where fromMain:             // PS 1.65 Low power mode: the page's answer (src/lowpower.ts, LowPower.swift)
+      LowPower.shared.fromPage(msg)
+    case "lowpower:get" where fromMain:         // and macOS Low Power Mode right now
+      LowPower.shared.tellOs()
     case "island" where fromMain:               // the Dynamic Island's state (src/island.ts, Island.swift)
       if let st = msg["state"] as? [String: Any] { Island.shared.fromPage(st); SetupIsland.shared.islandState(st); AssistIsland.shared.islandState(st) }
     case "setupIsland" where fromMain || fromOverlay:   // the setup menu opened or closed (views/Welcome.tsx, SetupIsland.swift)

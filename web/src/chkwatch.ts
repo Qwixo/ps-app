@@ -20,6 +20,7 @@ import { todayISO } from "./ui/kit";
 import { CHK_FEATURE, checklistTasks, chkBlock, chkCardItem, chkStart, chkStep, cleanChk, lastTickOf, type ChkSettings } from "./core/chkremind";
 import { openChkScreen } from "./chkscreen";
 import type { CalendarSnap, Doc, Todo } from "./core/model";
+import { lpInterval } from "./core/lowpower.ts";
 
 type Post = (m: object) => void;
 /** Away from the keyboard on the website: no key or mouse in this page for this long, or the page is hidden. (The Mac's shell knows for itself.) */
@@ -134,5 +135,5 @@ export function startChkWatch(p: Post | null) {
   for (const e of ["keydown", "pointerdown", "pointermove", "wheel", "touchstart"]) document.addEventListener(e, input, { passive: true, capture: true });
   (window as Window & { __psChkAnswered?: (o: unknown) => void }).__psChkAnswered = chkAnswered;
   void Promise.all([import("./views/Sentry"), import("./posturewatch")]).then(([a, b]) => { sentryNow = a.sentryUp; postureUp = () => b.postureView().open; }).catch(() => {});
-  window.setInterval(tick, 5000);
+  lpInterval("alarms", tick, 5000);   // PS 1.65: rings in Low power mode while Keep reminders ringing is on (core/lowpower.ts)
 }

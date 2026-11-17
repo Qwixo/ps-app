@@ -97,6 +97,7 @@ import { MINECRAFT_ENABLED } from "../core/mcmode";
 import { MinecraftEntry } from "./Minecraft";
 import { MAC_NOTE } from "../core/webtodo";
 import { PHONE_CONTROLS } from "../gos/PhoneRows";
+import { LowPowerMain, LowPowerPref, LowPowerStatus } from "./LowPowerButton";
 
 // ---------- what the Tab list hands in (the volume, the task size slider, the time zone) ----------
 const GenContext = createContext<{ gen: GenProps; st: Settings } | null>(null);
@@ -235,6 +236,16 @@ export const CONTROLS: Controls = {
   "pomo-clock": row(() => <PomoSetting k="clock" />),
   // Stand-up reminders and the next meeting bubble (V1.58, views/IslandTimersSettings.tsx)
   // Posture Reminder (PS 1.65, views/PostureSettings.tsx)
+  // PS 1.65 Low power mode (views/LowPowerButton.tsx). Per device; the feature switch is the same as in From the squad.
+  "lp-on": function LpOn({ e }) { return <SetRow e={e} right={<LowPowerMain OnOff={OnOff} />} body={<LowPowerStatus />} open />; },
+  "lp-auto-mac": row(() => <LowPowerPref k="autoMac" label="Turn on with the Mac's Low Power Mode" OnOff={OnOff} />),
+  "lp-auto-phone": row(() => <LowPowerPref k="autoPhone" label="Turn on with Battery Saver" OnOff={OnOff} />),
+  "lp-alarms": row(() => <LowPowerPref k="alarms" label="Keep reminders ringing" OnOff={OnOff} />),
+  "lp-feature": function LpFeature({ e }) {
+    const v = useVault();
+    const mine = cleanSwitches(settingsData(v).squadFeatures);
+    return <SetRow e={e} right={<OnOff label={e.name} on={feature("low-power")} ready={v.status === "unlocked"} set={(on) => save({ squadFeatures: { ...mine, "low-power": on } })} />} />;
+  },
   "posture-on": row(() => <PostureSetting k="on" />),
   "posture-every": row(() => <PostureSetting k="every" />),
   "posture-hours": row(() => <PostureSetting k="hours" />),

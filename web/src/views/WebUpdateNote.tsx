@@ -10,6 +10,7 @@ import { onUpdateEvery, updateEvery } from "../updateevery";
 import { updateChecksOff } from "../core/updateevery";
 import { WEB_CHANNEL, WEB_COMPAT, lookDelay, lookOnReturn, webNote, type WebNote } from "../core/webupdate";
 import "./webupdate.css";
+import { lowPower } from "../core/lowpower.ts";
 
 // The website in a browser only: PS on the Mac and the phone get new pages through their own Update now.
 const WEBSITE = !PS && import.meta.env.MODE !== "gos" && import.meta.env.MODE !== "ps";
@@ -36,7 +37,8 @@ let cur: WebNote = null, last = 0, fails = 0, running = false, timer: ReturnType
 const subs = new Set<() => void>();
 // "Check for updates every" Off (0): the page never looks by itself.
 const off = () => updateChecksOff(updateEvery());
-function arm() { clearTimeout(timer); if (subs.size && !off()) timer = setTimeout(go, lookDelay(fails, updateEvery())); }
+const wakeLook = () => arm();
+function arm() { clearTimeout(timer); if (lowPower.asleep("updates")) { lowPower.onWake("updates", wakeLook); return; } if (subs.size && !off()) timer = setTimeout(go, lookDelay(fails, updateEvery())); }
 // A new choice in Settings counts from the last look, so a shorter wait looks at once if it is already over, no restart.
 function repace() {
   if (running || !subs.size) return;
@@ -46,6 +48,7 @@ function repace() {
 }
 async function go() {
   if (running || off()) return;
+  if (lowPower.asleep("updates")) { lowPower.onWake("updates", wakeLook); return; }   // PS 1.65 Low power mode
   if (document.visibilityState === "hidden") { arm(); return; }
   running = true; last = Date.now();
   try {

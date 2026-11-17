@@ -5,6 +5,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { PS, psInOverlay, psPost } from "../ps";
 import { gymStore, runGymOp } from "./gym";
 import { gymMirror, type GymOp, type GymSquadView } from "./gymview";
+import { lpClear, lpInterval } from "../core/lowpower.ts";   // PS 1.65 Low power mode: these timers stop while asleep
 
 const viaMain = () => PS && psInOverlay();
 export function useGymSquad(): GymSquadView {
@@ -23,13 +24,13 @@ const holders = new Map<number, string | null>();
 let seq = 0, resend: number | undefined;
 function sendLease() {
   if (!holders.size) {
-    if (resend !== undefined) { window.clearInterval(resend); resend = undefined; }
+    if (resend !== undefined) { lpClear(resend); resend = undefined; }
     gymOp({ op: "open", on: false });
     return;
   }
   const ex = [...holders.values()].reverse().find((x) => !!x) ?? null;
   gymOp({ op: "open", on: true, ex });
-  if (resend === undefined) resend = window.setInterval(() => { const e = [...holders.values()].reverse().find((x) => !!x) ?? null; gymOp({ op: "open", on: true, ex: e }); }, 60_000);
+  if (resend === undefined) resend = lpInterval("squad-gym", () => { const e = [...holders.values()].reverse().find((x) => !!x) ?? null; gymOp({ op: "open", on: true, ex: e }); }, 60_000);
 }
 export function useGymLease(on: boolean, ex: string | null = null) {
   useEffect(() => {

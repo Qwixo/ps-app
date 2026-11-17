@@ -19,6 +19,7 @@ import { put, remove, sync } from "./core/vault";
 import { mailOnSnap } from "./core/mailsnap";
 import { setReplyHandled } from "./core/actions";
 import { CLAIM_WAIT_MS, canSendFrom, claim, claimWon, cleanOut, failedOut, fromQueue, handed, inlineJob, markStale, newOut, relayPicks, staleOnes, sweepIds, type ReplyOut, type SendStatus } from "./core/inlinereply";
+import { lpInterval } from "./core/lowpower.ts";
 
 type Post = (m: object) => void;
 let post: Post = () => {};
@@ -133,7 +134,7 @@ export function startReplyEngine(p: Post, sendStatus: () => SendStatus | null = 
     clearTimeout(t); t = window.setTimeout(() => sendPrefs(), 500);
     clearTimeout(r); r = window.setTimeout(() => void relay(), 800);
   });
-  window.setInterval(() => void relay(), 30_000);   // a phone's reply when no vault change woke this, and the stale ones
+  lpInterval("gmail", () => void relay(), 30_000);   // a phone's reply when no vault change woke this, and the stale ones
   sendPrefs();
 }
 

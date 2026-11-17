@@ -19,7 +19,7 @@ export { norm, stem };
 
 /** Where PS is running: on a Mac (the Tab list), the website, or the phone (PS GOS and the iPhone web app). */
 export type Where = "mac" | "web" | "phone";
-export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "chkremind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "posture" | "sleep" | "sentry" | "gsquad" | "phone" | "about" | "assistant";
+export type GroupId = "friend" | "list" | "controls" | "looks" | "notify" | "remind" | "chkremind" | "telegram" | "api" | "time" | "shortcuts" | "keys" | "island" | "mac" | "screenrec" | "sync" | "privacy" | "fitness" | "pomodoro" | "standup" | "posture" | "sleep" | "sentry" | "gsquad" | "phone" | "about" | "assistant" | "power";
 /** What a setting opens instead of a row in Settings: a screen of its own. */
 export type Go = "fitness" | "security" | "dnd" | "gsquad" | "sleepSettings" | "phone" | "vault" | "macApp";
 
@@ -102,6 +102,8 @@ export const GROUPS: SetGroup[] = [
   { id: "mac", label: "Mac", line: "AFK timer, AirPods, audio priority, microphone, app name", on: ["mac"], icon: "M4 5h16v11H4zM2 20h20M9 16v4M15 16v4" },
   // PS 1.60 (pull request 12a): record sales calls and client calls. Off until the person says yes (core/screenrec.ts).
   { id: "screenrec", label: "Screen recording", line: "Record sales calls and client calls. Off until you switch it on", on: ["mac"], icon: "M4 6h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM18 10l4-2v8l-4-2M10 12h.01" },
+  // PS 1.65 Low power mode (core/lowpower.ts, views/LowPowerButton.tsx).
+  { id: "power", label: "Low power mode", line: "Sleep the background, keep your list", icon: "M4.5 19.5c.6-8.6 6-14.4 15-15-.4 9-6.4 14.4-15 15zM4.5 19.5l7.5-7.5" },
   { id: "sync", label: "Sync and account", line: "Your project, your vault, other devices", icon: "M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4" },
   { id: "privacy", label: "Privacy and sharing", line: "Security, passphrase, who can see what", icon: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9.5 12l2 2 3.5-3.5" },
   { id: "fitness", label: "Fitness", line: "Rest times, sets, week goal, gym reminder", icon: "M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11" },
@@ -223,6 +225,11 @@ export const SETTINGS: SetEntry[] = [
   { id: "posture-every", group: "posture", name: "How often", line: "Every 30, 45, 60 or 90 minutes.", on: NOT_PHONE, pf: true, words: ["posture", "interval", "how often", "every", "minutes", "frequency", "30", "45", "60", "90"] },
   { id: "posture-hours", group: "posture", name: "Between these times", line: "It only comes inside these hours. An end time before the start time runs past midnight.", on: NOT_PHONE, pf: true, words: ["posture", "hours", "from", "to", "start", "end", "work hours", "schedule", "time", "midnight"] },
   { id: "posture-test", group: "posture", name: "Try it now", line: "Shows the pop-up right now. Esc closes it.", on: NOT_PHONE, pf: true, words: ["posture", "test", "try", "preview", "demo", "see it"] },
+  { id: "lp-on", group: "power", name: "Low power mode", line: "Puts G Squad, email feeds and every background timer to sleep. Your list, the island and sync keep going.", words: ["low power", "battery", "save battery", "power", "energy", "sleep", "quiet", "cpu", "network", "background", "eco", "leaf"] },
+  { id: "lp-auto-mac", group: "power", name: "Turn on with the Mac's Low Power Mode", line: "When macOS Low Power Mode is on, PS goes into Low power mode too.", on: ["mac"], words: ["low power", "battery", "macos", "automatic", "auto"] },
+  { id: "lp-auto-phone", group: "power", name: "Turn on with Battery Saver", line: "When Android Battery Saver is on, PS goes into Low power mode too.", on: ["phone"], shell: "gos", words: ["low power", "battery saver", "android", "automatic", "auto"] },
+  { id: "lp-alarms", group: "power", name: "Keep reminders ringing", line: "The gym ring, your reminders and the meeting 10 minute alert still come, from what is already on this device.", words: ["reminders", "ringing", "gym", "meeting", "alert", "low power"] },
+  { id: "lp-feature", group: "power", name: "Low power mode in PS", line: "Off: no button, no automatic start, it never turns on.", more: true, words: ["low power", "feature", "switch"] },
   // ---------- Checklist Reminder (PS 1.65, core/chkremind.ts) ----------
   { id: "chk-on", group: "chkremind", name: "Checklist reminder", line: "Says DO YOUR CHECKLIST when you have not ticked a task for a while. Never in meetings.", on: ["mac", "web"], ck: true, words: ["checklist", "reminder", "nag", "nudge", "to do", "todo", "tick", "tasks", "pop up", "popup", "focus"] },
   { id: "chk-every", group: "chkremind", name: "How often", line: "How long without a ticked task before it comes: 30 minutes to 12 hours, 2 hours to start.", on: ["mac", "web"], ck: true, words: ["how often", "interval", "minutes", "hours", "every", "frequency", "checklist"] },

@@ -194,8 +194,23 @@ object WebHost {
     }
 
     // ---------- the screen borrows the WebView ----------
+    /** PS 1.65 Low power mode: Android Battery Saver on or off (PowerManager), for the page's own switch. */
+    private fun lowPowerOs(c: Context): JSONObject {
+        val pm = c.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        return JSONObject().put("type", "lowpowerOs").put("on", pm?.isPowerSaveMode == true)
+    }
+    private var saverWatch = false
+    /** Battery Saver changes while PS runs: the page hears it at once (registered once, on the app context). */
+    private fun watchSaver(c: Context) {
+        if (saverWatch) return
+        saverWatch = true
+        c.registerReceiver(object : android.content.BroadcastReceiver() {
+            override fun onReceive(x: Context, i: Intent) { post(lowPowerOs(x.applicationContext)) }
+        }, android.content.IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED))
+    }
     fun attach(a: MainActivity): WebView {
         activity = a
+        watchSaver(a.applicationContext)
         val w = obtain(a)
         ctxWrap?.baseContext = a      // pop-ups, selects and the file chooser need a real activity
         w.onResume(); w.resumeTimers()
@@ -241,6 +256,7 @@ object WebHost {
             .put("device", DeviceName.of(android.os.Build.MANUFACTURER, android.os.Build.MODEL)).toString()   // V1.56: the Mac's phone picker
         val net = JSONObject().put("type", "net").put("online", Net.online(c)).toString()
         val update = JSONObject().put("type", "update").put("update", Updater.state).toString()
+        val saver = lowPowerOs(c).toString()   // PS 1.65 Low power mode: Android Battery Saver now (web src/lowpower.ts)
         onMain {
             ready = true
             val q = queue.toList(); queue.clear()
@@ -249,6 +265,7 @@ object WebHost {
             activity?.sendInsets()
             proxy?.postMessage(net)
             proxy?.postMessage(update)
+            proxy?.postMessage(saver)
         }
         Receivers.flushPending(c)
     }

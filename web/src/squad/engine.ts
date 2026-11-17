@@ -32,6 +32,7 @@ import { aiError, listAis, registerAiCode, unlinkAi } from "./devlink";
 import { cleanSeenRows, openPresence, sealPresence } from "../core/squadpresence";
 import { gymScreen, onGymScreen } from "./presence";
 import type { FitWorkout } from "../core/fitness";
+import { lpClear, lpInterval } from "../core/lowpower.ts";   // PS 1.65 Low power mode: these timers stop while asleep
 export { dirCardMessage };
 
 const BEAT_MS = 3 * 60_000, OPEN_PULL_MS = 20_000, PEEK_MS = 60_000, PUSH_DELAY_MS = 4_000;
@@ -229,12 +230,12 @@ async function away() {
 }
 const AWAY_KEY = "ps.sqAwaySent";
 function restartBeat() {
-  if (beatTimer !== undefined) window.clearInterval(beatTimer);
+  if (beatTimer !== undefined) lpClear(beatTimer);
   beatTimer = undefined;
   if (!rec) return;
   // PS 1.64: "working" is off and the hub was never told on this device: clear the last beat once (members list).
   if (!shareOn(share(), "working")) { let sent: string | null = null; try { sent = localStorage.getItem(AWAY_KEY); } catch { /* storage off */ } if (sent !== rec.memberId) void away(); }
-  beatTimer = window.setInterval(() => void beat(), BEAT_MS);
+  beatTimer = lpInterval("gsquad", () => void beat(), BEAT_MS);
   void beat();
 }
 /** The Tab list just showed: the count, if the last one is over a minute old (never more often). */
@@ -303,13 +304,13 @@ async function pull() {
 function setOpen(on: boolean) {
   if (open === on) return;
   open = on;
-  if (pullTimer !== undefined) { window.clearInterval(pullTimer); pullTimer = undefined; }
+  if (pullTimer !== undefined) { lpClear(pullTimer); pullTimer = undefined; }
   tell("open", on);
   dirOpen(on);
   autoOpen(on);
   if (!on) { set({ loaded: false }); return; }
   void pull();
-  pullTimer = window.setInterval(() => { if (document.visibilityState !== "hidden" || PS_PAGE) void pull(); }, OPEN_PULL_MS);
+  pullTimer = lpInterval("gsquad", () => { if (document.visibilityState !== "hidden" || PS_PAGE) void pull(); }, OPEN_PULL_MS);
 }
 const PS_PAGE = import.meta.env.MODE === "ps";   // PS's main page is never on screen, yet it is the one that runs this
 

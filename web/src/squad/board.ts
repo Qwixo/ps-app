@@ -26,6 +26,7 @@ import { HubError } from "./hub";
 import { boardApi, takeBoardRows } from "./boardhub";
 import { onSquad, patchSquadView, squadMemberIds, squadOpen, squadRecNow, squadView } from "./engine";
 import { cleanPastDoc, openPast, planPastSync, type PastDoc, type PastMonth } from "../core/squadpast";
+import { lpClear, lpInterval } from "../core/lowpower.ts";   // PS 1.65 Low power mode: these timers stop while asleep
 
 const PUSH_MS = 20_000, SCREEN_EVERY_MS = 15 * 60_000, PULL_MS = 60_000, ROLL_MS = 60 * 60_000;
 
@@ -103,11 +104,11 @@ async function pull() {
   } catch { /* the core's pull shows any trouble; the board keeps what it has */ } finally { pulling = false; }
 }
 function setOpen(on: boolean) {
-  clearInterval(pullTimer); pullTimer = undefined;
+  lpClear(pullTimer); pullTimer = undefined;
   if (!on) return;
   void pull();
   void pullPast();   // PS 1.64: once per opening (they rarely change): nothing new is a few dozen bytes
-  pullTimer = window.setInterval(() => void pull(), PULL_MS);
+  pullTimer = lpInterval("squad-board", () => void pull(), PULL_MS);
 }
 
 // ---------- PS 1.64 Past boards (core/squadpast.ts) ----------
@@ -240,7 +241,7 @@ export function startSquadBoard() {
     else if (screenChanged && pushTimer === undefined) schedulePush(false);
   });
   // The days and months roll on even when nothing changes (the 7 day window, a new month).
-  window.setInterval(() => { if (rec) { schedulePush(false, 1_000); rebuild(); } }, ROLL_MS);
+  lpInterval("squad-board", () => { if (rec) { schedulePush(false, 1_000); rebuild(); } }, ROLL_MS);
   window.addEventListener("online", () => { if (rec) schedulePush(false, 2_000); });
   reset(squadRecNow());
 }

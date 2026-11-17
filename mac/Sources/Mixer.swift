@@ -273,6 +273,7 @@ final class Mixer {
 
   // ---------- every second: safety, meters ----------
   private func tick() {
+    if testDir == nil && LowPower.shared.asleep("mixer") { return }   // PS 1.65 Low power mode: no audio taps are read while asleep
     let now = Date()
     // The output device changed its sample rate (AirPods switching modes): rebuild those taps.
     var rebuilt = false

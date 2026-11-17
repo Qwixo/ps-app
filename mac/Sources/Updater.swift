@@ -382,6 +382,7 @@ final class Updater {
 
   /// A look PS starts by itself (the timer, a wake): none while "Check for updates every" is Off.
   private func autoLook() {
+    if !UpdatePaths.test && LowPower.shared.asleep("updates") { LowPower.shared.onWake("updates") { [weak self] in self?.q.async { self?.autoLook() } }; return }   // PS 1.65 Low power mode: one look on wake
     guard !cadence.isOff else { return }
     checkNow(manual: false)
   }

@@ -33,6 +33,7 @@ import { buildConvs, sendRoute, SQUAD_CONV, type ConvInput } from "./dmview";
 import type { HubMember } from "../core/squadrec";
 import type { ReactEvent } from "./chatreact";
 import { EMPTY_CHAT, EMPTY_GIF, type GifView, type ChatJump, type ChatLine, type ChatOp, type ChatView, type ChatVoteView, type QuoteView } from "./chatview";
+import { lpClear, lpInterval } from "../core/lowpower.ts";   // PS 1.65 Low power mode: these timers stop while asleep
 
 const TICK_MS = 2 * 60_000, OPEN_PULL_MS = 5_000, PAGE = 150;
 const PS_PAGE = import.meta.env.MODE === "ps";
@@ -393,10 +394,10 @@ function gone(e: unknown) {
 function setOpen(on: boolean) {
   if (open === on) { if (on) void pull(); return; }
   open = on;
-  if (pullTimer !== undefined) { window.clearInterval(pullTimer); pullTimer = undefined; }
+  if (pullTimer !== undefined) { lpClear(pullTimer); pullTimer = undefined; }
   if (on) {
     void pull();
-    pullTimer = window.setInterval(() => { if (PS_PAGE || document.visibilityState === "visible") void pull(); }, OPEN_PULL_MS);
+    pullTimer = lpInterval("squad-chat", () => { if (PS_PAGE || document.visibilityState === "visible") void pull(); }, OPEN_PULL_MS);
   } else limit = PAGE;
   rebuild();
   refreshNotes(false);   // the chat opened: its cards are done with
@@ -533,8 +534,8 @@ function readRec(): SquadRec | null {
 function stop() {
   s = null; who = ""; pending.clear(); error = null; jump = null; seeking = false; dm = null; active = SQUAD_CONV;
   gifOn = null; gifApiNow = null; gifState = EMPTY_GIF; gifAsk++;
-  if (tickTimer !== undefined) window.clearInterval(tickTimer);
-  if (pullTimer !== undefined) window.clearInterval(pullTimer);
+  if (tickTimer !== undefined) lpClear(tickTimer);
+  if (pullTimer !== undefined) lpClear(pullTimer);
   tickTimer = pullTimer = undefined; open = false;
   view = { ...EMPTY_CHAT };
   for (const id of [...noteShown.keys()]) dropNote(id);
@@ -557,7 +558,7 @@ function sync() {
     void dm.loadCache().then(rebuild);
   }
   rebuild();
-  tickTimer = window.setInterval(() => void tick(), TICK_MS);
+  tickTimer = lpInterval("squad-chat", () => void tick(), TICK_MS);
   void tick();
 }
 

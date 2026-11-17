@@ -17,6 +17,7 @@ import { settingsData } from "./core/select";
 import { addBotTasks, removeBotTasks, saveSettings, type BotRef } from "./core/actions";
 import { cleanTgPrefs, newLinkCode, redact, TEST_TEXT, type TgBotPrefs } from "./core/tgbot";
 import { TgPoller, type TgApi, type TgReply, type TgState } from "./core/tgpoll";
+import { lowPower } from "./core/lowpower.ts";
 
 export type TgBotInfo = { id: number; username: string; name: string };
 /** What Settings shows. On the Mac the main page sends it to PS, which hands it to the Tab list (psSettings.tgBot). */
@@ -124,8 +125,12 @@ function stopPoll() { poller?.stop(); poller = null; }
 const vaultOpen = () => { const v = vaultStore.get(); return v.status === "unlocked" && v.role === "owner"; };
 
 let checking = false;
+const wakeTg = () => void reconsider();
+lowPower.subscribe(() => { if (lowPower.asleep("telegram") && poller) stopPoll(); });
 async function reconsider() {
   if (!where || checking) return;
+  // PS 1.65 Low power mode: no polling Telegram while asleep; one look on wake (texted tasks wait at Telegram meanwhile).
+  if (lowPower.asleep("telegram")) { if (poller) stopPoll(); lowPower.onWake("telegram", wakeTg); return; }
   const want = view.saved === true && vaultOpen() && (prefs().chatId !== null || view.linkCode !== null)
     && view.state !== "badToken" && view.state !== "webhook";
   if (!want) { if (poller) { stopPoll(); if (view.state === "running" || view.state === "offline" || view.state === "conflict") set({ state: "off", problem: null }); } return; }

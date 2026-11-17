@@ -14,6 +14,7 @@
 // left open on the New tasks pop-up kept repainting its moving stripe forever); the next touch wakes
 // them. Animations that end by themselves (a card sliding in) are never touched. The Mac and the
 // website never run this.
+import { lpInterval } from "../core/lowpower.ts";
 const COVERS = [
   ".tm-tr .hover-pop.open", ".gos-sheet-wrap.open", ".gos-menu.open", ".dx-layer", ".nu-layer", ".cs-layer", ".ms-layer",
   ".tm-add-layer", ".nt-pop", ".bf-layer", ".tm-pop-wrap.open", ".fit-pop-layer",
@@ -67,6 +68,6 @@ export function startCalm() {
   addEventListener("animationstart", soon, { capture: true, passive: true });
   document.addEventListener("visibilitychange", touched);
   // New elements with an endless animation show up without any of the above (a meeting starts).
-  window.setInterval(calmPass, 1500);
+  lpInterval("checks", calmPass, 1500);   // PS 1.65: asleep in Low power mode, one catch up on wake (core/lowpower.ts)
   soon();
 }

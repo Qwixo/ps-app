@@ -103,7 +103,7 @@ final class Reminders: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     }
     load()
     if testDir != nil { items = [] }     // a test copy stays quiet until its self test hands it a plan
-    let t = Timer(timeInterval: 5, repeats: true) { [weak self] _ in self?.check() }
+    let t = Timer(timeInterval: 5, repeats: true) { [weak self] _ in if !LowPower.shared.asleep("alarms") { self?.check() } }   // PS 1.65: rings in Low power mode while Keep reminders ringing is on
     t.tolerance = 1
     RunLoop.main.add(t, forMode: .common)
     timer = t

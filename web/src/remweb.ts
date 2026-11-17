@@ -13,6 +13,7 @@ import { feature } from "./core/features";
 import { DEVICE_TZ } from "./core/tz";
 import { doneAct, remStatus, snoozeAct, type PlanItem, type Reminder, type RemState } from "./core/remind";
 import { cleanSub, dueCard, keyBytes, pushState, pushTimes, sameTimes, wordsOf, PUSH_WORDS, type PushState, type PushTime } from "./core/webpush";
+import { lpInterval } from "./core/lowpower.ts";
 
 export const FEATURE = "remind-push";
 let items: PlanItem[] = [];
@@ -38,7 +39,7 @@ function look() {
 /** The plan from remwatch (every reminder with its words worked out). */
 export function webRemPlan(plan: { items?: PlanItem[] }) {
   items = plan.items ?? [];
-  if (!started) { started = true; timer = window.setInterval(look, 10_000); document.addEventListener("visibilitychange", look); }
+  if (!started) { started = true; timer = lpInterval("alarms", look, 10_000); document.addEventListener("visibilitychange", look); }
   look();
   void keepWords();
   void syncSchedule();
