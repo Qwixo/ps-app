@@ -9,7 +9,7 @@ import { appName } from "../core/appname";
 import { CAMERA_BUTTON, cameraOffText } from "../core/camerahelp";
 import { receiptScan } from "../gos/receiptscan";
 import { CURRENCIES, parseReceipt } from "../core/receiptparse";
-import { draftOf, receiptOfDraft, type RcDraft, type Receipt } from "../core/receipts";
+import { draftChanged, draftOf, itemPriceBad, receiptOfDraft, type RcDraft, type Receipt } from "../core/receipts";
 import { receiptPhoto, removeReceipt, saveReceipt, useReceiptCurrency } from "../receipts";
 import { toISODate } from "../ui/kit";
 import "./receiptscan.css";
@@ -59,7 +59,12 @@ export function ReceiptCheck({ start, photo, photoId, id, from, warns, at, onClo
   const [picState, setPicState] = useState<"none" | "loading" | "ok" | "gone">(photo ? "ok" : photoId ? "loading" : "none");
   const [sure, setSure] = useState(false);
   const done = useRef<{ id?: string; ph?: string }>({});   // what the first Save wrote: a second Save changes that receipt, it never adds another
-  useCloseKeys(true, onClose);
+  // Esc and Back take back the Delete question first, then close the screen.
+  useCloseKeys(true, () => { if (sure) setSure(false); else onClose(); });
+  // A click beside the sheet closes it only when nothing was typed: one stray click never throws away a checked receipt.
+  const changed = draftChanged(d, start);
+  const showPic = !!pic || picState !== "none";
+  const title = id ? RS_WORDS.edit : from === "typed" ? RS_WORDS.add : RS_WORDS.check;   // typing one in is not "checking" it
   useEffect(() => {
     if (!photoId || photo) return;
     let live = true, url: string | null = null;
@@ -74,7 +79,7 @@ export function ReceiptCheck({ start, photo, photoId, id, from, warns, at, onClo
     if ("bad" in r) { setBad(r.bad); return; }
     setBad([]); setBusy(true); setErr("");
     try {
-      const out = await saveReceipt(r.ok, { id: id ?? done.current.id, photo: done.current.ph ? undefined : photo });
+      const out = await saveReceipt(r.ok, { id: id ?? done.current.id, photo: done.current.ph ? undefined : photo, onPhoto: (ph) => { done.current.ph = ph; } });
       done.current = { id: out.id, ph: out.ph };
       const lost = !!photo && !out.photo;
       if (lost) setErr(RS_WORDS.noPhoto);
@@ -87,14 +92,14 @@ export function ReceiptCheck({ start, photo, photoId, id, from, warns, at, onClo
   const del = async () => { if (!id) return; setBusy(true); try { await removeReceipt(id); onSaved?.(); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : ""); setBusy(false); } };
   const root = document.body;
   return createPortal(
-    <div className="rs-layer" role="dialog" aria-modal="true" aria-label={id ? RS_WORDS.edit : RS_WORDS.check} onMouseDown={(e) => e.stopPropagation()}>
-      <div className="rs-dim" onClick={onClose} />
-      <div className="rs-sheet">
-        <header className="rs-head"><b>{id ? RS_WORDS.edit : RS_WORDS.check}</b><button type="button" className="rs-x" aria-label={RS_WORDS.cancel} onClick={onClose}>&times;</button></header>
+    <div className="rs-layer" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
+      <div className="rs-dim" onClick={() => { if (!changed && !busy) onClose(); }} />
+      <div className={cx("rs-sheet", !showPic && "nopic")}>
+        <header className="rs-head"><b>{title}</b><button type="button" className="rs-x" aria-label={RS_WORDS.cancel} onClick={onClose}>&times;</button></header>
         <div className="rs-body">
-          <figure className="rs-pic">
+          {showPic && <figure className="rs-pic">
             {pic ? <img src={pic} alt={RS_WORDS.photoOf} /> : <figcaption>{picState === "loading" ? RS_WORDS.loadingPic : picState === "gone" ? RS_WORDS.gonePic : RS_WORDS.noPic}</figcaption>}
-          </figure>
+          </figure>}
           <div className="rs-form">
             {from === "scan" && !id && <p className="rs-note">{RS_WORDS.readNote}</p>}
             {(warns ?? []).map((w) => warnText(w)).filter(Boolean).map((t) => <p key={t} className="rs-warn">{t}</p>)}
@@ -109,12 +114,12 @@ export function ReceiptCheck({ start, photo, photoId, id, from, warns, at, onClo
             {bad.includes("date") && <p className="rs-warn">{RS_WORDS.bad_date}</p>}
             {bad.includes("total") && <p className="rs-warn">{RS_WORDS.bad_total}</p>}
             <div className="rs-items" role="group" aria-label={RS_WORDS.items}>
-              <div className="rs-ih"><span>{RS_WORDS.item}</span><span>{RS_WORDS.qty}</span><span>{RS_WORDS.price}</span><span /></div>
+              {d.items.length > 0 && <div className="rs-ih"><span>{RS_WORDS.item}</span><span>{RS_WORDS.qty}</span><span>{RS_WORDS.price}</span><span /></div>}
               {d.items.map((it, i) => (
                 <div className="rs-ir" key={i}>
                   <input aria-label={RS_WORDS.item} value={it.n} maxLength={80} onChange={(e) => setItem(i, { n: e.target.value })} />
                   <input aria-label={RS_WORDS.qty} inputMode="decimal" value={it.q} onChange={(e) => setItem(i, { q: e.target.value })} />
-                  <input aria-label={RS_WORDS.price} inputMode="decimal" value={it.p} onChange={(e) => setItem(i, { p: e.target.value })} className={cx(bad.includes("item-price") && it.p.trim() && Number.isNaN(Number(it.p.replace(",", "."))) && "bad")} />
+                  <input aria-label={RS_WORDS.price} inputMode="decimal" value={it.p} onChange={(e) => setItem(i, { p: e.target.value })} className={cx(bad.includes("item-price") && itemPriceBad(it) && "bad")} />
                   <button type="button" className="rs-x sm" aria-label={RS_WORDS.remove} onClick={() => setD((x) => ({ ...x, items: x.items.filter((_, k) => k !== i) }))}>&times;</button>
                 </div>
               ))}
@@ -175,6 +180,9 @@ function grab(v: HTMLVideoElement): { photo: string; ocr: string } | null {
 export function ReceiptScan({ onClose }: { onClose: () => void }) {
   const cur = useReceiptCurrency();
   const video = useRef<HTMLVideoElement>(null);
+  const stream = useRef<MediaStream | null>(null);
+  /** The camera goes off the moment it is not needed (the check screen, Type it), not only when the whole screen closes. */
+  const stopCam = () => { stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null; const v = video.current; if (v) v.srcObject = null; };
   const [cam, setCam] = useState<"starting" | "on" | "denied" | "nocamera">("starting");
   const [phase, setPhase] = useState<"cam" | "reading" | "check">("cam");
   const [say, setSay] = useState("");
@@ -182,19 +190,21 @@ export function ReceiptScan({ onClose }: { onClose: () => void }) {
   useCloseKeys(phase !== "check", onClose);
   useEffect(() => {
     receiptScan.warm();
-    let live = true, stream: MediaStream | null = null;
+    let live = true;
     void (async () => {
       if (!navigator.mediaDevices?.getUserMedia) { setCam("nocamera"); return; }
-      try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }); }
+      let s: MediaStream;
+      try { s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }); }
       catch (e) { if (live) setCam((e as DOMException)?.name === "NotFoundError" ? "nocamera" : "denied"); return; }
-      if (!live) { stream.getTracks().forEach((t) => t.stop()); return; }
-      const v = video.current!;
-      v.srcObject = stream;
+      const v = video.current;
+      if (!live || !v) { s.getTracks().forEach((t) => t.stop()); return; }
+      stream.current = s;
+      v.srcObject = s;
       try { await v.play(); } catch { /* plays when the first frame is in */ }
-      setCam("on");
+      if (live) setCam("on");
     })();
-    return () => { live = false; stream?.getTracks().forEach((t) => t.stop()); const v = video.current; if (v) v.srcObject = null; };
-  }, []);
+    return () => { live = false; stopCam(); };
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const shoot = async () => {
     const v = video.current;
     if (!v || cam !== "on" || phase !== "cam") return;
@@ -207,6 +217,7 @@ export function ReceiptScan({ onClose }: { onClose: () => void }) {
       setPhase("cam"); haptic("reject"); return;
     }
     const p = parseReceipt(a.text, { currency: cur, today: toISODate(new Date()) });
+    stopCam();
     haptic("drop");
     setShot({ photo: g.photo, start: draftOf(p), warns: p.warn, from: "scan" });
     setPhase("check");
@@ -222,7 +233,7 @@ export function ReceiptScan({ onClose }: { onClose: () => void }) {
       <div className="rs-camfoot">
         <button type="button" className="rs-b" onClick={onClose}>{RS_WORDS.cancel}</button>
         <button type="button" className={cx("rs-shoot", phase === "reading" && "busy")} onClick={() => void shoot()} disabled={cam !== "on" || phase !== "cam"} aria-label={RS_WORDS.read}>{phase === "reading" ? <span className="rs-spin" aria-hidden="true" /> : RS_WORDS.read}</button>
-        <button type="button" className="rs-b" onClick={() => { setShot({ photo: "", start: blankDraft(cur), warns: [], from: "typed" }); setPhase("check"); }}>{RS_WORDS.typeIt}</button>
+        <button type="button" className="rs-b" onClick={() => { stopCam(); setShot({ photo: "", start: blankDraft(cur), warns: [], from: "typed" }); setPhase("check"); }}>{RS_WORDS.typeIt}</button>
       </div>
     </div>, document.body);
 }

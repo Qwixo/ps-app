@@ -20,7 +20,10 @@ await ok("amounts: points, commas, thousands, spaces", () => {
   assert.equal(P.amountToMinor("0.5"), 50);
   assert.equal(P.amountToMinor("7"), null, "a whole number is not a price unless asked");
   assert.equal(P.amountToMinor("7", true), 700);
-  assert.equal(P.amountToMinor("1,234", true), 123400);
+  assert.equal(P.amountToMinor("1,234", true), null, "one separator and three digits could be 1234 or a typo of 12.34: refused, never guessed");
+  assert.equal(P.amountToMinor("12.505", true), null, "a typo never becomes 12505");
+  assert.equal(P.amountToMinor("1,234.50", true), 123450, "two kinds of separator are clear");
+  assert.equal(P.amountToMinor("1234", true), 123400);
   assert.equal(P.amountToMinor("abc"), null);
 });
 
@@ -229,6 +232,22 @@ await ok("a month is a whole word: Market is not March, real month names and sho
 
 await ok("no dashes in the receipt parser or its test", () => {
   for (const p of ["../src/core/receiptparse.ts", "./receiptparse.test.ts"]) assert.doesNotMatch(readFileSync(new URL(p, import.meta.url), "utf8"), /[\u2013\u2014]/);
+});
+
+await ok("Georgian lari mark right after a price (3.20ლ): items and total are read, a size like 0.5ლ is not a price", () => {
+  const r = P.parseReceipt(["შპს ნიკორა", "ს/კ 123456789", "17.11.2026 14:35", "რძე 1ლ 3.20ლ", "პური 1.50ლ", "კოკა-კოლა 0.5ლ 2.50ლ", "სულ 7.20ლ", "ნაღდი 10.00", "ხურდა 2.80"].join("\n"), { today: "2026-11-17" });
+  assert.equal(r.total, 720);
+  assert.deepEqual(r.items.map((i) => i.p), [320, 150, 250]);
+  assert.equal(r.cur, "GEL");
+  assert.deepEqual(r.warn, []);
+  const l = P.parseReceipt("Libre\nწყალი 1.5ლ\n1.20\nსულ 1.20 ლ.", { today: "2026-11-17" });
+  assert.equal(l.total, 120, "one decimal before ლ is a size; a spaced ლ. after the total is lari");
+});
+
+await ok("a date is never read as a price when no total word is found", () => {
+  const r = P.parseReceipt("Some Shop\n17.11.2026\nCoffee 4.50", { today: "2026-11-17" });
+  assert.equal(r.total, 450);
+  assert.ok(r.warn.includes("total-guessed"));
 });
 
 console.log(`receiptparse: ${n} passed`);

@@ -47,12 +47,13 @@ export async function shrinkPhoto(dataUrl: string): Promise<Uint8Array | null> {
 
 /** Saves one receipt. A photo is stored first as its own sealed file; if that fails the receipt is still saved, without it.
  *  Pass the id (and ph) from an earlier try and the same receipt is written again, never a second one. */
-export async function saveReceipt(r: Receipt, opts: { id?: string; photo?: string } = {}): Promise<{ id: string; photo: boolean; ph?: string }> {
+export async function saveReceipt(r: Receipt, opts: { id?: string; photo?: string; onPhoto?: (ph: string) => void } = {}): Promise<{ id: string; photo: boolean; ph?: string }> {
   let ph = r.ph, photo = !!r.ph;
   if (opts.photo) {
     try {
       const bytes = await shrinkPhoto(opts.photo);
-      if (bytes) { ph = await putBlob(null, bytes); photo = true; }
+      // onPhoto hears the photo's id at once, so a receipt write that fails after it is retried with this photo, not a second copy.
+      if (bytes) { ph = await putBlob(null, bytes); photo = true; opts.onPhoto?.(ph); }
     } catch { photo = false; }
   }
   const data: Receipt = { ...r, ...(ph ? { ph } : {}) };

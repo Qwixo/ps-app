@@ -43,7 +43,7 @@ const DIGITS: Record<string, string> = {};
 /** One line, tidied: other scripts' digits become 0 to 9, odd spaces become one space, and a decimal the reader split ("3 .20") is closed. */
 export function tidyLine(s: string): string {
   let t = s.replace(/[٠-٩۰-۹０-９]/g, (c) => DIGITS[c] ?? c)
-    .replace(/[  -​ \t]+/g, " ")
+    .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000\t]+/g, " ")
     .replace(/[‘’´`]/g, "'")
     .replace(/[×✕✖]/g, "x")
     .replace(/[\u2013\u2014\u2212]/g, "-")
@@ -73,10 +73,10 @@ export function amountToMinor(raw: string, whole = false): number | null {
   } else {
     const after = t.slice(sep + 1);
     const before = t.slice(0, sep);
-    const other = before.includes(".") || before.includes(",");
-    // "1,234" or "1.234" with exactly three digits after the separator and no other separator is a thousand, not a price.
-    if (after.length === 3 && !other && before.length <= 3 && whole) { intPart = before + after; dec = ""; }
-    else if (after.length > 2) return null;
+    // "1,234" or "1.234" (one separator, three digits after it) is a thousand to one person and a typo of 1.23 to another:
+    // a guess here can make a price a thousand times too big, so it is refused and the person types it again.
+    // With two kinds of separator ("1,234.50", "1.234,50") it is clear and reads fine. A space groups thousands ("1 234").
+    if (after.length > 2) return null;
     else { intPart = before.replace(/[.,]/g, ""); dec = after; }
   }
   if (!intPart || intPart.length > 9) return null;
@@ -87,14 +87,19 @@ export function amountToMinor(raw: string, whole = false): number | null {
 
 const UNIT_AFTER = /^(?:ლ|კგ|მლ|გრ|ც)(?![\p{L}])|^\s?(?:ml|kg|cl|l|g|pcs|pc|oz|lb|шт|кг|мл)(?![\p{L}])/iu;
 interface Amt { minor: number; index: number; end: number }
+// "ლ" right after a number is both litres ("0.5ლ") and the lari mark ("3.20ლ", "3.20ლ."). It is lari when the number has two
+// decimals and it is the last figure on the line (a price), and a size anywhere else ("კოკა-კოლა 0.5ლ 2.50ლ").
+const LARI_AFTER = /^ლ\.?\s*$/u;
 function amountsIn(line: string): Amt[] {
   const out: Amt[] = [];
-  for (const m of line.matchAll(AMOUNT)) {
+  const all = [...line.matchAll(AMOUNT)];
+  all.forEach((m, k) => {
     const after = line.slice((m.index ?? 0) + m[0].length);
-    if (UNIT_AFTER.test(after)) continue;   // "0.5ლ", "1.5 l", "0.75 kg": a size or a weight, not a price
+    const lari = k === all.length - 1 && /[.,]\d{2}$/.test(m[0]) && LARI_AFTER.test(after);
+    if (!lari && UNIT_AFTER.test(after)) return;   // "0.5ლ", "1.5 l", "0.75 kg": a size or a weight, not a price
     const v = amountToMinor(m[0]);
     if (v !== null) out.push({ minor: v, index: m.index ?? 0, end: (m.index ?? 0) + m[0].length });
-  }
+  });
   return out;
 }
 
@@ -270,7 +275,10 @@ function findTotal(lines: string[], items: RcItem[]): TotalPick | null {
     if (s > 0) return { minor: s, guessed: true };
   }
   let big = 0;
-  for (const line of lines) { if (has(line, NOT_TOTAL)) continue; for (const a of amountsIn(line)) if (a.minor > big) big = a.minor; }
+  for (const line of lines) {
+    if (has(line, NOT_TOTAL) || datesIn(line).length) continue;   // "17.11.2026" holds "17.11", which is a date, not a price
+    for (const a of amountsIn(line)) if (a.minor > big) big = a.minor;
+  }
   return big > 0 ? { minor: big, guessed: true } : null;
 }
 

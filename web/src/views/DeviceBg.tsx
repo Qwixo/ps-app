@@ -41,10 +41,14 @@ export function DeviceBg({ st }: { st: Settings }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [text, setText] = useState("");
   const box = useRef<HTMLInputElement>(null);
+  // The name box ends once: Enter or a click away saves, Esc cancels. The blur that follows Enter or Esc (the box leaving the
+  // screen) must not save a second time, or save the name Esc just threw away.
+  const ended = useRef(false);
   // Esc closes the name box first and nothing else (the newest layer wins, ui/escape.ts).
   useEffect(() => {
     if (!editing) return;
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); setEditing(null); } };
+    ended.current = false;
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); ended.current = true; setEditing(null); } };
     window.addEventListener("keydown", key, true);
     box.current?.focus();
     return () => window.removeEventListener("keydown", key, true);
@@ -54,7 +58,15 @@ export function DeviceBg({ st }: { st: Settings }) {
   const shown = typeof bg === "string" ? bg : "none";
   // This device shows `shown` by definition; it is ticked, and only follows the shared one when it has no pick of its own.
   const t = ticks(list, st.tmBgDev, shown, st.tmBg, isBg).map((x) => x.here ? { ...x, on: true, shared: pickOf(st.tmBgDev, me, isBg) === null } : x);
-  const done = (dev: string) => { const n = cleanName(text); setEditing(null); sfx.click(); doRename(dev, n); };
+  const done = (dev: string) => {
+    if (ended.current) return;
+    ended.current = true;
+    const n = cleanName(text);
+    setEditing(null);
+    const was = devs.find((d) => d.dev === dev);
+    if (was && n === was.name) return;   // nothing changed: no write (a default name is not turned into a chosen one), no sound
+    sfx.click(); doRename(dev, n);
+  };
   return (
     <section className="ms-sec ms-storm dbg" data-set="device-bg">
       <h3 className="ms-h">{DEVICE_WORDS.title}</h3>
